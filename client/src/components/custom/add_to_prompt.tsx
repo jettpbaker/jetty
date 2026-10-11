@@ -81,14 +81,14 @@ export function AddToPrompt({
     document.addEventListener('keydown', escape)
     window.addEventListener('pointerup', release)
     window.addEventListener('resize', hide)
-    chat.addEventListener('scroll', hide, { passive: true })
+    chat.addEventListener('scroll', hide, { passive: true, capture: true })
     return () => {
       document.removeEventListener('selectionchange', show)
       document.removeEventListener('pointerdown', press)
       document.removeEventListener('keydown', escape)
       window.removeEventListener('pointerup', release)
       window.removeEventListener('resize', hide)
-      chat.removeEventListener('scroll', hide)
+      chat.removeEventListener('scroll', hide, true)
     }
   }, [chatRef])
 

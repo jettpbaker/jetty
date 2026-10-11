@@ -161,6 +161,7 @@ function WorkHistory({
         {entries.map((entry, index) => (
           <div
             key={entry.id}
+            data-quote={entry.type === 'text' ? entry.id : undefined}
             className={cn(
               entry.type !== 'text' &&
                 !initialEntries.has(entry.id) &&
