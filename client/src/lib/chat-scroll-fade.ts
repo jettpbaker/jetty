@@ -5,7 +5,8 @@ export const scrollFadeTunerEnabled = import.meta.env.DEV && import.meta.env.VIT
 
 const key = 'jetty.dev.scroll-fade'
 const listeners = new Set<() => void>()
-let enabled = scrollFadeTunerEnabled && storage.get(key) !== 'off'
+export type ScrollFadeMode = 't3' | 'opencode'
+let mode: ScrollFadeMode = storage.get(key) === 't3' ? 't3' : 'opencode'
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
@@ -14,12 +15,12 @@ function subscribe(listener: () => void) {
   }
 }
 
-export function setScrollFade(value: boolean) {
-  enabled = scrollFadeTunerEnabled && value
-  storage.set(key, value ? 'on' : 'off')
+export function setScrollFadeMode(value: ScrollFadeMode) {
+  mode = value
+  storage.set(key, value)
   for (const listener of listeners) listener()
 }
 
-export function useScrollFade() {
-  return useSyncExternalStore(subscribe, () => enabled)
+export function useScrollFadeMode() {
+  return useSyncExternalStore(subscribe, () => (scrollFadeTunerEnabled ? mode : undefined))
 }

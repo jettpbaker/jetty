@@ -308,6 +308,19 @@
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
+@utility chat-top-fade {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(0 0 0 / 10%) 2.4px,
+    rgb(0 0 0 / 30%) 5.76px,
+    rgb(0 0 0 / 58%) 10.08px,
+    rgb(0 0 0 / 82%) 14.88px,
+    rgb(0 0 0 / 96%) 19.68px,
+    black 24px
+  );
+}
+
 @property --scrollbar-auto-hide-thumb {
   syntax: '<color>';
   inherits: true;
