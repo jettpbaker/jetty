@@ -232,7 +232,7 @@ function App({
   capture: boolean
 }) {
   const [run, setRun] = useState(0)
-  const [view, setView] = useState('recorded')
+  const [view, setView] = useState(preview ? 'recorded' : 'live')
   return (
     <StateProvider initialValues={[[chromeSnapshotAtom, { projects: [], threads: [], bots: [] }]]}>
       <TooltipProvider>
@@ -262,7 +262,7 @@ function App({
           )}
           {!capture && view === 'live' && (
             <p className='px-6 pt-3 text-xs text-muted-foreground'>
-              Original server timing before batching, at 1×. Production thread components and event
+              Original server-observed timing, at 1×. Production thread components and event
               reducer. Missing user prompts are represented by a placeholder at playback start.
             </p>
           )}
