@@ -22,7 +22,7 @@ function ToolOutput({ className, children }: { className?: string; children: Rea
 export function ToolCallDetails({ call }: { call: ToolActivity }) {
   const failed = call.status === 'failed' && Boolean(call.output)
   return (
-    <div className='mx-2 my-1 flex min-w-0 flex-col gap-3 rounded-sm border border-border bg-card p-3 text-xs'>
+    <div className='my-1 flex min-w-0 flex-col gap-3 rounded-sm border border-border bg-card p-3 text-xs'>
       {call.input !== undefined && (
         <section>
           <h4 className='mb-1 text-muted-foreground'>Input</h4>
@@ -120,7 +120,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
         </span>
         <ActivityChevron />
       </CollapsibleTrigger>
-      <CollapsibleContent className='pl-2'>
+      <CollapsibleContent>
         <ToolCallDetails call={call} />
       </CollapsibleContent>
     </Collapsible>

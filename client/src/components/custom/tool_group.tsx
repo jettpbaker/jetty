@@ -90,11 +90,11 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         {heading}
         <ActivityChevron />
       </CollapsibleTrigger>
-      <CollapsibleContent className={cn('pl-2', autoClosing && 'work-batch-auto-close')}>
+      <CollapsibleContent className={cn(autoClosing && 'work-batch-auto-close')}>
         {batch.calls.length === 1 && label.fileCount === undefined ? (
           <ToolCallDetails call={batch.calls[0]!} />
         ) : (
-          <div>
+          <div className='pl-2'>
             {batch.calls.map((call) => (
               <ToolCall
                 key={call.id}
