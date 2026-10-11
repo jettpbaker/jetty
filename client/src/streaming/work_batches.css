@@ -14,18 +14,18 @@
   > [data-slot='collapsible'],
 .batch-motion[data-arrival='lift'] > .batch-next {
   animation-name: batch-row-lift;
-  animation-duration: var(--batch-arrival-duration, var(--motion-disclosure-open-duration));
+  animation-duration: var(--motion-disclosure-open-duration);
   animation-timing-function: var(--motion-disclosure-ease);
 }
 
 .batch-motion[data-batch-motion='hold'] {
-  --batch-arrival-duration: var(--motion-control-duration);
+  --batch-arrival-distance: 8px;
 }
 
 .batch-motion[data-batch-motion='hold']
   > [data-slot='collapsible']
   > [data-slot='collapsible-content'][data-ending-style] {
-  transition-delay: var(--motion-control-duration);
+  transition-delay: var(--motion-disclosure-open-duration);
 }
 
 @keyframes batch-row-fade {
@@ -40,7 +40,7 @@
 @keyframes batch-row-lift {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(var(--batch-arrival-distance, 4px));
   }
   to {
     opacity: 1;

@@ -21,7 +21,7 @@ const variants = [
   {
     variant: 'hold',
     title: '3. Lift + brief hold',
-    description: '150ms lift · next arrives, then closing starts 150ms later',
+    description: '8px lift over 250ms · next arrives, then closing starts 250ms later',
   },
   {
     variant: 'settle',

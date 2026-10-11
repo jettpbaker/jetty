@@ -90,7 +90,7 @@
 }
 
 .work-batch-auto-close[data-ending-style] {
-  transition-delay: var(--motion-control-duration);
+  transition-delay: var(--motion-disclosure-open-duration);
 }
 
 @keyframes work-batch-enter {
