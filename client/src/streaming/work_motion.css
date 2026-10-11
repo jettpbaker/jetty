@@ -1,0 +1,31 @@
+.work-raise-enter {
+  animation: work-raise-enter var(--motion-disclosure-open-duration) var(--motion-disclosure-ease)
+    both;
+}
+
+@keyframes work-raise-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .work-raise-enter {
+    animation-duration: var(--motion-control-duration);
+    transform: none;
+  }
+
+  @keyframes work-raise-enter {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}

@@ -4,11 +4,11 @@ import { Block, type BlockProps } from 'streamdown'
 import './smooth_stream.css'
 
 // Smooth streaming, measured off a streaming UI that reads as smooth: every batch fades in whole
-// over 600ms ease-out, no stagger, so fades overlap and a pause in the network reads as a slowdown
+// over 300ms ease-out, no stagger, so fades overlap and a pause in the network reads as a slowdown
 // rather than a stop. Words are never shown half-written, so none starts at a line's end and
 // jumps to the next once it's complete.
 
-export const fadeMs = 600
+export const fadeMs = 300
 
 type HastNode = {
   type: string

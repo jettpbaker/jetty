@@ -10,12 +10,12 @@ import { pressProps } from '@/lib/press'
 import { applyTheme } from '@/lib/theme'
 import { chromeSnapshotAtom } from '@/state/chrome'
 import { StateProvider } from '@/state/provider'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import '../index.css'
 import '../accent.css'
+import './work_motion.css'
 
 const reply = "I'll start by reading the six files you allowed, plus a Glob limited to `src`."
 const words = reply.match(/\S+\s*/g)!
@@ -56,7 +56,6 @@ function activitiesAt(step: number): WorkActivity[] {
 
 // This isolated experiment has at most three entries, so it needs no preview scrolling.
 function RaisedWork({ activities }: { activities: WorkActivity[] }) {
-  const reducedMotion = useReducedMotion()
   const entries = groupWorkActivities(activities, false)
   return (
     <div className='min-w-0'>
@@ -66,27 +65,23 @@ function RaisedWork({ activities }: { activities: WorkActivity[] }) {
         </span>
       </div>
       <div className='pb-1'>
-        <AnimatePresence initial={false}>
-          {entries.map((entry) => (
-            <motion.div
-              key={entry.id}
-              data-entrance-row
-              initial={{ opacity: 0, transform: reducedMotion ? 'none' : 'translateY(8px)' }}
-              animate={{ opacity: 1, transform: reducedMotion ? 'none' : 'translateY(0px)' }}
-              transition={{ duration: reducedMotion ? 0.15 : 0.25, ease: [0.25, 1, 0.5, 1] }}
-            >
-              {entry.type === 'thinking' ? (
-                <ThinkingBlock activity={entry} />
-              ) : entry.type === 'text' ? (
-                <Markdown className='work-text' streaming={entry.streaming} reply={entry.id}>
-                  {entry.text}
-                </Markdown>
-              ) : entry.type === 'tools' ? (
-                <ToolGroup batch={entry} />
-              ) : null}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {entries.map((entry, index) => (
+          <div
+            key={entry.id}
+            data-entrance-row
+            className={index > 0 ? 'work-raise-enter' : undefined}
+          >
+            {entry.type === 'thinking' ? (
+              <ThinkingBlock activity={entry} />
+            ) : entry.type === 'text' ? (
+              <Markdown className='work-text' streaming={entry.streaming} reply={entry.id}>
+                {entry.text}
+              </Markdown>
+            ) : entry.type === 'tools' ? (
+              <ToolGroup batch={entry} />
+            ) : null}
+          </div>
+        ))}
       </div>
     </div>
   )
