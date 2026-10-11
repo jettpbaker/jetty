@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent 
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
+import { MorphText } from './morph_text'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
@@ -187,6 +188,11 @@ export function WorkBlock({
             : duration
               ? 'You stopped'
               : 'You stopped this response'
+  const [label, setLabel] = useState({
+    current: heading,
+    previous: undefined as string | undefined,
+  })
+  if (label.current !== heading) setLabel({ current: heading, previous: label.current })
   const timing =
     runningSeconds !== undefined ? (
       <span className='inline-flex items-baseline whitespace-pre'>
@@ -205,7 +211,11 @@ export function WorkBlock({
     <ActivityDisclosure
       flushHeader
       animateHeader={!ended}
-      title={<span className={cn(status === 'running' && 'shimmer')}>{heading}</span>}
+      title={
+        <MorphText shimmer={status === 'running'} from={label.previous}>
+          {heading}
+        </MorphText>
+      }
       titleSuffix={timing}
       ended={ended}
       hasContent={entries.length > 0}
