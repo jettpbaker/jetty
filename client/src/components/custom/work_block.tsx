@@ -52,6 +52,7 @@ function WorkHistory({
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const glideRef = useRef<ReturnType<typeof bottomGlide> | null>(null)
+  const restorePinRef = useRef<(() => void) | null>(null)
   const heightAnimationRef = useRef<Animation | null>(null)
   const previousView = useRef(view)
 
@@ -92,8 +93,22 @@ function WorkHistory({
       target: () => bottom,
     })
     glideRef.current = glide
+    restorePinRef.current = () => {
+      if (
+        view === 'preview' &&
+        pinned.current &&
+        !gliding &&
+        !heightAnimationRef.current &&
+        Math.abs(element.scrollTop - bottom) > 1
+      )
+        glide.write(bottom)
+    }
     let initial = true
+    let previewStart: Element | undefined
     function measure() {
+      const nextPreviewStart = list.children[Math.max(0, list.children.length - previewCount)]
+      const moved = nextPreviewStart !== previewStart
+      previewStart = nextPreviewStart
       let height = list.offsetHeight
       if (view === 'preview') {
         height = 0
@@ -101,9 +116,7 @@ function WorkHistory({
           height += (row as HTMLElement).offsetHeight
       }
       element.style.maxHeight = `${height}px`
-      const nextBottom = Math.max(0, list.offsetHeight - height)
-      const moved = nextBottom !== bottom
-      bottom = nextBottom
+      bottom = Math.max(0, list.offsetHeight - height)
       if (heightAnimationRef.current) {
         glide.write(historyBottom(element))
       } else if (view === 'preview' && pinned.current && list.children.length > previewCount) {
@@ -137,25 +150,37 @@ function WorkHistory({
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     observer.observe(list)
+    function onKeyDown(event: KeyboardEvent) {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
+        pinned.current = false
+        glide.stop()
+      }
+    }
+    element.addEventListener('keydown', onKeyDown)
     return () => {
       observer.disconnect()
+      element.removeEventListener('keydown', onKeyDown)
       glide.stop()
       glideRef.current = null
+      restorePinRef.current = null
     }
   }, [live, view, reducedMotion])
 
   // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
   function onScroll() {
     const element = scroller.current!
+    restorePinRef.current?.()
     if (historyBottom(element) - element.scrollTop < 2) pinned.current = true
     edges(element, live && view === 'preview' && pinned.current)
   }
 
   function onWheel(event: WheelEvent<HTMLDivElement>) {
-    if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) {
-      pinned.current = false
-      glideRef.current?.stop()
-    }
+    if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) unpin()
+  }
+
+  function unpin() {
+    pinned.current = false
+    glideRef.current?.stop()
   }
 
   return (
@@ -164,6 +189,7 @@ function WorkHistory({
       className={cn('work-scroll no-scrollbar', entries.length > previewCount && 'overflow-y-auto')}
       onScroll={onScroll}
       onWheel={onWheel}
+      onTouchMove={unpin}
     >
       <div>
         {entries.map((entry, index) => (
