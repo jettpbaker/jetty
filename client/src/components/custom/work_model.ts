@@ -223,22 +223,26 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const cancelled = count('cancelled')
   const interrupted = count('interrupted')
   const files = ['read', 'edit', 'write'].includes(first.kind)
+  const counted = files || first.kind === 'terminal'
   const words = first.words ?? vocabulary[first.kind]
-  const active = running.length > 0 || (files && !sealed && failed + cancelled + interrupted === 0)
+  const active =
+    running.length > 0 || (counted && !sealed && failed + cancelled + interrupted === 0)
   const outcome = !active && !completed ? latest.status : undefined
-  const fileCount = files
+  const itemCount = files
     ? countToolFiles(
         active
           ? calls
           : calls.filter((call) => call.status === (completed ? 'complete' : latest.status))
       )
-    : undefined
+    : first.kind === 'terminal'
+      ? active
+        ? calls.length
+        : completed || count(latest.status)
+      : undefined
   const summarise =
-    fileCount !== undefined || (sealed && calls.length > 1 && !active) || running.length > 1
-  const shown = fileCount ?? (active ? running.length : completed || calls.length)
+    itemCount !== undefined || (sealed && calls.length > 1 && !active) || running.length > 1
+  const shown = itemCount ?? (active ? running.length : completed || calls.length)
   const current = running[0] ?? latest
-  const description =
-    first.kind === 'terminal' && !summarise ? current.description?.trim() || undefined : undefined
   let target = current.target
   if (first.kind === 'web') target = ''
   else if (summarise)
@@ -257,7 +261,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
       verb = first.kind === 'web' ? 'Web search stopped' : 'Stopped'
   }
   const notices = (['failed', 'cancelled', 'interrupted'] as const)
-    .filter((status) => calls.length > 1 && count(status) > 0 && !(files && outcome === status))
+    .filter((status) => calls.length > 1 && count(status) > 0 && !(counted && outcome === status))
     .map((status) => ({
       status,
       count: files ? countToolFiles(calls.filter((call) => call.status === status)) : count(status),
@@ -266,15 +270,9 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const noticeText = notices.map((notice) => `${notice.count} ${notice.text}`).join(', ')
   return {
     verb,
-    description:
-      description &&
-      (current.status === 'failed' ||
-        current.status === 'cancelled' ||
-        current.status === 'interrupted')
-        ? `${current.status === 'failed' ? 'Failed to run:' : current.status === 'cancelled' ? 'Cancelled:' : 'Stopped:'} ${description}`
-        : description,
     target,
-    fileCount,
+    itemCount,
+    countNoun: itemCount === 1 ? words.singular : words.noun,
     // A count ("2 files") is words. A single path or command stays machine text.
     prose: first.words !== undefined || summarise,
     active,

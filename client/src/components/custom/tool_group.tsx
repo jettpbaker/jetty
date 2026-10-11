@@ -19,7 +19,7 @@ import {
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const label = describeToolBatch(batch)
   const autoOpen =
-    label.fileCount !== undefined &&
+    label.itemCount !== undefined &&
     (!batch.sealed || batch.calls.some((call) => !workEnded(call.status)))
   const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
   const [open, setOpen] = useState(autoOpen)
@@ -37,31 +37,17 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const heading = (
     <>
       <span className='flex min-w-0 items-baseline gap-1'>
-        {label.description ? (
-          <span
-            className={cn(
-              'truncate',
-              label.active && 'shimmer',
-              label.failed && 'text-status-error'
-            )}
-          >
-            {label.description}
+        <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
+        {label.itemCount !== undefined ? (
+          <span className='inline-flex items-baseline gap-1'>
+            <RollingNumber value={label.itemCount} className='font-mono' />
+            <span>{label.countNoun}</span>
           </span>
-        ) : (
-          <>
-            <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
-            {label.fileCount !== undefined ? (
-              <span className='inline-flex items-baseline gap-1'>
-                <RollingNumber value={label.fileCount} className='font-mono' />
-                <span>{label.fileCount === 1 ? 'file' : 'files'}</span>
-              </span>
-            ) : label.target ? (
-              <RollingText key={label.verb} className={cn(!label.prose && 'font-mono')}>
-                {label.target}
-              </RollingText>
-            ) : null}
-          </>
-        )}
+        ) : label.target ? (
+          <RollingText key={label.verb} className={cn(!label.prose && 'font-mono')}>
+            {label.target}
+          </RollingText>
+        ) : null}
       </span>
       {label.notices.length > 0 && (
         <span
@@ -85,13 +71,13 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
-        aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.noticeText ? `, ${label.noticeText}` : ''}`}
+        aria-label={`${label.verb} ${label.target}${label.noticeText ? `, ${label.noticeText}` : ''}`}
       >
         {heading}
         <ActivityChevron />
       </CollapsibleTrigger>
       <CollapsibleContent className={cn(autoClosing && 'work-batch-auto-close')}>
-        {batch.calls.length === 1 && label.fileCount === undefined ? (
+        {batch.calls.length === 1 && label.itemCount === undefined ? (
           <ToolCallDetails call={batch.calls[0]!} />
         ) : (
           <div className='pl-2'>
@@ -99,7 +85,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
               <ToolCall
                 key={call.id}
                 call={call}
-                animate={label.fileCount !== undefined && autoOpen && !initialCalls.has(call.id)}
+                animate={label.itemCount !== undefined && autoOpen && !initialCalls.has(call.id)}
               />
             ))}
           </div>

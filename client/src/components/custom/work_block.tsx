@@ -264,7 +264,8 @@ function WorkHistory({
             className={cn(
               entry.type !== 'text' &&
                 !initialEntries.has(entry.id) &&
-                (entry.type === 'tools' && !['read', 'edit', 'write'].includes(entry.calls[0]!.kind)
+                (entry.type === 'tools' &&
+                !['read', 'edit', 'write', 'terminal'].includes(entry.calls[0]!.kind)
                   ? 'work-batch-enter'
                   : 'work-raise-enter')
             )}

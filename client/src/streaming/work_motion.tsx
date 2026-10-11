@@ -207,6 +207,67 @@ function ToolExamplesRow() {
   )
 }
 
+function CommandExample() {
+  const [run, setRun] = useState(0)
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    const timers = [1, 2, 3].map((next) => setTimeout(() => setStep(next), next * 1200))
+    return () => {
+      for (const timer of timers) clearTimeout(timer)
+    }
+  }, [run])
+  const commands = [
+    {
+      description: 'Check the current branch',
+      command: 'git branch --show-current',
+      output: 'main',
+    },
+    { description: 'Check for local changes', command: 'git status --short', output: '' },
+    {
+      description: 'Show the latest commit',
+      command: 'git log -1 --oneline',
+      output: '25c39cbc Anchor work history preview above resizing details',
+    },
+  ]
+  const complete = step === 3
+  const batch: ToolBatch = {
+    type: 'tools',
+    id: 'command-example',
+    sealed: complete,
+    calls: commands.slice(0, step + 1).map((command, index) => ({
+      type: 'tool',
+      id: `command-example:${index}`,
+      kind: 'terminal',
+      name: 'Bash',
+      target: command.command,
+      description: command.description,
+      status: complete || index < step ? 'complete' : 'running',
+      input: command.command,
+      output: complete || index < step ? command.output : undefined,
+    })),
+  }
+  return (
+    <section aria-label='Command counter' data-tool-example='commands'>
+      <div className='mb-8 flex items-center justify-between'>
+        <h2 className='text-sm font-medium'>Command count</h2>
+        <Button
+          size='sm'
+          aria-label='Replay command counter'
+          {...pressProps(() => {
+            setStep(0)
+            setRun(run + 1)
+          })}
+        >
+          Replay
+        </Button>
+      </div>
+      <div className='work-scroll'>
+        <ToolGroup key={run} batch={batch} />
+      </div>
+    </section>
+  )
+}
+
 function ToolOutcomeExamples() {
   const [selectedFile, setSelectedFile] = useState<string>()
   const outcomes: {
@@ -291,6 +352,7 @@ function Sequence() {
     <div className='flex flex-col gap-16'>
       <Example activities={activitiesAt(step)} identity={identity} />
       <ToolExamplesRow />
+      <CommandExample />
       <ToolOutcomeExamples />
       <BatchMotionPreviews />
       <CompletionPreviews />

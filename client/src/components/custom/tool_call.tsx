@@ -61,6 +61,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
   const label = describeToolBatch({ type: 'tools', id: call.id, calls: [call], sealed: true })
   const hasOutcomeDetails =
     call.status === 'failed' || call.status === 'cancelled' || call.status === 'interrupted'
+  const description = call.kind === 'terminal' ? call.description?.trim() : undefined
   if (root && call.files?.length)
     return (
       <Collapsible className={animate ? 'work-raise-enter' : undefined}>
@@ -129,8 +130,11 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
             call.status === 'failed' && 'text-status-error'
           )}
         >
-          {label.description ? (
-            <span className={cn(label.active && 'shimmer')}>{label.description}</span>
+          {description ? (
+            <span className={cn(label.active && 'shimmer')}>
+              {hasOutcomeDetails && `${label.verb}: `}
+              {description}
+            </span>
           ) : (
             <>
               <span className={cn(label.active && 'shimmer')}>{label.verb}</span>{' '}
