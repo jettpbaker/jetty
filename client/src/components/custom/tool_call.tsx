@@ -63,7 +63,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
     call.status === 'failed' || call.status === 'cancelled' || call.status === 'interrupted'
   if (root && call.files?.length)
     return (
-      <Collapsible className={animate ? 'work-batch-enter' : undefined}>
+      <Collapsible className={animate ? 'work-raise-enter' : undefined}>
         {call.files.map((file) => {
           const path = projectRelativePath(file, root)
           const change = call.fileChange
@@ -121,7 +121,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
       </Collapsible>
     )
   return (
-    <Collapsible className={animate ? 'work-batch-enter' : undefined}>
+    <Collapsible className={animate ? 'work-raise-enter' : undefined}>
       <CollapsibleTrigger render={<Button variant='ghost-text' />} className='activity-header'>
         <span
           className={cn(

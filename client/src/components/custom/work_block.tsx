@@ -166,7 +166,9 @@ function WorkHistory({
             className={cn(
               entry.type !== 'text' &&
                 !initialEntries.has(entry.id) &&
-                (entry.type === 'tools' ? 'work-batch-enter' : 'work-raise-enter')
+                (entry.type === 'tools' && !['read', 'edit', 'write'].includes(entry.calls[0]!.kind)
+                  ? 'work-batch-enter'
+                  : 'work-raise-enter')
             )}
           >
             {entry.type === 'thinking' ? (
