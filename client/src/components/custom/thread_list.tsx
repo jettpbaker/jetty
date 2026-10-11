@@ -43,8 +43,8 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { bottomGlide } from '@/lib/bottom-glide'
-import { getMotionTokens } from '@/lib/motion'
 import { whenIdle } from '@/lib/preload'
+import { getSendMotionTransition } from '@/lib/send-motion'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
 import { pendingTurnId } from '@/state/turns'
@@ -661,10 +661,8 @@ export function ThreadList({
         shownTop.current = element.scrollTop
         landed.current = { key, at: performance.now() }
         virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false
-        const { openMs, ease } = getMotionTokens().disclosure
         sendGlide.current = animate(0, 1, {
-          duration: openMs / 1000,
-          ease,
+          ...getSendMotionTransition(),
           onUpdate: (progress) => {
             element.scrollTop = start + (sendTarget.current - start) * progress
             shownTop.current = element.scrollTop
