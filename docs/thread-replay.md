@@ -128,3 +128,10 @@ A second row reuses `ToolGroup` to show Reading 1 → 2 → 3 files → Read 3 f
 Searching the web → Searched the web. Replay restarts every example, including the rolling
 file count. The file disclosure can be expanded to inspect the individual calls.
 The tool row also has its own Replay button, which leaves the entrance comparison running.
+
+Completion transitions below it compare the current instant Reading → Read change with four
+dev-only alternatives: a control-duration crossfade, a disclosure-duration fade through,
+an 8px upward swap, and a character morph using the existing Torph library. Each has an
+independent Replay button. The count stays at 3 to isolate the completion change, which
+starts after one second. Reduced motion replaces movement with the control-duration fade.
+These experiments do not change the production tool label.
