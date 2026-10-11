@@ -155,6 +155,8 @@ main history rows remain aligned with the Working heading.
 Live file batches start expanded and collapse once work moves on and every call in the
 batch has settled. Manual toggles persist between those transitions; completed history
 starts collapsed and can be reopened.
+Thinking summaries open only on a manual toggle, including when summary text arrives
+just before completion. Finishing thinking preserves a manually opened summary.
 
 The live five-entry history follows new rows with the same interruptible scroll glide as
 the conversation. Scrolling back stops it; reduced motion pins immediately. Consecutive

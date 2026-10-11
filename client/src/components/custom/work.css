@@ -36,13 +36,6 @@
 .work-scroll .work-text {
   padding-inline-start: 0;
 }
-.thinking-tail {
-  @apply flex max-h-[4.5rem] flex-col justify-end overflow-hidden;
-  mask-image: linear-gradient(to bottom, transparent, black 1rem);
-}
-.thinking-tail > p {
-  flex-shrink: 0;
-}
 .work-scroll[data-above] {
   mask-image: linear-gradient(to bottom, transparent, black 0.6rem);
 }

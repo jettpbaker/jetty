@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 import { ActivityContent } from './activity_content'
 import { formatActivityDuration, workEnded, type ThinkingActivity } from './work_model'
@@ -49,28 +49,8 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
   // A count already known at mount (a revisit) starts there; one that arrives later climbs from 0.
   const [mountTokens] = useState(activity.tokens)
   const ended = workEnded(activity.status)
-  const [previousEnded, setPreviousEnded] = useState(ended)
   const contentId = useId()
   const [expanded, setExpanded] = useState(false)
-  const [fullText, setFullText] = useState(false)
-  if (!ended && fullText !== expanded) setFullText(expanded)
-  if (previousEnded !== ended) {
-    setPreviousEnded(ended)
-    setExpanded(false)
-  }
-  const [overflowing, setOverflowing] = useState(false)
-  const measure = useCallback((node: HTMLParagraphElement | null) => {
-    if (!node) return
-    const update = () =>
-      setOverflowing(
-        node.getBoundingClientRect().height >
-          parseFloat(getComputedStyle(document.documentElement).fontSize) * 4.5
-      )
-    const observer = new ResizeObserver(update)
-    observer.observe(node)
-    update()
-    return () => observer.disconnect()
-  }, [])
   const active = activity.status === 'running'
   const tokens = activity.tokens !== undefined && (
     <>
@@ -100,16 +80,13 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
   )
   return (
     <div className='min-w-0'>
-      {summary && (ended || overflowing) ? (
+      {summary ? (
         <Button
           variant='ghost-text'
           className='activity-header'
           aria-expanded={expanded}
           aria-controls={contentId}
-          onClick={() => {
-            if (ended && !expanded) setFullText(true)
-            setExpanded((value) => !value)
-          }}
+          onClick={() => setExpanded((value) => !value)}
         >
           {heading}
         </Button>
@@ -117,11 +94,9 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
         <div className='activity-header text-muted-foreground'>{heading}</div>
       )}
       {summary && (
-        <ActivityContent id={contentId} open={!ended || expanded}>
-          <div className={cn('pl-2', !fullText && overflowing && 'thinking-tail')}>
-            <p ref={measure} className='thinking-text'>
-              {summary}
-            </p>
+        <ActivityContent id={contentId} open={expanded}>
+          <div className='pl-2'>
+            <p className='thinking-text'>{summary}</p>
           </div>
         </ActivityContent>
       )}
