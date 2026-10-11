@@ -931,7 +931,7 @@ export function ThreadList({
         {scrollFade === 'opencode' && (
           <div
             aria-hidden='true'
-            className='pointer-events-none absolute inset-x-0 top-0 z-10 h-4 bg-linear-to-b from-background to-transparent'
+            className='pointer-events-none absolute inset-x-0 top-0 z-10 h-10 bg-linear-to-b from-background to-transparent'
           />
         )}
         <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />

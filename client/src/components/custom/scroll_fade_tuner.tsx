@@ -21,10 +21,10 @@ export function ScrollFadeTuner() {
         }}
       >
         <ToggleGroupItem value='t3' {...pressProps(() => setScrollFadeMode('t3'))}>
-          T3 Code · 24px
+          T3 style · 40px
         </ToggleGroupItem>
         <ToggleGroupItem value='opencode' {...pressProps(() => setScrollFadeMode('opencode'))}>
-          OpenCode · 16px
+          OpenCode style · 40px
         </ToggleGroupItem>
       </ToggleGroup>
     </aside>

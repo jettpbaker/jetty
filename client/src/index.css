@@ -312,12 +312,12 @@
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    rgb(0 0 0 / 10%) 2.4px,
-    rgb(0 0 0 / 30%) 5.76px,
-    rgb(0 0 0 / 58%) 10.08px,
-    rgb(0 0 0 / 82%) 14.88px,
-    rgb(0 0 0 / 96%) 19.68px,
-    black 24px
+    rgb(0 0 0 / 10%) 4px,
+    rgb(0 0 0 / 30%) 9.6px,
+    rgb(0 0 0 / 58%) 16.8px,
+    rgb(0 0 0 / 82%) 24.8px,
+    rgb(0 0 0 / 96%) 32.8px,
+    black 40px
   );
 }
 
