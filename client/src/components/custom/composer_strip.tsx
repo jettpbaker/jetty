@@ -28,6 +28,7 @@ import type { Approval, Question, Source } from './composer_strip_model'
 import type { Todo } from './todo_model'
 
 import { NeedsInputIcon } from './circle_status_icon'
+import { DiffCounts } from './diff/file_card'
 import { loadDiffWorkerPool } from './diff_worker_pool'
 import { InProgressIcon } from './in_progress_icon'
 import { SourceLabel } from './source_label'
@@ -280,6 +281,7 @@ function FullTarget({ item }: { item: Approval }) {
           {item.run ? `in ${item.detail}` : item.detail}
         </span>
       )}
+      {item.counts && <DiffCounts files={[item.counts]} />}
     </div>
   )
 }
@@ -356,11 +358,7 @@ export function ApprovalStrip({
                 </TooltipContent>
               </Tooltip>
             )}
-            {!ctl.expanded && item.action === 'Edit' && item.detail && (
-              <span className='shrink-0 font-mono text-xs text-muted-foreground'>
-                {item.detail}
-              </span>
-            )}
+            {!ctl.expanded && item.counts && <DiffCounts files={[item.counts]} />}
             {ctl.expanded && (
               <Button
                 variant='ghost'

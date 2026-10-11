@@ -18,6 +18,7 @@ export type Approval = {
   run: boolean
   target: string
   detail?: string
+  counts?: { additions: number; deletions: number }
   changes?: ProposedChanges
   // absent when the provider can't remember the choice
   always?: { patterns: readonly string[]; scope?: string }
@@ -50,7 +51,7 @@ function command(input: Record<string, unknown>) {
   return typeof value === 'string' ? value : undefined
 }
 
-function editDetail(input: Record<string, unknown>) {
+function editCounts(input: Record<string, unknown>) {
   const edits = Array.isArray(input.edits) ? input.edits.map(record) : [input]
   let added = lineCount(input.content)
   let removed = 0
@@ -58,7 +59,7 @@ function editDetail(input: Record<string, unknown>) {
     added += lineCount(edit.new_string)
     removed += lineCount(edit.old_string)
   }
-  return added || removed ? `+${added} −${removed}` : undefined
+  return added || removed ? { additions: added, deletions: removed } : undefined
 }
 
 function diffLines(text: string) {
@@ -228,7 +229,7 @@ function changesView({ files }: ProposedChanges) {
     action: 'Edit',
     run: false,
     target: files.length === 1 ? files[0]!.path : `${files.length} files`,
-    detail: `+${added} −${removed}`,
+    counts: { additions: added, deletions: removed },
   }
 }
 
@@ -236,7 +237,7 @@ function viewOf(
   item: ApprovalItem,
   input: Record<string, unknown>,
   projectPath: string | undefined
-): { action: string; run: boolean; target: string; detail?: string } {
+): Pick<Approval, 'action' | 'run' | 'target' | 'detail' | 'counts'> {
   const name = item.toolName.toLowerCase()
   const shell = command(input)
   if (runTools.has(name) || (shell && !editTools.has(name))) {
@@ -249,7 +250,7 @@ function viewOf(
       action: 'Edit',
       run: false,
       target: typeof path === 'string' ? projectRelative(path, projectPath) : item.title,
-      detail: editDetail(input),
+      counts: editCounts(input),
     }
   }
   const target = toolTarget(item.toolName, item.input, projectPath)
