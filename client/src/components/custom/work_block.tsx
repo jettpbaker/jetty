@@ -51,12 +51,21 @@ function WorkHistory({
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const glideRef = useRef<ReturnType<typeof bottomGlide> | null>(null)
+  const heightAnimationRef = useRef<Animation | null>(null)
+  const previousView = useRef(view)
+
+  useEffect(() => () => heightAnimationRef.current?.cancel(), [])
 
   // A live preview is as tall as its latest entries and scrolls back through the rest, pinned to
   // the newest. Writes go straight to the node, so a growing entry never re-renders the log.
   useLayoutEffect(() => {
     const element = scroller.current!
     const list = element.firstElementChild as HTMLElement
+    const changedView = previousView.current !== view
+    previousView.current = view
+    const previousHeight = element.getBoundingClientRect().height
+    heightAnimationRef.current?.cancel()
+    heightAnimationRef.current = null
     if (!live && element.style.maxHeight) {
       // Keep the preview capped until the parent finishes closing.
       const release = setTimeout(
@@ -68,7 +77,7 @@ function WorkHistory({
       )
       return () => clearTimeout(release)
     }
-    if (!live || view === 'full') {
+    if (!live) {
       element.style.maxHeight = ''
       edges(element)
       return
@@ -81,11 +90,16 @@ function WorkHistory({
     glideRef.current = glide
     let initial = true
     function measure() {
-      let height = 0
-      for (const row of [...list.children].slice(-previewCount))
-        height += (row as HTMLElement).offsetHeight
-      element.style.maxHeight = list.children.length > previewCount ? `${height}px` : ''
-      if (pinned.current && list.children.length > previewCount) {
+      let height = list.offsetHeight
+      if (view === 'preview') {
+        height = 0
+        for (const row of [...list.children].slice(-previewCount))
+          height += (row as HTMLElement).offsetHeight
+      }
+      element.style.maxHeight = `${height}px`
+      if (heightAnimationRef.current) {
+        glide.write(historyBottom(element))
+      } else if (view === 'preview' && pinned.current && list.children.length > previewCount) {
         if (initial || reducedMotion) glide.write(historyBottom(element))
         else glide.start()
       }
@@ -93,6 +107,25 @@ function WorkHistory({
       edges(element, pinned.current)
     }
     measure()
+    if (changedView && !reducedMotion && previousHeight !== element.clientHeight) {
+      const styles = getComputedStyle(element)
+      const duration = styles.getPropertyValue(
+        view === 'full' ? '--motion-disclosure-open-duration' : '--motion-disclosure-close-duration'
+      )
+      const animation = element.animate(
+        { maxHeight: [`${previousHeight}px`, element.style.maxHeight] },
+        {
+          duration: parseFloat(duration),
+          easing: styles.getPropertyValue('--motion-disclosure-ease').trim(),
+        }
+      )
+      heightAnimationRef.current = animation
+      glide.write(historyBottom(element))
+      animation.onfinish = () => {
+        heightAnimationRef.current = null
+        edges(element, pinned.current)
+      }
+    }
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     observer.observe(list)
