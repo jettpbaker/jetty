@@ -20,6 +20,7 @@ export type ToolActivity = {
   words?: ToolWords
   target: string
   files?: string[]
+  fileChange?: { path: string; additions: number; deletions: number }
   description?: string
   status: ActivityStatus
   input?: string

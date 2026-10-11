@@ -41,11 +41,22 @@ export function DiffViewed({
   )
 }
 
-export function DiffCounts({ files }: { files: Pick<DiffFile, 'additions' | 'deletions'>[] }) {
+export function DiffCounts({
+  files,
+  hideZero = false,
+}: {
+  files: Pick<DiffFile, 'additions' | 'deletions'>[]
+  hideZero?: boolean
+}) {
+  const additions = files.reduce((n, f) => n + f.additions, 0)
+  const deletions = files.reduce((n, f) => n + f.deletions, 0)
   return (
-    <span className='inline-flex shrink-0 gap-1.5 font-mono text-xs tabular-nums'>
-      <span className='text-status-success'>+{files.reduce((n, f) => n + f.additions, 0)}</span>
-      <span className='text-status-error'>−{files.reduce((n, f) => n + f.deletions, 0)}</span>
+    <span
+      className='inline-flex shrink-0 gap-1.5 font-mono text-xs tabular-nums'
+      aria-label={`${additions} lines added, ${deletions} lines removed`}
+    >
+      {(!hideZero || additions > 0) && <span className='text-status-success'>+{additions}</span>}
+      {(!hideZero || deletions > 0) && <span className='text-status-error'>−{deletions}</span>}
     </span>
   )
 }

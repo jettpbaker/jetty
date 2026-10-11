@@ -367,6 +367,7 @@ function toActivity(
         : toolTarget(item.toolName, item.input, projectPath),
     description: toolDescription(item.input),
     files: ['read', 'edit', 'write'].includes(kind) ? toolFiles(fields, projectPath) : undefined,
+    fileChange: item.fileChange,
     // A tool Stop cut off is completed with its status left unsettled; a later turn keeps the
     // session active, but that tool stays stopped.
     status:

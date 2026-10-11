@@ -636,6 +636,10 @@ function translateUser(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
 
   const out: ThreadEvent[] = []
   const workflowResult = record(msg.tool_use_result)
+  const fileChange =
+    content.filter((block) => record(block).type === 'tool_result').length === 1
+      ? fileChangeCounts(workflowResult)
+      : undefined
   for (const block of content) {
     if (!block || typeof block !== 'object') continue
     const b = block as {
@@ -677,10 +681,35 @@ function translateUser(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
     out.push({
       type: 'item.completed',
       itemId,
-      patch: { status: b.is_error ? 'failed' : 'succeeded' },
+      patch: {
+        status: b.is_error ? 'failed' : 'succeeded',
+        ...(!b.is_error && fileChange ? { fileChange } : {}),
+      },
     })
   }
   return out
+}
+
+function fileChangeCounts(result: Record<string, unknown>) {
+  if (typeof result.filePath !== 'string' || result.staged === true) return undefined
+  if (result.type === 'create' && typeof result.content === 'string') {
+    const content = result.content
+    const additions = content ? content.split('\n').length - Number(content.endsWith('\n')) : 0
+    return { path: result.filePath, additions, deletions: 0 }
+  }
+  if (!Array.isArray(result.structuredPatch) || !result.structuredPatch.length) return undefined
+  let additions = 0
+  let deletions = 0
+  for (const hunk of result.structuredPatch) {
+    const lines = record(hunk).lines
+    if (!Array.isArray(lines)) return undefined
+    for (const line of lines) {
+      if (typeof line !== 'string') return undefined
+      if (line.startsWith('+')) additions++
+      else if (line.startsWith('-')) deletions++
+    }
+  }
+  return { path: result.filePath, additions, deletions }
 }
 
 function toolResultToString(content: unknown): string {

@@ -137,6 +137,13 @@ export const ThreadItem = Schema.Union([
     input: Schema.Unknown,
     output: Schema.String,
     status: Schema.Literals(['running', 'succeeded', 'failed']),
+    fileChange: Schema.optional(
+      Schema.Struct({
+        path: Schema.String,
+        additions: Schema.Natural,
+        deletions: Schema.Natural,
+      })
+    ),
   }),
   Schema.Struct({
     ...itemBase,
