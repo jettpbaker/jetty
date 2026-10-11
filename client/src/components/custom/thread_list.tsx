@@ -767,7 +767,15 @@ export function ThreadList({
             virtualizer.itemSizeCache.delete(key)
       setWidth(text)
       setGutter((element.offsetWidth - text) / 2)
-      setViewportHeight(element.clientHeight)
+      if (reserved.current && element.clientHeight > height) {
+        // Grow the sent message's space before a disappearing composer row clamps the chat.
+        const space = element.firstElementChild as HTMLElement
+        const top = pinned.current ? Math.max(0, scrollExtent.current - height) : shownTop.current
+        space.style.height = `${Math.max(space.offsetHeight, scrollExtent.current + element.clientHeight - height)}px`
+        element.scrollTop = top
+        shownTop.current = element.scrollTop
+        flushSync(() => setViewportHeight(element.clientHeight))
+      } else setViewportHeight(element.clientHeight)
       // A pinned list keeps its bottom in view as the window or the composer takes height from it.
       if (pinned.current && !reserved.current && element.clientHeight < height)
         element.scrollTop += height - element.clientHeight
