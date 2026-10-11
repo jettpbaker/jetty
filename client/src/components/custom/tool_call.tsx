@@ -79,7 +79,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
                     <Button
                       variant='link'
                       size='sm'
-                      className='min-w-0 justify-start gap-1.5 px-0 text-13 font-normal'
+                      className='min-w-0 shrink justify-start gap-1.5 px-0 text-13 font-normal'
                       title={path}
                       aria-label={`Open ${path}`}
                       onClick={() => {
