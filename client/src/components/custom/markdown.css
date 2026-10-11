@@ -23,6 +23,21 @@
   vertical-align: middle;
 }
 
+:is(.thread-reply, .work-text) :is(h1, h2, h3, h4, h5, h6) {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+:is(.thread-reply, .work-text) :is(h1, h2) {
+  font-weight: 600;
+}
+:is(.thread-reply, .work-text) h1 {
+  font-size: 17px;
+}
+:is(.thread-reply, .work-text) h2 {
+  font-size: 15px;
+}
+
 .pr-comment-markdown h1 {
   font-size: 2em;
 }
