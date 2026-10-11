@@ -78,7 +78,7 @@ export type ThreadRow =
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
-  // a settled approval or question; pending ones live in the composer strip
+  // a denied approval or answered question; pending ones live in the composer strip
   | { kind: 'marker'; id: string; item: ApprovalItem | QuestionItem; source?: string }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
@@ -753,7 +753,7 @@ export function threadRows(
         break
       case 'approval':
       case 'question':
-        if (!awaitsInput(item))
+        if (!awaitsInput(item) && (item.kind !== 'approval' || item.decision !== 'allow'))
           rows.push({
             kind: 'marker',
             id: item.id,
