@@ -6,6 +6,9 @@
 .activity-header > span:first-child {
   block-size: 1lh;
 }
+.activity-file-row {
+  padding-block: 0;
+}
 .activity-header[data-flush] {
   @apply text-muted-foreground;
   padding-inline-start: 0;

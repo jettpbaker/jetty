@@ -5,6 +5,7 @@ import type { TurnOutcome } from '@jetty/shared/reducer'
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
 import { ErrorMessage } from '@/components/custom/error_message'
+import { ProjectFileRoot } from '@/components/custom/file_link'
 import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
@@ -285,15 +286,17 @@ const ThreadItemRow = memo(function ThreadItemRow({
     )
   if (row.kind === 'work')
     return (
-      <WorkBlock
-        threadId={threadId}
-        activities={row.activities}
-        status={row.status}
-        startedAt={row.startedAt}
-        elapsedSeconds={row.elapsedSeconds}
-        settingUp={row.settingUp}
-        restarted={row.restarted}
-      />
+      <ProjectFileRoot value={projectPath}>
+        <WorkBlock
+          threadId={threadId}
+          activities={row.activities}
+          status={row.status}
+          startedAt={row.startedAt}
+          elapsedSeconds={row.elapsedSeconds}
+          settingUp={row.settingUp}
+          restarted={row.restarted}
+        />
+      </ProjectFileRoot>
     )
   if (row.kind === 'subagents')
     return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />

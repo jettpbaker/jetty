@@ -1,9 +1,12 @@
-import type { ReactNode } from 'react'
-
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
+import { use, type ReactNode } from 'react'
 
+import './charmed_icons.css'
+import { basename, CharmedFileIcon } from './diff/file_name'
+import { copyFilePath, OpenFileLink, ProjectFileRoot, projectRelativePath } from './file_link'
+import { ArrowDown01Icon } from './huge_icons'
 import { describeToolBatch, type ToolActivity } from './work_model'
 
 function ToolOutput({ className, children }: { className?: string; children: ReactNode }) {
@@ -48,7 +51,56 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
 }
 
 export function ToolCall({ call, animate = false }: { call: ToolActivity; animate?: boolean }) {
+  const root = use(ProjectFileRoot)
+  const openFile = use(OpenFileLink)
   const label = describeToolBatch({ type: 'tools', id: call.id, calls: [call], sealed: true })
+  if (root && call.files?.length)
+    return (
+      <div className={animate ? 'work-batch-enter' : undefined}>
+        {call.files.map((file) => {
+          const path = projectRelativePath(file, root)
+          return (
+            <Collapsible key={file}>
+              <div className='activity-header activity-file-row'>
+                {call.status === 'failed' && (
+                  <span className='shrink-0 text-status-error'>{label.verb}</span>
+                )}
+                {path ? (
+                  <Button
+                    variant='link'
+                    size='sm'
+                    className='min-w-0 flex-1 justify-start gap-1.5 px-0 text-13 font-normal'
+                    title={path}
+                    aria-label={`Open ${path}`}
+                    onClick={() => {
+                      if (!openFile({ path }, 'file')) copyFilePath(path)
+                    }}
+                  >
+                    <span data-charmed='soft' className='inline-flex size-4 shrink-0'>
+                      <CharmedFileIcon path={path} inline />
+                    </span>
+                    <span className='truncate font-mono'>{basename(path)}</span>
+                  </Button>
+                ) : (
+                  <span className='min-w-0 flex-1 truncate font-mono text-muted-foreground'>
+                    {file}
+                  </span>
+                )}
+                <CollapsibleTrigger
+                  render={<Button variant='ghost' size='icon-sm' />}
+                  aria-label={`Tool details for ${path ?? file}`}
+                >
+                  <ArrowDown01Icon />
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent className='pl-2'>
+                <ToolCallDetails call={call} />
+              </CollapsibleContent>
+            </Collapsible>
+          )
+        })}
+      </div>
+    )
   return (
     <Collapsible className={animate ? 'work-batch-enter' : undefined}>
       <CollapsibleTrigger render={<Button variant='ghost-text' />} className='activity-header'>

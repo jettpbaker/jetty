@@ -1,8 +1,9 @@
 import { cn } from '@/lib/utils'
+import { useMemo } from 'react'
 
 import type { DiffFile } from './model'
 
-import { charmedExtensions, charmedFileNames } from '../charmed_icons'
+import { charmedExtensions, charmedFileNames, charmedSprite } from '../charmed_icons'
 
 // File icons are Charmed Icons' Soft palette, drawn from the sprite JettyStyle renders once, scaled up
 // from their native 16px to 20.
@@ -13,7 +14,7 @@ export function FileGlyph({ file }: { file: DiffFile }) {
     </span>
   )
 }
-export function CharmedFileIcon({ path }: { path: string }) {
+export function CharmedFileIcon({ path, inline = false }: { path: string; inline?: boolean }) {
   const name = (path.split('/').at(-1) ?? path).toLowerCase()
   let icon = Object.hasOwn(charmedFileNames, name) ? charmedFileNames[name] : undefined
   if (!icon) {
@@ -26,6 +27,22 @@ export function CharmedFileIcon({ path }: { path: string }) {
       }
     }
   }
+  const markup = useMemo(() => {
+    if (!inline) return undefined
+    const start = charmedSprite.indexOf(`<symbol id="ci-${icon ?? '_file'}"`)
+    const end = charmedSprite.indexOf('</symbol>', start)
+    return charmedSprite.slice(charmedSprite.indexOf('>', start) + 1, end)
+  }, [icon, inline])
+  if (inline)
+    return (
+      <svg
+        aria-hidden='true'
+        className='size-full'
+        viewBox='0 0 16 16'
+        fill='none'
+        dangerouslySetInnerHTML={{ __html: markup ?? '' }}
+      />
+    )
   return (
     <svg aria-hidden='true' className='size-full'>
       <use href={`#ci-${icon ?? '_file'}`} />

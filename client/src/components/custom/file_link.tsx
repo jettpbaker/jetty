@@ -9,7 +9,10 @@ import { visitLinks, type MarkdownNode } from './markdown_links'
 export type FileTarget = { path: string; line?: number; attachment?: Attachment }
 
 // Opens a linked file inside Jetty; false when the file isn't in the thread's project.
-export const OpenFileLink = createContext<(target: FileTarget) => boolean>(() => false)
+export const OpenFileLink = createContext<(target: FileTarget, view?: 'file') => boolean>(
+  () => false
+)
+export const ProjectFileRoot = createContext<string | undefined>(undefined)
 
 const scheme = /^[a-z][a-z\d+.-]*:(?!\d)/i
 const lineSuffix = /:(\d+)(?::\d+)?$/

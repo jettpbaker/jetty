@@ -134,10 +134,11 @@ export function ThreadDetailsLayout({
   const { tab: requestedTab, consume } = useDetailsRequest(threadId)
 
   const openFile = useCallback(
-    (target: FileTarget) => {
+    (target: FileTarget, view?: 'file') => {
       const path = projectPath && projectRelativePath(target.path, projectPath)
       if (!path) return false
-      if (changesDisabled) {
+      if (changesDisabled || view === 'file') {
+        setFileRequest(undefined)
         showFile({ threadId, target: { ...target, path } })
         setTab('file')
       } else {
@@ -145,7 +146,7 @@ export function ThreadDetailsLayout({
         tabs.current?.show('changes')
       }
       if (!open) {
-        openingTab.current = changesDisabled ? 'file' : 'changes'
+        openingTab.current = changesDisabled || view === 'file' ? 'file' : 'changes'
         showPane()
       }
       return true
