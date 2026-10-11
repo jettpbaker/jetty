@@ -166,57 +166,68 @@ async function main() {
       await writeFile(join(temporary, file), Buffer.from(data, 'base64'))
     }
     await captureFrame(0)
-    const playbackStarted = performance.now()
+    await session.send('Emulation.setDeviceMetricsOverride', {
+      ...size,
+      deviceScaleFactor: scale,
+      mobile: false,
+      viewport: { x: 0, y: 0, ...size, scale: 1 },
+    })
+    let playbackStarted = Infinity
+    let failure: unknown
+    const pending = new Set<Promise<void>>()
+    function onFrame(frame: { data: string; metadata: { timestamp: number }; sessionId: number }) {
+      const at = 0.25 + frame.metadata.timestamp - playbackStarted
+      if (at >= 0.25 && at > snapshots[snapshots.length - 1]!.at) {
+        const file = `frame-${snapshots.length}.png`
+        snapshots.push({ file, at })
+        const data = Buffer.from(frame.data, 'base64')
+        if (
+          data.readUInt32BE(16) !== size.width * scale ||
+          data.readUInt32BE(20) !== size.height * scale
+        ) {
+          failure = new Error('Screencast frame dimensions changed during capture.')
+        }
+        const save = writeFile(join(temporary, file), data)
+          .catch((error: unknown) => {
+            failure = error
+          })
+          .finally(() => {
+            pending.delete(save)
+          })
+        pending.add(save)
+      }
+      void session
+        .send('Page.screencastFrameAck', { sessionId: frame.sessionId })
+        .catch((error: unknown) => {
+          failure = error
+        })
+    }
+    session.on('Page.screencastFrame', onFrame)
+    await session.send('Page.startScreencast', {
+      format: 'png',
+      maxWidth: size.width * scale,
+      maxHeight: size.height * scale,
+      everyNthFrame: 1,
+    })
+    playbackStarted = Date.now() / 1000
     await page.evaluate(() => window.dispatchEvent(new Event('jetty:capture-play')))
     console.log(
       `Recording ${recording.title} at 1× (${size.width * scale}×${size.height * scale}, ${fps} fps)…`
     )
-    let stopAt = Infinity
-    let failure: unknown
-    const complete = page
-      .waitForFunction(
-        () =>
-          document.querySelector<HTMLElement>('[data-capture-state]')?.dataset.captureState ===
-          'complete',
-        undefined,
-        {
-          timeout: Math.max(60_000, recording.durationMs + 60_000),
-        }
-      )
-      .then(
-        () => {
-          stopAt = performance.now() + 1000
-        },
-        (error: unknown) => {
-          failure = error
-          stopAt = 0
-        }
-      )
-    const pending = new Set<Promise<void>>()
-    let nextFrameAt = performance.now()
-    while (performance.now() < stopAt) {
-      if (pending.size >= 4) await Promise.race(pending)
-      if (performance.now() >= stopAt) break
-      const frameStarted = performance.now()
-      const capture = captureFrame(0.25 + (frameStarted - playbackStarted) / 1000)
-        .catch((error: unknown) => {
-          failure = error
-          stopAt = 0
-        })
-        .finally(() => {
-          pending.delete(capture)
-        })
-      pending.add(capture)
-      nextFrameAt = Math.max(nextFrameAt + 1000 / fps, frameStarted)
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.max(0, nextFrameAt - performance.now()))
-      )
-    }
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLElement>('[data-capture-state]')?.dataset.captureState ===
+        'complete',
+      undefined,
+      { timeout: Math.max(60_000, recording.durationMs + 60_000) }
+    )
+    await page.waitForTimeout(1000)
+    const duration = 0.25 + Date.now() / 1000 - playbackStarted
+    await session.send('Page.stopScreencast')
+    session.off('Page.screencastFrame', onFrame)
     await Promise.all(pending)
     if (failure) throw failure
-    await complete
-    if (failure) throw failure
-    const duration = 0.25 + (performance.now() - playbackStarted) / 1000
+    if (snapshots.length < 2) throw new Error('Screencast did not capture the turn.')
     await context.close()
     console.log(`Encoding ${snapshots.length} snapshots as lossless VP9…`)
     const concat =

@@ -83,13 +83,12 @@ production rendering. The manifest includes recording identity, capture time, so
 revision, dimensions, measured duration, and measured frame count. Its revision identifies
 HEAD; commit source changes before capture when the preview needs an exact source reference.
 
-The utility captures PNG snapshots through Chromium's screenshot protocol, targeting 60 samples
-per second while real browser animations run at 1×. Up to four screenshot requests overlap so
-capture can keep pace without changing the browser's animation clock. Explicit scaling supplies actual
-additional pixels; increasing Playwright's native video dimensions alone only pads its image.
-Snapshot timestamps preserve elapsed time when capture runs slower. Encoding resamples them to
-**60 fps**, repeating a snapshot when capture falls behind. Stepping inspects encoded frames;
-capturing every browser frame still depends on machine load.
+The utility captures a continuous PNG screencast through Chromium's public protocol while real
+browser animations run at 1×. A fixed device-pixel viewport supplies Retina detail without resizing
+the capture surface between frames. Increasing Playwright's native video dimensions alone only pads
+its image. Chromium's frame timestamps preserve elapsed time. Encoding resamples them to **60 fps**,
+repeating a frame when the page is unchanged or capture falls behind. Stepping inspects encoded
+frames; capturing every browser frame still depends on machine load.
 
 PNG snapshots avoid the native recorder's JPEG and VP8 compression stages. They are encoded once
 as lossless VP9 WebM with broadly supported 4:2:0 color sampling, front-loaded seek cues and a
@@ -97,6 +96,6 @@ maximum one-second keyframe interval. ffprobe verifies dimensions, frame count a
 timestamp. Temporary snapshots are removed after capture.
 
 The video begins with a fixed 250 ms ready hold, then the turn and one second of postroll. Frame
-positions are precise within the encoded movie; snapshot request times do not guarantee exact
-browser presentation timestamps. Replay fidelity remains limited by the original server-observed
-recording described above.
+positions are precise within the encoded movie. Capture timestamps describe this replay browser,
+not the original client's presentation. Replay fidelity remains limited by the original
+server-observed recording described above.
