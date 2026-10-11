@@ -84,9 +84,12 @@ function WorkHistory({
       return
     }
     pinned.current = true
+    let bottom = historyBottom(element)
+    let gliding = false
     const glide = bottomGlide(element, {
       onWrite: () => edges(element, pinned.current),
-      target: () => historyBottom(element),
+      onRun: (running) => (gliding = running),
+      target: () => bottom,
     })
     glideRef.current = glide
     let initial = true
@@ -98,10 +101,14 @@ function WorkHistory({
           height += (row as HTMLElement).offsetHeight
       }
       element.style.maxHeight = `${height}px`
+      const nextBottom = Math.max(0, list.offsetHeight - height)
+      const moved = nextBottom !== bottom
+      bottom = nextBottom
       if (heightAnimationRef.current) {
         glide.write(historyBottom(element))
       } else if (view === 'preview' && pinned.current && list.children.length > previewCount) {
-        if (initial || reducedMotion) glide.write(historyBottom(element))
+        // Closing details can clamp scrollTop before the preview cap catches up.
+        if (initial || reducedMotion || (!moved && !gliding)) glide.write(bottom)
         else glide.start()
       }
       initial = false
