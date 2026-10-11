@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 
 import { RegistryProvider } from '@effect/atom-react'
 
@@ -7,6 +7,16 @@ function nextFrame(task: () => void) {
   return () => cancelAnimationFrame(id)
 }
 
-export function StateProvider({ children }: { children: ReactNode }) {
-  return <RegistryProvider scheduleTask={nextFrame}>{children}</RegistryProvider>
+export function StateProvider({
+  children,
+  initialValues,
+}: {
+  children: ReactNode
+  initialValues?: ComponentProps<typeof RegistryProvider>['initialValues']
+}) {
+  return (
+    <RegistryProvider scheduleTask={nextFrame} initialValues={initialValues}>
+      {children}
+    </RegistryProvider>
+  )
 }

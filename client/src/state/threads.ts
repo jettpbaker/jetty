@@ -14,7 +14,7 @@ import { subscribe, useAction } from './connection'
 import { createItemSelection, noteItemDelta, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
 
-function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
+export function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
   if (update.type === 'snapshot') return { ...update.snapshot, lastSeq: update.seq }
   if (update.type === 'event') {
     const next = applyEvent(state, update)
@@ -34,7 +34,7 @@ export function completedAgo(itemId: string) {
   return at === undefined ? Infinity : performance.now() - at
 }
 
-function noteCompleted(itemId: string) {
+export function noteCompleted(itemId: string) {
   completedHere.set(itemId, performance.now())
   if (completedHere.size > 200) completedHere.delete(completedHere.keys().next().value!)
 }

@@ -123,12 +123,16 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
 }
 
 // The server's own view, before this tab's pending changes.
-export const liveAtom = Atom.make((get) =>
-  subscribe(get, (connection) => connection.subscribeChrome()).pipe(
+export const chromeSnapshotAtom = Atom.make<Chrome | undefined>(undefined)
+
+export const liveAtom = Atom.make((get) => {
+  const snapshot = get(chromeSnapshotAtom)
+  if (snapshot) return Stream.succeed(snapshot)
+  return subscribe(get, (connection) => connection.subscribeChrome()).pipe(
     Stream.scan(() => emptyChrome, foldChrome),
     Stream.drop(1)
   )
-).pipe(Atom.keepAlive)
+}).pipe(Atom.keepAlive)
 
 export function serverChrome(registry: AtomRegistry.AtomRegistry) {
   return AsyncResult.getOrElse(registry.get(liveAtom), () => undefined)
