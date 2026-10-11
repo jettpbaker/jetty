@@ -4,8 +4,9 @@ import { CopyButton } from '@/components/custom/copy_button'
 
 import './code_block.css'
 import { TextWrapIcon } from '@/components/custom/huge_icons'
-import { fadeMs, fadeStyle } from '@/components/custom/smooth_stream'
+import { fadeStyle } from '@/components/custom/smooth_stream'
 import { Button } from '@/components/ui/button'
+import { getMotionTokens } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import {
   cloneElement,
@@ -96,6 +97,7 @@ function usePatchedLines(html: readonly string[], command: boolean, streaming: b
     }
     const now = performance.now()
     const births = born.current!
+    const fadeMs = getMotionTokens().streamFadeMs
     for (let index = same; index < element.children.length; index++) {
       const age = now - (births[index] ?? (births[index] = streaming ? now : -Infinity))
       if (age >= fadeMs) continue

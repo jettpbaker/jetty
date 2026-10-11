@@ -1,4 +1,5 @@
 import { bottomGlide } from '@/lib/bottom-glide'
+import { getMotionTokens } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { completedAgo } from '@/state/threads'
 import { useReducedMotion } from 'motion/react'
@@ -73,7 +74,7 @@ function WorkHistory({
           element.style.maxHeight = ''
           edges(element)
         },
-        reducedMotion ? 0 : 250
+        reducedMotion ? 0 : getMotionTokens().disclosure.closeMs
       )
       return () => clearTimeout(release)
     }

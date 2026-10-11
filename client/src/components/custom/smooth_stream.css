@@ -1,5 +1,4 @@
-/* smooth_stream.tsx's fades: 300ms (fadeMs) from first showing, unless an element sets --fade and
-   --fade-delay inline to carry on one already running. */
+/* A negative --fade-delay carries on a fade when its element is replaced. */
 @keyframes smooth-fade {
   from {
     opacity: 0;
@@ -16,13 +15,16 @@
   }
 }
 .smooth-fade {
-  animation: smooth-fade var(--fade, 300ms) ease-out var(--fade-delay, 0ms) both;
+  animation: smooth-fade var(--motion-stream-fade-duration) var(--motion-control-ease)
+    var(--fade-delay, 0ms) both;
 }
 .smooth-li::marker {
-  animation: smooth-marker var(--fade, 300ms) ease-out var(--fade-delay, 0ms) both;
+  animation: smooth-marker var(--motion-stream-fade-duration) var(--motion-control-ease)
+    var(--fade-delay, 0ms) both;
 }
 .smooth-blockquote {
-  animation: smooth-border var(--fade, 300ms) ease-out var(--fade-delay, 0ms) both;
+  animation: smooth-border var(--motion-stream-fade-duration) var(--motion-control-ease)
+    var(--fade-delay, 0ms) both;
 }
 @media (prefers-reduced-motion: reduce) {
   .smooth-fade,

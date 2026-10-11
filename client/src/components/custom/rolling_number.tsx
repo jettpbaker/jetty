@@ -1,3 +1,4 @@
+import { getMotionTokens } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { useRef } from 'react'
 import { TextMorph } from 'torph/react'
@@ -10,6 +11,7 @@ export function RollingNumber({
   className?: string
 }) {
   const digitsRef = useRef<HTMLSpanElement>(null)
+  const { rolling } = getMotionTokens()
   function blurDigits() {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     queueMicrotask(() => {
@@ -31,7 +33,7 @@ export function RollingNumber({
             { filter: 'blur(1px)', offset: 0.15 },
             { filter: 'blur(0)', offset: 1 },
           ],
-          { duration: 500, easing: 'cubic-bezier(0.19, 1, 0.22, 1)' }
+          { duration: rolling.durationMs, easing: rolling.ease }
         )
       }
     })
@@ -41,8 +43,8 @@ export function RollingNumber({
       <TextMorph
         onAnimationStart={blurDigits}
         as='span'
-        duration={500}
-        ease='cubic-bezier(0.19, 1, 0.22, 1)'
+        duration={rolling.durationMs}
+        ease={rolling.ease}
         scale={false}
         numbers
       >

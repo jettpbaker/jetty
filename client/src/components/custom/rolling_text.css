@@ -8,13 +8,13 @@
   inset: 0;
   pointer-events: none;
   animation:
-    rolling-text-out 500ms cubic-bezier(0.19, 1, 0.22, 1) both,
-    rolling-text-fade-out 225ms linear both;
+    rolling-text-out var(--motion-rolling-duration) var(--motion-rolling-ease) both,
+    rolling-text-fade-out var(--motion-rolling-fade-out-duration) linear both;
 }
 .rolling-text-in {
   animation:
-    rolling-text-in 500ms cubic-bezier(0.19, 1, 0.22, 1) both,
-    rolling-text-fade-in 125ms linear both;
+    rolling-text-in var(--motion-rolling-duration) var(--motion-rolling-ease) both,
+    rolling-text-fade-in var(--motion-rolling-fade-in-duration) linear both;
 }
 @keyframes rolling-text-in {
   from {

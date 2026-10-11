@@ -1,14 +1,13 @@
+import { getMotionTokens } from '@/lib/motion'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Block, type BlockProps } from 'streamdown'
 
 import './smooth_stream.css'
 
 // Smooth streaming, measured off a streaming UI that reads as smooth: every batch fades in whole
-// over 300ms ease-out, no stagger, so fades overlap and a pause in the network reads as a slowdown
+// with no stagger, so fades overlap and a pause in the network reads as a slowdown
 // rather than a stop. Words are never shown half-written, so none starts at a line's end and
 // jumps to the next once it's complete.
-
-export const fadeMs = 300
 
 type HastNode = {
   type: string
@@ -49,7 +48,7 @@ export function wholeWords(text: string) {
 
 // Inline style for an element whose fade began `age` ms ago, so one made again carries on.
 export function fadeStyle(age = 0) {
-  return `--fade:${fadeMs}ms;--fade-delay:${-Math.round(age)}ms`
+  return `--fade-delay:${-Math.round(age)}ms`
 }
 
 // A reply that lands in a lump (Claude often sends one written after a tool call all at once)
@@ -160,6 +159,7 @@ function revealPlugin(clock: Clock) {
     }
     const births = clock.births
     if (births.length === 0) return
+    const fadeMs = getMotionTokens().streamFadeMs
     // Every stretch keeps its own span for good, so React keeps each one's element, and with it
     // its running fade, from render to render. Spans whose fade is over just drop the class.
     const fading = (at: number) => now - at < fadeMs
