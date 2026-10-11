@@ -45,6 +45,12 @@ export type QuestionActivity = {
   item: Extract<ThreadItem, { kind: 'question' }>
   source?: string
 }
+export type ApprovalActivity = {
+  type: 'approval'
+  id: string
+  item: Extract<ThreadItem, { kind: 'approval' }>
+  source?: string
+}
 export type WorkActivity =
   | ToolActivity
   | ThinkingActivity
@@ -52,6 +58,7 @@ export type WorkActivity =
   | CreatedActivity
   | TextActivity
   | QuestionActivity
+  | ApprovalActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
 export type ThreadBatch = { type: 'threads'; id: string; threads: CreatedActivity[] }
 export type WorkEntry =
@@ -61,6 +68,7 @@ export type WorkEntry =
   | TodoActivity
   | TextActivity
   | QuestionActivity
+  | ApprovalActivity
 
 const vocabulary = {
   read: {

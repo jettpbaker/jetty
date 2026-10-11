@@ -31,6 +31,7 @@ import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem } from './composer_strip_model'
 import { inlineLinkClass, LeadTitle, OpenPullLink, plainClick, shorten } from './entity_link'
+import { ProjectFileRoot } from './file_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
 
@@ -87,7 +88,8 @@ export function TranscriptMarker({
   provider?: string
   projectPath?: string
 }) {
-  const { tone, text } = approvalMarker(item, projectPath)
+  const root = use(ProjectFileRoot)
+  const { tone, text } = approvalMarker(item, projectPath ?? root)
   const Icon = markerIcons[tone]
   return (
     <div

@@ -27,7 +27,6 @@ import {
   PullRequestGroupSeam,
   RestartLimitSeam,
   RestartSeam,
-  TranscriptMarker,
 } from '@/components/custom/transcript_marker'
 import { UserMessage } from '@/components/custom/user_message'
 import { VideoMessage } from '@/components/custom/video_message'
@@ -169,8 +168,6 @@ function rowStamp(row: ThreadRow) {
       return ''
     case 'restartLimit':
       return row.resumed
-    case 'marker':
-      return row.item.kind
     case 'work':
       return `${row.status}:${row.settingUp}:${row.activities
         .map((activity) =>
@@ -180,7 +177,8 @@ function rowStamp(row: ThreadRow) {
               ? `${activity.id}:${activity.summary.length}:${activity.status}`
               : activity.type === 'todo' ||
                   activity.type === 'created' ||
-                  activity.type === 'question'
+                  activity.type === 'question' ||
+                  activity.type === 'approval'
                 ? activity.id
                 : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
@@ -311,14 +309,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
   if (row.kind === 'video')
     return <VideoMessage video={row.item.video} caption={row.item.caption} />
-  return (
-    <TranscriptMarker
-      item={row.item}
-      source={row.source}
-      provider={provider}
-      projectPath={projectPath}
-    />
-  )
+  return null
 })
 
 export function ThreadList({

@@ -274,7 +274,5 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'pullRequest':
     case 'pullRequestGroup':
       return 24
-    case 'marker':
-      return 16
   }
 }

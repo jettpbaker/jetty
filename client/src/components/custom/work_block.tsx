@@ -12,6 +12,7 @@ import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
 import { ThreadGroup, ToolGroup } from './tool_group'
+import { TranscriptMarker } from './transcript_marker'
 import {
   formatActivityDuration,
   createWorkEntries,
@@ -275,6 +276,10 @@ function WorkHistory({
               <ThinkingBlock activity={entry} />
             ) : entry.type === 'question' ? (
               <QuestionBlock activity={entry} />
+            ) : entry.type === 'approval' ? (
+              <div className='flex min-h-7 items-center py-1'>
+                <TranscriptMarker item={entry.item} source={entry.source} />
+              </div>
             ) : entry.type === 'text' ? (
               <Markdown
                 className={cn('work-text', index < entries.length - 1 && 'work-text-past')}

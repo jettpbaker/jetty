@@ -24,7 +24,7 @@ type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
-type StepItem = WorkItem | AssistantItem | QuestionItem
+type StepItem = WorkItem | AssistantItem | QuestionItem | ApprovalItem
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
@@ -74,8 +74,6 @@ export type ThreadRow =
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
-  // a denied approval; pending requests live in the composer strip
-  | { kind: 'marker'; id: string; item: ApprovalItem; source?: string }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
 
@@ -312,6 +310,7 @@ function toActivity(
   projectPath: string | undefined,
   source?: string
 ): WorkActivity {
+  if (item.kind === 'approval') return { type: 'approval', id: item.id, item, source }
   if (item.kind === 'question') return { type: 'question', id: item.id, item, source }
   if (item.kind === 'assistant_message')
     return {
@@ -561,7 +560,7 @@ export function threadRows(
       askedTurns.has(item.turnId)
     )
   }
-  // A question has its own history row, and a denied tool its Denied marker; Claude
+  // Questions and declined approvals have their own history entries; Claude
   // loading a deferred tool's schema (ToolSearch) is plumbing, not work. Jetty's note to the agent
   // after a restart is for the agent: the restart's seam tells the user.
   function hidden(item: ThreadItem) {
@@ -572,10 +571,13 @@ export function threadRows(
       (item.kind === 'user_message' && item.from?.threadId === threadId && !item.reports)
     )
   }
-  function isStep(item: ThreadItem): item is WorkItem | QuestionItem {
+  function isStep(item: ThreadItem): item is WorkItem | QuestionItem | ApprovalItem {
     return (
       ((item.kind === 'reasoning' || item.kind === 'tool_call') && !hidden(item)) ||
-      (item.kind === 'question' && !awaitsInput(item))
+      (item.kind === 'question' && !awaitsInput(item)) ||
+      (item.kind === 'approval' &&
+        !awaitsInput(item) &&
+        (item.decision === 'deny' || !!item.withdrawn))
     )
   }
   // Replies stay with the work until the turn ends, then its last reply becomes the answer.
@@ -735,15 +737,6 @@ export function threadRows(
         break
       case 'video':
         rows.push({ kind: 'video', id: item.id, item })
-        break
-      case 'approval':
-        if (!awaitsInput(item) && item.decision !== 'allow')
-          rows.push({
-            kind: 'marker',
-            id: item.id,
-            item,
-            source: item.agentId && agentTitles.get(item.agentId),
-          })
         break
     }
   }
