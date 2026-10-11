@@ -118,7 +118,7 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
       )}
       {summary && (
         <ActivityContent id={contentId} open={!ended || expanded}>
-          <div className={!fullText && overflowing ? 'thinking-tail' : undefined}>
+          <div className={cn('pl-4', !fullText && overflowing && 'thinking-tail')}>
             <p ref={measure} className='thinking-text'>
               {summary}
             </p>
