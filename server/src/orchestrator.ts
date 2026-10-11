@@ -1763,8 +1763,8 @@ export function createOrchestrator({
       },
       startTurnEffect,
       setQueuePaused,
-      // Tells clients, and the queue, about a thread whose queue a store transaction resumed.
-      queueResumed(threadId: string) {
+      // Publish committed queue metadata without waiting for the background queue scan.
+      publishQueuedThread(threadId: string) {
         return hub.withChromePublication(
           Effect.gen(function* () {
             hub.pushChrome({

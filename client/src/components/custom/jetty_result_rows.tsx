@@ -4,7 +4,7 @@ import type { ProviderModel } from '@jetty/shared/wire'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import { cloneElement, type ReactElement, type ReactNode } from 'react'
+import { cloneElement, useState, type ReactElement, type ReactNode } from 'react'
 
 import { ActivityChevron } from './activity_disclosure'
 import { ModelLabel } from './model_label'
@@ -27,14 +27,28 @@ export type ThreadResult = {
 export function Disclosure({
   title,
   label,
+  autoOpen = false,
   children,
 }: {
   title: ReactNode
   label?: string
+  autoOpen?: boolean
   children: ReactNode
 }) {
+  const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
+  const [open, setOpen] = useState(autoOpen)
+  const [autoClosing, setAutoClosing] = useState(false)
+  if (previousAutoOpen !== autoOpen) {
+    setPreviousAutoOpen(autoOpen)
+    setAutoClosing(!autoOpen && open)
+    setOpen(autoOpen)
+  }
+  function onOpenChange(nextOpen: boolean) {
+    setAutoClosing(false)
+    setOpen(nextOpen)
+  }
   return (
-    <Collapsible>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
@@ -43,7 +57,9 @@ export function Disclosure({
         <span>{title}</span>
         <ActivityChevron />
       </CollapsibleTrigger>
-      <CollapsibleContent>{children}</CollapsibleContent>
+      <CollapsibleContent className={cn(autoClosing && 'work-batch-auto-close')}>
+        {children}
+      </CollapsibleContent>
     </Collapsible>
   )
 }
@@ -140,6 +156,7 @@ export function CountedResults({
   count,
   noun,
   active = false,
+  autoOpen = false,
   details,
   notice,
   noticeText,
@@ -149,6 +166,7 @@ export function CountedResults({
   count?: number
   noun: string
   active?: boolean
+  autoOpen?: boolean
   details?: ReactNode
   notice?: ReactNode
   noticeText?: string
@@ -158,6 +176,7 @@ export function CountedResults({
   return (
     <Disclosure
       label={label}
+      autoOpen={autoOpen}
       title={
         <span className='inline-flex items-baseline gap-1'>
           <span className={cn(active && 'shimmer')}>{verb}</span>

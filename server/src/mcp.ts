@@ -660,7 +660,7 @@ export function createMcpHandler(
             }
           })
         )
-        if (response.resumed) yield* orch.queueResumed(response.threadId)
+        if (response.resumed) yield* orch.publishQueuedThread(response.threadId)
         let delivery = 'queued'
         if (input.steer && !response.duplicate && response.messageId) {
           const sent = yield* orch.sendQueuedNow(response.threadId, response.messageId, false).pipe(
@@ -873,6 +873,7 @@ export function createMcpHandler(
             Effect.gen(function* () {
               const created = yield* createThread(identity, input)
               if (!('created' in created)) return created
+              yield* orch.publishQueuedThread(created.threadId)
               if (bot)
                 yield* orch.botMarker(
                   identity.threadId,

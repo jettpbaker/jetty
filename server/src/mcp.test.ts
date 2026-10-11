@@ -61,7 +61,11 @@ function callTool(
     const handle = yield* createMcpHandler(
       sessions,
       store,
-      { withAdmission: (_: string, effect: unknown) => effect, ...orch } as unknown as Orchestrator,
+      {
+        withAdmission: (_: string, effect: unknown) => effect,
+        publishQueuedThread: () => Effect.void,
+        ...orch,
+      } as unknown as Orchestrator,
       yield* createAttachments(home),
       () => catalog,
       createPullRequestLinks(store, hub, createPullRequests(store, hub), scope),
@@ -404,7 +408,7 @@ test('send_message restarts a stopped child with the message, even if Jetty dies
     (await Effect.runPromise(store.requireThread(child.id))).pendingMessages ?? []
 
   const crashed = await send({
-    queueResumed: () => Effect.fail(new StoreError('conflict', 'Jetty died')),
+    publishQueuedThread: () => Effect.fail(new StoreError('conflict', 'Jetty died')),
   })
   expect(crashed.isError).toBe(true)
   expect(await Effect.runPromise(store.isQueuePaused(child.id))).toBe(false)

@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { useBot, useProject, usePullRequestSummary, useThreadMeta } from '@/state'
 import { Link } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { botColorStyle, botTextClass } from './bot_avatar'
 import { JettyBot } from './jetty_bot'
@@ -172,7 +172,10 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
     ]
     return { parsed, results }
   }, [batch.calls, config])
+  const [initialResults] = useState(() => new Set(results.map(jettyResultKey)))
   const unsettled = batch.calls.some((call) => !workEnded(call.status))
+  const autoOpen =
+    (tool === 'create_thread' || tool === 'archive_thread') && (!batch.sealed || unsettled)
   const active =
     unsettled ||
     (!config.list && !batch.sealed && batch.calls.every((call) => call.status === 'complete'))
@@ -202,6 +205,7 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
       count={count}
       noun={config.noun}
       active={active}
+      autoOpen={autoOpen}
       noticeText={notices.noticeText}
       notice={
         notices.notices.length > 0 && (
@@ -236,7 +240,14 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
       }
     >
       {results.map((result) => (
-        <ResultRow key={jettyResultKey(result)} result={result} tool={tool} />
+        <div
+          key={jettyResultKey(result)}
+          className={cn(
+            autoOpen && !initialResults.has(jettyResultKey(result)) && 'work-raise-enter'
+          )}
+        >
+          <ResultRow result={result} tool={tool} />
+        </div>
       ))}
       {config.list && count === 0 && !active && (
         <p className='py-1 text-13 leading-5 text-muted-foreground'>No {config.noun}s returned.</p>

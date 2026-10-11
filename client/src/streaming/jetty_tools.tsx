@@ -267,7 +267,7 @@ function OtherTools({ onSelect }: { onSelect: (result: ThreadResult) => void }) 
         </div>
       </div>
       <p className='mb-6 text-13 text-muted-foreground'>
-        One item uses the same collapsed group as three. Replay grows the batch from one to three.
+        Replay grows the batch from one to three. Creation and archival open while running.
       </p>
       <div key={run} className='grid gap-8 md:grid-cols-2 md:gap-16'>
         <div className='work-scroll min-w-0' aria-label='Thread actions'>
@@ -278,6 +278,7 @@ function OtherTools({ onSelect }: { onSelect: (result: ThreadResult) => void }) 
               noun='thread'
               count={count}
               active={playing}
+              autoOpen={playing && (action.done === 'Created' || action.done === 'Archived')}
             >
               {threadResults.slice(1, count + 1).map((thread) => (
                 <ThreadRow
