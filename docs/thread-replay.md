@@ -77,12 +77,13 @@ production rendering. The manifest includes recording identity, capture time, so
 revision, dimensions, measured duration, and measured frame count. Its revision identifies
 HEAD; commit source changes before capture when the preview needs an exact source reference.
 
-The utility captures PNG snapshots through Chromium's screenshot protocol, targeting 25 samples
-per second while real browser animations run at 1×. Explicit screenshot scaling supplies actual
+The utility captures PNG snapshots through Chromium's screenshot protocol, targeting 60 samples
+per second while real browser animations run at 1×. Up to four screenshot requests overlap so
+capture can keep pace without changing the browser's animation clock. Explicit scaling supplies actual
 additional pixels; increasing Playwright's native video dimensions alone only pads its image.
 Snapshot timestamps preserve elapsed time when capture runs slower. Encoding resamples them to
-**25 fps**, repeating a snapshot when needed. Stepping inspects encoded frames, not every original
-browser frame. This is not a 60 fps capture.
+**60 fps**, repeating a snapshot when capture falls behind. Stepping inspects encoded frames;
+capturing every browser frame still depends on machine load.
 
 PNG snapshots avoid the native recorder's JPEG and VP8 compression stages. They are encoded once
 as lossless VP9 WebM with broadly supported 4:2:0 color sampling, front-loaded seek cues and a

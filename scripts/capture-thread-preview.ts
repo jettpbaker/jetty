@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const fps = 25
+const fps = 60
 const { values } = parseArgs({
   options: {
     url: { type: 'string', default: 'http://localhost:5175/thread-replay.html?capture=1' },
@@ -154,6 +154,8 @@ async function main() {
     const session = await context.newCDPSession(page)
     const snapshots: { file: string; at: number }[] = []
     async function captureFrame(at: number) {
+      const file = `frame-${snapshots.length}.png`
+      snapshots.push({ file, at })
       const { data } = await session.send('Page.captureScreenshot', {
         format: 'png',
         fromSurface: true,
@@ -161,9 +163,7 @@ async function main() {
         optimizeForSpeed: true,
         clip: { x: 0, y: 0, ...size, scale },
       })
-      const file = `frame-${snapshots.length}.png`
       await writeFile(join(temporary, file), Buffer.from(data, 'base64'))
-      snapshots.push({ file, at })
     }
     await captureFrame(0)
     const playbackStarted = performance.now()
@@ -192,13 +192,28 @@ async function main() {
           stopAt = 0
         }
       )
+    const pending = new Set<Promise<void>>()
+    let nextFrameAt = performance.now()
     while (performance.now() < stopAt) {
+      if (pending.size >= 4) await Promise.race(pending)
+      if (performance.now() >= stopAt) break
       const frameStarted = performance.now()
-      await captureFrame(0.25 + (frameStarted - playbackStarted) / 1000)
+      const capture = captureFrame(0.25 + (frameStarted - playbackStarted) / 1000)
+        .catch((error: unknown) => {
+          failure = error
+          stopAt = 0
+        })
+        .finally(() => {
+          pending.delete(capture)
+        })
+      pending.add(capture)
+      nextFrameAt = Math.max(nextFrameAt + 1000 / fps, frameStarted)
       await new Promise((resolve) =>
-        setTimeout(resolve, Math.max(0, frameStarted + 1000 / fps - performance.now()))
+        setTimeout(resolve, Math.max(0, nextFrameAt - performance.now()))
       )
     }
+    await Promise.all(pending)
+    if (failure) throw failure
     await complete
     if (failure) throw failure
     const duration = 0.25 + (performance.now() - playbackStarted) / 1000
@@ -276,7 +291,7 @@ async function main() {
       stream.codec_name !== 'vp9' ||
       stream.width !== size.width * scale ||
       stream.height !== size.height * scale ||
-      stream.avg_frame_rate !== '25/1' ||
+      stream.avg_frame_rate !== `${fps}/1` ||
       frameCount !== frames.length ||
       frames[0]?.key_frame !== 1
     ) {
