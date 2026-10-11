@@ -163,6 +163,9 @@ function ToolExamples() {
         target: 'React streaming UI',
         status: complete ? 'complete' : 'running',
         input: JSON.stringify({ query: 'React streaming UI' }),
+        output: complete
+          ? 'React documentation: https://react.dev/reference/react-dom/server'
+          : undefined,
       },
     ],
   }

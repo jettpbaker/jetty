@@ -80,14 +80,6 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       )}
     </>
   )
-  if (batch.calls[0]!.kind === 'web')
-    return (
-      <div
-        className={cn('activity-header text-muted-foreground', label.failed && 'text-status-error')}
-      >
-        {heading}
-      </div>
-    )
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger

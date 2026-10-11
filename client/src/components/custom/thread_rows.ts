@@ -851,22 +851,19 @@ function groupPullRequestRows(rows: ThreadRow[]): ThreadRow[] {
   return grouped
 }
 
-// The agent's messages between two of the user's read as one answer, whatever lands between
-// them (a report, a finish line, more work): one footer at the end, copying the whole run. A run
-// the agent is still working on has no end yet, so no footer.
+// Copy only the final response once the agent has finished working.
 function stitchRuns(rows: ThreadRow[]) {
-  let run: Extract<ThreadRow, { kind: 'assistant' | 'plan' }>[] = []
+  let last: Extract<ThreadRow, { kind: 'assistant' | 'plan' }> | undefined
   let working = false
   function close() {
-    const last = run.at(-1)
-    if (last && !working) last.footer = run.map((row) => row.item.text).join('\n\n')
-    run = []
+    if (last && !working) last.footer = last.item.text
+    last = undefined
     working = false
   }
   for (const row of rows) {
     if (row.kind === 'user') close()
     else if (row.kind === 'assistant' || row.kind === 'plan') {
-      run.push(row)
+      last = row
     } else if (row.kind === 'work' && (row.status === 'running' || row.status === 'waiting'))
       working = true
   }
