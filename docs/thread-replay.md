@@ -2,7 +2,7 @@
 
 Run `bun run dev:client` and open `/thread-replay.html`. No API server or provider is needed.
 
-The page feeds recorded events through the production client's `foldUpdate` and shared reducer,
+The page opens the recorded video preview by default. Its **Live** mode feeds recorded events through the production client's `foldUpdate` and shared reducer,
 then renders the existing `ThreadList`, `WorkBlock`, tool/thinking rows and streaming Markdown.
 An isolated atom registry supplies empty app metadata; it does not subscribe to the live app.
 The old `/streaming-replay.html` remains a separate text-rendering experiment.
@@ -30,7 +30,7 @@ Use a full `session.viewer.json` from the existing capture as `recording`, and t
 assistant-only reviewed projection cannot reproduce the work UI. Local recordings are not
 repository fixtures and must not be committed.
 
-Play runs once at the recorded pace. Restart gives every item a fresh playback identity so
+In Live mode, Play runs once at the recorded pace. Restart gives every item a fresh playback identity so
 production caches do not remember earlier reveals. Show completed inspects the final state.
 Item timestamps are shifted to the playback's current wall clock so durations start correctly.
 
@@ -45,13 +45,21 @@ browser clock. Use a complete 1× playback to evaluate motion and layout.
 Start the Vite client on port 5175, then run:
 
 ```sh
-bun scripts/capture-thread-preview.ts
+bun run replay:capture
 ```
 
 The utility visits `/thread-replay.html?capture=1`, waits for fonts and the local recording,
 then records the production conversation at 1× with one second of postroll. Capture mode
 fills the viewport with the conversation and omits replay controls. It needs no API server,
 provider authentication, or live thread connection. External HTTP requests are blocked.
+
+Reload `/thread-replay.html` after capture. Recorded mode has a draggable timeline and frame
+timecode (`minutes:seconds:frames`), previous/next frame buttons, play/pause and playback speeds.
+Seeking pauses playback. Shortcuts are Space to play/pause, `<` / `>` (comma/period) to step one
+frame, ← / → to skip one second, Shift ← / → to skip five seconds, and Home / End for the
+first/last frame. Slow motion slows all captured motion, including CSS animations and JS timers.
+This is video inspection: interact with the conversation itself in Live mode, and recapture
+after changing production components.
 
 The default viewport is 1000×800; use `--width` and `--height` to change it. `--url` selects
 another localhost replay server. Playwright resolves from the project when installed, then

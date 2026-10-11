@@ -139,6 +139,7 @@ async function main() {
     if (!recording.recordingId || !recording.title || !Number.isFinite(recording.durationMs)) {
       throw new Error('Replay capture metadata is missing or invalid.')
     }
+    await page.waitForTimeout(500)
     const playbackStarted = Date.now()
     await page.evaluate(() => window.dispatchEvent(new Event('jetty:capture-play')))
     console.log(`Recording ${recording.title} at 1× (${fps} fps)…`)

@@ -181,9 +181,7 @@ export function RecordedPreview({ preview }: { preview: PreviewManifest }) {
           onPause={() => setPlaying(false)}
           onSeeked={() => {
             const video = videoRef.current
-            const targetTime = (requestedFrame.current + 0.5) / preview.fps
-            if (video && Math.abs(video.currentTime - targetTime) < 0.5 / preview.fps)
-              seeking.current = false
+            if (video && !video.seeking) seeking.current = false
           }}
           onEnded={() => {
             requestedFrame.current = lastFrame
@@ -298,7 +296,14 @@ export function RecordedPreview({ preview }: { preview: PreviewManifest }) {
             aria-hidden='true'
           >
             {ticks.map((tick, index) => (
-              <span key={index} className='flex flex-col items-center gap-1'>
+              <span
+                key={index}
+                className={
+                  index % 2
+                    ? 'hidden flex-col items-center gap-1 sm:flex'
+                    : 'flex flex-col items-center gap-1'
+                }
+              >
                 <span>{timecode(tick, preview.fps)}</span>
                 <span className='h-2 w-px bg-border' />
               </span>

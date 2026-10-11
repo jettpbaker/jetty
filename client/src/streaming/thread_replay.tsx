@@ -1,5 +1,6 @@
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { loadAccent } from '@/lib/accent'
 import { pressProps } from '@/lib/press'
@@ -17,6 +18,21 @@ import '../index.css'
 import '../accent.css'
 import { createPlaybackClock } from './clock'
 import { loadRecording } from './engine'
+import { RecordedPreview } from './recorded_preview'
+
+const Preview = Schema.Struct({
+  version: Schema.Literal(1),
+  recordingId: Schema.String,
+  title: Schema.String,
+  src: Schema.Literal('/streaming-replay.local/preview.webm'),
+  fps: Schema.Finite.check(Schema.isGreaterThan(0)),
+  frameCount: Schema.Int.check(Schema.isGreaterThan(0)),
+  duration: Schema.Finite.check(Schema.isGreaterThan(0)),
+  width: Schema.Int.check(Schema.isGreaterThan(0)),
+  height: Schema.Int.check(Schema.isGreaterThan(0)),
+  capturedAt: Schema.String,
+  sourceRevision: Schema.String,
+})
 
 const ThreadRecording = Schema.Struct({
   wallAnchor: Schema.Int,
@@ -69,7 +85,7 @@ function replayEvent(
   return event
 }
 
-function Replay({ source }: { source: Recording }) {
+function Replay({ source, capture = false }: { source: Recording; capture?: boolean }) {
   const { recording } = source
   const [clock] = useState(() => createPlaybackClock(recording))
   const playback = useSyncExternalStore(clock.subscribe, clock.snapshot)
@@ -78,6 +94,17 @@ function Replay({ source }: { source: Recording }) {
   const [thread, setThread] = useState(emptyThread)
   const current = useRef(emptyThread)
   const live = useRef(false)
+
+  useEffect(() => {
+    if (!capture) return
+    function play() {
+      live.current = true
+      setAnchor(Date.now())
+      clock.play(performance.now())
+    }
+    window.addEventListener('jetty:capture-play', play)
+    return () => window.removeEventListener('jetty:capture-play', play)
+  }, [capture, clock])
 
   useEffect(() => {
     let state = current.current
@@ -107,32 +134,46 @@ function Replay({ source }: { source: Recording }) {
   }, [clock, playback.playing])
 
   return (
-    <>
-      <div className='flex flex-wrap items-center gap-3 px-6 py-3'>
-        <Button
-          size='sm'
-          disabled={playback.playing || playback.cursor.eventCount > 0}
-          {...pressProps(() => {
-            live.current = true
-            setAnchor(Date.now())
-            clock.play(performance.now())
-          })}
-        >
-          Play real timing
-        </Button>
-        <Button
-          size='sm'
-          variant='outline'
-          disabled={playback.playing}
-          {...pressProps(() => clock.seek(recording.durationMs))}
-        >
-          Show completed
-        </Button>
-        <span className='font-mono text-xs text-muted-foreground' data-playback-cursor>
-          {(playback.cursor.atMs / 1000).toFixed(1)}s / {(recording.durationMs / 1000).toFixed(1)}s
-          · {playback.cursor.eventCount}/{recording.inputs.length}
-        </span>
-      </div>
+    <div
+      className='contents'
+      data-capture-state={
+        playback.playing
+          ? 'playing'
+          : thread.lastSeq === recording.inputs.length
+            ? 'complete'
+            : 'ready'
+      }
+      data-recording-id={recording.id}
+      data-recording-title={recording.title}
+      data-duration-ms={recording.durationMs}
+    >
+      {!capture && (
+        <div className='flex flex-wrap items-center gap-3 px-6 py-3'>
+          <Button
+            size='sm'
+            disabled={playback.playing || playback.cursor.eventCount > 0}
+            {...pressProps(() => {
+              live.current = true
+              setAnchor(Date.now())
+              clock.play(performance.now())
+            })}
+          >
+            Play real timing
+          </Button>
+          <Button
+            size='sm'
+            variant='outline'
+            disabled={playback.playing}
+            {...pressProps(() => clock.seek(recording.durationMs))}
+          >
+            Show completed
+          </Button>
+          <span className='font-mono text-xs text-muted-foreground' data-playback-cursor>
+            {(playback.cursor.atMs / 1000).toFixed(1)}s / {(recording.durationMs / 1000).toFixed(1)}
+            s · {playback.cursor.eventCount}/{recording.inputs.length}
+          </span>
+        </div>
+      )}
       <ThreadList
         threadId={`replay-${identity}`}
         items={thread.items}
@@ -144,28 +185,66 @@ function Replay({ source }: { source: Recording }) {
         provider={source.provider}
         onSelectAgent={() => undefined}
       />
-    </>
+    </div>
   )
 }
 
-function App({ source }: { source: Recording }) {
+function App({
+  source,
+  preview,
+  capture,
+}: {
+  source: Recording
+  preview?: Schema.Schema.Type<typeof Preview>
+  capture: boolean
+}) {
   const [run, setRun] = useState(0)
+  const [view, setView] = useState('recorded')
   return (
     <StateProvider initialValues={[[chromeSnapshotAtom, { projects: [], threads: [], bots: [] }]]}>
       <TooltipProvider>
         <main className='flex h-dvh flex-col'>
-          <header className='flex flex-wrap items-center gap-3 border-b px-6 py-3'>
-            <h1 className='text-sm font-medium'>Production thread replay</h1>
-            <p className='flex-1 text-xs text-muted-foreground'>{source.recording.title}</p>
-            <Button size='sm' variant='outline' {...pressProps(() => setRun(run + 1))}>
-              Restart
-            </Button>
-          </header>
-          <p className='px-6 pt-3 text-xs text-muted-foreground'>
-            Original server timing before batching, at 1×. Production thread components and event
-            reducer. This capture starts at the agent turn; the user prompt was not recorded.
-          </p>
-          <Replay key={run} source={source} />
+          {!capture && (
+            <header className='flex flex-wrap items-center gap-3 border-b px-6 py-3'>
+              <h1 className='text-sm font-medium'>Production thread replay</h1>
+              <p className='flex-1 text-xs text-muted-foreground'>{source.recording.title}</p>
+              <ToggleGroup
+                size='sm'
+                variant='outline'
+                value={[view]}
+                onValueChange={(value) => {
+                  if (value[0]) setView(value[0])
+                }}
+                aria-label='Preview mode'
+              >
+                <ToggleGroupItem value='recorded'>Recorded</ToggleGroupItem>
+                <ToggleGroupItem value='live'>Live</ToggleGroupItem>
+              </ToggleGroup>
+              {view === 'live' && (
+                <Button size='sm' variant='outline' {...pressProps(() => setRun(run + 1))}>
+                  Restart
+                </Button>
+              )}
+            </header>
+          )}
+          {!capture && view === 'live' && (
+            <p className='px-6 pt-3 text-xs text-muted-foreground'>
+              Original server timing before batching, at 1×. Production thread components and event
+              reducer. This capture starts at the agent turn; the user prompt was not recorded.
+            </p>
+          )}
+          {capture || view === 'live' ? (
+            <Replay key={run} source={source} capture={capture} />
+          ) : preview ? (
+            <RecordedPreview preview={preview} />
+          ) : (
+            <div className='flex flex-1 flex-col items-center justify-center gap-2 p-6'>
+              <p className='text-sm'>No recorded preview yet.</p>
+              <p className='text-xs text-muted-foreground'>
+                Run <code className='font-mono'>bun run replay:capture</code> to record this replay.
+              </p>
+            </div>
+          )}
         </main>
       </TooltipProvider>
     </StateProvider>
@@ -175,15 +254,32 @@ function App({ source }: { source: Recording }) {
 if (import.meta.env.DEV) {
   applyTheme()
   document.documentElement.dataset.accent = loadAccent()
-  const files = import.meta.glob('/streaming-replay.local/thread.json', {
-    eager: true,
-    import: 'default',
-  })
+  const files = import.meta.glob(
+    ['/streaming-replay.local/thread.json', '/streaming-replay.local/preview.json'],
+    {
+      eager: true,
+      import: 'default',
+    }
+  )
   const value = files['/streaming-replay.local/thread.json']
   const root = createRoot(document.getElementById('root')!)
   try {
     if (!value) throw new Error('No local thread recording. See docs/thread-replay.md.')
-    root.render(<App source={readRecording(value)} />)
+    const source = readRecording(value)
+    const manifest = files['/streaming-replay.local/preview.json']
+    let preview: Schema.Schema.Type<typeof Preview> | undefined
+    if (manifest) {
+      try {
+        const decoded = Schema.decodeUnknownSync(Preview)(manifest)
+        if (decoded.recordingId === source.recording.id) preview = decoded
+      } catch {
+        preview = undefined
+      }
+    }
+    // This browser-only dev entry uses a URL flag independently of the app platform.
+    // oxlint-disable-next-line no-restricted-properties
+    const capture = new URLSearchParams(window.location.search).has('capture')
+    root.render(<App source={source} preview={preview} capture={capture} />)
   } catch (error) {
     root.render(<p role='alert'>{error instanceof Error ? error.message : 'Invalid recording'}</p>)
   }
