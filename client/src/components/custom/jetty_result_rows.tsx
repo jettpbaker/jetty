@@ -103,10 +103,12 @@ export function ThreadRow({
   onSelect,
   status,
   render,
+  placeholder = false,
 }: {
   result: ThreadResult
   onSelect?: (result: ThreadResult) => void
   status?: Status
+  placeholder?: boolean
   render?: ReactElement<{
     className?: string
     title?: string
@@ -129,7 +131,11 @@ export function ThreadRow({
   )
   return (
     <div className='activity-header activity-file-row'>
-      {render ? (
+      {placeholder ? (
+        <span className={cn('inline-flex items-center text-muted-foreground', className)}>
+          {children}
+        </span>
+      ) : render ? (
         cloneElement(render, {
           className: cn(buttonVariants({ variant: 'link', size: 'sm' }), className),
           title,

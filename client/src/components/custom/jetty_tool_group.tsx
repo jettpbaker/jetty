@@ -24,7 +24,7 @@ import { pullRequestFacts } from './pull_request_model'
 import { linkPresentation } from './thread_pull_request'
 import { StatusGlyph, type Status } from './thread_status'
 import { ToolCallDetails } from './tool_call'
-import { describeToolBatch, workEnded, type ToolBatch } from './work_model'
+import { describeToolBatch, workEnded, type ToolActivity, type ToolBatch } from './work_model'
 
 export function JettyThreadRow({ result, outcome }: { result: ThreadResult; outcome?: Status }) {
   const meta = useThreadMeta(result.id)
@@ -38,6 +38,49 @@ export function JettyThreadRow({ result, outcome }: { result: ThreadResult; outc
       }}
       status={meta?.archived || result.archived ? 'archived' : outcome}
       render={<Link to='/threads/$threadId' params={{ threadId: result.id }} />}
+    />
+  )
+}
+
+function ThreadCallRow({ call, result }: { call: ToolActivity; result?: ThreadResult }) {
+  const input: { threadId?: string; title?: string } = {}
+  try {
+    const value: unknown = JSON.parse(call.input ?? '{}')
+    if (value && typeof value === 'object') {
+      if ('threadId' in value && typeof value.threadId === 'string') input.threadId = value.threadId
+      if ('title' in value && typeof value.title === 'string') input.title = value.title
+    }
+  } catch {
+    // Some providers stream partial JSON before the tool input is complete.
+  }
+  const id = result?.id ?? input.threadId
+  const meta = useThreadMeta(id)
+  const status: Status | undefined = !workEnded(call.status)
+    ? call.status === 'waiting'
+      ? 'needs-attention'
+      : 'working'
+    : call.status === 'failed'
+      ? 'error'
+      : call.status === 'cancelled' || call.status === 'interrupted'
+        ? 'stopped'
+        : call.jettyTool === 'archive_thread' || meta?.archived
+          ? 'archived'
+          : undefined
+  return (
+    <ThreadRow
+      result={{
+        ...result,
+        id: id ?? '',
+        title:
+          meta?.title ??
+          result?.title ??
+          input.title ??
+          (call.jettyTool === 'create_thread' ? 'New thread' : 'Thread'),
+        status: meta?.status ?? result?.status,
+      }}
+      status={status}
+      placeholder={!id}
+      render={id ? <Link to='/threads/$threadId' params={{ threadId: id }} /> : undefined}
     />
   )
 }
@@ -172,10 +215,10 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
     ]
     return { parsed, results }
   }, [batch.calls, config])
-  const [initialResults] = useState(() => new Set(results.map(jettyResultKey)))
+  const [initialCalls] = useState(() => new Set(batch.calls.map((call) => call.id)))
+  const threadAction = tool === 'create_thread' || tool === 'archive_thread'
   const unsettled = batch.calls.some((call) => !workEnded(call.status))
-  const autoOpen =
-    (tool === 'create_thread' || tool === 'archive_thread') && (!batch.sealed || unsettled)
+  const autoOpen = threadAction && (!batch.sealed || unsettled)
   const active =
     unsettled ||
     (!config.list && !batch.sealed && batch.calls.every((call) => call.status === 'complete'))
@@ -239,16 +282,24 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
         )
       }
     >
-      {results.map((result) => (
-        <div
-          key={jettyResultKey(result)}
-          className={cn(
-            autoOpen && !initialResults.has(jettyResultKey(result)) && 'work-raise-enter'
-          )}
-        >
-          <ResultRow result={result} tool={tool} />
-        </div>
-      ))}
+      {threadAction
+        ? batch.calls.map((call, index) => {
+            const result = parsed[index]?.[0]
+            return (
+              <div
+                key={call.id}
+                className={cn(autoOpen && !initialCalls.has(call.id) && 'work-raise-enter')}
+              >
+                <ThreadCallRow
+                  call={call}
+                  result={result?.kind === 'thread' ? result.value : undefined}
+                />
+              </div>
+            )
+          })
+        : results.map((result) => (
+            <ResultRow key={jettyResultKey(result)} result={result} tool={tool} />
+          ))}
       {config.list && count === 0 && !active && (
         <p className='py-1 text-13 leading-5 text-muted-foreground'>No {config.noun}s returned.</p>
       )}
