@@ -32,24 +32,20 @@ function selectedReply(chat: HTMLElement) {
   if (!message.contains(range.startContainer)) inside.setStart(message, 0)
   if (!message.contains(range.endContainer)) inside.setEnd(message, message.childNodes.length)
   if (inside.toString().trim() !== text) return
-  return { selection, range, inside, reply: { itemId, text } }
+  return { inside, reply: { itemId, text } }
 }
 
-// Where the selection ends, as the pointer or Shift+arrows left it, even selecting backwards.
 function spotOf(chat: HTMLElement): Spot | undefined {
   const selected = selectedReply(chat)
   if (!selected) return
-  const { selection, range, inside, reply } = selected
-  const backward =
-    range.startContainer === selection.focusNode && range.startOffset === selection.focusOffset
-  const rects = [...inside.getClientRects()].filter((rect) => rect.width > 0)
-  const rect = backward ? rects[0] : rects.at(-1)
-  if (!rect) return
-  return { reply, x: backward ? rect.left : rect.right, top: rect.top, bottom: rect.bottom }
+  const { inside, reply } = selected
+  const rect = inside.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return
+  return { reply, x: rect.left + rect.width / 2, top: rect.top, bottom: rect.bottom }
 }
 
-// Quotes text selected in an agent's reply into the next message: a pill over the selection's
-// end, or ⌘L. It waits for the pointer to let go, so a drag never drags it along.
+// Quotes text selected in an agent's reply into the next message: a pill centred over the
+// selection, or ⌘L. It waits for the pointer to let go, so a drag never drags it along.
 export function AddToPrompt({
   chatRef,
   onAdd,
