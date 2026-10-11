@@ -58,7 +58,7 @@ function RaisedWork({ activities }: { activities: WorkActivity[] }) {
   const entries = groupWorkActivities(activities, false)
   return (
     <div className='min-w-0'>
-      <div className='activity-header text-muted-foreground' data-flush>
+      <div className='activity-header work-raise-enter text-muted-foreground' data-flush>
         <span>
           <span className='shimmer'>Working</span>
         </span>

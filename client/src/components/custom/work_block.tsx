@@ -204,6 +204,7 @@ export function WorkBlock({
   return (
     <ActivityDisclosure
       flushHeader
+      animateHeader={!ended}
       title={<span className={cn(status === 'running' && 'shimmer')}>{heading}</span>}
       titleSuffix={timing}
       ended={ended}

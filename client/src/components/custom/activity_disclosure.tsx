@@ -16,6 +16,7 @@ export function ActivityDisclosure({
   renderContent,
   hasPreview = false,
   flushHeader = false,
+  animateHeader = false,
 }: {
   title: ReactNode
   titleSuffix?: ReactNode
@@ -26,6 +27,7 @@ export function ActivityDisclosure({
   renderContent: (view: ActivityView) => ReactNode
   hasPreview?: boolean
   flushHeader?: boolean
+  animateHeader?: boolean
 }) {
   const id = useId()
   const [view, setView] = useState<ActivityView>(defaultView)
@@ -48,25 +50,27 @@ export function ActivityDisclosure({
   )
   return (
     <div className='min-w-0'>
-      {(ended ? hasContent : hasPreview) ? (
-        <Button
-          variant='ghost-text'
-          className='activity-header'
-          data-flush={flushHeader || undefined}
-          aria-expanded={expanded}
-          aria-controls={id}
-          onClick={toggle}
-        >
-          {heading}
-        </Button>
-      ) : (
-        <div
-          className='activity-header text-muted-foreground'
-          data-flush={flushHeader || undefined}
-        >
-          {heading}
-        </div>
-      )}
+      <div className={animateHeader ? 'work-raise-enter' : undefined}>
+        {(ended ? hasContent : hasPreview) ? (
+          <Button
+            variant='ghost-text'
+            className='activity-header'
+            data-flush={flushHeader || undefined}
+            aria-expanded={expanded}
+            aria-controls={id}
+            onClick={toggle}
+          >
+            {heading}
+          </Button>
+        ) : (
+          <div
+            className='activity-header text-muted-foreground'
+            data-flush={flushHeader || undefined}
+          >
+            {heading}
+          </div>
+        )}
+      </div>
       <ActivityContent id={id} open={!ended || !closed}>
         {renderContent(ended ? 'full' : view)}
       </ActivityContent>
