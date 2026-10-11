@@ -46,6 +46,7 @@ import { bottomGlide } from '@/lib/bottom-glide'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
+import { pendingTurnId } from '@/state/turns'
 import {
   measureElement,
   useVirtualizer,
@@ -66,6 +67,7 @@ import { flushSync } from 'react-dom'
 
 const pinSlack = 96
 const rowGap = 12
+const chatInset = 24
 // Keeps a jumped-to message below the conversation's top blur.
 const jumpClearance = 96
 // A first open lays out this many window heights of rows exactly; the rest start rough.
@@ -78,6 +80,7 @@ const refineBatch = 50
 // No anchor means it was at the bottom and should stay stuck there.
 type ScrollPosition = {
   anchor?: { key: string; offset: number }
+  sentMessageId?: string
   sizes: VirtualItem[]
   width: number
 }
@@ -386,8 +389,29 @@ export function ThreadList({
     const index = rows.findIndex((row) => row.id === position?.anchor?.key)
     return position && { ...position, index }
   })
+  const lastUser = agentId
+    ? undefined
+    : rows.findLast(
+        (row): row is Extract<ThreadRow, { kind: 'user' }> =>
+          row.kind === 'user' && !row.item.from && !row.item.wake
+      )
+  const pending = lastUser?.item.turnId === pendingTurnId
+  const [send, setSend] = useState(() => ({
+    latest: lastUser?.id,
+    anchor: pending ? lastUser.id : saved?.sentMessageId,
+  }))
+  if (lastUser?.id !== send.latest)
+    setSend({
+      latest: lastUser?.id,
+      anchor:
+        lastUser && (pending || !send.latest || rows.some((row) => row.id === send.latest))
+          ? lastUser.id
+          : undefined,
+    })
+  const sentAnchor = useRef(send.anchor)
   const scroller = useRef<HTMLDivElement>(null)
-  const pinned = useRef(!saved || saved.index === -1)
+  const pinned = useRef(pending || !saved || saved.index === -1)
+  const [viewportHeight, setViewportHeight] = useState(0)
   const [width, setWidth] = useState(saved?.width ?? 660)
   const [rough, setRough] = useState(() => (saved ? new Set<string>() : roughRows(rows, width)))
   const [gutter, setGutter] = useState(0)
@@ -438,8 +462,8 @@ export function ThreadList({
     estimateSize,
     overscan: 10,
     gap: rowGap,
-    paddingStart: 24,
-    paddingEnd: 24,
+    paddingStart: chatInset,
+    paddingEnd: chatInset,
     getItemKey,
     initialMeasurementsCache: saved?.sizes,
     // The virtualizer keeps only measurements that differ from the estimate, so a row whose
@@ -462,6 +486,7 @@ export function ThreadList({
     () => () => {
       savePosition(view, {
         anchor: pinned.current ? undefined : anchorAt(virtualizer),
+        sentMessageId: sentAnchor.current,
         sizes: virtualizer.takeSnapshot(),
         width,
       })
@@ -474,6 +499,14 @@ export function ThreadList({
   const stamp = useMemo(() => rows.map(rowStamp).join('|'), [rows])
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
   const totalSize = virtualizer.getTotalSize()
+  const sentIndex = send.anchor ? rows.findIndex((row) => row.id === send.anchor) : -1
+  const sentStart = virtualizer.measurementsCache[sentIndex]?.start
+  // The reply consumes this space before its growth needs to move the conversation.
+  const scrollSize =
+    sentStart === undefined
+      ? totalSize
+      : Math.max(totalSize, sentStart - chatInset + viewportHeight)
+  const reserved = useRef(false)
 
   const glider = useRef<ReturnType<typeof bottomGlide>>(undefined)
   const landed = useRef({ key: '', at: 0 })
@@ -521,6 +554,15 @@ export function ThreadList({
     if (value) setFresh(false)
     else glider.current?.stop()
   }, [])
+  useLayoutEffect(() => {
+    reserved.current = scrollSize > totalSize
+    if (sentAnchor.current !== send.anchor && send.anchor) {
+      pin(true)
+      glider.current?.stop()
+      landed.current.key = ''
+    }
+    sentAnchor.current = send.anchor
+  }, [send.anchor, scrollSize, totalSize, pin])
   // While it glides, the list keeps its own scroll position: the virtualizer would hold rows that
   // resize above the fold in place from an offset a gliding frame stale, dragging it up.
   const gliderFor = useCallback(
@@ -583,7 +625,7 @@ export function ThreadList({
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width, totalSize, view, gliderFor])
+  }, [virtualizer, rows.length, stamp, width, scrollSize, view, gliderFor])
   useEffect(() => () => glider.current?.stop(), [])
 
   // Something new at the end while the reader is up the thread puts a dot on the arrow; growth
@@ -632,7 +674,7 @@ export function ThreadList({
   })
   useLayoutCheck(scroller, virtualizer, latestRows, pinned)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = scroller.current
     if (!element) return
     let height = element.clientHeight
@@ -645,8 +687,9 @@ export function ThreadList({
             virtualizer.itemSizeCache.delete(key)
       setWidth(text)
       setGutter((element.offsetWidth - text) / 2)
+      setViewportHeight(element.clientHeight)
       // A pinned list keeps its bottom in view as the window or the composer takes height from it.
-      if (pinned.current && element.clientHeight < height)
+      if (pinned.current && !reserved.current && element.clientHeight < height)
         element.scrollTop += height - element.clientHeight
       height = element.clientHeight
       checkAway(element)
@@ -743,7 +786,7 @@ export function ThreadList({
             checkAway(element)
           }}
         >
-          <div className='relative w-full' style={{ height: totalSize }}>
+          <div className='relative w-full' style={{ height: scrollSize }}>
             {virtualizer.getVirtualItems().map((virtualRow) => (
               <div
                 key={virtualRow.key}
