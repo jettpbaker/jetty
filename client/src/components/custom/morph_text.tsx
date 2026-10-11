@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from 'motion/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TextMorph } from 'torph/react'
 
 import './morph_text.css'
@@ -13,33 +13,53 @@ function morphTiming() {
   }
 }
 
-export function MorphText({ children, className }: { children: string; className?: string }) {
+export function MorphText({
+  children,
+  className,
+  shimmer = false,
+  from,
+}: {
+  children: string
+  className?: string
+  shimmer?: boolean
+  from?: string
+}) {
   const [timing] = useState(morphTiming)
-  const [text, setText] = useState({ current: children, previous: undefined as string | undefined })
+  const [text, setText] = useState({ current: children, previous: from })
+  const [morph, setMorph] = useState(from ?? children)
   const reducedMotion = useReducedMotion()
+  useEffect(() => setMorph(children), [children])
   if (text.current !== children) setText({ current: children, previous: text.current })
-  if (reducedMotion)
-    return (
-      <span key={text.current} className={cn('morph-text-fade', className)}>
-        {text.previous !== undefined && (
-          <span aria-hidden='true' className='morph-text-before'>
-            {text.previous}
-          </span>
-        )}
-        <span className={text.previous !== undefined ? 'morph-text-after' : undefined}>
-          {text.current}
-        </span>
-      </span>
-    )
   return (
-    <TextMorph
-      as='span'
-      className={className}
-      duration={timing.duration}
-      ease={timing.ease}
-      scale={false}
-    >
-      {children}
-    </TextMorph>
+    <span className={cn('relative inline-block', className)}>
+      {reducedMotion ? (
+        <span key={text.current} className={cn('morph-text-fade', shimmer && 'opacity-0')}>
+          {text.previous !== undefined && (
+            <span aria-hidden='true' className='morph-text-before'>
+              {text.previous}
+            </span>
+          )}
+          <span className={text.previous !== undefined ? 'morph-text-after' : undefined}>
+            {text.current}
+          </span>
+        </span>
+      ) : (
+        <TextMorph
+          as='span'
+          className={shimmer ? 'opacity-0' : undefined}
+          duration={timing.duration}
+          ease={timing.ease}
+          scale={false}
+        >
+          {morph}
+        </TextMorph>
+      )}
+      {shimmer && (
+        // Background-clipped shimmer needs plain text rather than Torph's glyph spans.
+        <span aria-hidden='true' className='absolute inset-0 shimmer'>
+          {children}
+        </span>
+      )}
+    </span>
   )
 }

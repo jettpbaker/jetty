@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 
 import { ActivityContent } from './activity_content'
+import { MorphText } from './morph_text'
 import { formatActivityDuration, workEnded, type ThinkingActivity } from './work_model'
 
 const TICK_MS = 120
@@ -91,10 +91,14 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
           ? 'Thinking stopped'
           : `Thinking ${activity.status}`
   const amount = tokens || duration
+  const [label, setLabel] = useState({ current: state, previous: undefined as string | undefined })
+  if (label.current !== state) setLabel({ current: state, previous: label.current })
   const summary = activity.summary.trim()
   const heading = (
     <span>
-      <span className={cn(active && 'shimmer')}>{state}</span>
+      <MorphText shimmer={active} from={label.previous}>
+        {state}
+      </MorphText>
       {amount && <> for {amount}</>}
     </span>
   )

@@ -31,18 +31,10 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
           </span>
         ) : (
           <>
-            {label.fileCount !== undefined ? (
-              <span className='relative shrink-0'>
-                <MorphText className={label.active ? 'invisible' : undefined}>
-                  {label.verb}
-                </MorphText>
-                {label.active && (
-                  // Background-clipped shimmer needs plain text rather than Torph's glyph spans.
-                  <span aria-hidden='true' className='absolute inset-0 shimmer'>
-                    {label.verb}
-                  </span>
-                )}
-              </span>
+            {label.fileCount !== undefined || batch.calls[0]!.kind === 'web' ? (
+              <MorphText className='shrink-0' shimmer={label.active}>
+                {label.verb}
+              </MorphText>
             ) : (
               <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
             )}
