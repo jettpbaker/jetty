@@ -10,7 +10,7 @@ import { GalleryMessage } from '@/components/custom/gallery_message'
 import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { AgentMessageFooter } from '@/components/custom/message_footer'
-import { ScrollToBottom, scrollToBottomAfter } from '@/components/custom/scroll_to_bottom'
+import { ScrollToBottom } from '@/components/custom/scroll_to_bottom'
 import { SubagentGroup } from '@/components/custom/subagent_group'
 import { useLayoutCheck } from '@/components/custom/thread_list_check'
 import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/custom/thread_measure'
@@ -564,13 +564,9 @@ export function ThreadList({
       window.removeEventListener('pointercancel', release)
     }
   }, [stopSendGlide])
-  // The scroll-to-bottom arrow: whether the reader is far enough up for it (set only when that
-  // flips, not per scroll event), and whether something new arrived below meanwhile.
-  const [away, setAway] = useState(false)
-  const awayRef = useRef(false)
   const [fresh, setFresh] = useState(false)
   const [remainingMessages, setRemainingMessages] = useState(0)
-  const checkAway = useCallback(
+  const checkMessages = useCallback(
     (element: HTMLElement) => {
       setRemainingMessages(
         messagesBelow(
@@ -579,11 +575,6 @@ export function ThreadList({
           element.scrollTop + element.clientHeight
         )
       )
-      const behind = scrollExtent.current - element.clientHeight - element.scrollTop
-      const next = behind > element.clientHeight * scrollToBottomAfter
-      if (next === awayRef.current) return
-      awayRef.current = next
-      setAway(next)
     },
     [virtualizer]
   )
@@ -748,11 +739,11 @@ export function ThreadList({
   const seenTail = useRef(tail)
   useEffect(() => {
     const element = scroller.current
-    if (element) checkAway(element)
+    if (element) checkMessages(element)
     if (tail === seenTail.current) return
     seenTail.current = tail
     if (!pinned.current) setFresh(true)
-  }, [tail, totalSize, checkAway])
+  }, [tail, totalSize, checkMessages])
 
   // Far up, it lands a screen short first, then glides the rest the way the list follows its
   // bottom; under reduced motion it lands at once.
@@ -815,13 +806,13 @@ export function ThreadList({
       if (pinned.current && !reserved.current && element.clientHeight < height)
         element.scrollTop += height - element.clientHeight
       height = element.clientHeight
-      checkAway(element)
+      checkMessages(element)
     }
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     measure()
     return () => observer.disconnect()
-  }, [virtualizer, checkAway])
+  }, [virtualizer, checkMessages])
 
   // Lays out the rough rows when idle, then swaps in their exact estimates in one commit, keeping
   // the top visible row in place. A list left early keeps refining, so a revisit finds them cached.
@@ -907,7 +898,7 @@ export function ThreadList({
             // virtualizer holding a reader's place as a row above grows doesn't.
             // A cancelled send glide can still have a scroll event queued.
             else if (!sendInterrupted.current && behind < (hand && !up ? pinSlack : 1)) pin(true)
-            checkAway(element)
+            checkMessages(element)
           }}
         >
           <div className='relative w-full' style={{ height: Math.max(scrollSize, scrollSpace) }}>
@@ -939,7 +930,7 @@ export function ThreadList({
           </div>
         </section>
         <ScrollToBottom
-          shown={away}
+          shown={remainingMessages > 0}
           fresh={fresh}
           messages={remainingMessages}
           onScroll={toBottom}
