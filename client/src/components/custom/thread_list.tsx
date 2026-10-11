@@ -683,8 +683,13 @@ export function ThreadList({
       performance.now() - landed.current.at > 300
     if (glides) {
       const glide = gliderFor(element)
-      // Rows above the last changing size (a turn's Working line going) keep it where it is.
-      if (last && anchor?.key === last.key && anchor.start !== last.start)
+      // Preserve the visible reply when rows above the viewport resize.
+      if (
+        last &&
+        anchor?.key === last.key &&
+        anchor.start < shownTop.current &&
+        anchor.start !== last.start
+      )
         glide.write(shownTop.current + last.start - anchor.start)
       glide.start()
       return
