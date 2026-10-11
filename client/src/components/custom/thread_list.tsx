@@ -213,11 +213,13 @@ function rowStamp(row: ThreadRow) {
     case 'work':
       return `${row.status}:${row.settingUp}:${row.activities
         .map((activity) =>
-          activity.type === 'thinking'
-            ? `${activity.id}:${activity.summary.length}:${activity.status}`
-            : activity.type === 'todo' || activity.type === 'created'
-              ? activity.id
-              : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
+          activity.type === 'text'
+            ? `${activity.id}:${activity.text.length}:${activity.streaming}`
+            : activity.type === 'thinking'
+              ? `${activity.id}:${activity.summary.length}:${activity.status}`
+              : activity.type === 'todo' || activity.type === 'created'
+                ? activity.id
+                : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
         .join(',')}`
   }

@@ -26,6 +26,7 @@ type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
+type StepItem = WorkItem | AssistantItem
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
@@ -296,7 +297,7 @@ function textRunning(
 }
 
 function elapsedSeconds(
-  span: readonly WorkItem[],
+  span: readonly StepItem[],
   next: ThreadItem | undefined,
   start = span[0]!.createdAt
 ) {
@@ -307,12 +308,19 @@ function elapsedSeconds(
 }
 
 function toActivity(
-  item: WorkItem,
+  item: StepItem,
   next: ThreadItem | undefined,
   sessionRunning: boolean,
   sessionActive: boolean,
   projectPath: string | undefined
 ): WorkActivity {
+  if (item.kind === 'assistant_message')
+    return {
+      type: 'text',
+      id: item.id,
+      text: item.text,
+      streaming: textRunning(item, !next, sessionRunning),
+    }
   if (item.kind === 'reasoning') {
     const running = textRunning(item, !next, sessionRunning)
     return {
@@ -568,10 +576,10 @@ export function threadRows(
   function isStep(item: ThreadItem): item is WorkItem {
     return (item.kind === 'reasoning' || item.kind === 'tool_call') && !hidden(item)
   }
-  // A turn's steps share one work block until the agent says something: every message it writes
-  // shows in the chat, and the steps after it start the next block. A steering message or a
-  // compaction starts another too.
+  // Replies stay with the work until the turn ends, then its last reply becomes the answer.
+  // A steering message or compaction starts another block.
   const segments: string[] = []
+  const lastReplies = new Map<string, string>()
   // A block's time runs from where its segment began, so a live one counts before its first step.
   const segmentStarts = new Map<string, number>()
   for (const [index, item] of items.entries()) {
@@ -582,17 +590,17 @@ export function threadRows(
         ? item.id
         : previous === undefined || before!.turnId !== item.turnId
           ? item.turnId
-          : before!.kind === 'assistant_message' && item.kind !== 'assistant_message'
-            ? before!.id
-            : previous
+          : previous
     segments.push(segment)
     if (!segmentStarts.has(segment)) segmentStarts.set(segment, item.createdAt)
+    if (item.kind === 'assistant_message') lastReplies.set(item.turnId, item.id)
   }
-  const liveSegment =
+  const liveTurnId =
     tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
-      ? segments.at(-1)
+      ? tail.turnId
       : undefined
-  const blocks = new Map<string, { row: WorkRow; steps: WorkItem[]; next?: ThreadItem }>()
+  const liveSegment = liveTurnId ? segments.at(-1) : undefined
+  const blocks = new Map<string, { row: WorkRow; steps: StepItem[]; next?: ThreadItem }>()
   function openBlock(segment: string, turnId: string) {
     let block = blocks.get(segment)
     if (!block) {
@@ -651,15 +659,20 @@ export function threadRows(
     // A finish line sits where the subagent finished, ahead of the turn it woke.
     flushFinished(item.createdAt)
     if (item.kind === 'subagent') launched.push(item)
+    if (item.kind === 'assistant_message')
+      for (const agent of launched)
+        if ((agent.completedAt ?? Infinity) > item.createdAt) talkedPast.add(agent.id)
     const segment = segments[index]!
-    if (isStep(item)) {
+    if (
+      isStep(item) ||
+      (item.kind === 'assistant_message' &&
+        (item.turnId === liveTurnId || lastReplies.get(item.turnId) !== item.id))
+    ) {
       const block = openBlock(segment, item.turnId)
       block.steps.push(item)
       block.next = items[index + 1]
       continue
     }
-    if (segment === liveSegment && item.kind === 'assistant_message')
-      openBlock(segment, item.turnId)
     const last = rows.at(-1)
     switch (item.kind) {
       case 'subagent':
@@ -690,8 +703,6 @@ export function threadRows(
           streaming: textRunning(item, item === tail, sessionRunning),
           loadout: loadouts[item.turnId],
         })
-        for (const agent of launched)
-          if ((agent.completedAt ?? Infinity) > item.createdAt) talkedPast.add(agent.id)
         break
       case 'plan':
         rows.push({
@@ -839,7 +850,6 @@ function stitchRuns(rows: ThreadRow[]) {
     if (row.kind === 'user') close()
     else if (row.kind === 'assistant' || row.kind === 'plan') {
       run.push(row)
-      working = false
     } else if (row.kind === 'work' && (row.status === 'running' || row.status === 'waiting'))
       working = true
   }

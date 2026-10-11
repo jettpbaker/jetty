@@ -34,10 +34,16 @@ export type ThinkingActivity = {
 }
 export type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }
 export type CreatedActivity = { type: 'created'; id: string; threadId: string; title?: string }
-export type WorkActivity = ToolActivity | ThinkingActivity | TodoActivity | CreatedActivity
+export type TextActivity = { type: 'text'; id: string; text: string; streaming: boolean }
+export type WorkActivity =
+  | ToolActivity
+  | ThinkingActivity
+  | TodoActivity
+  | CreatedActivity
+  | TextActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
 export type ThreadBatch = { type: 'threads'; id: string; threads: CreatedActivity[] }
-export type WorkEntry = ToolBatch | ThreadBatch | ThinkingActivity | TodoActivity
+export type WorkEntry = ToolBatch | ThreadBatch | ThinkingActivity | TodoActivity | TextActivity
 
 const vocabulary = {
   read: {
