@@ -36,6 +36,13 @@ export function jettyInstructions(
 ) {
   return [
     ...(bot ? botBase : base),
+    ...(!bot && !parentThreadId
+      ? [
+          'Intermediate messages are temporary progress updates and may be hidden. Only your final response is guaranteed to remain visible.',
+          'Make your final response self-contained. Include all outstanding questions, the context and options needed to answer them, any instructions for the user, and important findings—even if mentioned earlier.',
+          'If you need user input before continuing, use AskUserQuestion and wait for the answer. Otherwise, continue independent work and collect your questions in the final response.',
+        ]
+      : []),
     ...(workspace?.environment === 'worktree'
       ? [
           `You work in your own git worktree, \`${workspace.workingPath}\`, on its own branch. The project's main checkout, \`${workspace.projectPath}\`, belongs to the user: never edit, commit, reset or switch branches there, even if a message names that folder. Do that work here instead.`,
