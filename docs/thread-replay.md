@@ -48,7 +48,8 @@ Start the Vite client on port 5175, then run:
 bun run replay:capture
 ```
 
-The utility visits `/thread-replay.html?capture=1`, waits for fonts and the local recording,
+The utility visits `/thread-replay.html?capture=1`, explicitly loads Geist and Paper Mono before
+the first streamed label, and waits for the local recording,
 then records the production conversation at 1× with one second of postroll. Capture mode
 fills the viewport with the conversation and omits replay controls. It needs no API server,
 provider authentication, or live thread connection. External HTTP requests are blocked.

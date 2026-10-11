@@ -123,7 +123,13 @@ async function main() {
     const page = await context.newPage()
     const video = page.video()
     await page.goto(url.href)
-    await page.evaluate(() => document.fonts.ready)
+    await page.evaluate(async () => {
+      await Promise.all([
+        document.fonts.load('14px "Geist Variable"'),
+        document.fonts.load('14px "Paper Mono"'),
+      ])
+      await document.fonts.ready
+    })
     await page.waitForFunction(
       () =>
         document.querySelector<HTMLElement>('[data-capture-state]')?.dataset.captureState ===

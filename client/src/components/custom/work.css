@@ -1,7 +1,10 @@
 @reference '../../index.css';
 
 .activity-header {
-  @apply flex h-auto min-h-7 w-full min-w-0 justify-start gap-2 rounded-menu-item px-2 py-1 text-left text-sm font-normal;
+  @apply flex h-auto min-h-7 w-full min-w-0 items-center justify-start gap-2 rounded-menu-item border-0 px-2 py-1 text-left text-sm font-normal;
+}
+.activity-header > span:first-child {
+  block-size: 1lh;
 }
 .activity-header[data-flush] {
   @apply text-muted-foreground;
