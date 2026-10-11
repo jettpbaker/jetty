@@ -18,6 +18,7 @@ import { StateProvider } from '@/state/provider'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { BatchMotionPreviews } from './work_batches'
 import { CompletionPreviews } from './work_completion'
 import '../index.css'
 import '../accent.css'
@@ -218,6 +219,7 @@ function Sequence() {
     <div className='flex flex-col gap-16'>
       <Example activities={activitiesAt(step)} identity={identity} />
       <ToolExamplesRow />
+      <BatchMotionPreviews />
       <CompletionPreviews />
     </div>
   )

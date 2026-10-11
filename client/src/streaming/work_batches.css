@@ -1,0 +1,64 @@
+.batch-motion[data-arrival]
+  > [data-slot='collapsible']
+  > [data-slot='collapsible-content']
+  > div
+  > [data-slot='collapsible'],
+.batch-motion[data-arrival] > .batch-next {
+  animation: batch-row-fade var(--motion-control-duration) var(--motion-control-ease) both;
+}
+
+.batch-motion[data-arrival='lift']
+  > [data-slot='collapsible']
+  > [data-slot='collapsible-content']
+  > div
+  > [data-slot='collapsible'],
+.batch-motion[data-arrival='lift'] > .batch-next {
+  animation-name: batch-row-lift;
+  animation-duration: var(--motion-disclosure-open-duration);
+  animation-timing-function: var(--motion-disclosure-ease);
+}
+
+.batch-motion[data-batch-motion='hold']
+  > [data-slot='collapsible']
+  > [data-slot='collapsible-content'][data-ending-style] {
+  transition-delay: var(--motion-control-duration);
+}
+
+@keyframes batch-row-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes batch-row-lift {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .batch-motion[data-arrival]
+    > [data-slot='collapsible']
+    > [data-slot='collapsible-content']
+    > div
+    > [data-slot='collapsible'],
+  .batch-motion[data-arrival] > .batch-next {
+    animation-name: batch-row-fade;
+    animation-duration: var(--motion-control-duration);
+    animation-timing-function: var(--motion-control-ease);
+  }
+
+  .batch-motion[data-batch-motion='hold']
+    > [data-slot='collapsible']
+    > [data-slot='collapsible-content'][data-ending-style] {
+    transition-delay: 0ms;
+  }
+}

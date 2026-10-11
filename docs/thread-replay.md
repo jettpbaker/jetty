@@ -129,6 +129,13 @@ Searching the web → Searched the web. Replay restarts every example, including
 file count. The file disclosure can be expanded to inspect the individual calls.
 The tool row also has its own Replay button, which leaves the entrance comparison running.
 
+The File arrivals & batch handoff section below it compares production
+behavior with a 150ms fade, a 250ms/4px lift with a 150ms hold before closing, and the
+same lift with the next action revealed after the 200ms close. Each option has its own
+Replay, plus a shared Replay all. All reuse production `ToolGroup` and disclosure timing
+tokens; the motion overrides are scoped to this dev page. Reduced motion uses a fade
+and removes the handoff delays.
+
 Character morph variations below it compare four dev-only Reading → Read transitions using
 the existing Torph library: the original 250ms disclosure curve, the same curve at the 150ms
 control duration, the original with a brief 1px blur, and 250ms with the stronger popup curve.
