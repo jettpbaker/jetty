@@ -38,13 +38,46 @@ const ThreadRecording = Schema.Struct({
   wallAnchor: Schema.Int,
   projectPath: Schema.optional(Schema.String),
   provider: Schema.String,
+  prompt: Schema.optional(Schema.String),
   recording: Schema.Unknown,
 })
 
 function readRecording(value: unknown) {
   const metadata = Schema.decodeUnknownSync(ThreadRecording)(value)
-  const recording = loadRecording(metadata.recording)
+  let recording = loadRecording(metadata.recording)
   for (const input of recording.inputs) Schema.decodeUnknownSync(ThreadEvent)(input.event)
+  const firstTurn = recording.inputs.find((input) => input.event.type === 'turn.started')?.event
+  if (
+    firstTurn?.type === 'turn.started' &&
+    !recording.inputs.some(
+      ({ event }) =>
+        event.type === 'item.started' &&
+        event.item.kind === 'user_message' &&
+        event.item.turnId === firstTurn.turnId
+    )
+  ) {
+    recording = {
+      ...recording,
+      inputs: [
+        {
+          seq: 1,
+          atMs: 0,
+          event: {
+            type: 'item.started',
+            item: {
+              kind: 'user_message',
+              id: `${recording.id}:prompt`,
+              turnId: firstTurn.turnId,
+              createdAt: metadata.wallAnchor,
+              text: metadata.prompt ?? 'Original prompt was not recorded.',
+              attachments: [],
+            },
+          },
+        },
+        ...recording.inputs.map((input) => ({ ...input, seq: input.seq + 1 })),
+      ],
+    }
+  }
   return { ...metadata, recording }
 }
 
@@ -230,7 +263,7 @@ function App({
           {!capture && view === 'live' && (
             <p className='px-6 pt-3 text-xs text-muted-foreground'>
               Original server timing before batching, at 1×. Production thread components and event
-              reducer. This capture starts at the agent turn; the user prompt was not recorded.
+              reducer. Missing user prompts are represented by a placeholder at playback start.
             </p>
           )}
           {capture || view === 'live' ? (

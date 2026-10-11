@@ -30,12 +30,18 @@ Use a full `session.viewer.json` from the existing capture as `recording`, and t
 assistant-only reviewed projection cannot reproduce the work UI. Local recordings are not
 repository fixtures and must not be committed.
 
+If the first turn omits its user message, the replay supplies one at time zero so production
+components show “Working” before reasoning arrives. Optional top-level `prompt` supplies its text;
+otherwise the bubble says “Original prompt was not recorded.” This reconstructs the initial send
+state without inventing a delay or changing recorded event times. Original send latency is unknown.
+
 In Live mode, Play runs once at the recorded pace. Restart gives every item a fresh playback identity so
 production caches do not remember earlier reveals. Show completed inspects the final state.
 Item timestamps are shifted to the playback's current wall clock so durations start correctly.
 
-This capture observes events **before server batching**, not browser arrival. It starts at the
-agent turn and omits the user's prompt. It exercises the production conversation components;
+The source capture observes events **before server batching**, not browser arrival. It starts at the
+agent turn and omits the user's prompt; the replay reconstructs that message as described above.
+It exercises the production conversation components;
 the app shell, composer, queue and pending approval controls are outside this view. There is no
 pause, scrub or speed control in the live replay: animations and timers run on their normal
 browser clock. Use a complete 1× playback to evaluate motion and layout.
