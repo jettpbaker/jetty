@@ -43,8 +43,8 @@ const options = [
   },
   {
     title: 'Spring settle',
-    detail: '450ms spring · no bounce',
-    duration: 450,
+    detail: '300ms spring · no bounce',
+    duration: 300,
     gentle: false,
     spring: true,
     continuous: false,

@@ -31,7 +31,7 @@ export function useSendMotionMode() {
 
 export function getSendMotionTransition() {
   if (sendMotionTunerEnabled) {
-    if (mode === 'spring') return { type: 'spring' as const, duration: 0.45, bounce: 0 }
+    if (mode === 'spring') return { type: 'spring' as const, duration: 0.3, bounce: 0 }
     return { duration: 0.35, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }
   }
   const { openMs, ease } = getMotionTokens().disclosure
