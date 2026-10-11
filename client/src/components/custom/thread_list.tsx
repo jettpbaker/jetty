@@ -523,14 +523,13 @@ export function ThreadList({
   const gliderFor = useCallback(
     (element: HTMLElement) => {
       if (!glider.current)
-        glider.current = bottomGlide(
-          element,
-          (top) => (shownTop.current = top),
-          (running) =>
+        glider.current = bottomGlide(element, {
+          onWrite: (top) => (shownTop.current = top),
+          onRun: (running) =>
             (virtualizer.shouldAdjustScrollPositionOnItemSizeChange = running
               ? () => false
-              : undefined)
-        )
+              : undefined),
+        })
       return glider.current
     },
     [virtualizer]

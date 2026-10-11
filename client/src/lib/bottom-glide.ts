@@ -2,8 +2,15 @@
 // bends the motion instead of restarting it, and the chat never jumps a whole line at once.
 export function bottomGlide(
   element: HTMLElement,
-  onWrite?: (top: number) => void,
-  onRun?: (running: boolean) => void
+  {
+    onWrite,
+    onRun,
+    target = () => element.scrollHeight - element.clientHeight,
+  }: {
+    onWrite?: (top: number) => void
+    onRun?: (running: boolean) => void
+    target?: () => number
+  } = {}
 ) {
   const stiffness = 20
   let frame = 0
@@ -12,14 +19,14 @@ export function bottomGlide(
   function tick(now: number) {
     const dt = Math.min(0.05, (now - previous) / 1000)
     previous = now
-    const target = Math.max(0, element.scrollHeight - element.clientHeight)
-    const offset = element.scrollTop - target
+    const bottom = Math.max(0, target())
+    const offset = element.scrollTop - bottom
     const decay = Math.exp(-stiffness * dt)
     const next = (offset + (velocity + stiffness * offset) * dt) * decay
     velocity = (velocity - stiffness * (velocity + stiffness * offset) * dt) * decay
     // scrollTop snaps to whole pixels, so the spring can stall a pixel short of the bottom.
     const settled = Math.abs(offset) <= 1 && Math.abs(velocity) < 10
-    write(settled ? target : target + next)
+    write(settled ? bottom : bottom + next)
     frame = settled ? 0 : requestAnimationFrame(tick)
     if (!settled) return
     velocity = 0

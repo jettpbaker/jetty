@@ -149,3 +149,5 @@ The live three-entry history follows new rows with the same interruptible scroll
 the conversation. Scrolling back stops it; reduced motion pins immediately. Consecutive
 reasoning items share one Thinking row, preserving their token totals and expandable
 summaries instead of adding a second bare Thought label.
+The history follows layout height rather than animated overflow, so rolling digits and
+row entrances cannot pull it past the last row and cause a snap when they finish.

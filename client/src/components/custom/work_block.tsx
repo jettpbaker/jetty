@@ -20,13 +20,16 @@ import {
   workEnded,
 } from './work_model'
 
+// Animated digits and row entrances can extend scrollHeight beyond the laid-out rows.
+function historyBottom(element: HTMLElement) {
+  const list = element.firstElementChild as HTMLElement
+  return Math.max(0, list.offsetHeight - element.clientHeight)
+}
+
 // Entries scrolled out of a live preview fade at that edge.
 function edges(element: HTMLElement) {
   element.toggleAttribute('data-above', element.scrollTop > 0)
-  element.toggleAttribute(
-    'data-below',
-    element.scrollHeight - element.scrollTop - element.clientHeight > 1
-  )
+  element.toggleAttribute('data-below', historyBottom(element) - element.scrollTop > 1)
 }
 
 function WorkHistory({
@@ -68,15 +71,19 @@ function WorkHistory({
       return
     }
     pinned.current = true
-    const glide = bottomGlide(element, () => edges(element))
+    const glide = bottomGlide(element, {
+      onWrite: () => edges(element),
+      target: () => historyBottom(element),
+    })
     glideRef.current = glide
     let initial = true
     function measure() {
       let height = 0
-      for (const row of [...list.children].slice(-previewCount)) height += row.scrollHeight
+      for (const row of [...list.children].slice(-previewCount))
+        height += (row as HTMLElement).offsetHeight
       element.style.maxHeight = list.children.length > previewCount ? `${height}px` : ''
       if (pinned.current && list.children.length > previewCount) {
-        if (initial || reducedMotion) glide.write(element.scrollHeight)
+        if (initial || reducedMotion) glide.write(historyBottom(element))
         else glide.start()
       }
       initial = false
@@ -96,7 +103,7 @@ function WorkHistory({
   // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
   function onScroll() {
     const element = scroller.current!
-    if (element.scrollHeight - element.scrollTop - element.clientHeight < 2) pinned.current = true
+    if (historyBottom(element) - element.scrollTop < 2) pinned.current = true
     edges(element)
   }
 
