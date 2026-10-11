@@ -52,7 +52,6 @@ function WorkHistory({
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
   const glideRef = useRef<ReturnType<typeof bottomGlide> | null>(null)
-  const restorePinRef = useRef<(() => void) | null>(null)
   const heightAnimationRef = useRef<Animation | null>(null)
   const previousView = useRef(view)
 
@@ -93,16 +92,6 @@ function WorkHistory({
       target: () => bottom,
     })
     glideRef.current = glide
-    restorePinRef.current = () => {
-      if (
-        view === 'preview' &&
-        pinned.current &&
-        !gliding &&
-        !heightAnimationRef.current &&
-        Math.abs(element.scrollTop - bottom) > 1
-      )
-        glide.write(bottom)
-    }
     let initial = true
     let previewStart: Element | undefined
     function measure() {
@@ -120,7 +109,6 @@ function WorkHistory({
       if (heightAnimationRef.current) {
         glide.write(historyBottom(element))
       } else if (view === 'preview' && pinned.current && list.children.length > previewCount) {
-        // Closing details can clamp scrollTop before the preview cap catches up.
         if (initial || reducedMotion || (!moved && !gliding)) glide.write(bottom)
         else glide.start()
       }
@@ -150,6 +138,42 @@ function WorkHistory({
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     observer.observe(list)
+    const mutations = new MutationObserver((records) => {
+      if (
+        records.some(
+          (record) =>
+            record.type === 'attributes' ||
+            record.target === list ||
+            (record.target instanceof Element && record.target.matches('[data-slot="collapsible"]'))
+        )
+      )
+        measure()
+    })
+    mutations.observe(list, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-open', 'data-closed', 'data-starting-style', 'data-ending-style'],
+    })
+    // ResizeObserver can lag a disclosure frame; keep the preview cap and pin in sync.
+    const resizing = new Set<EventTarget>()
+    let resizeFrame = 0
+    function resizeTick() {
+      measure()
+      resizeFrame = resizing.size ? requestAnimationFrame(resizeTick) : 0
+    }
+    function onTransitionRun(event: TransitionEvent) {
+      if (event.propertyName !== 'height' || !event.target) return
+      resizing.add(event.target)
+      if (!resizeFrame) resizeFrame = requestAnimationFrame(resizeTick)
+    }
+    function onTransitionEnd(event: TransitionEvent) {
+      if (event.propertyName !== 'height' || !event.target) return
+      resizing.delete(event.target)
+    }
+    element.addEventListener('transitionrun', onTransitionRun)
+    element.addEventListener('transitionend', onTransitionEnd)
+    element.addEventListener('transitioncancel', onTransitionEnd)
     function onKeyDown(event: KeyboardEvent) {
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
         pinned.current = false
@@ -159,17 +183,20 @@ function WorkHistory({
     element.addEventListener('keydown', onKeyDown)
     return () => {
       observer.disconnect()
+      mutations.disconnect()
+      cancelAnimationFrame(resizeFrame)
+      element.removeEventListener('transitionrun', onTransitionRun)
+      element.removeEventListener('transitionend', onTransitionEnd)
+      element.removeEventListener('transitioncancel', onTransitionEnd)
       element.removeEventListener('keydown', onKeyDown)
       glide.stop()
       glideRef.current = null
-      restorePinRef.current = null
     }
   }, [live, view, reducedMotion])
 
   // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
   function onScroll() {
     const element = scroller.current!
-    restorePinRef.current?.()
     if (historyBottom(element) - element.scrollTop < 2) pinned.current = true
     edges(element, live && view === 'preview' && pinned.current)
   }
