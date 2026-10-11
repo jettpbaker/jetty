@@ -62,7 +62,9 @@ first/last frame. Slow motion slows all captured motion, including CSS animation
 This is video inspection: interact with the conversation itself in Live mode, and recapture
 after changing production components.
 
-The default viewport is 1000×800; use `--width` and `--height` to change it. `--url` selects
+The default viewport is 1000×800 CSS pixels, captured at 2× as a 2000×1600 video so text stays
+sharp on Retina displays. `--width` and `--height` change the layout size; `--scale 1`, `2` or `3`
+changes pixel density without changing that layout. `--url` selects
 another localhost replay server. Playwright resolves from the project when installed, then
 the bundled Codex runtime. Set `PLAYWRIGHT_MODULE` or pass `--playwright` for another module
 path. Chromium is discovered in the Playwright browser cache; `CHROMIUM_EXECUTABLE` or
@@ -75,15 +77,19 @@ production rendering. The manifest includes recording identity, capture time, so
 revision, dimensions, measured duration, and measured frame count. Its revision identifies
 HEAD; commit source changes before capture when the preview needs an exact source reference.
 
-Playwright's native video capture samples at **25 fps**, including real browser animations.
-The utility encodes seekable VP9 WebM at the same constant frame rate, writes front-loaded
-seek cues, and verifies every frame timestamp plus a maximum one-second keyframe interval
-with ffprobe. Frame stepping and slow motion inspect those recorded samples; they cannot
-recover frames between samples or turn the capture into a 60 fps recording. Text and motion
-also pass through Playwright's initial video compression before the final encoding.
+The utility captures PNG snapshots through Chromium's screenshot protocol, targeting 25 samples
+per second while real browser animations run at 1×. Explicit screenshot scaling supplies actual
+additional pixels; increasing Playwright's native video dimensions alone only pads its image.
+Snapshot timestamps preserve elapsed time when capture runs slower. Encoding resamples them to
+**25 fps**, repeating a snapshot when needed. Stepping inspects encoded frames, not every original
+browser frame. This is not a 60 fps capture.
 
-Native recording starts when the browser page is created. The utility trims loading using
-the recorded wall-clock playback dispatch timestamp, conservatively retaining about 250 ms
-of the ready state. The initial hold can vary with browser startup; video frame positions
-are precise within the encoded movie, rather than exact event-to-video timestamp alignment.
-Replay fidelity remains limited by the original server-observed recording described above.
+PNG snapshots avoid the native recorder's JPEG and VP8 compression stages. They are encoded once
+as lossless VP9 WebM with broadly supported 4:2:0 color sampling, front-loaded seek cues and a
+maximum one-second keyframe interval. ffprobe verifies dimensions, frame count and every encoded
+timestamp. Temporary snapshots are removed after capture.
+
+The video begins with a fixed 250 ms ready hold, then the turn and one second of postroll. Frame
+positions are precise within the encoded movie; snapshot request times do not guarantee exact
+browser presentation timestamps. Replay fidelity remains limited by the original server-observed
+recording described above.

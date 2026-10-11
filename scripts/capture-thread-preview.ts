@@ -11,6 +11,7 @@ const { values } = parseArgs({
     url: { type: 'string', default: 'http://localhost:5175/thread-replay.html?capture=1' },
     width: { type: 'string', default: '1000' },
     height: { type: 'string', default: '800' },
+    scale: { type: 'string', default: '2' },
     playwright: { type: 'string' },
     chromium: { type: 'string' },
     ffmpeg: { type: 'string', default: process.env.FFMPEG ?? 'ffmpeg' },
@@ -78,7 +79,7 @@ function dimension(value: string) {
 async function main() {
   if (values.help) {
     console.log(
-      'bun scripts/capture-thread-preview.ts [--url URL] [--width 1000] [--height 800] [--playwright MODULE] [--chromium HEADLESS_SHELL] [--ffmpeg BIN] [--ffprobe BIN]'
+      'bun scripts/capture-thread-preview.ts [--url URL] [--width 1000] [--height 800] [--scale 2] [--playwright MODULE] [--chromium HEADLESS_SHELL] [--ffmpeg BIN] [--ffprobe BIN]'
     )
     return
   }
@@ -88,6 +89,13 @@ async function main() {
   }
   url.searchParams.set('capture', '1')
   const size = { width: dimension(values.width), height: dimension(values.height) }
+  const scale = Number(values.scale)
+  if (!Number.isSafeInteger(scale) || scale < 1 || scale > 3) {
+    throw new Error('Capture scale must be 1, 2 or 3.')
+  }
+  if (size.width * scale > 7680 || size.height * scale > 7680) {
+    throw new Error('Scaled capture dimensions must not exceed 7680 pixels.')
+  }
   const sourceRevision = (await command(['git', 'rev-parse', 'HEAD'])).trim()
   const playwright = await loadPlaywright()
   const executablePath = await chromiumPath()
@@ -101,9 +109,8 @@ async function main() {
     })
     const context = await browser.newContext({
       viewport: size,
-      deviceScaleFactor: 1,
+      deviceScaleFactor: scale,
       reducedMotion: 'no-preference',
-      recordVideo: { dir: temporary, size },
     })
     await context.route('**/*', async (route) => {
       const request = route.request()
@@ -119,9 +126,7 @@ async function main() {
       }
     })
     await context.routeWebSocket('**/*', (socket) => socket.close())
-    const recordingStarted = Date.now()
     const page = await context.newPage()
-    const video = page.video()
     await page.goto(url.href)
     await page.evaluate(async () => {
       await Promise.all([
@@ -146,43 +151,95 @@ async function main() {
       throw new Error('Replay capture metadata is missing or invalid.')
     }
     await page.waitForTimeout(500)
-    const playbackStarted = Date.now()
+    const session = await context.newCDPSession(page)
+    const snapshots: { file: string; at: number }[] = []
+    async function captureFrame(at: number) {
+      const { data } = await session.send('Page.captureScreenshot', {
+        format: 'png',
+        fromSurface: true,
+        captureBeyondViewport: false,
+        optimizeForSpeed: true,
+        clip: { x: 0, y: 0, ...size, scale },
+      })
+      const file = `frame-${snapshots.length}.png`
+      await writeFile(join(temporary, file), Buffer.from(data, 'base64'))
+      snapshots.push({ file, at })
+    }
+    await captureFrame(0)
+    const playbackStarted = performance.now()
     await page.evaluate(() => window.dispatchEvent(new Event('jetty:capture-play')))
-    console.log(`Recording ${recording.title} at 1× (${fps} fps)…`)
-    await page.waitForFunction(
-      () =>
-        document.querySelector<HTMLElement>('[data-capture-state]')?.dataset.captureState ===
-        'complete',
-      undefined,
-      {
-        timeout: Math.max(60_000, recording.durationMs + 60_000),
-      }
+    console.log(
+      `Recording ${recording.title} at 1× (${size.width * scale}×${size.height * scale}, ${fps} fps)…`
     )
-    await page.waitForTimeout(1000)
-    const playbackDuration = (Date.now() - playbackStarted) / 1000
+    let stopAt = Infinity
+    let failure: unknown
+    const complete = page
+      .waitForFunction(
+        () =>
+          document.querySelector<HTMLElement>('[data-capture-state]')?.dataset.captureState ===
+          'complete',
+        undefined,
+        {
+          timeout: Math.max(60_000, recording.durationMs + 60_000),
+        }
+      )
+      .then(
+        () => {
+          stopAt = performance.now() + 1000
+        },
+        (error: unknown) => {
+          failure = error
+          stopAt = 0
+        }
+      )
+    while (performance.now() < stopAt) {
+      const frameStarted = performance.now()
+      await captureFrame(0.25 + (frameStarted - playbackStarted) / 1000)
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.max(0, frameStarted + 1000 / fps - performance.now()))
+      )
+    }
+    await complete
+    if (failure) throw failure
+    const duration = 0.25 + (performance.now() - playbackStarted) / 1000
     await context.close()
-    const raw = await video.path()
-    // recordVideo starts with the page; retain a small ready hold to protect its first frames.
-    const leadIn = Math.max(0, (playbackStarted - recordingStarted) / 1000 - 0.25)
+    console.log(`Encoding ${snapshots.length} snapshots as lossless VP9…`)
+    const concat =
+      snapshots
+        .map((frame, index) => {
+          const end = snapshots[index + 1]?.at ?? duration
+          return `file '${frame.file}'\noption framerate 1000\nduration ${end - frame.at}\n`
+        })
+        .join('') + `file '${snapshots[snapshots.length - 1]!.file}'\noption framerate 1000\n`
+    const input = join(temporary, 'frames.txt')
+    await writeFile(input, concat)
     const output = join(temporary, 'preview.webm')
     await command([
       values.ffmpeg,
       '-hide_banner',
       '-loglevel',
       'error',
+      '-f',
+      'concat',
+      '-safe',
+      '0',
       '-i',
-      raw,
-      '-ss',
-      String(leadIn),
+      input,
       '-t',
-      String(playbackDuration + 0.25),
+      String(duration),
       '-an',
       '-vf',
       `fps=${fps},setpts=PTS-STARTPTS`,
       '-c:v',
       'libvpx-vp9',
-      '-crf',
-      '24',
+      '-lossless',
+      '1',
+      '-pix_fmt',
+      'yuv420p',
+      '-cpu-used',
+      '4',
+      '-row-mt',
+      '1',
       '-b:v',
       '0',
       '-g',
@@ -217,12 +274,14 @@ async function main() {
     const frameCount = Number(stream.nb_read_frames)
     if (
       stream.codec_name !== 'vp9' ||
+      stream.width !== size.width * scale ||
+      stream.height !== size.height * scale ||
       stream.avg_frame_rate !== '25/1' ||
       frameCount !== frames.length ||
       frames[0]?.key_frame !== 1
     ) {
       throw new Error(
-        'Encoded video failed codec, frame rate, frame count or initial keyframe validation.'
+        'Encoded video failed codec, dimensions, frame rate, frame count or initial keyframe validation.'
       )
     }
     let lastKeyframe = 0
@@ -253,7 +312,7 @@ async function main() {
     await rename(output, join(destination, 'preview.webm'))
     await rename(join(temporary, 'preview.json'), join(destination, 'preview.json'))
     console.log(
-      `Saved ${frameCount} frames, ${manifest.duration}s, ${manifest.width}×${manifest.height}: ${destination}/preview.webm`
+      `Saved ${frameCount} frames from ${snapshots.length} snapshots, ${manifest.duration}s, ${manifest.width}×${manifest.height}: ${destination}/preview.webm`
     )
   } finally {
     await browser?.close()
