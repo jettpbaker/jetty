@@ -53,7 +53,7 @@
   gap: 8px;
   padding-inline: 10px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .grouped-table-chevron[data-open='true'] {
   transform: rotate(90deg);
@@ -75,7 +75,7 @@
   background: transparent;
   color: var(--foreground);
   text-align: left;
-  font-size: 13px;
+  font-size: var(--text-sm);
   cursor: pointer;
   outline: none;
 }

@@ -39,7 +39,7 @@
 .description-document a:not([data-slot='button']) {
   @apply wrap-anywhere font-medium text-primary underline;
 }
-/* Scaled from Linear's 22/19/17 over a 15px body to Jetty's 14px, staying under the 24px PR title. */
+/* Keep document headings below the 24px PR title. */
 .description-document h1 {
   @apply mt-6 mb-2 text-xl font-semibold;
 }

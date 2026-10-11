@@ -3,7 +3,7 @@
 }
 
 .file-changes-viewer diffs-container {
-  --diffs-font-size: 12px;
+  --diffs-font-size: var(--text-xs);
 }
 
 .file-changes-viewer [slot='header-prefix'] {

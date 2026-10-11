@@ -195,6 +195,10 @@
   --spacing-glyph: 1.125rem;
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: calc(1 / 0.6875);
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(1.25 / 0.8125);
   --text-13: 0.8125rem;
   --text-13--line-height: calc(1.125 / 0.8125);
   --color-sidebar-ring: var(--sidebar-ring);

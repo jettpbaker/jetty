@@ -19,7 +19,7 @@ import {
 } from './user_message'
 import { groupWorkActivities, previewCount, workEnded } from './work_model'
 
-const lineHeight = 23
+const lineHeight = 13 * 1.625
 // The footer under a message, and the bubble's gap above it.
 const footerRow = 28
 // The quote a message carries, above its bubble, with its gap.
@@ -86,7 +86,7 @@ function textHeight(
   preWrap: boolean,
   rough: boolean,
   leading = lineHeight,
-  fontSize = 14
+  fontSize = 13
 ) {
   if (rough) return roughHeight(text, width, preWrap, leading, fontSize)
   let entry = cache.get(id)
@@ -118,7 +118,7 @@ function markdownHeight(
   width: number,
   rough: boolean,
   leading = lineHeight,
-  fontSize = 14
+  fontSize = 13
 ) {
   if (!text.includes('![')) return textHeight(id, text, width, false, rough, leading, fontSize)
   let media = 0

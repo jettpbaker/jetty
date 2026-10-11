@@ -45,7 +45,7 @@ const editorCSS = `
     border: 1px solid var(--border) !important;
     border-radius: var(--radius-md) !important;
     font-family: var(--font-sans) !important;
-    font-size: 12px !important;
+    font-size: var(--text-xs) !important;
   }
   [data-input-box] input::placeholder { color: var(--muted-foreground) !important; }
   [data-input-box] input:focus-visible { outline: none !important; box-shadow: none !important; }
