@@ -3,10 +3,11 @@ import { useSyncExternalStore } from 'react'
 
 export const scrollFadeTunerEnabled = import.meta.env.DEV && import.meta.env.VITE_CHAT_TUNER === '1'
 
-const key = 'jetty.dev.scroll-fade'
+const key = 'jetty.dev.scroll-edge-style'
 const listeners = new Set<() => void>()
-export type ScrollFadeMode = 't3' | 'opencode'
-let mode: ScrollFadeMode = storage.get(key) === 't3' ? 't3' : 'opencode'
+export type ScrollFadeMode = 'jetty' | 't3' | 'opencode'
+const saved = storage.get(key)
+let mode: ScrollFadeMode = saved === 't3' || saved === 'opencode' ? saved : 'jetty'
 
 function subscribe(listener: () => void) {
   listeners.add(listener)

@@ -928,6 +928,17 @@ export function ThreadList({
             ))}
           </div>
         </section>
+        {scrollFade === 'jetty' && (
+          <div
+            aria-hidden='true'
+            data-chat-scroll-edge='jetty'
+            className='pointer-events-none absolute inset-x-0 top-0 z-10 h-6 overflow-hidden'
+          >
+            <div className='absolute inset-0 mask-[linear-gradient(to_bottom,black,transparent)] backdrop-blur-[2px] motion-reduce:hidden' />
+            <div className='absolute inset-x-0 top-0 h-3 mask-[linear-gradient(to_bottom,black,transparent)] backdrop-blur-[5px] motion-reduce:hidden' />
+            <div className='absolute inset-x-0 top-0 h-1 bg-linear-to-b from-background to-transparent' />
+          </div>
+        )}
         {scrollFade === 'opencode' && (
           <div
             aria-hidden='true'
