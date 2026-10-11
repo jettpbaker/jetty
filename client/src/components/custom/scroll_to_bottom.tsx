@@ -3,6 +3,7 @@ import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 
 import { ArrowDown02Icon } from './huge_icons'
+import { RollingNumber } from './rolling_number'
 
 // How far above the latest message, in screens, the reader has to be before the arrow shows.
 export const scrollToBottomAfter = 1.5
@@ -24,15 +25,16 @@ function Dot({ className }: { className?: string }) {
   )
 }
 
-// A round arrow centred just above the composer: its parent's bottom edge is the composer's top.
-// `fresh` puts a dot on it in the accent (the bot's colour in a bot chat) for something new below.
+// Its parent's bottom edge is the composer's top.
 export function ScrollToBottom({
   shown,
   fresh,
+  messages,
   onScroll,
 }: {
   shown: boolean
   fresh: boolean
+  messages?: number
   onScroll: () => void
 }) {
   return (
@@ -40,20 +42,32 @@ export function ScrollToBottom({
       <Button
         variant='ghost'
         tone='muted'
-        size='icon-lg'
-        aria-label='Scroll to the latest message'
+        size='sm'
+        aria-label={
+          messages
+            ? `${messages} assistant ${messages === 1 ? 'message' : 'messages'} below. Scroll to the latest message`
+            : 'Scroll to the latest message'
+        }
         aria-hidden={!shown}
         tabIndex={shown ? undefined : -1}
         data-shown={shown}
         {...pressProps(onScroll)}
         className={cn(
-          'pointer-events-auto relative rounded-full',
+          'pointer-events-auto relative',
           floating,
           enter,
           'data-[shown=false]:scale-90'
         )}
       >
-        <ArrowDown02Icon />
+        <ArrowDown02Icon data-icon='inline-start' />
+        {messages ? (
+          <span aria-hidden className='inline-flex items-baseline gap-1'>
+            <RollingNumber value={messages} className='font-mono' />
+            <span>{messages === 1 ? 'message' : 'messages'}</span>
+          </span>
+        ) : (
+          <span>Latest</span>
+        )}
         {fresh && <Dot className='top-0.5 right-0.5' />}
       </Button>
     </div>

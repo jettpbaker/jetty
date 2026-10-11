@@ -117,7 +117,22 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 const paddedRows = new Set<ThreadRow['kind']>(['user'])
 
 function contentWidth(scrollerWidth: number) {
-  return Math.max(1, Math.min(708, scrollerWidth) - 48)
+  return Math.max(1, Math.min(873, scrollerWidth) - 48)
+}
+
+function messagesBelow(
+  indices: readonly number[],
+  measurements: readonly VirtualItem[],
+  edge: number
+) {
+  let start = 0
+  let end = indices.length
+  while (start < end) {
+    const middle = (start + end) >>> 1
+    if (measurements[indices[middle]!]!.end <= edge + 1) start = middle + 1
+    else end = middle
+  }
+  return indices.length - start
 }
 
 function rowStamp(row: ThreadRow) {
@@ -358,6 +373,14 @@ export function ThreadList({
     ]
   )
   const view = `${threadId}:${agentId ?? ''}`
+  const messageIndices = useMemo(
+    () =>
+      rows.flatMap((row, index) =>
+        row.kind === 'assistant' || row.kind === 'plan' ? [index] : []
+      ),
+    [rows]
+  )
+  const latestMessageIndices = useRef(messageIndices)
   const [saved] = useState(() => {
     const position = positions.get(view)
     const index = rows.findIndex((row) => row.id === position?.anchor?.key)
@@ -546,13 +569,24 @@ export function ThreadList({
   const [away, setAway] = useState(false)
   const awayRef = useRef(false)
   const [fresh, setFresh] = useState(false)
-  const checkAway = useCallback((element: HTMLElement) => {
-    const behind = scrollExtent.current - element.clientHeight - element.scrollTop
-    const next = behind > element.clientHeight * scrollToBottomAfter
-    if (next === awayRef.current) return
-    awayRef.current = next
-    setAway(next)
-  }, [])
+  const [remainingMessages, setRemainingMessages] = useState(0)
+  const checkAway = useCallback(
+    (element: HTMLElement) => {
+      setRemainingMessages(
+        messagesBelow(
+          latestMessageIndices.current,
+          virtualizer.measurementsCache,
+          element.scrollTop + element.clientHeight
+        )
+      )
+      const behind = scrollExtent.current - element.clientHeight - element.scrollTop
+      const next = behind > element.clientHeight * scrollToBottomAfter
+      if (next === awayRef.current) return
+      awayRef.current = next
+      setAway(next)
+    },
+    [virtualizer]
+  )
   const pin = useCallback(
     (value: boolean) => {
       pinned.current = value
@@ -750,6 +784,7 @@ export function ThreadList({
   const latestWidth = useRef(width)
   useLayoutEffect(() => {
     latestRows.current = rows
+    latestMessageIndices.current = messageIndices
     latestWidth.current = width
   })
   useLayoutCheck(scroller, virtualizer, latestRows, pinned)
@@ -903,7 +938,12 @@ export function ThreadList({
             ))}
           </div>
         </section>
-        <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />
+        <ScrollToBottom
+          shown={away}
+          fresh={fresh}
+          messages={remainingMessages}
+          onScroll={toBottom}
+        />
         {!agentId && (
           <AddToPrompt chatRef={scroller} onAdd={(reply) => chatComposer(threadId)?.quote(reply)} />
         )}
