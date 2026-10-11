@@ -6,10 +6,16 @@ export function bottomGlide(
     onWrite,
     onRun,
     target = () => element.scrollHeight - element.clientHeight,
+    read = () => element.scrollTop,
+    apply = (top: number) => {
+      element.scrollTop = top
+    },
   }: {
     onWrite?: (top: number) => void
     onRun?: (running: boolean) => void
     target?: () => number
+    read?: () => number
+    apply?: (top: number) => void
   } = {}
 ) {
   const stiffness = 20
@@ -20,7 +26,7 @@ export function bottomGlide(
     const dt = Math.min(0.05, (now - previous) / 1000)
     previous = now
     const bottom = Math.max(0, target())
-    const offset = element.scrollTop - bottom
+    const offset = read() - bottom
     const decay = Math.exp(-stiffness * dt)
     const next = (offset + (velocity + stiffness * offset) * dt) * decay
     velocity = (velocity - stiffness * (velocity + stiffness * offset) * dt) * decay
@@ -33,8 +39,8 @@ export function bottomGlide(
     onRun?.(false)
   }
   function write(top: number) {
-    element.scrollTop = top
-    onWrite?.(element.scrollTop)
+    apply(top)
+    onWrite?.(read())
   }
   return {
     write,

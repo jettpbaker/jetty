@@ -3,7 +3,7 @@ import { getMotionTokens, motionMilliseconds } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { completedAgo } from '@/state/threads'
 import { useReducedMotion } from 'motion/react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
@@ -28,12 +28,9 @@ function historyBottom(element: HTMLElement) {
 }
 
 // Entries scrolled out of a live preview fade at that edge.
-function edges(element: HTMLElement, following = false) {
-  element.toggleAttribute('data-above', element.scrollTop > 0)
-  element.toggleAttribute(
-    'data-below',
-    !following && historyBottom(element) - element.scrollTop > 1
-  )
+function edges(element: HTMLElement, following = false, top = element.scrollTop) {
+  element.toggleAttribute('data-above', top > 0)
+  element.toggleAttribute('data-below', !following && historyBottom(element) - top > 1)
 }
 
 function WorkHistory({
@@ -51,7 +48,8 @@ function WorkHistory({
   const [initialEntries] = useState(() => new Set(entries.map((entry) => entry.id)))
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
-  const glideRef = useRef<ReturnType<typeof bottomGlide> | null>(null)
+  const releaseAnchorRef = useRef<(() => void) | null>(null)
+  const scrollRef = useRef<(() => void) | null>(null)
   const heightAnimationRef = useRef<Animation | null>(null)
   const previousView = useRef(view)
 
@@ -72,6 +70,8 @@ function WorkHistory({
       const release = setTimeout(
         () => {
           element.style.maxHeight = ''
+          list.style.marginTop = ''
+          list.style.transform = ''
           edges(element)
         },
         reducedMotion ? 0 : getMotionTokens().disclosure.closeMs
@@ -79,19 +79,77 @@ function WorkHistory({
       return () => clearTimeout(release)
     }
     if (!live) {
+      list.style.marginTop = ''
+      list.style.transform = ''
       element.style.maxHeight = ''
       edges(element)
       return
     }
+    list.style.marginTop = ''
+    list.style.transform = ''
     pinned.current = true
-    let bottom = historyBottom(element)
+    let bottom = 0
+    let offset = 0
     let gliding = false
+    let switching = changedView && !reducedMotion
+    let anchored = view === 'preview' && !switching
+    function position(top: number) {
+      offset = top
+      if (anchored) {
+        // Remove older rows from the flow so shrinking details cannot clamp a bottom scroll pin.
+        list.style.marginTop = `${-(pinned.current ? bottom : top)}px`
+        list.style.transform =
+          pinned.current && top !== bottom ? `translateY(${bottom - top}px)` : ''
+        element.scrollTop = 0
+      } else {
+        list.style.marginTop = ''
+        list.style.transform = ''
+        element.scrollTop = top
+      }
+    }
     const glide = bottomGlide(element, {
-      onWrite: () => edges(element, pinned.current),
+      read: () => offset,
+      apply: position,
+      onWrite: () => edges(element, pinned.current, offset),
       onRun: (running) => (gliding = running),
       target: () => bottom,
     })
-    glideRef.current = glide
+    releaseAnchorRef.current = () => {
+      pinned.current = false
+      glide.stop()
+      anchored = false
+      position(offset)
+    }
+    scrollRef.current = () => {
+      if (!anchored) {
+        offset = element.scrollTop
+        if (bottom - offset < 2) pinned.current = true
+      }
+      edges(element, pinned.current, offset)
+    }
+    function anchorReader() {
+      if (view !== 'preview' || switching || anchored) return
+      offset = element.scrollTop
+      anchored = true
+      position(offset)
+      edges(element, pinned.current, offset)
+    }
+    function onWheel(event: WheelEvent) {
+      if (view !== 'preview' || !anchored || !event.deltaY) return
+      const output = event.target instanceof Element ? event.target.closest('.tool-output') : null
+      if (
+        output &&
+        (event.deltaY < 0
+          ? output.scrollTop > 0
+          : output.scrollTop < output.scrollHeight - output.clientHeight - 1)
+      )
+        return
+      event.preventDefault()
+      releaseAnchorRef.current?.()
+      const step = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? element.clientHeight : 1
+      element.scrollTop = Math.max(0, Math.min(bottom, offset + event.deltaY * step))
+      offset = element.scrollTop
+    }
     let initial = true
     let previewStart: Element | undefined
     function measure() {
@@ -113,7 +171,7 @@ function WorkHistory({
         else glide.start()
       }
       initial = false
-      edges(element, pinned.current)
+      edges(element, pinned.current, offset)
     }
     measure()
     if (changedView && !reducedMotion && previousHeight !== element.clientHeight) {
@@ -132,82 +190,63 @@ function WorkHistory({
       glide.write(historyBottom(element))
       animation.onfinish = () => {
         heightAnimationRef.current = null
-        edges(element, pinned.current)
+        switching = false
+        anchored = view === 'preview'
+        measure()
       }
+    } else if (switching) {
+      switching = false
+      anchored = view === 'preview'
+      measure()
     }
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     observer.observe(list)
-    const mutations = new MutationObserver((records) => {
-      if (
-        records.some(
-          (record) =>
-            record.type === 'attributes' ||
-            record.target === list ||
-            (record.target instanceof Element && record.target.matches('[data-slot="collapsible"]'))
-        )
-      )
-        measure()
-    })
-    mutations.observe(list, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: ['data-open', 'data-closed', 'data-starting-style', 'data-ending-style'],
-    })
-    // ResizeObserver can lag a disclosure frame; keep the preview cap and pin in sync.
-    const resizing = new Set<EventTarget>()
-    let resizeFrame = 0
-    function resizeTick() {
-      measure()
-      resizeFrame = resizing.size ? requestAnimationFrame(resizeTick) : 0
-    }
-    function onTransitionRun(event: TransitionEvent) {
-      if (event.propertyName !== 'height' || !event.target) return
-      resizing.add(event.target)
-      if (!resizeFrame) resizeFrame = requestAnimationFrame(resizeTick)
-    }
-    function onTransitionEnd(event: TransitionEvent) {
-      if (event.propertyName !== 'height' || !event.target) return
-      resizing.delete(event.target)
-    }
-    element.addEventListener('transitionrun', onTransitionRun)
-    element.addEventListener('transitionend', onTransitionEnd)
-    element.addEventListener('transitioncancel', onTransitionEnd)
     function onKeyDown(event: KeyboardEvent) {
-      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
-        pinned.current = false
-        glide.stop()
+      if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) return
+      if (view !== 'preview') {
+        releaseAnchorRef.current?.()
+        return
       }
+      if (event.target instanceof Element && event.target.closest('.tool-output')) return
+      event.preventDefault()
+      const destinations: Record<string, number> = {
+        ArrowUp: offset - 20,
+        ArrowDown: offset + 20,
+        PageUp: offset - element.clientHeight,
+        PageDown: offset + element.clientHeight,
+        Home: 0,
+        End: bottom,
+      }
+      const top = Math.max(0, Math.min(bottom, destinations[event.key]!))
+      glide.stop()
+      pinned.current = top === bottom
+      anchored = true
+      position(top)
+      edges(element, pinned.current, offset)
     }
     element.addEventListener('keydown', onKeyDown)
+    element.addEventListener('wheel', onWheel, { passive: false })
+    element.addEventListener('scrollend', anchorReader)
+    element.addEventListener('click', anchorReader, true)
     return () => {
       observer.disconnect()
-      mutations.disconnect()
-      cancelAnimationFrame(resizeFrame)
-      element.removeEventListener('transitionrun', onTransitionRun)
-      element.removeEventListener('transitionend', onTransitionEnd)
-      element.removeEventListener('transitioncancel', onTransitionEnd)
       element.removeEventListener('keydown', onKeyDown)
+      element.removeEventListener('wheel', onWheel)
+      element.removeEventListener('scrollend', anchorReader)
+      element.removeEventListener('click', anchorReader, true)
       glide.stop()
-      glideRef.current = null
+      releaseAnchorRef.current = null
+      scrollRef.current = null
     }
   }, [live, view, reducedMotion])
 
-  // Only the reader unpins: the pin's own scrolls land a frame late, mid-animation.
   function onScroll() {
-    const element = scroller.current!
-    if (historyBottom(element) - element.scrollTop < 2) pinned.current = true
-    edges(element, live && view === 'preview' && pinned.current)
-  }
-
-  function onWheel(event: WheelEvent<HTMLDivElement>) {
-    if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) unpin()
+    scrollRef.current?.()
   }
 
   function unpin() {
-    pinned.current = false
-    glideRef.current?.stop()
+    releaseAnchorRef.current?.()
   }
 
   return (
@@ -215,8 +254,7 @@ function WorkHistory({
       ref={scroller}
       className={cn('work-scroll no-scrollbar', entries.length > previewCount && 'overflow-y-auto')}
       onScroll={onScroll}
-      onWheel={onWheel}
-      onTouchMove={unpin}
+      onTouchStart={unpin}
     >
       <div>
         {entries.map((entry, index) => (
