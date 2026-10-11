@@ -27,9 +27,12 @@ function historyBottom(element: HTMLElement) {
 }
 
 // Entries scrolled out of a live preview fade at that edge.
-function edges(element: HTMLElement) {
+function edges(element: HTMLElement, following = false) {
   element.toggleAttribute('data-above', element.scrollTop > 0)
-  element.toggleAttribute('data-below', historyBottom(element) - element.scrollTop > 1)
+  element.toggleAttribute(
+    'data-below',
+    !following && historyBottom(element) - element.scrollTop > 1
+  )
 }
 
 function WorkHistory({
@@ -72,7 +75,7 @@ function WorkHistory({
     }
     pinned.current = true
     const glide = bottomGlide(element, {
-      onWrite: () => edges(element),
+      onWrite: () => edges(element, pinned.current),
       target: () => historyBottom(element),
     })
     glideRef.current = glide
@@ -87,7 +90,7 @@ function WorkHistory({
         else glide.start()
       }
       initial = false
-      edges(element)
+      edges(element, pinned.current)
     }
     measure()
     const observer = new ResizeObserver(measure)
@@ -104,7 +107,7 @@ function WorkHistory({
   function onScroll() {
     const element = scroller.current!
     if (historyBottom(element) - element.scrollTop < 2) pinned.current = true
-    edges(element)
+    edges(element, live && view === 'preview' && pinned.current)
   }
 
   function onWheel(event: WheelEvent<HTMLDivElement>) {
