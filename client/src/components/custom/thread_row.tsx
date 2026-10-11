@@ -80,7 +80,7 @@ export function ThreadRow({
             glyph={
               <span className='ml-auto flex shrink-0 items-center'>
                 <HeldKeybind binding={shortcut}>
-                  <StatusGlyph status={status} className='size-3' />
+                  <StatusGlyph status={status} className='size-3.25' />
                 </HeldKeybind>
               </span>
             }
