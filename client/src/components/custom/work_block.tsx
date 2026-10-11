@@ -1,5 +1,5 @@
 import { bottomGlide } from '@/lib/bottom-glide'
-import { getMotionTokens } from '@/lib/motion'
+import { getMotionTokens, motionMilliseconds } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { completedAgo } from '@/state/threads'
 import { useReducedMotion } from 'motion/react'
@@ -116,7 +116,7 @@ function WorkHistory({
       const animation = element.animate(
         { maxHeight: [`${previousHeight}px`, element.style.maxHeight] },
         {
-          duration: parseFloat(duration),
+          duration: motionMilliseconds(duration),
           easing: styles.getPropertyValue('--motion-disclosure-ease').trim(),
         }
       )

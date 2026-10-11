@@ -10,12 +10,16 @@ type MotionTokens = {
 
 let tokens: MotionTokens | undefined
 
+export function motionMilliseconds(duration: string) {
+  return parseFloat(duration) * (duration.trim().endsWith('ms') ? 1 : 1000)
+}
+
 // Read after the stylesheet loads, once rather than on each streamed chunk or animation frame.
 export function getMotionTokens(): MotionTokens {
   if (tokens) return tokens
   const styles = getComputedStyle(document.documentElement)
   const value = (name: string) => styles.getPropertyValue(`--motion-${name}`).trim()
-  const milliseconds = (name: string) => parseFloat(value(name))
+  const milliseconds = (name: string) => motionMilliseconds(value(name))
   tokens = {
     disclosure: {
       openMs: milliseconds('disclosure-open-duration'),
