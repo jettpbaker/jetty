@@ -99,7 +99,7 @@ export function ThreadRow({
   }>
 }) {
   const className = 'min-w-0 shrink justify-start gap-1.5 px-0 text-13 font-normal'
-  const title = [result.title, result.project].filter(Boolean).join(' · ')
+  const title = result.title
   const children = (
     <>
       {(status || result.archived || result.status) && (
@@ -130,9 +130,6 @@ export function ThreadRow({
         >
           {children}
         </Button>
-      )}
-      {result.project && (
-        <span className='shrink-0 text-xs text-muted-foreground'>{result.project}</span>
       )}
     </div>
   )

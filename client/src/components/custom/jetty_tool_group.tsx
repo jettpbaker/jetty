@@ -28,13 +28,11 @@ import { describeToolBatch, workEnded, type ToolBatch } from './work_model'
 
 export function JettyThreadRow({ result, outcome }: { result: ThreadResult; outcome?: Status }) {
   const meta = useThreadMeta(result.id)
-  const project = useProject(meta?.projectId)
   return (
     <ThreadRow
       result={{
         ...result,
         title: meta?.title ?? result.title,
-        project: project?.title ?? result.project,
         status: meta?.status ?? result.status,
         archived: meta?.archived ?? result.archived,
       }}
