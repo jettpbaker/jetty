@@ -1,6 +1,5 @@
 import {
   Tick02Icon,
-  Comment01Icon,
   Cancel01Icon,
   HistoryIcon,
   PauseIcon,
@@ -30,17 +29,16 @@ import type { PullRequestItem } from './thread_rows'
 
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
-import { approvalView, type ApprovalItem, type QuestionItem } from './composer_strip_model'
+import { approvalView, type ApprovalItem } from './composer_strip_model'
 import { inlineLinkClass, LeadTitle, OpenPullLink, plainClick, shorten } from './entity_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
 
-type Tone = 'allow' | 'deny' | 'answer' | 'dismiss'
+type Tone = 'allow' | 'deny' | 'dismiss'
 
 const markerIcons: Record<Tone, typeof Tick02Icon> = {
   allow: Tick02Icon,
   deny: Cancel01Icon,
-  answer: Comment01Icon,
   dismiss: Cancel01Icon,
 }
 
@@ -78,47 +76,18 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
   }
 }
 
-function questionMarker(item: QuestionItem) {
-  const { answers } = item
-  if (!answers)
-    return {
-      tone: 'dismiss' as const,
-      text: (
-        <span className='truncate'>
-          {item.dismissed ? 'Dismissed' : 'Skipped'} “{item.questions[0]?.question}”
-        </span>
-      ),
-    }
-  return {
-    tone: 'answer' as const,
-    text: (
-      <span className='truncate'>
-        Answered{' '}
-        {item.questions.map((question, index) => (
-          <span key={question.question}>
-            {index > 0 && ' · '}
-            {question.header || question.question}:{' '}
-            <span className='text-foreground'>{answers[question.question]}</span>
-          </span>
-        ))}
-      </span>
-    ),
-  }
-}
-
 export function TranscriptMarker({
   item,
   source,
   provider,
   projectPath,
 }: {
-  item: ApprovalItem | QuestionItem
+  item: ApprovalItem
   source?: string
   provider?: string
   projectPath?: string
 }) {
-  const { tone, text } =
-    item.kind === 'approval' ? approvalMarker(item, projectPath) : questionMarker(item)
+  const { tone, text } = approvalMarker(item, projectPath)
   const Icon = markerIcons[tone]
   return (
     <div

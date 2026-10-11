@@ -163,7 +163,9 @@ function rowStamp(row: ThreadRow) {
             ? `${activity.id}:${activity.text.length}:${activity.streaming}`
             : activity.type === 'thinking'
               ? `${activity.id}:${activity.summary.length}:${activity.status}`
-              : activity.type === 'todo' || activity.type === 'created'
+              : activity.type === 'todo' ||
+                  activity.type === 'created' ||
+                  activity.type === 'question'
                 ? activity.id
                 : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )

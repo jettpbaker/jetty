@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
 import { Markdown } from './markdown'
+import { QuestionBlock } from './question_block'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
@@ -272,6 +273,8 @@ function WorkHistory({
           >
             {entry.type === 'thinking' ? (
               <ThinkingBlock activity={entry} />
+            ) : entry.type === 'question' ? (
+              <QuestionBlock activity={entry} />
             ) : entry.type === 'text' ? (
               <Markdown
                 className={cn('work-text', index < entries.length - 1 && 'work-text-past')}
