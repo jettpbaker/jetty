@@ -136,6 +136,11 @@ Each has an independent Replay button. The count stays at 3 to isolate the compl
 which starts after one second. Reduced motion replaces movement and blur with the
 control-duration fade. These experiments do not change the production tool label.
 
+Failures retain their operation: Failed to read/edit/write, File search failed, and Web
+search failed. File failures use the same unique-file counter as successful operations;
+mixed batches show successful files in the main count and failures in a separate rolling
+count. Expanding a row keeps the individual targets and error output available.
+
 Production completion labels now switch instantly: Reading → Read, Editing → Edited,
 Writing → Wrote, Thinking → Thought, Searching the web → Searched the web, and
 Working → Worked. The file number roller and row entrances remain animated. The

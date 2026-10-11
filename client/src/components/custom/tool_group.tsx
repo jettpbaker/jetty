@@ -44,14 +44,19 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
           </>
         )}
       </span>
-      {label.notices && (
+      {label.notices.length > 0 && (
         <span
           className={cn(
             'ml-auto shrink-0 text-xs',
             label.failed ? 'text-status-error' : 'text-muted-foreground'
           )}
         >
-          {label.notices}
+          {label.notices.map((notice, index) => (
+            <span key={notice.status}>
+              {index > 0 && ', '}
+              <RollingNumber value={notice.count} className='font-mono' /> {notice.text}
+            </span>
+          ))}
         </span>
       )}
     </>
@@ -69,7 +74,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
-        aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.notices ? `, ${label.notices}` : ''}`}
+        aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.noticeText ? `, ${label.noticeText}` : ''}`}
       >
         {heading}
       </CollapsibleTrigger>

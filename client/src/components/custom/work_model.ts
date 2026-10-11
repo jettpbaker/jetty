@@ -189,6 +189,29 @@ export function createWorkEntries() {
   }
 }
 
+function countToolFiles(calls: ToolActivity[]) {
+  return Math.max(1, new Set(calls.flatMap((call) => call.files ?? [call.target])).size)
+}
+
+function toolFailureVerb(call: ToolActivity) {
+  switch (call.kind) {
+    case 'read':
+      return 'Failed to read'
+    case 'edit':
+      return 'Failed to edit'
+    case 'write':
+      return 'Failed to write'
+    case 'search':
+      return 'File search failed'
+    case 'terminal':
+      return 'Failed to run'
+    case 'web':
+      return 'Web search failed'
+    case 'generic':
+      return call.words ? `Failed while ${call.words.active.toLowerCase()}` : `${call.name} failed`
+  }
+}
+
 export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const first = calls[0]!
   const latest = calls.at(-1)!
@@ -198,13 +221,17 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const failed = count('failed')
   const cancelled = count('cancelled')
   const interrupted = count('interrupted')
-  const fileCount = ['read', 'edit', 'write'].includes(first.kind)
-    ? Math.max(1, new Set(calls.flatMap((call) => call.files ?? [call.target])).size)
-    : undefined
+  const files = ['read', 'edit', 'write'].includes(first.kind)
   const words = first.words ?? vocabulary[first.kind]
-  const active =
-    running.length > 0 ||
-    (fileCount !== undefined && !sealed && failed + cancelled + interrupted === 0)
+  const active = running.length > 0 || (files && !sealed && failed + cancelled + interrupted === 0)
+  const outcome = !active && !completed ? latest.status : undefined
+  const fileCount = files
+    ? countToolFiles(
+        active
+          ? calls
+          : calls.filter((call) => call.status === (completed ? 'complete' : latest.status))
+      )
+    : undefined
   const summarise =
     fileCount !== undefined || (sealed && calls.length > 1 && !active) || running.length > 1
   const shown = fileCount ?? (active ? running.length : completed || calls.length)
@@ -220,27 +247,27 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
         : `${shown} ${shown === 1 ? words.singular : words.noun}`
   let verb = active ? words.active : words.done
   if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
-    if (latest.status === 'failed') verb = first.kind === 'web' ? 'Web search failed' : 'Failed'
-    else if (latest.status === 'cancelled')
+    if (latest.status === 'failed') {
+      verb = toolFailureVerb(first)
+      if (first.kind === 'search') target = ''
+    } else if (latest.status === 'cancelled')
       verb = first.kind === 'web' ? 'Web search cancelled' : 'Cancelled'
     else if (latest.status === 'interrupted')
       verb = first.kind === 'web' ? 'Web search stopped' : 'Stopped'
   }
-  const notices =
-    calls.length === 1
-      ? ''
-      : [
-          failed && `${failed} failed`,
-          cancelled && `${cancelled} cancelled`,
-          interrupted && `${interrupted} stopped`,
-        ]
-          .filter(Boolean)
-          .join(', ')
+  const notices = (['failed', 'cancelled', 'interrupted'] as const)
+    .filter((status) => calls.length > 1 && count(status) > 0 && !(files && outcome === status))
+    .map((status) => ({
+      status,
+      count: files ? countToolFiles(calls.filter((call) => call.status === status)) : count(status),
+      text: status === 'interrupted' ? 'stopped' : status,
+    }))
+  const noticeText = notices.map((notice) => `${notice.count} ${notice.text}`).join(', ')
   return {
     verb,
     description:
       description && (current.status === 'failed' || current.status === 'interrupted')
-        ? `${current.status === 'failed' ? 'Failed' : 'Stopped'} ${description}`
+        ? `${current.status === 'failed' ? 'Failed to run:' : 'Stopped'} ${description}`
         : description,
     target,
     fileCount,
@@ -249,5 +276,6 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
     active,
     failed,
     notices,
+    noticeText,
   }
 }
