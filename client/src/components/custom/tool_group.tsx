@@ -3,6 +3,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 
+import { ActivityChevron } from './activity_disclosure'
 import { ThreadLink } from './entity_link'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
@@ -95,6 +96,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         aria-label={`${label.description ?? `${label.verb} ${label.target}`}${label.noticeText ? `, ${label.noticeText}` : ''}`}
       >
         {heading}
+        <ActivityChevron />
       </CollapsibleTrigger>
       <CollapsibleContent className={cn('pl-2', autoClosing && 'work-batch-auto-close')}>
         {batch.calls.length === 1 && label.fileCount === undefined ? (
@@ -139,6 +141,7 @@ export function ThreadGroup({ batch }: { batch: ThreadBatch }) {
           <span className='shrink-0'>Created</span>
           <RollingText>{count}</RollingText>
         </span>
+        <ActivityChevron />
       </CollapsibleTrigger>
       <CollapsibleContent className='pl-2'>
         <div>

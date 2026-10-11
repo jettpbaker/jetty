@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { use, type ReactNode } from 'react'
 
 import './charmed_icons.css'
+import { ActivityChevron } from './activity_disclosure'
 import { DiffCounts } from './diff/file_card'
 import { basename, CharmedFileIcon } from './diff/file_name'
 import { copyFilePath, OpenFileLink, ProjectFileRoot, projectRelativePath } from './file_link'
@@ -117,6 +118,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
             </>
           )}
         </span>
+        <ActivityChevron />
       </CollapsibleTrigger>
       <CollapsibleContent className='pl-2'>
         <ToolCallDetails call={call} />

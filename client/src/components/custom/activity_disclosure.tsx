@@ -3,8 +3,13 @@ import { useId, useState, type ReactNode } from 'react'
 
 import './work.css'
 import { ActivityContent } from './activity_content'
+import { ArrowRight01Icon } from './huge_icons'
 
 export type ActivityView = 'preview' | 'full'
+
+export function ActivityChevron() {
+  return <ArrowRight01Icon className='activity-chevron ml-auto text-muted-foreground' aria-hidden />
+}
 
 export function ActivityDisclosure({
   title,
@@ -61,6 +66,7 @@ export function ActivityDisclosure({
             onClick={toggle}
           >
             {heading}
+            <ActivityChevron />
           </Button>
         ) : (
           <div

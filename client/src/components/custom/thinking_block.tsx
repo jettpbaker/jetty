@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { ActivityContent } from './activity_content'
+import { ActivityChevron } from './activity_disclosure'
 import { formatActivityDuration, workEnded, type ThinkingActivity } from './work_model'
 
 const TICK_MS = 120
@@ -89,6 +90,7 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
           onClick={() => setExpanded((value) => !value)}
         >
           {heading}
+          <ActivityChevron />
         </Button>
       ) : (
         <div className='activity-header text-muted-foreground'>{heading}</div>
