@@ -123,3 +123,7 @@ the height reveal; replies use only the production word fades.
 The entrance reads the shared disclosure duration and easing tokens. Reduced motion uses
 only a fade at the shared control duration. Streamed words use the production 300ms fade.
 It has three entries and does not model history scrolling or end-of-turn collapse.
+
+A second row reuses `ToolGroup` to show Reading 1 → 2 → 3 files → Read 3 files, alongside
+Searching the web → Searched the web. Replay restarts every example, including the rolling
+file count. The file disclosure can be expanded to inspect the individual calls.

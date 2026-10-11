@@ -2,7 +2,11 @@ import { Markdown } from '@/components/custom/markdown'
 import { ThinkingBlock } from '@/components/custom/thinking_block'
 import { ToolGroup } from '@/components/custom/tool_group'
 import { WorkBlock } from '@/components/custom/work_block'
-import { groupWorkActivities, type WorkActivity } from '@/components/custom/work_model'
+import {
+  groupWorkActivities,
+  type ToolBatch,
+  type WorkActivity,
+} from '@/components/custom/work_model'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { loadAccent } from '@/lib/accent'
@@ -113,6 +117,70 @@ function Example({ activities, identity }: { activities: WorkActivity[]; identit
   )
 }
 
+function ToolExamples() {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    const timers = [1, 2, 3].map((next) => setTimeout(() => setStep(next), next * 1000))
+    return () => {
+      for (const timer of timers) clearTimeout(timer)
+    }
+  }, [])
+  const complete = step === 3
+  const files: ToolBatch = {
+    type: 'tools',
+    id: 'file-example',
+    sealed: complete,
+    calls: ['package.json', 'src/index.ts', 'src/config.ts']
+      .slice(0, step + 1)
+      .map((target, index) => ({
+        type: 'tool',
+        id: `file-example:${index}`,
+        kind: 'read',
+        name: 'Read',
+        target,
+        status: complete || index < step ? 'complete' : 'running',
+        input: JSON.stringify({ file_path: target }),
+        output: 'File contents',
+      })),
+  }
+  const web: ToolBatch = {
+    type: 'tools',
+    id: 'web-example',
+    sealed: complete,
+    calls: [
+      {
+        type: 'tool',
+        id: 'web-example:search',
+        kind: 'web',
+        name: 'WebSearch',
+        target: 'React streaming UI',
+        status: complete ? 'complete' : 'running',
+        input: JSON.stringify({ query: 'React streaming UI' }),
+      },
+    ],
+  }
+  return (
+    <div className='grid gap-12 md:grid-cols-2 md:gap-16'>
+      <section aria-labelledby='files-label' data-tool-example='files'>
+        <h2 id='files-label' className='mb-8 text-sm font-medium'>
+          File count
+        </h2>
+        <div className='work-scroll'>
+          <ToolGroup batch={files} />
+        </div>
+      </section>
+      <section aria-labelledby='web-label' data-tool-example='web'>
+        <h2 id='web-label' className='mb-8 text-sm font-medium'>
+          Web search
+        </h2>
+        <div className='work-scroll'>
+          <ToolGroup batch={web} />
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function Sequence() {
   const [identity] = useState(() => crypto.randomUUID())
   const [step, setStep] = useState(0)
@@ -126,7 +194,12 @@ function Sequence() {
       for (const timer of timers) clearTimeout(timer)
     }
   }, [])
-  return <Example activities={activitiesAt(step)} identity={identity} />
+  return (
+    <div className='flex flex-col gap-16'>
+      <Example activities={activitiesAt(step)} identity={identity} />
+      <ToolExamples />
+    </div>
+  )
 }
 
 function App() {
