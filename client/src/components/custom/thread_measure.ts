@@ -30,7 +30,13 @@ const quoteRow = 29
 const fileRow = 30
 // Geist's mean advance at 14px, for rough line counts that skip text layout.
 const charWidth = 6.5
-type Measured = { text: string; prepared?: PreparedText; width?: number; height: number }
+type Measured = {
+  text: string
+  prepared?: PreparedText
+  width?: number
+  lineHeight?: number
+  height: number
+}
 const cache = new Map<string, Measured>()
 // Prepared text (about 20 bytes a character) only serves laying it out again at a new width, so past
 // this many characters the least recently used give theirs up.
@@ -60,25 +66,33 @@ function keepPrepared(id: string, entry: Measured) {
   }
 }
 
-function roughHeight(text: string, width: number, preWrap: boolean) {
+function roughHeight(text: string, width: number, preWrap: boolean, leading: number) {
   const perLine = Math.max(1, Math.floor(width / charWidth))
   let lines = 0
   for (const line of preWrap ? text.split('\n') : [text])
     lines += Math.max(1, Math.ceil(line.length / perLine))
-  return lines * lineHeight
+  return lines * leading
 }
 
-function textHeight(id: string, text: string, width: number, preWrap: boolean, rough: boolean) {
-  if (rough) return roughHeight(text, width, preWrap)
+function textHeight(
+  id: string,
+  text: string,
+  width: number,
+  preWrap: boolean,
+  rough: boolean,
+  leading = lineHeight
+) {
+  if (rough) return roughHeight(text, width, preWrap, leading)
   let entry = cache.get(id)
   if (!entry || entry.text !== text) {
     entry = { text, height: 0 }
     cache.set(id, entry)
   }
-  if (entry.width !== width) {
+  if (entry.width !== width || entry.lineHeight !== leading) {
     entry.prepared ??= prepare(text || ' ', font, preWrap ? { whiteSpace: 'pre-wrap' } : undefined)
     entry.width = width
-    entry.height = layout(entry.prepared, Math.max(1, width), lineHeight).height
+    entry.lineHeight = leading
+    entry.height = layout(entry.prepared, Math.max(1, width), leading).height
   }
   if (entry.prepared) keepPrepared(id, entry)
   return entry.height
@@ -88,14 +102,20 @@ function textHeight(id: string, text: string, width: number, preWrap: boolean, r
 const imageLine =
   /^[ \t]*!\[[^\]\n]*\]\([ \t]*<?https?:\/\/[^\s)>]+>?(?:[ \t]+"[^"\n]*")?[ \t]*\)[ \t]*$/gm
 
-function markdownHeight(id: string, text: string, width: number, rough: boolean) {
-  if (!text.includes('![')) return textHeight(id, text, width, false, rough)
+function markdownHeight(
+  id: string,
+  text: string,
+  width: number,
+  rough: boolean,
+  leading = lineHeight
+) {
+  if (!text.includes('![')) return textHeight(id, text, width, false, rough, leading)
   let media = 0
   const prose = text.replace(imageLine, () => {
     media += frameHeight(width)
     return ''
   })
-  return textHeight(id, prose, width, false, rough) + media
+  return textHeight(id, prose, width, false, rough, leading) + media
 }
 
 function captionHeight(id: string, caption: string | undefined, width: number, rough: boolean) {
@@ -225,7 +245,9 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       let height = 32
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
         height +=
-          entry.type === 'text' ? markdownHeight(entry.id, entry.text, width, rough) + 4 : 28
+          entry.type === 'text'
+            ? markdownHeight(entry.id, entry.text, width - 16, rough, 20) + 8
+            : 28
         if (entry.type === 'thinking' && entry.summary && entry.status === 'running')
           height += Math.min(72, textHeight(entry.id, entry.summary, width, true, rough))
       }

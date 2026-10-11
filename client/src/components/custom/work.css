@@ -18,7 +18,7 @@
   @apply px-2 pb-1 text-13 leading-relaxed whitespace-pre-wrap text-muted-foreground;
 }
 .work-text {
-  @apply px-2 pb-1 text-sm leading-relaxed text-foreground;
+  @apply px-2 py-1 text-sm leading-5 text-foreground;
 }
 .thinking-tail {
   @apply flex max-h-[4.5rem] flex-col justify-end overflow-hidden;
