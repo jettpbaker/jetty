@@ -21,7 +21,7 @@ export function ScrollFadeTuner() {
         }}
       >
         <ToggleGroupItem value='jetty' {...pressProps(() => setScrollFadeMode('jetty'))}>
-          Jetty
+          Jetty · 8px
         </ToggleGroupItem>
         <ToggleGroupItem value='t3' {...pressProps(() => setScrollFadeMode('t3'))}>
           T3 style · 40px

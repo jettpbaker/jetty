@@ -879,7 +879,8 @@ export function ThreadList({
           ref={scroller}
           className={cn(
             'scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-            scrollFade === 't3' && 'chat-top-fade'
+            scrollFade === 't3' && 'chat-top-fade',
+            scrollFade === 'jetty' && 'mask-[linear-gradient(to_bottom,transparent,black_8px)]'
           )}
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
@@ -928,17 +929,6 @@ export function ThreadList({
             ))}
           </div>
         </section>
-        {scrollFade === 'jetty' && (
-          <div
-            aria-hidden='true'
-            data-chat-scroll-edge='jetty'
-            className='pointer-events-none absolute inset-x-0 top-0 z-10 h-6 overflow-hidden'
-          >
-            <div className='absolute inset-0 mask-[linear-gradient(to_bottom,black,transparent)] backdrop-blur-[2px] motion-reduce:hidden' />
-            <div className='absolute inset-x-0 top-0 h-3 mask-[linear-gradient(to_bottom,black,transparent)] backdrop-blur-[5px] motion-reduce:hidden' />
-            <div className='absolute inset-x-0 top-0 h-1 bg-linear-to-b from-background to-transparent' />
-          </div>
-        )}
         {scrollFade === 'opencode' && (
           <div
             aria-hidden='true'
