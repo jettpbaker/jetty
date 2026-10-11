@@ -92,7 +92,7 @@ const vocabulary = {
 } satisfies Record<ToolKind, ToolWords>
 
 // A live block shows only its latest entries.
-export const previewCount = 3
+export const previewCount = 5
 
 export function workEnded(status: ActivityStatus) {
   return ['complete', 'failed', 'cancelled', 'interrupted'].includes(status)
