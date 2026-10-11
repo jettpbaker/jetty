@@ -1,0 +1,101 @@
+// A small sample from Testing Jetty UI with placeholder requests; statuses are recorded snapshots.
+export const modelResults = [
+  {
+    provider: 'claude',
+    id: 'opus',
+    name: 'Opus 5.5',
+    efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+  },
+  {
+    provider: 'claude',
+    id: 'sonnet',
+    name: 'Sonnet 5.5',
+    efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+  },
+  {
+    provider: 'claude',
+    id: 'haiku',
+    name: 'Haiku 5.5',
+    efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+  },
+  {
+    provider: 'codex',
+    id: 'gpt-6.1-sol',
+    name: 'GPT-6.1-Sol',
+    efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+    defaultEffort: 'low',
+  },
+  {
+    provider: 'codex',
+    id: 'gpt-6-luna',
+    name: 'GPT-6-Luna',
+    efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+    defaultEffort: 'medium',
+  },
+  {
+    provider: 'grok',
+    id: 'grok-4.7',
+    name: 'Grok 4.7',
+    efforts: ['low', 'medium', 'high', 'xhigh'],
+    defaultEffort: 'high',
+    notes:
+      "Can't commit in a worktree yet (its sandbox can't write the repo's git folder). Fine for reading, and for threads in the project checkout.",
+  },
+] as const
+
+export const threadResults = [
+  {
+    id: 'ad8510aa-2d5a-4e7d-af86-426058b59226',
+    title: 'Testing Jetty UI with placeholder requests',
+    project: 'loci',
+    status: 'running',
+    provider: 'claude',
+    model: 'claude-haiku-5-5',
+    createdBy: 'user',
+  },
+  {
+    id: '01a12b1b-0cfa-7c59-8cb0-45e9b1d60f39',
+    title: 'Poem for UI check',
+    project: 'loci',
+    status: 'idle',
+    provider: 'grok',
+    model: 'grok-4.7',
+    parentThreadId: 'ad8510aa-2d5a-4e7d-af86-426058b59226',
+    createdBy: 'agent',
+  },
+  {
+    id: 'd5e66aab-58d6-4a0d-818f-71a4861d2949',
+    title: 'Introduce the Jetty project',
+    project: 'loci',
+    status: 'idle',
+    provider: 'claude',
+    model: 'claude-haiku-5-5',
+    createdBy: 'user',
+  },
+  {
+    id: '01a11b13-9ccb-7011-9257-61d41996e508',
+    title: 'Investigate claude.ai connector noise in bot sessions',
+    project: 'jetty',
+    status: 'idle',
+    provider: 'grok',
+    model: 'grok-4.7',
+    parentThreadId: '0a464d35-459a-4d0d-9dc8-7439daec0632',
+    createdBy: 'agent',
+  },
+  {
+    id: '1d0c8865-2228-494f-8869-c1f7549085cb',
+    title: 'Test opener',
+    project: 'home',
+    status: 'error',
+    provider: 'codex',
+    model: 'gpt-6-luna',
+    createdBy: 'user',
+  },
+  {
+    id: 'cdc3088e-8aec-45a7-aa3c-f41c64438564',
+    title: 'New thread',
+    project: 'home',
+    status: 'idle',
+    createdBy: 'user',
+  },
+] as const
