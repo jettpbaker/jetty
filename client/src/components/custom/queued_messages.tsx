@@ -1,13 +1,17 @@
 import type { Attachment, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
-import { Cancel01Icon, Clock01Icon, Edit03Icon, PauseIcon } from '@/components/custom/huge_icons'
+import {
+  ArrowTurnBackwardIcon,
+  ArrowUp02Icon,
+  Cancel01Icon,
+  Edit03Icon,
+  PauseIcon,
+} from '@/components/custom/huge_icons'
 import { mediaUrl } from '@/components/custom/media_layout'
-import { useOpenMedia } from '@/components/custom/media_lightbox'
+import { MediaLightboxProvider, useOpenMedia } from '@/components/custom/media_lightbox'
 import { RepliedTo } from '@/components/custom/reply_quote'
-import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
-import { Message, MessageContent } from '@/components/ui/message'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { serverNow } from '@/lib/server_time'
 import { cn } from '@/lib/utils'
@@ -20,30 +24,32 @@ import {
   useRequestReveal,
   useVisibleQueue,
 } from '@/state'
+import { isQueuedEditing } from '@/state/queue_editing'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 
-import type { QueueState, TranscriptQueue } from './thread_rows'
-
 import { FileLines, isImageAttachment } from './attachment_files'
-import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 
-const footer =
-  'flex h-6 items-center gap-1 self-end text-xs whitespace-nowrap text-muted-foreground'
-const reveal =
-  'opacity-0 transition-opacity group-hover/message:opacity-100 has-focus-visible:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100'
+type ComposerQueueState = {
+  unsent: readonly QueuedMessage[]
+  own: readonly QueuedMessage[]
+  paused: boolean
+  held: boolean
+  editing?: string
+  removed?: { message: QueuedMessage; index: number }
+}
+
 const fade = 'linear-gradient(to bottom, black calc(100% - 1.75rem), transparent)'
 
 // Clamped harder than a sent message (four lines, not 240px) so the live work above stays in view.
-export function clampsQueued(text: string) {
+function clampsQueued(text: string) {
   return text.split('\n').length > 4 || text.length > 280
 }
 
-// What the chat shows of the thread's queue; none for a subagent's tab.
-export function useTranscriptQueue(
+export function useComposerQueue(
   threadId: string | undefined,
   items: readonly ThreadItem[]
-): TranscriptQueue | undefined {
+): ComposerQueueState | undefined {
   const { queued, unsent, own } = useVisibleQueue(threadId, items)
   const paused = useQueueHeld(threadId)
   const editing = useDraftEditing(threadId ?? '')
@@ -51,10 +57,9 @@ export function useTranscriptQueue(
   const held = heldByRestarts(items)
   const lapsed = useHoldLapse(queued)
   return useMemo(
-    () =>
-      threadId === undefined ? undefined : { queued, unsent, own, paused, held, editing, removed },
+    () => (threadId === undefined ? undefined : { unsent, own, paused, held, editing, removed }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- a lapsed hold changes what rows read
-    [threadId, queued, unsent, own, paused, held, editing, removed, lapsed]
+    [threadId, unsent, own, paused, held, editing, removed, lapsed]
   )
 }
 
@@ -116,7 +121,7 @@ function QueuedText({ entry, muted }: { entry: QueuedMessage; muted: boolean }) 
       {entry.text && (
         <p
           className={cn(
-            'leading-relaxed whitespace-pre-wrap',
+            'text-sm leading-[22px] whitespace-pre-wrap wrap-anywhere',
             images.length > 0 && 'mt-2',
             clamped && 'overflow-hidden',
             muted && 'text-muted-foreground'
@@ -141,38 +146,29 @@ function QueuedText({ entry, muted }: { entry: QueuedMessage; muted: boolean }) 
   )
 }
 
-function TextAction({
-  label,
-  hint,
-  onClick,
-}: {
-  label: string
-  hint: string
-  onClick: () => void
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<Button variant='ghost-text' size='xs' onClick={onClick} />}>
-        {label}
-      </TooltipTrigger>
-      <TooltipContent side='bottom'>{hint}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 function IconAction({
   label,
   onClick,
   children,
+  disabled,
 }: {
   label: string
   onClick: () => void
   children: ReactNode
+  disabled?: boolean
 }) {
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<Button variant='ghost' size='icon-xs' aria-label={label} onClick={onClick} />}
+        render={
+          <Button
+            variant='ghost'
+            size='icon-xs'
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+          />
+        }
       >
         {children}
       </TooltipTrigger>
@@ -181,117 +177,123 @@ function IconAction({
   )
 }
 
-// The queue as a group: its seam owns the state, so each bubble only reveals its actions.
-export function QueueSeam({
+export function ComposerQueue({
   threadId,
-  state,
-  count,
-  waiting = 0,
-  resume,
+  queue,
+  running,
 }: {
   threadId: string
-  state: QueueState
-  count: number
-  waiting?: number
-  resume?: QueuedMessage
+  queue: ComposerQueueState
+  running: boolean
 }) {
   const actions = useQueueActions()
+  const resume = queue.unsent.find((entry) => !isQueuedEditing(entry, queue.editing))
   return (
-    <ChatSeam>
-      {state === 'paused' ? (
-        <>
-          <SeamIcon icon={PauseIcon} />
-          <span className='truncate'>Paused{waiting > 0 ? ` · ${waiting} waiting` : ''}</span>
-          {resume && (
-            <ChatSeamAction onClick={() => actions.sendNow(threadId, resume)}>
+    <MediaLightboxProvider>
+      <div className='scrollbar-subtle flex max-h-64 flex-col gap-0.5 overflow-y-auto first:rounded-t-md'>
+        {queue.own.map((entry) => (
+          <QueuedRow
+            key={entry.id}
+            threadId={threadId}
+            entry={entry}
+            editing={isQueuedEditing(entry, queue.editing)}
+            running={running}
+          />
+        ))}
+        {!queue.held && queue.paused && queue.unsent.length > 0 && (
+          <div
+            data-strip='queue'
+            className='flex items-center gap-2 bg-popover px-3 py-2 text-xs text-muted-foreground first:rounded-t-md'
+          >
+            <PauseIcon className='size-3' />
+            <span className='flex-1'>Paused · {queue.unsent.length} waiting</span>
+            <Button
+              variant='ghost-text'
+              size='xs'
+              disabled={!resume}
+              onClick={() => {
+                if (resume) actions.sendNow(threadId, resume)
+              }}
+            >
               Resume
-            </ChatSeamAction>
-          )}
-        </>
-      ) : (
-        <>
-          <SeamIcon icon={Clock01Icon} />
-          <span className='truncate'>
-            {state === 'queued'
-              ? count === 1
-                ? 'Queued'
-                : `${count} queued`
-              : state === 'editing'
-                ? 'Editing'
-                : 'Sending…'}
-          </span>
-        </>
-      )}
-    </ChatSeam>
+            </Button>
+          </div>
+        )}
+        {queue.removed && (
+          <div data-strip='queue' className='bg-popover px-3 py-2 first:rounded-t-md'>
+            <QueueRemoved threadId={threadId} />
+          </div>
+        )}
+      </div>
+    </MediaLightboxProvider>
   )
 }
 
-export function QueuedBubble({
+function QueuedRow({
   threadId,
   entry,
   editing,
-  steer,
+  running,
 }: {
   threadId: string
   entry: QueuedMessage
   editing: boolean
-  steer: boolean
+  running: boolean
 }) {
   const actions = useQueueActions()
   const requestReveal = useRequestReveal()
-  const { replies } = entry
-  // Steer and Remove unmount their button; a keyboard user goes back to the composer.
   function act(run: () => void) {
-    return () => {
-      chatComposer(threadId)?.keepFocus()
-      run()
-    }
+    chatComposer(threadId)?.keepFocus()
+    run()
   }
   return (
-    <Message align='end'>
-      <MessageContent className={cn(replies && 'gap-0.75')}>
-        {replies?.map((reply) => (
-          <RepliedTo
-            key={`${reply.itemId}:${reply.text}`}
-            text={reply.text}
-            onJump={() => requestReveal(threadId, reply.itemId)}
-          />
-        ))}
-        <FileLines
-          files={(entry.attachments ?? []).filter((attachment) => !isImageAttachment(attachment))}
+    <div
+      data-strip='queue'
+      data-queued-message={entry.id}
+      className='flex flex-col gap-1 bg-popover px-3 py-2 first:rounded-t-md'
+    >
+      {entry.replies?.map((reply) => (
+        <RepliedTo
+          key={`${reply.itemId}:${reply.text}`}
+          text={reply.text}
+          onJump={() => requestReveal(threadId, reply.itemId)}
         />
-        <Bubble variant={null} align='end'>
-          <BubbleContent className='rounded-lg border-dashed border-primary bg-primary/8'>
+      ))}
+      <FileLines
+        files={(entry.attachments ?? []).filter((attachment) => !isImageAttachment(attachment))}
+      />
+      <div className='flex min-w-0 items-center gap-4'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
+          <ArrowTurnBackwardIcon className='size-3 shrink-0 translate-y-px text-muted-foreground' />
+          <div className='min-w-0 flex-1'>
             <QueuedText entry={entry} muted={editing} />
-          </BubbleContent>
-          {editing ? (
-            <div className={footer}>
-              <span className='flex items-center gap-1 px-1'>
-                <Edit03Icon className='size-3' />
-                Editing in the composer
-              </span>
-            </div>
-          ) : (
-            <div className={cn(footer, reveal)}>
-              <TextAction
-                label={steer ? 'Steer' : 'Send now'}
-                hint={steer ? 'Send into the running turn' : 'Start a turn with this now'}
-                onClick={act(() => actions.sendNow(threadId, entry))}
-              />
-              <IconAction label='Edit' onClick={() => chatComposer(threadId)?.edit(entry)}>
-                <Edit03Icon />
-              </IconAction>
-              <IconAction
-                label='Remove from the queue'
-                onClick={act(() => actions.remove(threadId, entry.id))}
-              >
-                <Cancel01Icon />
-              </IconAction>
-            </div>
-          )}
-        </Bubble>
-      </MessageContent>
-    </Message>
+          </div>
+        </div>
+        <div className='flex shrink-0 items-center gap-1'>
+          <IconAction
+            label={editing ? 'Editing queued message' : 'Edit queued message'}
+            disabled={editing}
+            onClick={() => chatComposer(threadId)?.edit(entry)}
+          >
+            <Edit03Icon />
+          </IconAction>
+          <IconAction
+            label={running ? 'Steer with queued message' : 'Send queued message now'}
+            disabled={editing}
+            onClick={() => act(() => actions.sendNow(threadId, entry))}
+          >
+            <ArrowUp02Icon />
+          </IconAction>
+          <IconAction
+            label='Remove from the queue'
+            disabled={editing}
+            onClick={() => act(() => actions.remove(threadId, entry.id))}
+          >
+            <Cancel01Icon />
+          </IconAction>
+        </div>
+      </div>
+    </div>
   )
 }
 

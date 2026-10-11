@@ -1,9 +1,7 @@
 import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { TurnOutcome } from '@jetty/shared/reducer'
-import type { QueuedMessage } from '@jetty/shared/wire'
 
 import { createItemSelection, itemDeltasSince } from '@/state/item_selection'
-import { isQueuedEditing } from '@/state/queue_editing'
 import { pendingTurnId } from '@/state/turns'
 import {
   awaitsInput,
@@ -31,8 +29,6 @@ type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 export type PullRequestItem = Extract<ThreadItem, { kind: 'pull_request' }>
-
-export type QueueState = 'queued' | 'paused' | 'editing' | 'sending'
 
 export type ThreadRow =
   // steered: it went into a running turn; steering: on its way into one
@@ -82,19 +78,6 @@ export type ThreadRow =
   | { kind: 'marker'; id: string; item: ApprovalItem | QuestionItem; source?: string }
   | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
-  // The queue under the chat: a seam with its state, the user's queued messages, and Undo where
-  // one was just removed. Resume sends the queue's next message.
-  | {
-      kind: 'queueSeam'
-      id: string
-      state: QueueState
-      count: number
-      // queued messages the chat doesn't show: relays, reports, Jetty's own notes
-      waiting?: number
-      resume?: QueuedMessage
-    }
-  | { kind: 'queued'; id: string; entry: QueuedMessage; editing: boolean; steer: boolean }
-  | { kind: 'queueRemoved'; id: string }
 
 function toolKind(name: string): ToolKind {
   switch (name.toLowerCase()) {
@@ -450,8 +433,6 @@ type ThreadRowsOptions = {
   threadId?: string
   agentId?: string
   settingUp?: boolean
-  // what waits to be sent, shown under the chat
-  queue?: TranscriptQueue
 }
 
 type LastTurn = { start: number; row: number }
@@ -536,7 +517,6 @@ export function threadRows(
     threadId,
     agentId,
     settingUp = false,
-    queue,
   }: ThreadRowsOptions
 ): ThreadRow[] {
   // A subagent's requests for input also surface on the main timeline, attributed to it.
@@ -810,7 +790,6 @@ export function threadRows(
   // A first message waits on the worktree's setup before the agent starts.
   if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
   stitchRuns(rows)
-  if (queue) rows.push(...queueRows(queue, running))
   return reuseRows(allItems[0], groupPullRequestRows(rows))
 }
 
@@ -898,59 +877,4 @@ function same(a: unknown, b: unknown): boolean {
     if (x !== y && !same(x, y)) return false
   }
   return true
-}
-
-export type TranscriptQueue = {
-  // the whole queue, what of it isn't in the chat yet, and the user's own messages among that
-  queued: readonly QueuedMessage[]
-  unsent: readonly QueuedMessage[]
-  own: readonly QueuedMessage[]
-  paused: boolean
-  // the crash-loop guard held the thread: its own seam's Resume continues it, so the queue's waits
-  held: boolean
-  editing?: string
-  removed?: { message: QueuedMessage; index: number }
-}
-
-// The queue as B in the sketchpad's queued messages: a seam, then each of the user's messages
-// in order, with Undo in a removed one's place. Other threads' messages wait unseen, but a paused
-// queue still shows its seam for them and how many are waiting.
-function queueRows(
-  { queued, unsent, own, paused, held, editing, removed }: TranscriptQueue,
-  running: boolean
-): ThreadRow[] {
-  const rows: ThreadRow[] = []
-  const head = own[0]
-  const waiting = unsent.length - own.length
-  if (!held && (head || (paused && unsent.length > 0))) {
-    const resume = unsent.find((entry) => !isQueuedEditing(entry, editing))
-    rows.push({
-      kind: 'queueSeam',
-      id: 'queue:seam',
-      state: paused
-        ? 'paused'
-        : running
-          ? 'queued'
-          : head && isQueuedEditing(head, editing)
-            ? 'editing'
-            : 'sending',
-      count: own.length,
-      ...(paused && waiting > 0 && { waiting }),
-      ...(paused && resume && { resume }),
-    })
-  }
-  const first = rows.length
-  for (const entry of own)
-    rows.push({
-      kind: 'queued',
-      id: `${entry.id}:queued`,
-      entry,
-      editing: isQueuedEditing(entry, editing),
-      steer: running,
-    })
-  if (removed && !queued.some((entry) => entry.id === removed.message.id)) {
-    const before = own.filter((entry) => queued.indexOf(entry) < removed.index).length
-    rows.splice(first + before, 0, { kind: 'queueRemoved', id: `${removed.message.id}:removed` })
-  }
-  return rows
 }

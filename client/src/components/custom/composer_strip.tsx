@@ -1,17 +1,23 @@
 import type { Draft, QuestionProgress } from '@/state'
 
 import {
+  ArrowDown01Icon,
+  Cancel01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   ArrowUp01Icon,
-  CheckmarkSquare02Icon,
   CircleIcon,
-  RadioButtonIcon,
-  SquareIcon,
   Tick02Icon,
 } from '@/components/custom/huge_icons'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
@@ -23,7 +29,6 @@ import type { Todo } from './todo_model'
 
 import { NeedsInputIcon } from './circle_status_icon'
 import { loadDiffWorkerPool } from './diff_worker_pool'
-import { DisabledTooltip } from './disabled_tooltip'
 import { InProgressIcon } from './in_progress_icon'
 import { SourceLabel } from './source_label'
 
@@ -60,11 +65,14 @@ function StripButton(props: ComponentProps<typeof Button>) {
   return <Button size='sm' {...props} className={cn('rounded-sm', props.className)} />
 }
 
-function FlushShell({ children }: { children: ReactNode }) {
+function FlushShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       data-strip='banner'
-      className='flex flex-col gap-2 rounded-t-md border border-b-0 border-border bg-(--strip-bg) px-3 py-2 text-sm'
+      className={cn(
+        'flex flex-col gap-2 bg-popover px-3 py-2 text-sm first:rounded-t-md',
+        className
+      )}
     >
       {children}
     </div>
@@ -79,6 +87,7 @@ export function Pager({
   onNext,
   nextDisabled,
   inScroller,
+  compact = false,
   className,
 }: {
   index: number
@@ -88,28 +97,33 @@ export function Pager({
   onNext: () => void
   nextDisabled?: boolean
   inScroller?: boolean
+  compact?: boolean
   className?: string
 }) {
   const activate = (action: () => void) => (inScroller ? { onClick: action } : pressProps(action))
   return (
     <span
-      className={cn('-my-1 flex shrink-0 items-center text-xs text-muted-foreground', className)}
+      className={cn(
+        'flex shrink-0 items-center text-xs text-muted-foreground',
+        compact ? 'gap-0.5' : '-my-1',
+        className
+      )}
     >
       <Button
         variant='ghost'
-        size='icon'
+        size={compact ? 'icon-xs' : 'icon'}
         aria-label={`Previous ${noun}`}
         disabled={index === 0}
         {...activate(onPrev)}
       >
         <ArrowLeft01Icon />
       </Button>
-      <span className='min-w-6 text-center font-mono tabular-nums'>
+      <span className={cn('text-center font-mono tabular-nums', !compact && 'min-w-6')}>
         {index + 1}/{total}
       </span>
       <Button
         variant='ghost'
-        size='icon'
+        size={compact ? 'icon-xs' : 'icon'}
         aria-label={`Next ${noun}`}
         disabled={nextDisabled ?? index === total - 1}
         {...activate(onNext)}
@@ -131,9 +145,11 @@ export function useApproval(
   keepFocus: () => void
 ) {
   const [confirmingId, setConfirmingId] = useState<string>()
+  const [menuId, setMenuId] = useState<string>()
   const [expandedId, setExpandedId] = useState<string>()
   const confirming = Boolean(item) && confirmingId === item?.id
   const expanded = Boolean(item) && expandedId === item?.id
+  const menuOpen = Boolean(item) && menuId === item?.id
   const canAlways = Boolean(item?.always)
   function decide(decision: Decision, note = '') {
     if (!item) return
@@ -154,6 +170,7 @@ export function useApproval(
     else if (draft.trim()) deny()
   }
   function onKey(event: KeyboardEvent) {
+    if (menuOpen) return false
     if (event.key === 'Escape') {
       if (confirming) setConfirmingId(undefined)
       else deny()
@@ -169,6 +186,10 @@ export function useApproval(
     confirming,
     expanded,
     canAlways,
+    menuOpen,
+    setMenuOpen(value: boolean) {
+      setMenuId(value ? item?.id : undefined)
+    },
     setConfirming(value: boolean) {
       keepFocus()
       setConfirmingId(value ? item?.id : undefined)
@@ -186,35 +207,54 @@ export function useApproval(
 
 type ApprovalControl = ReturnType<typeof useApproval>
 
-function ApprovalActions({ ctl, typed }: { ctl: ApprovalControl; typed: boolean }) {
+function ApprovalActions({
+  ctl,
+  typed,
+  run,
+}: {
+  ctl: ApprovalControl
+  typed: boolean
+  run: boolean
+}) {
   if (ctl.confirming)
     return (
-      <div className='flex shrink-0 items-center gap-1'>
-        <StripButton variant='ghost' tone='muted' onClick={() => ctl.setConfirming(false)}>
+      <div className='flex shrink-0 items-center gap-2'>
+        <StripButton variant='ghost-text' onClick={() => ctl.setConfirming(false)}>
           Cancel
         </StripButton>
         <StripButton onClick={() => ctl.decide('always')}>Allow always</StripButton>
       </div>
     )
   return (
-    <div className='flex shrink-0 items-center gap-1'>
-      <StripButton variant='ghost' tone='muted' onClick={ctl.deny}>
+    <div className='flex shrink-0 items-center gap-2'>
+      <StripButton variant='ghost-text' onClick={ctl.deny}>
         {typed ? 'Deny with note' : 'Deny'}
       </StripButton>
-      <DisabledTooltip
-        reason={ctl.canAlways ? undefined : 'Not available for this request'}
-        wrap='flex'
-      >
-        <StripButton
-          variant='secondary'
-          disabled={!ctl.canAlways}
-          onClick={() => ctl.decide('always')}
-          className={ctl.canAlways ? undefined : 'pointer-events-none'}
-        >
-          Allow always
+      <div className='flex'>
+        <StripButton className='rounded-r-none' onClick={() => ctl.decide('once')}>
+          Allow once
         </StripButton>
-      </DisabledTooltip>
-      <StripButton onClick={() => ctl.decide('once')}>Allow once</StripButton>
+        <DropdownMenu open={ctl.menuOpen} onOpenChange={ctl.setMenuOpen}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                size='icon-sm'
+                className='rounded-sm rounded-l-none border-l-0'
+                aria-label='More approval options'
+              />
+            }
+          >
+            <ArrowDown01Icon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={!ctl.canAlways} onClick={() => ctl.decide('always')}>
+                Always allow this {run ? 'command' : 'action'}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
@@ -336,7 +376,7 @@ export function ApprovalStrip({
             )}
           </span>
         )}
-        <ApprovalActions ctl={ctl} typed={typed} />
+        <ApprovalActions ctl={ctl} typed={typed} run={item.run} />
       </div>
       {ctl.expanded &&
         !ctl.confirming &&
@@ -416,6 +456,11 @@ export function useQuestion(
       go(step + 1)
       return
     }
+    const unanswered = item.questions.findIndex((_, index) => !answerAt(index))
+    if (unanswered !== -1) {
+      go(unanswered)
+      return
+    }
     keepFocus()
     save(undefined, '')
     answer(
@@ -489,82 +534,75 @@ export function QuestionStrip({
   const spec = ctl.spec
   if (!spec) return null
   return (
-    <FlushShell>
+    <FlushShell className='gap-1 p-3'>
       {header}
-      <div className='flex min-w-0 items-center gap-2'>
-        <Attention />
-        <span className='truncate text-xs font-medium text-muted-foreground'>
-          {spec.header || 'Question'}
-        </span>
-        {!hideSource && <RequestSource source={item.source} className='ml-1' />}
-        <span
-          className={cn(
-            'ml-auto flex shrink-0 items-center gap-1',
-            ctl.total > 1 ? '-mr-1.5' : '-mr-2'
+      {!hideSource && <RequestSource source={item.source} />}
+      <div
+        className={cn('flex min-w-0 gap-3 pb-1', spec.multiSelect ? 'items-start' : 'items-center')}
+      >
+        <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+          <p className='text-sm leading-5 font-medium whitespace-pre-line'>{spec.question}</p>
+          {spec.multiSelect && (
+            <p className='text-xs leading-4 text-muted-foreground'>Select all that apply</p>
           )}
-        >
-          <StripButton variant='ghost-text' className='-my-1' onClick={ctl.dismiss}>
-            Dismiss
-          </StripButton>
+        </div>
+        <div className='flex shrink-0 items-center gap-2'>
           {ctl.total > 1 && (
             <Pager
+              compact
               noun='question'
               index={ctl.step}
               total={ctl.total}
               onPrev={() => ctl.go(ctl.step - 1)}
-              onNext={ctl.next}
-              nextDisabled={ctl.last || !ctl.answer}
+              onNext={() => ctl.go(ctl.step + 1)}
             />
           )}
-        </span>
+          <Button
+            variant='ghost'
+            size='icon-xs'
+            aria-label='Dismiss question'
+            onClick={ctl.dismiss}
+          >
+            <Cancel01Icon />
+          </Button>
+        </div>
       </div>
-      <div className='scroll-fade-y scrollbar-subtle -mx-3 flex max-h-72 flex-col gap-2 overflow-y-auto px-3'>
-        <p className='leading-relaxed whitespace-pre-line'>{spec.question}</p>
-        {spec.options.length > 0 && (
-          <div className='-mx-2 flex flex-col'>
-            {spec.options.map((option) => {
-              const selected = ctl.picks.includes(option.label)
-              const Mark = spec.multiSelect
-                ? selected
-                  ? CheckmarkSquare02Icon
-                  : SquareIcon
-                : selected
-                  ? RadioButtonIcon
-                  : CircleIcon
-              return (
-                <button
-                  key={option.label}
-                  type='button'
-                  role={spec.multiSelect ? 'checkbox' : 'radio'}
-                  aria-checked={selected}
-                  onClick={() => ctl.pick(option.label)}
-                  className={cn(
-                    'flex min-w-0 items-start gap-2 rounded-sm px-2 py-1 text-left hover:bg-accent',
-                    selected && 'bg-accent'
+      {spec.options.length > 0 && (
+        <div
+          className='scroll-fade-y scrollbar-subtle flex max-h-72 flex-col gap-1 overflow-y-auto'
+          role={spec.multiSelect ? 'group' : 'radiogroup'}
+          aria-label={spec.question}
+        >
+          {spec.options.map((option) => {
+            const selected = ctl.picks.includes(option.label)
+            return (
+              <button
+                key={option.label}
+                type='button'
+                role={spec.multiSelect ? 'checkbox' : 'radio'}
+                aria-checked={selected}
+                onClick={() => ctl.pick(option.label)}
+                className={cn(
+                  'flex min-w-0 items-center gap-2 rounded-menu-item px-2 py-1 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                  selected && 'bg-accent'
+                )}
+              >
+                <span className='flex min-w-0 flex-1 flex-col'>
+                  <span className='text-sm leading-5'>{option.label}</span>
+                  {option.description && option.description !== option.label && (
+                    <span className='text-xs leading-4 text-muted-foreground'>
+                      {option.description}
+                    </span>
                   )}
-                >
-                  <span className='flex h-5 shrink-0 items-center'>
-                    <Mark
-                      className={cn(
-                        'size-3.5',
-                        selected ? 'text-primary' : 'text-muted-foreground'
-                      )}
-                    />
-                  </span>
-                  <span className='min-w-0 leading-5'>
-                    {option.label}
-                    {option.description && option.description !== option.label && (
-                      <span className='ml-2 text-xs text-muted-foreground'>
-                        {option.description}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                </span>
+                <span className='flex h-5 w-4 shrink-0 items-center justify-center'>
+                  {selected && <Tick02Icon className='size-3.5 text-muted-foreground' />}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
       {followUp && <FollowUpNote />}
     </FlushShell>
   )

@@ -169,8 +169,8 @@ export function Composer({
       className='mx-auto flex w-full max-w-[660px] flex-col gap-1'
     >
       {header}
-      <div>
-        {strip ? <div className='px-3'>{strip}</div> : null}
+      <div className='flex flex-col gap-0.5'>
+        {strip ? <div className='flex flex-col gap-0.5'>{strip}</div> : null}
         <div
           className='relative'
           style={
@@ -181,6 +181,7 @@ export function Composer({
           <InputGroup
             className={cn(
               'relative w-full max-w-[660px] border-0 bg-popover dark:bg-popover',
+              strip && 'rounded-t-none',
               // Over a wallpaper the ambient shadow does the lifting.
               ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
             )}

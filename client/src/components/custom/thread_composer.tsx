@@ -14,6 +14,7 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { pendingItems } from '@/components/custom/composer_strip_model'
+import { ComposerQueue, useComposerQueue } from '@/components/custom/queued_messages'
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
@@ -42,7 +43,6 @@ import {
   useSendTurn,
   useThreadLoadout,
   useThreadMeta,
-  useVisibleQueue,
   withQuotes,
 } from '@/state'
 import { createItemSelection } from '@/state/item_selection'
@@ -126,8 +126,15 @@ export function ThreadComposer({
   const { draft: saved, update, read } = useDraft(draftKey)
   const draft = saved.text
   const editing = saved.editing
-  // The queue shows in the chat; here it's only the message being edited.
-  const { own: queue, unsent } = useVisibleQueue(threadId, items)
+  const composerQueue = useComposerQueue(threadId, items)
+  const queue = composerQueue?.own ?? []
+  const unsent = composerQueue?.unsent ?? []
+  const hasQueue = Boolean(
+    composerQueue &&
+    (queue.length ||
+      composerQueue.removed ||
+      (!composerQueue.held && composerQueue.paused && unsent.length))
+  )
   const editingEntry = queue.find((entry) => entry.id === editing)
   const attachments = useAttachments(draftKey, { editing: editingEntry !== undefined })
   const { loadouts, usable, catalog, setLoadouts } = useLoadouts()
@@ -238,11 +245,16 @@ export function ThreadComposer({
   function setDraft(text: string) {
     if (typed || !text.trim()) return update({ text })
     const noticed = item && performance.now() - shown.current.at >= noticeMs
-    update({ text, typedFor: noticed ? item.id : undefined })
+    update({
+      text,
+      typedFor: item && (noticed || saved.typedFor === item.id) ? item.id : undefined,
+    })
   }
   const stripDraft = answering ? saved : { ...saved, text: '' }
   function stripUpdate({ text, ...patch }: Partial<Draft>) {
-    update(answering && text !== undefined ? { ...patch, text } : patch)
+    update(
+      answering ? { ...patch, ...(text !== undefined && { text }), typedFor: item?.id } : patch
+    )
   }
 
   // The next item to show brings back whatever was typed for it earlier.
@@ -296,7 +308,7 @@ export function ThreadComposer({
   }, [editing])
 
   // Steer, Remove and strip answers unmount their button; a keyboard user would otherwise be
-  // dropped on the page. Queued messages in the chat use it too.
+  // dropped on the page. Queued message actions use it too.
   function keepKeyboardFocus() {
     if (document.activeElement?.matches(':focus-visible'))
       input.current?.focus({ preventScroll: true })
@@ -378,7 +390,7 @@ export function ThreadComposer({
     if (text || attachments.items.length > 0) startTurn(text, false)
   }
 
-  // Edit on a queued message in the chat loads it here, sending or queueing what was typed.
+  // Edit on a queued message loads it here, sending or queueing what was typed.
   // An image still being read when Edit is pressed holds the edit back until it's ready, so the
   // message queued with it keeps it.
   function editQueued(entry: QueuedMessage) {
@@ -469,7 +481,9 @@ export function ThreadComposer({
               />
             ),
             placeholder: question.spec.options.length
-              ? 'Or type your own answer'
+              ? question.spec.multiSelect
+                ? 'Add anything else (optional)'
+                : 'Or type your own answer'
               : 'Type your answer',
             sendLabel: question.last ? 'Submit' : 'Next',
             sendDisabled: !question.answer,
@@ -549,14 +563,15 @@ export function ThreadComposer({
           !typed
         }
         strip={
-          usageBanner ? (
+          hasQueue || usageBanner || mode.strip ? (
             <>
+              {hasQueue && threadId && composerQueue && (
+                <ComposerQueue threadId={threadId} queue={composerQueue} running={running} />
+              )}
               {usageBanner}
               {mode.strip}
             </>
-          ) : (
-            mode.strip
-          )
+          ) : undefined
         }
         reply={saved.quotes?.map((reply, index) => (
           <ReplyTab
@@ -670,7 +685,7 @@ export function ThreadComposer({
             />
           )
         }
-        rows={rows}
+        rows={hasQueue || item ? 1 : rows}
         ambient={ambient}
         inputRef={input}
         slash={{ threadId, projectId: projectId ?? meta?.projectId, onUsage: showUsage }}

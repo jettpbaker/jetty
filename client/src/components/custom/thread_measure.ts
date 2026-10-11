@@ -11,7 +11,6 @@ import {
   INLINE_IMAGE_MAX_HEIGHT,
   videoHeight,
 } from './media_layout'
-import { clampsQueued } from './queued_messages'
 import {
   collapseAfterHeight,
   collapsedTextHeight,
@@ -162,9 +161,6 @@ function estimateSignature(row: ThreadRow) {
     case 'user':
       inputs = [row.item.text, row.item.attachments, !!row.item.from, row.item.replies?.length]
       break
-    case 'queued':
-      inputs = [row.entry.text, row.entry.attachments, row.entry.replies?.length]
-      break
     case 'reports':
       inputs = row.reports.map((report) => report.question)
       break
@@ -227,23 +223,6 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       height += fileRow * attachments.filter((attachment) => !isImageAttachment(attachment)).length
       return height
     }
-    case 'queued': {
-      const { text, attachments = [] } = row.entry
-      let height =
-        28 +
-        footerRow +
-        (clampsQueued(text)
-          ? 4 * lineHeight + 28
-          : textHeight(row.id, text, width * 0.8, true, rough))
-      if (attachments.some(isImageAttachment)) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
-      height += fileRow * attachments.filter((attachment) => !isImageAttachment(attachment)).length
-      height += quoteRow * (row.entry.replies?.length ?? 0)
-      return height
-    }
-    case 'queueRemoved':
-      return 36
-    case 'queueSeam':
-      return 24
     case 'assistant':
     case 'plan':
       // A streaming reply would be laid out again on every delta; it's measured once on screen.
