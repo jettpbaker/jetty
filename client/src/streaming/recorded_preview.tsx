@@ -71,20 +71,20 @@ export function RecordedPreview({ preview }: { preview: PreviewManifest }) {
     if (!video) return
     let callback = 0
     let cancelled = false
-    function update(time: number) {
+    function update(nextFrame: number) {
       if (seeking.current || video!.seeking) return
-      const next = Math.max(0, Math.min(lastFrame, Math.floor(time * preview.fps + 0.001)))
+      const next = Math.max(0, Math.min(lastFrame, nextFrame))
       requestedFrame.current = next
       setFrame(next)
     }
     function onFrame(_now: number, metadata: VideoFrameCallbackMetadata) {
       if (cancelled) return
-      update(metadata.mediaTime)
+      update(Math.round(metadata.mediaTime * preview.fps))
       callback = video!.requestVideoFrameCallback(onFrame)
     }
     function onAnimationFrame() {
       if (cancelled) return
-      update(video!.currentTime)
+      update(Math.floor(video!.currentTime * preview.fps))
       callback = requestAnimationFrame(onAnimationFrame)
     }
     const hasFrameCallback = typeof video.requestVideoFrameCallback === 'function'
@@ -238,6 +238,10 @@ export function RecordedPreview({ preview }: { preview: PreviewManifest }) {
             {timecode(frame, preview.fps)}{' '}
             <span className='text-muted-foreground'>/ {timecode(lastFrame, preview.fps)}</span>
           </output>
+          <output className='text-xs' aria-label='Current frame' title='Zero-based frame number'>
+            <span className='text-muted-foreground'>Frame </span>
+            <span className='font-mono tabular-nums'>{frame}</span>
+          </output>
           <ToggleGroup
             aria-label='Playback speed'
             value={[String(speed)]}
@@ -272,7 +276,7 @@ export function RecordedPreview({ preview }: { preview: PreviewManifest }) {
             value={frame}
             disabled={!ready || !!error}
             aria-label='Preview timeline'
-            aria-valuetext={timecode(frame, preview.fps)}
+            aria-valuetext={`Frame ${frame} · ${timecode(frame, preview.fps)}`}
             className='absolute inset-0 size-full cursor-ew-resize opacity-0'
             onChange={(event) => seek(Number(event.currentTarget.value))}
             onPointerDown={(event) => {

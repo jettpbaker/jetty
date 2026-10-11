@@ -24,6 +24,7 @@
     "sandbox": "bun perf/sandbox.ts",
     "paper:capture": "bun perf/paper/capture.ts",
     "replay:capture": "bun scripts/capture-thread-preview.ts",
+    "replay:frame": "bun scripts/extract-thread-preview-frame.ts",
     "devtools": "bun devtools/src/server.ts"
   },
   "devDependencies": {

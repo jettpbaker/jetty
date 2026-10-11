@@ -68,6 +68,19 @@ first/last frame. Slow motion slows all captured motion, including CSS animation
 This is video inspection: interact with the conversation itself in Live mode, and recapture
 after changing production components.
 
+The transport shows the absolute **Frame** number, starting at **0**. Use that number when reporting
+a visual issue. To pull the exact encoded frame as a full-resolution PNG:
+
+```sh
+bun run replay:frame 123
+```
+
+The command prints its absolute image path and capture identity. Images stay gitignored under
+`client/streaming-replay.local/frames/<capture-time>/`, so different captures keep separate images.
+It selects by decoded frame index rather than approximate seek time. `--output FILE.png` overrides
+the destination; `FFMPEG` or `--ffmpeg` selects the executable. Frame numbers refer to the currently
+loaded capture; refresh the replay after recapturing.
+
 The default viewport is 1000×800 CSS pixels, captured at 2× as a 2000×1600 video so text stays
 sharp on Retina displays. `--width` and `--height` change the layout size; `--scale 1`, `2` or `3`
 changes pixel density without changing that layout. `--url` selects
