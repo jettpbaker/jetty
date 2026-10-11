@@ -35,15 +35,19 @@ components show “Working” before reasoning arrives. Optional top-level `prom
 otherwise the bubble says “Original prompt was not recorded.” This reconstructs the initial send
 state without inventing a delay or changing recorded event times. Original send latency is unknown.
 
-In Live mode, Play runs once at the recorded pace. Restart gives every item a fresh playback identity so
-production caches do not remember earlier reveals. Show completed inspects the final state.
+In Live mode, Play runs once at the recorded pace. **Start at** accepts `m:ss`, seconds, or either
+with millisecond precision; **Jump & play** restores earlier history immediately, then plays from
+that time at 1×. Optional top-level `bookmarks: [{ "label": "Dropdown check", "atMs": 105000 }]`
+adds one-click jump buttons for a recording. Dropdown clicks are not recorded; use Live mode to
+repeat them manually. Restart repeats the selected start time and gives every item a fresh playback
+identity so production caches do not remember earlier reveals. Show completed inspects the final state.
 Item timestamps are shifted to the playback's current wall clock so durations start correctly.
 
 The source capture observes events **before server batching**, not browser arrival. It starts at the
 agent turn and omits the user's prompt; the replay reconstructs that message as described above.
 It exercises the production conversation components;
 the app shell, composer, queue and pending approval controls are outside this view. There is no
-pause, scrub or speed control in the live replay: animations and timers run on their normal
+pause, continuous scrub or speed control in the live replay: animations and timers run on their normal
 browser clock. Use a complete 1× playback to evaluate motion and layout.
 
 ## Recorded video preview

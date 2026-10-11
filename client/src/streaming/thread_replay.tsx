@@ -1,5 +1,6 @@
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { loadAccent } from '@/lib/accent'
@@ -39,12 +40,22 @@ const ThreadRecording = Schema.Struct({
   projectPath: Schema.optional(Schema.String),
   provider: Schema.String,
   prompt: Schema.optional(Schema.String),
+  bookmarks: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        label: Schema.String,
+        atMs: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+      })
+    )
+  ),
   recording: Schema.Unknown,
 })
 
 function readRecording(value: unknown) {
   const metadata = Schema.decodeUnknownSync(ThreadRecording)(value)
   let recording = loadRecording(metadata.recording)
+  if (metadata.bookmarks?.some((bookmark) => bookmark.atMs >= recording.durationMs))
+    throw new Error('Replay bookmark is outside the recording')
   for (const input of recording.inputs) Schema.decodeUnknownSync(ThreadEvent)(input.event)
   const firstTurn = recording.inputs.find((input) => input.event.type === 'turn.started')?.event
   if (
@@ -118,15 +129,50 @@ function replayEvent(
   return event
 }
 
-function Replay({ source, capture = false }: { source: Recording; capture?: boolean }) {
+function parsePlaybackTime(value: string) {
+  const match = /^(?:(\d+):)?(\d+)(?:\.(\d{1,3}))?$/.exec(value.trim())
+  if (!match || (match[1] !== undefined && Number(match[2]) >= 60)) return
+  const milliseconds =
+    (Number(match[1] ?? 0) * 60 + Number(match[2])) * 1000 + Number((match[3] ?? '').padEnd(3, '0'))
+  return Number.isFinite(milliseconds) ? milliseconds : undefined
+}
+
+function formatPlaybackTime(atMs: number) {
+  const seconds = Math.floor(atMs / 1000)
+  const fraction = String(atMs % 1000)
+    .padStart(3, '0')
+    .replace(/0+$/, '')
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}${fraction ? `.${fraction}` : ''}`
+}
+
+function Replay({
+  source,
+  capture = false,
+  startMs = 0,
+  autoPlay = false,
+  onJump,
+}: {
+  source: Recording
+  capture?: boolean
+  startMs?: number
+  autoPlay?: boolean
+  onJump: (atMs: number) => void
+}) {
   const { recording } = source
-  const [clock] = useState(() => createPlaybackClock(recording))
+  const [clock] = useState(() => {
+    const clock = createPlaybackClock(recording)
+    if (startMs > 0) clock.seek(startMs)
+    return clock
+  })
   const playback = useSyncExternalStore(clock.subscribe, clock.snapshot)
   const [identity] = useState(() => crypto.randomUUID())
-  const [anchor, setAnchor] = useState(Date.now)
+  const [anchor, setAnchor] = useState(() => Date.now() - startMs)
   const [thread, setThread] = useState(emptyThread)
   const current = useRef(emptyThread)
   const live = useRef(false)
+  const [startTime, setStartTime] = useState(() => formatPlaybackTime(startMs))
+  const jumpMs = parsePlaybackTime(startTime)
+  const validJump = jumpMs !== undefined && jumpMs < recording.durationMs
 
   useEffect(() => {
     if (!capture) return
@@ -154,6 +200,12 @@ function Replay({ source, capture = false }: { source: Recording; capture?: bool
     current.current = state
     setThread(state)
   }, [recording, source.wallAnchor, anchor, identity, playback.cursor.eventCount, playback.playing])
+
+  useEffect(() => {
+    if (!autoPlay || capture) return
+    live.current = true
+    clock.play(performance.now())
+  }, [autoPlay, capture, clock])
 
   useEffect(() => {
     if (!playback.playing) return
@@ -184,15 +236,49 @@ function Replay({ source, capture = false }: { source: Recording; capture?: bool
         <div className='flex flex-wrap items-center gap-3 px-6 py-3'>
           <Button
             size='sm'
-            disabled={playback.playing || playback.cursor.eventCount > 0}
+            disabled={playback.playing || playback.cursor.atMs > startMs}
             {...pressProps(() => {
               live.current = true
-              setAnchor(Date.now())
+              setAnchor(Date.now() - startMs)
               clock.play(performance.now())
             })}
           >
             Play real timing
           </Button>
+          <form
+            className='flex items-center gap-2'
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (validJump) onJump(jumpMs)
+            }}
+          >
+            <InputGroup className='h-7 w-44'>
+              <InputGroupAddon>
+                <label htmlFor='replay-start'>Start at</label>
+              </InputGroupAddon>
+              <InputGroupInput
+                id='replay-start'
+                className='h-full font-mono'
+                placeholder='m:ss'
+                value={startTime}
+                aria-invalid={!validJump || undefined}
+                onChange={(event) => setStartTime(event.target.value)}
+              />
+            </InputGroup>
+            <Button type='submit' size='sm' variant='outline' disabled={!validJump}>
+              Jump & play
+            </Button>
+          </form>
+          {source.bookmarks?.map((bookmark) => (
+            <Button
+              key={`${bookmark.label}:${bookmark.atMs}`}
+              size='sm'
+              variant='outline'
+              {...pressProps(() => onJump(bookmark.atMs))}
+            >
+              {bookmark.label} · {formatPlaybackTime(bookmark.atMs)}
+            </Button>
+          ))}
           <Button
             size='sm'
             variant='outline'
@@ -231,8 +317,11 @@ function App({
   preview?: Schema.Schema.Type<typeof Preview>
   capture: boolean
 }) {
-  const [run, setRun] = useState(0)
+  const [run, setRun] = useState({ id: 0, startMs: 0, autoPlay: false })
   const [view, setView] = useState(preview ? 'recorded' : 'live')
+  function jump(atMs: number) {
+    setRun((current) => ({ id: current.id + 1, startMs: atMs, autoPlay: true }))
+  }
   return (
     <StateProvider initialValues={[[chromeSnapshotAtom, { projects: [], threads: [], bots: [] }]]}>
       <TooltipProvider>
@@ -254,7 +343,7 @@ function App({
                 <ToggleGroupItem value='live'>Live</ToggleGroupItem>
               </ToggleGroup>
               {view === 'live' && (
-                <Button size='sm' variant='outline' {...pressProps(() => setRun(run + 1))}>
+                <Button size='sm' variant='outline' {...pressProps(() => jump(run.startMs))}>
                   Restart
                 </Button>
               )}
@@ -267,7 +356,14 @@ function App({
             </p>
           )}
           {capture || view === 'live' ? (
-            <Replay key={run} source={source} capture={capture} />
+            <Replay
+              key={run.id}
+              source={source}
+              capture={capture}
+              startMs={run.startMs}
+              autoPlay={run.autoPlay}
+              onJump={jump}
+            />
           ) : preview ? (
             <RecordedPreview preview={preview} />
           ) : (
