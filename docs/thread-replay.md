@@ -127,3 +127,4 @@ It has three entries and does not model history scrolling or end-of-turn collaps
 A second row reuses `ToolGroup` to show Reading 1 → 2 → 3 files → Read 3 files, alongside
 Searching the web → Searched the web. Replay restarts every example, including the rolling
 file count. The file disclosure can be expanded to inspect the individual calls.
+The tool row also has its own Replay button, which leaves the entrance comparison running.

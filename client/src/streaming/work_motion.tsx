@@ -181,6 +181,20 @@ function ToolExamples() {
   )
 }
 
+function ToolExamplesRow() {
+  const [run, setRun] = useState(0)
+  return (
+    <section aria-label='Tool examples'>
+      <div className='mb-8 flex justify-end'>
+        <Button size='sm' aria-label='Replay tool examples' {...pressProps(() => setRun(run + 1))}>
+          Replay
+        </Button>
+      </div>
+      <ToolExamples key={run} />
+    </section>
+  )
+}
+
 function Sequence() {
   const [identity] = useState(() => crypto.randomUUID())
   const [step, setStep] = useState(0)
@@ -197,7 +211,7 @@ function Sequence() {
   return (
     <div className='flex flex-col gap-16'>
       <Example activities={activitiesAt(step)} identity={identity} />
-      <ToolExamples />
+      <ToolExamplesRow />
     </div>
   )
 }
