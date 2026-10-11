@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import { completedAgo } from '@/state/threads'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type WheelEvent } from 'react'
 
 import { ActivityDisclosure, type ActivityView } from './activity_disclosure'
@@ -40,22 +40,17 @@ function WorkHistory({
   live: boolean
 }) {
   const reducedMotion = useReducedMotion()
+  const [initialEntries] = useState(() => new Set(entries.map((entry) => entry.id)))
   const scroller = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
-  const shown = useRef(view)
 
   // A live preview is as tall as its latest entries and scrolls back through the rest, pinned to
   // the newest. Writes go straight to the node, so a growing entry never re-renders the log.
   useLayoutEffect(() => {
     const element = scroller.current!
     const list = element.firstElementChild as HTMLElement
-    const closing = shown.current === 'full' && view === 'preview'
-    shown.current = view
-    if (!live || view === 'full') {
-      if (!element.style.maxHeight) return
-      // Opening grows to the whole log and a finished block keeps its preview while it closes;
-      // either way it then sizes itself.
-      if (live) element.style.maxHeight = `${list.offsetHeight}px`
+    if (!live && element.style.maxHeight) {
+      // Keep the preview capped until the parent finishes closing.
       const release = setTimeout(
         () => {
           element.style.maxHeight = ''
@@ -65,16 +60,18 @@ function WorkHistory({
       )
       return () => clearTimeout(release)
     }
-    if (closing) {
-      // Shrinks from the open height, which a cap of none can't transition from.
-      element.style.maxHeight = `${element.offsetHeight}px`
+    if (!live || view === 'full') {
+      element.style.maxHeight = ''
+      edges(element)
+      return
     }
     pinned.current = true
     function measure() {
       let height = 0
       for (const row of [...list.children].slice(-previewCount)) height += row.scrollHeight
-      element.style.maxHeight = `${height}px`
-      if (pinned.current) element.scrollTop = element.scrollHeight
+      element.style.maxHeight = list.children.length > previewCount ? `${height}px` : ''
+      if (pinned.current && list.children.length > previewCount)
+        element.scrollTop = element.scrollHeight
       edges(element)
     }
     measure()
@@ -98,41 +95,36 @@ function WorkHistory({
   return (
     <div
       ref={scroller}
-      className='work-scroll no-scrollbar overflow-y-auto'
+      className={cn('work-scroll no-scrollbar', entries.length > previewCount && 'overflow-y-auto')}
       onScroll={onScroll}
       onWheel={onWheel}
     >
       <div>
-        <AnimatePresence initial={false}>
-          {entries.map((entry) => (
-            <motion.div
-              key={entry.id}
-              className='overflow-hidden'
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              transition={{ duration: reducedMotion ? 0 : 0.25, ease: [0.25, 1, 0.5, 1] }}
-            >
-              {entry.type === 'thinking' ? (
-                <ThinkingBlock activity={entry} />
-              ) : entry.type === 'text' ? (
-                <Markdown
-                  className='work-text'
-                  streaming={entry.streaming}
-                  arrived={!entry.streaming && completedAgo(entry.id) < 1000}
-                  reply={entry.id}
-                >
-                  {entry.text}
-                </Markdown>
-              ) : entry.type === 'todo' ? (
-                <TodoLink threadId={threadId} update={entry.update} />
-              ) : entry.type === 'threads' ? (
-                <ThreadGroup batch={entry} />
-              ) : (
-                <ToolGroup batch={entry} />
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {entries.map((entry) => (
+          <div
+            key={entry.id}
+            className={initialEntries.has(entry.id) ? undefined : 'work-raise-enter'}
+          >
+            {entry.type === 'thinking' ? (
+              <ThinkingBlock activity={entry} />
+            ) : entry.type === 'text' ? (
+              <Markdown
+                className='work-text'
+                streaming={entry.streaming}
+                arrived={!entry.streaming && completedAgo(entry.id) < 1000}
+                reply={entry.id}
+              >
+                {entry.text}
+              </Markdown>
+            ) : entry.type === 'todo' ? (
+              <TodoLink threadId={threadId} update={entry.update} />
+            ) : entry.type === 'threads' ? (
+              <ThreadGroup batch={entry} />
+            ) : (
+              <ToolGroup batch={entry} />
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )

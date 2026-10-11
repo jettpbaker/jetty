@@ -15,7 +15,6 @@ import { createRoot } from 'react-dom/client'
 
 import '../index.css'
 import '../accent.css'
-import './work_motion.css'
 
 const reply = "I'll start by reading the six files you allowed, plus a Glob limited to `src`."
 const words = reply.match(/\S+\s*/g)!
