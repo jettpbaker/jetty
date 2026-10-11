@@ -129,11 +129,11 @@ Searching the web → Searched the web. Replay restarts every example, including
 file count. The file disclosure can be expanded to inspect the individual calls.
 The tool row also has its own Replay button, which leaves the entrance comparison running.
 
-The File arrivals & batch handoff section below it compares production
+The File arrivals & batch handoff section below it compares the original
 behavior with a 150ms fade, a 150ms/4px lift with a 150ms hold before closing, and a
 250ms/4px lift with the next action revealed after the 200ms close. Each option has its own
 Replay, plus a shared Replay all. All reuse production `ToolGroup` and disclosure timing
-tokens; the motion overrides are scoped to this dev page. Reduced motion uses a fade
+tokens; the comparison overrides are scoped to this dev page. Reduced motion uses a fade
 and removes the handoff delays.
 
 Character morph variations below it compare four dev-only Reading → Read transitions using
@@ -162,6 +162,10 @@ main history rows remain aligned with the Working heading.
 Live file batches start expanded and collapse once work moves on and every call in the
 batch has settled. Manual toggles persist between those transitions; completed history
 starts collapsed and can be reopened.
+Appended file rows and incoming tool batches use the chosen 4px lift and fade over 150ms
+with the disclosure curve. Existing file rows stay still when a batch first appears or is
+opened from completed history. Automatic batch closes hold for 150ms so the next action
+can arrive first; manual toggles have no hold. Reduced motion uses a fade with no hold.
 Thinking summaries open only on a manual toggle, including when summary text arrives
 just before completion. Finishing thinking preserves a manually opened summary.
 

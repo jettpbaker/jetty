@@ -14,7 +14,7 @@ type BatchVariant = 'current' | 'fade' | 'hold' | 'settle'
 const variants = [
   {
     variant: 'current',
-    title: '1. Current',
+    title: '1. Instant rows',
     description: 'Instant rows · close and next together',
   },
   { variant: 'fade', title: '2. Fade', description: '150ms fade · close and next together' },

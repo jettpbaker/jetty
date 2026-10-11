@@ -126,7 +126,9 @@ function WorkHistory({
           <div
             key={entry.id}
             className={cn(
-              entry.type !== 'text' && !initialEntries.has(entry.id) && 'work-raise-enter'
+              entry.type !== 'text' &&
+                !initialEntries.has(entry.id) &&
+                (entry.type === 'tools' ? 'work-batch-enter' : 'work-raise-enter')
             )}
           >
             {entry.type === 'thinking' ? (

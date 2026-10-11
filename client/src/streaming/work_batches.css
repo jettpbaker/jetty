@@ -66,3 +66,16 @@
     transition-delay: 0ms;
   }
 }
+.batch-motion[data-batch-motion='current']
+  > [data-slot='collapsible']
+  > [data-slot='collapsible-content']
+  > div
+  > [data-slot='collapsible'] {
+  animation: none;
+}
+
+.batch-motion:not([data-batch-motion='hold'])
+  > [data-slot='collapsible']
+  > [data-slot='collapsible-content'][data-ending-style] {
+  transition-delay: 0ms;
+}

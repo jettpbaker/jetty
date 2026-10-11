@@ -47,10 +47,10 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
   )
 }
 
-export function ToolCall({ call }: { call: ToolActivity }) {
+export function ToolCall({ call, animate = false }: { call: ToolActivity; animate?: boolean }) {
   const label = describeToolBatch({ type: 'tools', id: call.id, calls: [call], sealed: true })
   return (
-    <Collapsible>
+    <Collapsible className={animate ? 'work-batch-enter' : undefined}>
       <CollapsibleTrigger render={<Button variant='ghost-text' />} className='activity-header'>
         <span
           className={cn(

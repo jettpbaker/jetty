@@ -22,9 +22,16 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
     (!batch.sealed || batch.calls.some((call) => !workEnded(call.status)))
   const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
   const [open, setOpen] = useState(autoOpen)
+  const [autoClosing, setAutoClosing] = useState(false)
+  const [initialCalls] = useState(() => new Set(batch.calls.map((call) => call.id)))
   if (previousAutoOpen !== autoOpen) {
     setPreviousAutoOpen(autoOpen)
+    setAutoClosing(!autoOpen && open)
     setOpen(autoOpen)
+  }
+  function onOpenChange(nextOpen: boolean) {
+    setAutoClosing(false)
+    setOpen(nextOpen)
   }
   const heading = (
     <>
@@ -81,7 +88,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       </div>
     )
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
@@ -89,13 +96,17 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       >
         {heading}
       </CollapsibleTrigger>
-      <CollapsibleContent className='pl-2'>
+      <CollapsibleContent className={cn('pl-2', autoClosing && 'work-batch-auto-close')}>
         {batch.calls.length === 1 && label.fileCount === undefined ? (
           <ToolCallDetails call={batch.calls[0]!} />
         ) : (
           <div>
             {batch.calls.map((call) => (
-              <ToolCall key={call.id} call={call} />
+              <ToolCall
+                key={call.id}
+                call={call}
+                animate={label.fileCount !== undefined && autoOpen && !initialCalls.has(call.id)}
+              />
             ))}
           </div>
         )}
