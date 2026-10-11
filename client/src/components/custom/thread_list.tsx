@@ -508,9 +508,15 @@ export function ThreadList({
     sentStart === undefined
       ? totalSize
       : Math.max(totalSize, sentStart - chatInset + viewportHeight)
+  // Keep room for the spring to brake when finishing work shrinks the transcript.
+  const [scrollSpace, setScrollSpace] = useState(scrollSize)
+  if (scrollSize > scrollSpace) setScrollSpace(scrollSize)
+  const scrollExtent = useRef(scrollSize)
+  const releaseScrollSpace = useCallback(() => setScrollSpace(scrollExtent.current), [])
   const reserved = useRef(false)
 
   const glider = useRef<ReturnType<typeof bottomGlide>>(undefined)
+  const following = useRef(false)
   const sendGlide = useRef<ReturnType<typeof animate>>(undefined)
   const sendPending = useRef(false)
   const sendInterrupted = useRef(false)
@@ -521,7 +527,8 @@ export function ThreadList({
     sendGlide.current.stop()
     sendGlide.current = undefined
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
-  }, [virtualizer])
+    releaseScrollSpace()
+  }, [virtualizer, releaseScrollSpace])
   const landed = useRef({ key: '', at: 0 })
   const lastRow = useRef<{ key: unknown; start: number }>(undefined)
   // Where the list was last scrolled to, before any clamp from content that just shrank.
@@ -568,7 +575,7 @@ export function ThreadList({
   const awayRef = useRef(false)
   const [fresh, setFresh] = useState(false)
   const checkAway = useCallback((element: HTMLElement) => {
-    const behind = element.scrollHeight - element.clientHeight - element.scrollTop
+    const behind = scrollExtent.current - element.clientHeight - element.scrollTop
     const next = behind > element.clientHeight * scrollToBottomAfter
     if (next === awayRef.current) return
     awayRef.current = next
@@ -588,6 +595,7 @@ export function ThreadList({
     [stopSendGlide]
   )
   useLayoutEffect(() => {
+    scrollExtent.current = scrollSize
     reserved.current = scrollSize > totalSize
     if (sentAnchor.current !== send.anchor && send.anchor) {
       pin(true)
@@ -604,15 +612,19 @@ export function ThreadList({
     (element: HTMLElement) => {
       if (!glider.current)
         glider.current = bottomGlide(element, {
+          target: () => sendTarget.current,
           onWrite: (top) => (shownTop.current = top),
-          onRun: (running) =>
-            (virtualizer.shouldAdjustScrollPositionOnItemSizeChange = running
+          onRun: (running) => {
+            following.current = running
+            virtualizer.shouldAdjustScrollPositionOnItemSizeChange = running
               ? () => false
-              : undefined),
+              : undefined
+            if (!running) releaseScrollSpace()
+          },
         })
       return glider.current
     },
-    [virtualizer]
+    [virtualizer, releaseScrollSpace]
   )
   // The browser's End and Home aim at the ends of rows still at their estimated sizes, so they
   // land short once those rows measure (639px in a 200-turn thread). Keys aimed at something
@@ -636,14 +648,17 @@ export function ThreadList({
     return () => element.removeEventListener('keydown', jump)
   }, [pin, virtualizer])
   useLayoutEffect(() => {
-    if (!pinned.current || rows.length === 0 || !scroller.current) return
+    const element = scroller.current
+    sendTarget.current = Math.max(0, scrollSize - (element?.clientHeight ?? 0))
+    if (!pinned.current || rows.length === 0 || !element) {
+      releaseScrollSpace()
+      return
+    }
     // Growth glides; opening the thread, resizing it or seeking far lands at once.
     const key = `${view}:${width}`
     const last = virtualizer.measurementsCache[rows.length - 1]
     const anchor = lastRow.current
     lastRow.current = last && { key: last.key, start: last.start }
-    const element = scroller.current
-    sendTarget.current = Math.max(0, scrollSize - element.clientHeight)
     if (sendGlide.current) {
       if (landed.current.key === key && !reducedMotion.matches) return
       stopSendGlide()
@@ -670,15 +685,15 @@ export function ThreadList({
           onComplete: () => {
             sendGlide.current = undefined
             virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
+            releaseScrollSpace()
           },
         })
         return
       }
     }
-    const behind = element.scrollHeight - element.clientHeight - element.scrollTop
     const glides =
       !reducedMotion.matches &&
-      behind < element.clientHeight &&
+      (following.current || sendTarget.current - element.scrollTop < element.clientHeight) &&
       landed.current.key === key &&
       performance.now() - landed.current.at > 300
     if (glides) {
@@ -696,6 +711,7 @@ export function ThreadList({
     }
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
+    releaseScrollSpace()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
   }, [
     virtualizer,
@@ -703,11 +719,13 @@ export function ThreadList({
     stamp,
     width,
     scrollSize,
+    viewportHeight,
     view,
     gliderFor,
     sentStart,
     sentIndex,
     stopSendGlide,
+    releaseScrollSpace,
   ])
   useEffect(
     () => () => {
@@ -866,7 +884,7 @@ export function ThreadList({
             // it to content that shrank for a layout, and the glide can trail the bottom.
             const up = element.scrollTop < shownTop.current - 1
             const hand = byHand.current.held || performance.now() - byHand.current.at < 500
-            const behind = element.scrollHeight - element.clientHeight - element.scrollTop
+            const behind = scrollExtent.current - element.clientHeight - element.scrollTop
             shownTop.current = element.scrollTop
             // A clamp that keeps the list on its bottom (a taller window) isn't letting go.
             if (up && hand && behind >= 1) pin(false)
@@ -877,7 +895,7 @@ export function ThreadList({
             checkAway(element)
           }}
         >
-          <div className='relative w-full' style={{ height: scrollSize }}>
+          <div className='relative w-full' style={{ height: Math.max(scrollSize, scrollSpace) }}>
             {virtualizer.getVirtualItems().map((virtualRow) => (
               <div
                 key={virtualRow.key}
