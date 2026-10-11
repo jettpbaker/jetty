@@ -267,8 +267,11 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   return {
     verb,
     description:
-      description && (current.status === 'failed' || current.status === 'interrupted')
-        ? `${current.status === 'failed' ? 'Failed to run:' : 'Stopped'} ${description}`
+      description &&
+      (current.status === 'failed' ||
+        current.status === 'cancelled' ||
+        current.status === 'interrupted')
+        ? `${current.status === 'failed' ? 'Failed to run:' : current.status === 'cancelled' ? 'Cancelled:' : 'Stopped:'} ${description}`
         : description,
     target,
     fileCount,

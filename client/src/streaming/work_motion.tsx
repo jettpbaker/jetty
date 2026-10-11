@@ -1,9 +1,11 @@
+import { OpenFileLink, ProjectFileRoot } from '@/components/custom/file_link'
 import { Markdown } from '@/components/custom/markdown'
 import { ThinkingBlock } from '@/components/custom/thinking_block'
 import { ToolGroup } from '@/components/custom/tool_group'
 import { WorkBlock } from '@/components/custom/work_block'
 import {
   groupWorkActivities,
+  type ActivityStatus,
   type ToolBatch,
   type WorkActivity,
 } from '@/components/custom/work_model'
@@ -205,6 +207,73 @@ function ToolExamplesRow() {
   )
 }
 
+function ToolOutcomeExamples() {
+  const [selectedFile, setSelectedFile] = useState<string>()
+  const outcomes: {
+    title: string
+    status: ActivityStatus
+    target: string
+    output?: string
+  }[] = [
+    {
+      title: 'Failed',
+      status: 'failed',
+      target: 'src/missing.ts',
+      output: "ENOENT: no such file or directory, open 'src/missing.ts'",
+    },
+    { title: 'Cancelled', status: 'cancelled', target: 'src/config.ts' },
+    { title: 'Stopped', status: 'interrupted', target: 'src/index.ts' },
+  ]
+  return (
+    <section aria-label='Tool outcomes'>
+      <h2 className='mb-8 text-sm font-medium'>Tool outcomes</h2>
+      <ProjectFileRoot value='/example/project'>
+        <OpenFileLink
+          value={({ path }) => {
+            setSelectedFile(path)
+            return true
+          }}
+        >
+          <div className='grid items-start gap-12 md:grid-cols-3'>
+            {outcomes.map(({ title, status, target, output }) => (
+              <section key={status} aria-label={title} data-tool-outcome={status}>
+                <h3 className='mb-4 text-sm text-muted-foreground'>{title}</h3>
+                <div className='work-scroll'>
+                  <ToolGroup
+                    batch={{
+                      type: 'tools',
+                      id: `outcome:${status}`,
+                      sealed: true,
+                      calls: [
+                        {
+                          type: 'tool',
+                          id: `outcome:${status}:read`,
+                          kind: 'read',
+                          name: 'Read',
+                          target,
+                          files: [target],
+                          status,
+                          input: JSON.stringify({ file_path: target }, null, 2),
+                          output,
+                        },
+                      ],
+                    }}
+                  />
+                </div>
+              </section>
+            ))}
+          </div>
+        </OpenFileLink>
+      </ProjectFileRoot>
+      {selectedFile && (
+        <p className='mt-4 text-xs text-muted-foreground'>
+          Preview file selected: <span className='font-mono'>{selectedFile}</span>
+        </p>
+      )}
+    </section>
+  )
+}
+
 function Sequence() {
   const [identity] = useState(() => crypto.randomUUID())
   const [step, setStep] = useState(0)
@@ -222,6 +291,7 @@ function Sequence() {
     <div className='flex flex-col gap-16'>
       <Example activities={activitiesAt(step)} identity={identity} />
       <ToolExamplesRow />
+      <ToolOutcomeExamples />
       <BatchMotionPreviews />
       <CompletionPreviews />
     </div>

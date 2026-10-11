@@ -12,14 +12,14 @@
 .activity-chevron {
   visibility: hidden;
 }
-.activity-header[aria-expanded='true'] > .activity-chevron {
+:is(.activity-header, .activity-file-status)[aria-expanded='true'] > .activity-chevron {
   transform: rotate(90deg);
 }
-.activity-header:focus-visible > .activity-chevron {
+:is(.activity-header, .activity-file-status):focus-visible > .activity-chevron {
   visibility: visible;
 }
 @media (hover: hover) and (pointer: fine) {
-  .activity-header:hover > .activity-chevron {
+  :is(.activity-header, .activity-file-status):hover > .activity-chevron {
     visibility: visible;
   }
 }

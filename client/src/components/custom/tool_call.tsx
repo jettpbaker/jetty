@@ -20,7 +20,7 @@ function ToolOutput({ className, children }: { className?: string; children: Rea
 }
 
 export function ToolCallDetails({ call }: { call: ToolActivity }) {
-  const failed = call.status === 'failed' && Boolean(call.output)
+  const failed = call.status === 'failed'
   return (
     <div className='my-1 flex min-w-0 flex-col gap-3 rounded-sm border border-border bg-card p-3 text-xs'>
       {call.input !== undefined && (
@@ -39,11 +39,15 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
           <p className='text-muted-foreground'>
             {call.status === 'running'
               ? 'Waiting for output'
-              : call.status === 'cancelled' || call.status === 'interrupted'
-                ? 'No output received.'
-                : call.output === ''
-                  ? 'Completed with no output.'
-                  : 'Output unavailable.'}
+              : failed
+                ? 'No error details were provided.'
+                : call.status === 'cancelled'
+                  ? 'This call was cancelled. No output was received.'
+                  : call.status === 'interrupted'
+                    ? 'This call was stopped. No output was received.'
+                    : call.output === ''
+                      ? 'Completed with no output.'
+                      : 'Output unavailable.'}
           </p>
         )}
       </section>
@@ -55,9 +59,11 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
   const root = use(ProjectFileRoot)
   const openFile = use(OpenFileLink)
   const label = describeToolBatch({ type: 'tools', id: call.id, calls: [call], sealed: true })
+  const hasOutcomeDetails =
+    call.status === 'failed' || call.status === 'cancelled' || call.status === 'interrupted'
   if (root && call.files?.length)
     return (
-      <div className={animate ? 'work-batch-enter' : undefined}>
+      <Collapsible className={animate ? 'work-batch-enter' : undefined}>
         {call.files.map((file) => {
           const path = projectRelativePath(file, root)
           const change = call.fileChange
@@ -70,10 +76,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
             (change.additions > 0 || change.deletions > 0)
           return (
             <div key={file} className='activity-header activity-file-row'>
-              {call.status === 'failed' && (
-                <span className='shrink-0 text-status-error'>{label.verb}</span>
-              )}
-              <div className='flex min-w-0 flex-1 items-center gap-2'>
+              <div className='flex min-w-0 items-center gap-2'>
                 {path ? (
                   <Button
                     variant='link'
@@ -95,10 +98,27 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
                 )}
                 {showCounts && <DiffCounts files={[change]} hideZero />}
               </div>
+              {hasOutcomeDetails && (
+                <CollapsibleTrigger
+                  render={<Button variant='ghost-text' size='sm' />}
+                  className='activity-file-status gap-1 px-0 text-13 font-normal'
+                  aria-label={`${label.verb}: ${path ?? file}`}
+                >
+                  <span className={cn(call.status === 'failed' && 'text-status-error')}>
+                    {label.verb}
+                  </span>
+                  <ActivityChevron />
+                </CollapsibleTrigger>
+              )}
             </div>
           )
         })}
-      </div>
+        {hasOutcomeDetails && (
+          <CollapsibleContent>
+            <ToolCallDetails call={call} />
+          </CollapsibleContent>
+        )}
+      </Collapsible>
     )
   return (
     <Collapsible className={animate ? 'work-batch-enter' : undefined}>
