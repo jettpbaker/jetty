@@ -82,7 +82,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
         {batch.calls.length === 1 && label.fileCount === undefined ? (
           <ToolCallDetails call={batch.calls[0]!} />
         ) : (
-          <div className='pb-1'>
+          <div>
             {batch.calls.map((call) => (
               <ToolCall key={call.id} call={call} />
             ))}
@@ -119,7 +119,7 @@ export function ThreadGroup({ batch }: { batch: ThreadBatch }) {
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className='pb-1'>
+        <div>
           {threads.map((thread) => (
             <CreatedThread key={thread.id} thread={thread} />
           ))}
