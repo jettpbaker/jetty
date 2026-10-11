@@ -19,6 +19,7 @@ export type ToolActivity = {
   kind: ToolKind
   name: string
   // A Jetty tool's own vocabulary; its target names threads or models, so it reads as prose.
+  jettyTool?: string
   words?: ToolWords
   target: string
   files?: string[]

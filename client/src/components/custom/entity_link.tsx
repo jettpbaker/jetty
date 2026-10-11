@@ -177,7 +177,10 @@ export function ThreadLink({
   const prefetch = useThreadRowPrefetch()
   const meta = useThreadMeta(id)
   if (!meta) return fallback
-  const look = statusPresentation[outcome ?? threadStatus(meta.status, meta.readyForReview)]
+  const look =
+    statusPresentation[
+      outcome ?? (meta.archived ? 'archived' : threadStatus(meta.status, meta.readyForReview))
+    ]
   return (
     <PreviewCard.Root>
       <PreviewCard.Trigger

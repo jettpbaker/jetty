@@ -1,7 +1,7 @@
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ComponentType, SVGProps } from 'react'
 
-import { CircleSlashIcon } from '@/components/custom/huge_icons'
+import { Archive02Icon, CircleSlashIcon } from '@/components/custom/huge_icons'
 import { cn } from '@/lib/utils'
 
 import {
@@ -25,6 +25,7 @@ export type Status =
   | 'done'
   | 'stopped'
   | 'queued'
+  | 'archived'
 export type ThreadStatus = Extract<
   Status,
   'monitoring' | 'idle' | 'working' | 'needs-attention' | 'error' | 'ready'
@@ -58,6 +59,7 @@ export const statusPresentation: Record<
   ready: { icon: SuccessStatusIcon, label: 'Ready for review', color: 'text-status-success' },
   done: { icon: SuccessStatusIcon, label: 'Finished', color: 'text-status-success' },
   stopped: { icon: CircleSlashIcon, label: 'Stopped', color: 'text-muted-foreground' },
+  archived: { icon: Archive02Icon, label: 'Archived', color: 'text-muted-foreground' },
   queued: { icon: QueuedStatusIcon, label: 'Queued', color: 'text-muted-foreground' },
 }
 

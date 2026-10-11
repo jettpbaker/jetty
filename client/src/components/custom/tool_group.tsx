@@ -4,19 +4,23 @@ import { cn } from '@/lib/utils'
 import { useState } from 'react'
 
 import { ActivityChevron } from './activity_disclosure'
-import { ThreadLink } from './entity_link'
+import { CountedResults } from './jetty_result_rows'
+import { JettyThreadRow, JettyToolGroup } from './jetty_tool_group'
+import { jettyResultTools } from './jetty_tool_results'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
-import {
-  describeToolBatch,
-  workEnded,
-  type CreatedActivity,
-  type ThreadBatch,
-  type ToolBatch,
-} from './work_model'
+import { describeToolBatch, workEnded, type ThreadBatch, type ToolBatch } from './work_model'
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
+  return batch.calls[0]?.jettyTool && jettyResultTools[batch.calls[0].jettyTool] ? (
+    <JettyToolGroup batch={batch} />
+  ) : (
+    <DefaultToolGroup batch={batch} />
+  )
+}
+
+function DefaultToolGroup({ batch }: { batch: ToolBatch }) {
   const label = describeToolBatch(batch)
   const autoOpen =
     label.itemCount !== undefined &&
@@ -95,39 +99,15 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
   )
 }
 
-function CreatedThread({ thread }: { thread: CreatedActivity }) {
-  return (
-    <div className='activity-header items-center gap-1 text-muted-foreground'>
-      Created
-      <ThreadLink id={thread.threadId} fallback={thread.title ?? 'a thread'} />
-    </div>
-  )
-}
-
 export function ThreadGroup({ batch }: { batch: ThreadBatch }) {
-  const { threads } = batch
-  if (threads.length === 1) return <CreatedThread thread={threads[0]!} />
-  const count = `${threads.length} threads`
   return (
-    <Collapsible>
-      <CollapsibleTrigger
-        render={<Button variant='ghost-text' />}
-        className='activity-header'
-        aria-label={`Created ${count}`}
-      >
-        <span className='flex min-w-0 items-baseline gap-1'>
-          <span className='shrink-0'>Created</span>
-          <RollingText>{count}</RollingText>
-        </span>
-        <ActivityChevron />
-      </CollapsibleTrigger>
-      <CollapsibleContent className='pl-2'>
-        <div>
-          {threads.map((thread) => (
-            <CreatedThread key={thread.id} thread={thread} />
-          ))}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+    <CountedResults verb='Created' count={batch.threads.length} noun='thread'>
+      {batch.threads.map((thread) => (
+        <JettyThreadRow
+          key={thread.id}
+          result={{ id: thread.threadId, title: thread.title ?? thread.threadId }}
+        />
+      ))}
+    </CountedResults>
   )
 }

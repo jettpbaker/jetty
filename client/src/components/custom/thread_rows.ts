@@ -172,6 +172,16 @@ const jettyTools: Record<string, JettyTool> = {
     words: words('Listing', 'Listed', 'thread list'),
     target: () => 'threads',
   },
+  list_bots: {
+    action: 'List bots',
+    words: words('Listing', 'Listed', 'bot'),
+    target: () => 'bots',
+  },
+  search_threads: {
+    action: 'Search threads',
+    words: words('Searching', 'Found', 'thread'),
+    target: () => 'threads',
+  },
   read_thread: {
     action: 'Read thread',
     words: words('Reading', 'Read', 'thread'),
@@ -343,6 +353,8 @@ function toActivity(
     id: item.id,
     kind,
     name,
+    jettyTool:
+      mcpTool(item.toolName)?.server === 'jetty' ? mcpTool(item.toolName)?.tool : undefined,
     words: jetty?.words,
     target: jetty
       ? (jetty.target(fields, item.output) ?? jetty.words.singular)
@@ -383,16 +395,6 @@ function workStatus(
     if (activities.some((activity) => 'status' in activity && activity.status === status))
       return status
   return 'complete'
-}
-
-function createdThreadId(item: ThreadItem) {
-  if (
-    item.kind !== 'tool_call' ||
-    item.status !== 'succeeded' ||
-    item.toolName !== 'mcp__jetty__create_thread'
-  )
-    return undefined
-  return resultField(item.output, 'threadId')
 }
 
 // Before the subagent's first reply its model is unknown; its type stands in.
@@ -749,18 +751,6 @@ export function threadRows(
   const todos = agentId ? undefined : foldTodos(allItems).updates
   for (const [segment, { row, steps, next }] of blocks) {
     row.activities = steps.flatMap((item, index): WorkActivity[] => {
-      const created = createdThreadId(item)
-      if (created && item.kind === 'tool_call') {
-        const { title } = item.input as { title?: unknown }
-        return [
-          {
-            type: 'created',
-            id: item.id,
-            threadId: created,
-            ...(typeof title === 'string' && { title }),
-          },
-        ]
-      }
       if (!todos?.has(item.id))
         return [
           toActivity(

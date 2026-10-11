@@ -1,15 +1,20 @@
-import type { ProviderModel } from '@jetty/shared/wire'
-
 import { ActivityChevron } from '@/components/custom/activity_disclosure'
 import { botColorStyle, botTextClass } from '@/components/custom/bot_avatar'
 import { Refresh01Icon } from '@/components/custom/huge_icons'
 import { JettyBot } from '@/components/custom/jetty_bot'
+import {
+  CappedResults,
+  CountedResults,
+  Disclosure,
+  EntityDetails,
+  ModelRow,
+  ThreadRow,
+} from '@/components/custom/jetty_result_rows'
 import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
-import { ModelLabel } from '@/components/custom/model_label'
 import { ProjectGlyph } from '@/components/custom/project_glyph'
 import { ProviderGlyph } from '@/components/custom/provider_glyph'
 import { RollingNumber } from '@/components/custom/rolling_number'
-import { StatusGlyph, threadStatus, type Status } from '@/components/custom/thread_status'
+import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { ToolCallDetails } from '@/components/custom/tool_call'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -19,7 +24,7 @@ import { loadAccent } from '@/lib/accent'
 import { pressProps } from '@/lib/press'
 import { applyTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { modelResults, threadResults } from './jetty_tool_fixtures'
@@ -29,45 +34,7 @@ import '@/components/custom/work.css'
 
 type ResultState = 'complete' | 'loading' | 'empty' | 'failed'
 type ThreadResult = (typeof threadResults)[number]
-type ModelResult = (typeof modelResults)[number]
 const resultStates: ResultState[] = ['complete', 'loading', 'empty', 'failed']
-
-function Disclosure({
-  title,
-  label,
-  children,
-}: {
-  title: ReactNode
-  label?: string
-  children: ReactNode
-}) {
-  return (
-    <Collapsible>
-      <CollapsibleTrigger
-        render={<Button variant='ghost-text' />}
-        className='activity-header'
-        aria-label={label}
-      >
-        <span>{title}</span>
-        <ActivityChevron />
-      </CollapsibleTrigger>
-      <CollapsibleContent>{children}</CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-function CappedResults({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <section
-      className='max-h-35 overflow-y-auto overscroll-contain'
-      aria-label={label}
-      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need focus to scroll the remaining rows
-      tabIndex={0}
-    >
-      {children}
-    </section>
-  )
-}
 
 function RawResult({
   name,
@@ -91,53 +58,6 @@ function RawResult({
         output: typeof output === 'string' ? output : JSON.stringify(output, null, 2),
       }}
     />
-  )
-}
-
-function ModelRow({ result }: { result: ModelResult }) {
-  const model: ProviderModel = { ...result, fast: false, autoMode: false }
-  return (
-    <Disclosure
-      title={
-        <span className='inline-flex items-center gap-1.5 text-foreground'>
-          <ProviderGlyph provider={model.provider} className='size-3 text-muted-foreground' />
-          <ModelLabel model={model} />
-        </span>
-      }
-    >
-      <div className='flex flex-col gap-1 py-1 pl-2 text-xs text-muted-foreground'>
-        <p className='font-mono'>{model.id}</p>
-        <p>Effort: {model.efforts.join(' · ')}</p>
-        {model.defaultEffort && <p>Default: {model.defaultEffort}</p>}
-        {'notes' in result && <p className='max-w-sm leading-relaxed'>{result.notes}</p>}
-      </div>
-    </Disclosure>
-  )
-}
-
-function ThreadRow({
-  result,
-  onSelect,
-  status,
-}: {
-  result: ThreadResult
-  onSelect: (result: ThreadResult) => void
-  status?: Status
-}) {
-  return (
-    <div className='activity-header activity-file-row'>
-      <Button
-        variant='link'
-        size='sm'
-        className='min-w-0 shrink justify-start gap-1.5 px-0 text-13 font-normal'
-        title={`${result.title} · ${result.project}`}
-        onClick={() => onSelect(result)}
-      >
-        <StatusGlyph status={status ?? threadStatus(result.status)} className='size-3.25' />
-        <span className='truncate'>{result.title}</span>
-      </Button>
-      <span className='shrink-0 text-xs text-muted-foreground'>{result.project}</span>
-    </div>
   )
 }
 
@@ -220,7 +140,14 @@ function ListingExample({
                   {kind === 'models'
                     ? modelResults.map((model) => <ModelRow key={model.id} result={model} />)
                     : threadResults.map((thread) => (
-                        <ThreadRow key={thread.id} result={thread} onSelect={onSelect} />
+                        <ThreadRow
+                          key={thread.id}
+                          result={thread}
+                          onSelect={(result) => {
+                            const fixture = threadResults.find((thread) => thread.id === result.id)
+                            if (fixture) onSelect(fixture)
+                          }}
+                        />
                       ))}
                 </CappedResults>
                 <Disclosure title='Tool details'>
@@ -295,49 +222,6 @@ const sampleBots = [
   { name: 'Inbox', color: 'coral', shape: 'tri', job: 'Keeps track of incoming work.' },
 ] as const
 
-function CountedResults({
-  verb,
-  count,
-  noun,
-  active = false,
-  children,
-}: {
-  verb: string
-  count: number
-  noun: string
-  active?: boolean
-  children: ReactNode
-}) {
-  const label = `${verb} ${count} ${noun}${count === 1 ? '' : 's'}`
-  return (
-    <Disclosure
-      label={label}
-      title={
-        <span className='inline-flex items-baseline gap-1'>
-          <span className={cn(active && 'shimmer')}>{verb}</span>
-          <RollingNumber value={count} className='font-mono' />
-          <span>
-            {noun}
-            {count === 1 ? '' : 's'}
-          </span>
-        </span>
-      }
-    >
-      <div className='pl-2'>
-        <CappedResults label={label}>{children}</CappedResults>
-      </div>
-    </Disclosure>
-  )
-}
-
-function EntityDetails({ title, children }: { title: ReactNode; children: ReactNode }) {
-  return (
-    <Disclosure title={title}>
-      <div className='py-1 pl-2 text-xs leading-relaxed text-muted-foreground'>{children}</div>
-    </Disclosure>
-  )
-}
-
 function OtherTools({ onSelect }: { onSelect: (result: ThreadResult) => void }) {
   const [count, setCount] = useState(1)
   const [playing, setPlaying] = useState(false)
@@ -399,8 +283,17 @@ function OtherTools({ onSelect }: { onSelect: (result: ThreadResult) => void }) 
                 <ThreadRow
                   key={thread.id}
                   result={thread}
-                  onSelect={onSelect}
-                  status={action.done === 'Stopped' ? 'stopped' : undefined}
+                  onSelect={(result) => {
+                    const fixture = threadResults.find((thread) => thread.id === result.id)
+                    if (fixture) onSelect(fixture)
+                  }}
+                  status={
+                    action.done === 'Stopped'
+                      ? 'stopped'
+                      : action.done === 'Archived'
+                        ? 'archived'
+                        : undefined
+                  }
                 />
               ))}
             </CountedResults>
