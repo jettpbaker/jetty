@@ -427,7 +427,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
       {/* Outside the scroller, floating over its bottom, clear of the mask. It spans the chat, so
           the / menu over the composer isn't clipped. */}
       <div className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] pointer-events-none absolute inset-0 flex flex-col justify-end overflow-hidden px-6'>
-        <div ref={measureDock} className='mx-auto w-full max-w-[990px] py-4'>
+        <div ref={measureDock} className='mx-auto w-full max-w-[825px] py-4'>
           {/* No height, on the composer's top edge, so the arrow sits just above it; the dot takes
               the bot's colour. */}
           <div className={cn('relative', botAccentClass)}>
@@ -600,7 +600,7 @@ function Transcript({
     }
   })
   return (
-    <div ref={stackRef} className='relative mx-auto flex w-full max-w-[990px] flex-col pt-6'>
+    <div ref={stackRef} className='relative mx-auto flex w-full max-w-[825px] flex-col pt-6'>
       {rows.map((row) =>
         row.kind === 'stamp' ? (
           <Stamp key={row.key} id={row.key} label={chatStamp(row.at, now)} gap={row.gap} />

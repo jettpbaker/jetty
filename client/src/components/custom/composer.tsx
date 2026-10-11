@@ -166,7 +166,7 @@ export function Composer({
     <div
       ref={root}
       data-perf-region='composer'
-      className='mx-auto flex w-full max-w-[990px] flex-col gap-1'
+      className='mx-auto flex w-full max-w-[825px] flex-col gap-1'
     >
       {header}
       <div className='flex flex-col gap-0.5'>
@@ -180,7 +180,7 @@ export function Composer({
           {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
           <InputGroup
             className={cn(
-              'relative w-full max-w-[990px] border-0 bg-popover dark:bg-popover',
+              'relative w-full max-w-[825px] border-0 bg-popover dark:bg-popover',
               strip && 'rounded-t-none',
               // Over a wallpaper the ambient shadow does the lifting.
               ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
