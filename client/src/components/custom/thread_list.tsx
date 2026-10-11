@@ -43,6 +43,7 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { bottomGlide } from '@/lib/bottom-glide'
+import { useScrollFade } from '@/lib/chat-scroll-fade'
 import { whenIdle } from '@/lib/preload'
 import { getSendMotionTransition } from '@/lib/send-motion'
 import { cn } from '@/lib/utils'
@@ -356,6 +357,7 @@ export function ThreadList({
   settingUp?: boolean
   onSelectAgent: (id: string) => void
 }) {
+  const scrollFade = useScrollFade()
   const queue = useTranscriptQueue(agentId ? undefined : threadId, items)
   const [buildRows] = useState(createThreadRows)
   const rows = useMemo(
@@ -875,7 +877,10 @@ export function ThreadList({
       <div data-perf-region='messages' className='relative flex min-h-0 flex-1 flex-col'>
         <section
           ref={scroller}
-          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+          className={cn(
+            'scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+            scrollFade && 'mask-[linear-gradient(to_bottom,transparent,black_16px)]'
+          )}
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
