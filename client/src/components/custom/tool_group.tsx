@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
+import { useState } from 'react'
 
 import { ThreadLink } from './entity_link'
 import { RollingNumber } from './rolling_number'
@@ -8,6 +9,7 @@ import { RollingText } from './rolling_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
 import {
   describeToolBatch,
+  workEnded,
   type CreatedActivity,
   type ThreadBatch,
   type ToolBatch,
@@ -15,6 +17,15 @@ import {
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
   const label = describeToolBatch(batch)
+  const autoOpen =
+    label.fileCount !== undefined &&
+    (!batch.sealed || batch.calls.some((call) => !workEnded(call.status)))
+  const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
+  const [open, setOpen] = useState(autoOpen)
+  if (previousAutoOpen !== autoOpen) {
+    setPreviousAutoOpen(autoOpen)
+    setOpen(autoOpen)
+  }
   const heading = (
     <>
       <span className='flex min-w-0 items-baseline gap-1'>
@@ -70,7 +81,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       </div>
     )
   return (
-    <Collapsible>
+    <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'

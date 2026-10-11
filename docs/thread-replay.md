@@ -152,6 +152,9 @@ muted over the shared 150ms control timing once a later activity arrives.
 Expanded tool and thread groups use the same row spacing, without extra bottom padding.
 Expanded tool, thread, and thinking content indents by 8px per disclosure level; the
 main history rows remain aligned with the Working heading.
+Live file batches start expanded and collapse once work moves on and every call in the
+batch has settled. Manual toggles persist between those transitions; completed history
+starts collapsed and can be reopened.
 
 The live five-entry history follows new rows with the same interruptible scroll glide as
 the conversation. Scrolling back stops it; reduced motion pins immediately. Consecutive
