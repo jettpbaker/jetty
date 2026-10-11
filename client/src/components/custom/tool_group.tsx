@@ -3,7 +3,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils'
 
 import { ThreadLink } from './entity_link'
-import { MorphText } from './morph_text'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
@@ -31,13 +30,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
           </span>
         ) : (
           <>
-            {label.fileCount !== undefined || batch.calls[0]!.kind === 'web' ? (
-              <MorphText className='shrink-0' shimmer={label.active}>
-                {label.verb}
-              </MorphText>
-            ) : (
-              <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
-            )}
+            <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
             {label.fileCount !== undefined ? (
               <span className='inline-flex items-baseline gap-1'>
                 <RollingNumber value={label.fileCount} className='font-mono' />

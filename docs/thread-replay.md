@@ -136,11 +136,10 @@ Each has an independent Replay button. The count stays at 3 to isolate the compl
 which starts after one second. Reduced motion replaces movement and blur with the
 control-duration fade. These experiments do not change the production tool label.
 
-Production file labels use option 2's 150ms character morph and disclosure curve for the
-verb change. Their existing number roller remains independent while files accumulate;
-the count follows the verb's shrinking width on completion. Reduced motion uses a fade.
-Thinking → Thought, Searching the web → Searched the web, and Working → Worked use the
-same shared morph, including when a completed heading becomes a disclosure button.
+Production completion labels now switch instantly: Reading → Read, Editing → Edited,
+Writing → Wrote, Thinking → Thought, Searching the web → Searched the web, and
+Working → Worked. The file number roller and row entrances remain animated. The
+character morph experiments stay on the work-motion page for comparison.
 
 The transcript uses 13px Geist Sans for replies and activity labels, with Paper Mono for
 code, paths and numeric readouts. Activity rows keep their 28px spacing. A reply fades to
