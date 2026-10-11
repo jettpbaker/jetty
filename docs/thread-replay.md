@@ -135,3 +135,7 @@ control duration, the original with a brief 1px blur, and 250ms with the stronge
 Each has an independent Replay button. The count stays at 3 to isolate the completion change,
 which starts after one second. Reduced motion replaces movement and blur with the
 control-duration fade. These experiments do not change the production tool label.
+
+Production file labels use option 2's 150ms character morph and disclosure curve for the
+verb change. Their existing number roller remains independent while files accumulate;
+the count follows the verb's shrinking width on completion. Reduced motion uses a fade.

@@ -1,0 +1,26 @@
+.morph-text-fade {
+  position: relative;
+}
+
+.morph-text-before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: morph-text-out var(--motion-control-duration) var(--motion-disclosure-ease) both;
+}
+
+.morph-text-after {
+  animation: morph-text-in var(--motion-control-duration) var(--motion-disclosure-ease) both;
+}
+
+@keyframes morph-text-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes morph-text-in {
+  from {
+    opacity: 0;
+  }
+}

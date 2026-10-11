@@ -3,6 +3,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils'
 
 import { ThreadLink } from './entity_link'
+import { MorphText } from './morph_text'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { ToolCall, ToolCallDetails } from './tool_call'
@@ -30,7 +31,21 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
           </span>
         ) : (
           <>
-            <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
+            {label.fileCount !== undefined ? (
+              <span className='relative shrink-0'>
+                <MorphText className={label.active ? 'invisible' : undefined}>
+                  {label.verb}
+                </MorphText>
+                {label.active && (
+                  // Background-clipped shimmer needs plain text rather than Torph's glyph spans.
+                  <span aria-hidden='true' className='absolute inset-0 shimmer'>
+                    {label.verb}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className={cn('shrink-0', label.active && 'shimmer')}>{label.verb}</span>
+            )}
             {label.fileCount !== undefined ? (
               <span className='inline-flex items-baseline gap-1'>
                 <RollingNumber value={label.fileCount} className='font-mono' />
