@@ -14,8 +14,12 @@
   > [data-slot='collapsible'],
 .batch-motion[data-arrival='lift'] > .batch-next {
   animation-name: batch-row-lift;
-  animation-duration: var(--motion-disclosure-open-duration);
+  animation-duration: var(--batch-arrival-duration, var(--motion-disclosure-open-duration));
   animation-timing-function: var(--motion-disclosure-ease);
+}
+
+.batch-motion[data-batch-motion='hold'] {
+  --batch-arrival-duration: var(--motion-control-duration);
 }
 
 .batch-motion[data-batch-motion='hold']

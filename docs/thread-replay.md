@@ -130,8 +130,8 @@ file count. The file disclosure can be expanded to inspect the individual calls.
 The tool row also has its own Replay button, which leaves the entrance comparison running.
 
 The File arrivals & batch handoff section below it compares production
-behavior with a 150ms fade, a 250ms/4px lift with a 150ms hold before closing, and the
-same lift with the next action revealed after the 200ms close. Each option has its own
+behavior with a 150ms fade, a 150ms/4px lift with a 150ms hold before closing, and a
+250ms/4px lift with the next action revealed after the 200ms close. Each option has its own
 Replay, plus a shared Replay all. All reuse production `ToolGroup` and disclosure timing
 tokens; the motion overrides are scoped to this dev page. Reduced motion uses a fade
 and removes the handoff delays.
