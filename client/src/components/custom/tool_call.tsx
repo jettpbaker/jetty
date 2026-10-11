@@ -68,7 +68,7 @@ export function ToolCall({ call }: { call: ToolActivity }) {
           )}
         </span>
       </CollapsibleTrigger>
-      <CollapsibleContent className='pl-4'>
+      <CollapsibleContent className='pl-2'>
         <ToolCallDetails call={call} />
       </CollapsibleContent>
     </Collapsible>

@@ -78,7 +78,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       >
         {heading}
       </CollapsibleTrigger>
-      <CollapsibleContent className='pl-4'>
+      <CollapsibleContent className='pl-2'>
         {batch.calls.length === 1 && label.fileCount === undefined ? (
           <ToolCallDetails call={batch.calls[0]!} />
         ) : (
@@ -118,7 +118,7 @@ export function ThreadGroup({ batch }: { batch: ThreadBatch }) {
           <RollingText>{count}</RollingText>
         </span>
       </CollapsibleTrigger>
-      <CollapsibleContent className='pl-4'>
+      <CollapsibleContent className='pl-2'>
         <div>
           {threads.map((thread) => (
             <CreatedThread key={thread.id} thread={thread} />

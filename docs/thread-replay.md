@@ -150,7 +150,7 @@ The transcript uses 13px Geist Sans for replies and activity labels, with Paper 
 code, paths and numeric readouts. Activity rows keep their 28px spacing. A reply fades to
 muted over the shared 150ms control timing once a later activity arrives.
 Expanded tool and thread groups use the same row spacing, without extra bottom padding.
-Expanded tool, thread, and thinking content indents by 16px per disclosure level; the
+Expanded tool, thread, and thinking content indents by 8px per disclosure level; the
 main history rows remain aligned with the Working heading.
 
 The live five-entry history follows new rows with the same interruptible scroll glide as
