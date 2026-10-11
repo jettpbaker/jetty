@@ -8,7 +8,7 @@ import { ArrowRight01Icon } from './huge_icons'
 export type ActivityView = 'preview' | 'full'
 
 export function ActivityChevron() {
-  return <ArrowRight01Icon className='activity-chevron ml-auto text-muted-foreground' aria-hidden />
+  return <ArrowRight01Icon className='activity-chevron text-muted-foreground' aria-hidden />
 }
 
 export function ActivityDisclosure({
@@ -19,7 +19,6 @@ export function ActivityDisclosure({
   hasContent = true,
   footer,
   renderContent,
-  hasPreview = false,
   flushHeader = false,
   animateHeader = false,
 }: {
@@ -30,7 +29,6 @@ export function ActivityDisclosure({
   hasContent?: boolean
   footer?: ReactNode
   renderContent: (view: ActivityView) => ReactNode
-  hasPreview?: boolean
   flushHeader?: boolean
   animateHeader?: boolean
 }) {
@@ -56,7 +54,7 @@ export function ActivityDisclosure({
   return (
     <div className='min-w-0'>
       <div className={animateHeader ? 'work-raise-enter' : undefined}>
-        {(ended ? hasContent : hasPreview) ? (
+        {hasContent ? (
           <Button
             variant='ghost-text'
             className='activity-header'

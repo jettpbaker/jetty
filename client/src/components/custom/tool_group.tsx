@@ -66,7 +66,7 @@ export function ToolGroup({ batch }: { batch: ToolBatch }) {
       {label.notices.length > 0 && (
         <span
           className={cn(
-            'ml-auto shrink-0 text-xs',
+            'shrink-0 text-xs',
             label.failed ? 'text-status-error' : 'text-muted-foreground'
           )}
         >

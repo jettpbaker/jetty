@@ -6,6 +6,9 @@
 .activity-header > span:first-child {
   block-size: 1lh;
 }
+.activity-header[aria-expanded] {
+  gap: 0.25rem;
+}
 .activity-chevron {
   visibility: hidden;
 }

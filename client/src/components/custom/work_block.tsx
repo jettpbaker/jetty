@@ -236,7 +236,6 @@ export function WorkBlock({
       titleSuffix={timing}
       ended={ended}
       hasContent={entries.length > 0}
-      hasPreview={entries.length > previewCount}
       renderContent={(view) => (
         <WorkHistory threadId={threadId} entries={entries} view={view} live={!ended} />
       )}
