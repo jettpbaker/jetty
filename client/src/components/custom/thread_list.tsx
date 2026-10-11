@@ -886,7 +886,7 @@ export function ThreadList({
               >
                 <div
                   className={cn(
-                    'mx-auto w-full max-w-[708px] px-6',
+                    'mx-auto w-full max-w-[1038px] px-6',
                     paddedRows.has(rows[virtualRow.index]!.kind) && 'py-1.5'
                   )}
                 >

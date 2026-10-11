@@ -525,7 +525,7 @@ export function ThreadComposer({
         }
 
   return (
-    <div className='mx-auto w-full max-w-[708px] px-6 pb-1'>
+    <div className='mx-auto w-full max-w-[1038px] px-6 pb-1'>
       {worktree && setupNotice && (
         <div
           role={worktree.state === 'failed' ? 'alert' : 'status'}
