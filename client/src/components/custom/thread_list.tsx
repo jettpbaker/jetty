@@ -43,6 +43,7 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { useNow } from '@/hooks/use-now'
 import { bottomGlide } from '@/lib/bottom-glide'
+import { getMotionTokens } from '@/lib/motion'
 import { whenIdle } from '@/lib/preload'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
@@ -53,6 +54,7 @@ import {
   type Virtualizer,
   type VirtualItem,
 } from '@tanstack/react-virtual'
+import { animate } from 'motion/react'
 import {
   memo,
   useCallback,
@@ -509,6 +511,17 @@ export function ThreadList({
   const reserved = useRef(false)
 
   const glider = useRef<ReturnType<typeof bottomGlide>>(undefined)
+  const sendGlide = useRef<ReturnType<typeof animate>>(undefined)
+  const sendPending = useRef(false)
+  const sendInterrupted = useRef(false)
+  const sendTarget = useRef(0)
+  const stopSendGlide = useCallback(() => {
+    sendPending.current = false
+    if (!sendGlide.current) return
+    sendGlide.current.stop()
+    sendGlide.current = undefined
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
+  }, [virtualizer])
   const landed = useRef({ key: '', at: 0 })
   const lastRow = useRef<{ key: unknown; start: number }>(undefined)
   // Where the list was last scrolled to, before any clamp from content that just shrank.
@@ -518,8 +531,20 @@ export function ThreadList({
   const byHand = useRef({ at: -Infinity, held: false })
   useEffect(() => {
     const element = scroller.current!
-    const scrolled = () => void (byHand.current.at = performance.now())
-    const press = () => void (byHand.current.held = true)
+    const scrolled = () => {
+      byHand.current.at = performance.now()
+      if (!sendGlide.current) {
+        sendInterrupted.current = false
+        return
+      }
+      stopSendGlide()
+      sendInterrupted.current = true
+      pinned.current = false
+    }
+    const press = () => {
+      byHand.current.held = true
+      if (sendGlide.current) scrolled()
+    }
     const release = () => void (byHand.current.held = false)
     const options = { passive: true }
     element.addEventListener('wheel', scrolled, options)
@@ -536,7 +561,7 @@ export function ThreadList({
       window.removeEventListener('pointerup', release)
       window.removeEventListener('pointercancel', release)
     }
-  }, [])
+  }, [stopSendGlide])
   // The scroll-to-bottom arrow: whether the reader is far enough up for it (set only when that
   // flips, not per scroll event), and whether something new arrived below meanwhile.
   const [away, setAway] = useState(false)
@@ -549,20 +574,30 @@ export function ThreadList({
     awayRef.current = next
     setAway(next)
   }, [])
-  const pin = useCallback((value: boolean) => {
-    pinned.current = value
-    if (value) setFresh(false)
-    else glider.current?.stop()
-  }, [])
+  const pin = useCallback(
+    (value: boolean) => {
+      pinned.current = value
+      if (value) {
+        sendInterrupted.current = false
+        setFresh(false)
+      } else {
+        glider.current?.stop()
+        stopSendGlide()
+      }
+    },
+    [stopSendGlide]
+  )
   useLayoutEffect(() => {
     reserved.current = scrollSize > totalSize
     if (sentAnchor.current !== send.anchor && send.anchor) {
       pin(true)
       glider.current?.stop()
+      stopSendGlide()
+      sendPending.current = true
       landed.current.key = ''
     }
     sentAnchor.current = send.anchor
-  }, [send.anchor, scrollSize, totalSize, pin])
+  }, [send.anchor, scrollSize, totalSize, pin, stopSendGlide])
   // While it glides, the list keeps its own scroll position: the virtualizer would hold rows that
   // resize above the fold in place from an offset a gliding frame stale, dragging it up.
   const gliderFor = useCallback(
@@ -608,6 +643,40 @@ export function ThreadList({
     const anchor = lastRow.current
     lastRow.current = last && { key: last.key, start: last.start }
     const element = scroller.current
+    sendTarget.current = Math.max(0, scrollSize - element.clientHeight)
+    if (sendGlide.current) {
+      if (landed.current.key === key && !reducedMotion.matches) return
+      stopSendGlide()
+    }
+    if (sendPending.current && sentStart !== undefined && element.clientHeight > 0) {
+      sendPending.current = false
+      if (!reducedMotion.matches) {
+        const message = virtualizer.measurementsCache[sentIndex]!
+        // Bring a distant sent message into view at the bottom before gliding it to the top.
+        const start = Math.min(
+          sendTarget.current,
+          Math.max(element.scrollTop, sentStart + message.size + chatInset - element.clientHeight)
+        )
+        element.scrollTop = start
+        shownTop.current = element.scrollTop
+        landed.current = { key, at: performance.now() }
+        virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false
+        const { openMs, ease } = getMotionTokens().disclosure
+        sendGlide.current = animate(0, 1, {
+          duration: openMs / 1000,
+          ease,
+          onUpdate: (progress) => {
+            element.scrollTop = start + (sendTarget.current - start) * progress
+            shownTop.current = element.scrollTop
+          },
+          onComplete: () => {
+            sendGlide.current = undefined
+            virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
+          },
+        })
+        return
+      }
+    }
     const behind = element.scrollHeight - element.clientHeight - element.scrollTop
     const glides =
       !reducedMotion.matches &&
@@ -625,8 +694,25 @@ export function ThreadList({
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [virtualizer, rows.length, stamp, width, scrollSize, view, gliderFor])
-  useEffect(() => () => glider.current?.stop(), [])
+  }, [
+    virtualizer,
+    rows.length,
+    stamp,
+    width,
+    scrollSize,
+    view,
+    gliderFor,
+    sentStart,
+    sentIndex,
+    stopSendGlide,
+  ])
+  useEffect(
+    () => () => {
+      glider.current?.stop()
+      stopSendGlide()
+    },
+    [stopSendGlide]
+  )
 
   // Something new at the end while the reader is up the thread puts a dot on the arrow; growth
   // below them can also carry them past the point where it shows.
@@ -647,6 +733,7 @@ export function ThreadList({
     const element = scroller.current
     if (!element) return
     pin(true)
+    stopSendGlide()
     if (reducedMotion.matches) {
       virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
       return
@@ -654,7 +741,7 @@ export function ThreadList({
     const start = element.scrollHeight - element.clientHeight * 2
     if (element.scrollTop < start) element.scrollTop = start
     gliderFor(element).start()
-  }, [pin, virtualizer, gliderFor])
+  }, [pin, virtualizer, gliderFor, stopSendGlide])
 
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
@@ -782,7 +869,8 @@ export function ThreadList({
             if (up && hand && behind >= 1) pin(false)
             // Coming back down near the bottom holds on, as does landing right on it; the
             // virtualizer holding a reader's place as a row above grows doesn't.
-            else if (behind < (hand && !up ? pinSlack : 1)) pin(true)
+            // A cancelled send glide can still have a scroll event queued.
+            else if (!sendInterrupted.current && behind < (hand && !up ? pinSlack : 1)) pin(true)
             checkAway(element)
           }}
         >
