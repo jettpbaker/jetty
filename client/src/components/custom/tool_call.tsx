@@ -7,7 +7,6 @@ import './charmed_icons.css'
 import { DiffCounts } from './diff/file_card'
 import { basename, CharmedFileIcon } from './diff/file_name'
 import { copyFilePath, OpenFileLink, ProjectFileRoot, projectRelativePath } from './file_link'
-import { ArrowDown01Icon } from './huge_icons'
 import { describeToolBatch, type ToolActivity } from './work_model'
 
 function ToolOutput({ className, children }: { className?: string; children: ReactNode }) {
@@ -69,44 +68,33 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
             (path ? projectRelativePath(change.path, root) === path : change.path === file) &&
             (change.additions > 0 || change.deletions > 0)
           return (
-            <Collapsible key={file}>
-              <div className='activity-header activity-file-row'>
-                {call.status === 'failed' && (
-                  <span className='shrink-0 text-status-error'>{label.verb}</span>
+            <div key={file} className='activity-header activity-file-row'>
+              {call.status === 'failed' && (
+                <span className='shrink-0 text-status-error'>{label.verb}</span>
+              )}
+              <div className='flex min-w-0 flex-1 items-center gap-2'>
+                {path ? (
+                  <Button
+                    variant='link'
+                    size='sm'
+                    className='min-w-0 shrink justify-start gap-1.5 px-0 text-13 font-normal'
+                    title={path}
+                    aria-label={`Open ${path}`}
+                    onClick={() => {
+                      if (!openFile({ path })) copyFilePath(path)
+                    }}
+                  >
+                    <span data-charmed='soft' className='inline-flex size-4 shrink-0'>
+                      <CharmedFileIcon path={path} inline />
+                    </span>
+                    <span className='truncate font-mono'>{basename(path)}</span>
+                  </Button>
+                ) : (
+                  <span className='min-w-0 truncate font-mono text-muted-foreground'>{file}</span>
                 )}
-                <div className='flex min-w-0 flex-1 items-center gap-2'>
-                  {path ? (
-                    <Button
-                      variant='link'
-                      size='sm'
-                      className='min-w-0 shrink justify-start gap-1.5 px-0 text-13 font-normal'
-                      title={path}
-                      aria-label={`Open ${path}`}
-                      onClick={() => {
-                        if (!openFile({ path }, 'file')) copyFilePath(path)
-                      }}
-                    >
-                      <span data-charmed='soft' className='inline-flex size-4 shrink-0'>
-                        <CharmedFileIcon path={path} inline />
-                      </span>
-                      <span className='truncate font-mono'>{basename(path)}</span>
-                    </Button>
-                  ) : (
-                    <span className='min-w-0 truncate font-mono text-muted-foreground'>{file}</span>
-                  )}
-                  {showCounts && <DiffCounts files={[change]} hideZero />}
-                </div>
-                <CollapsibleTrigger
-                  render={<Button variant='ghost' size='icon-sm' />}
-                  aria-label={`Tool details for ${path ?? file}`}
-                >
-                  <ArrowDown01Icon />
-                </CollapsibleTrigger>
+                {showCounts && <DiffCounts files={[change]} hideZero />}
               </div>
-              <CollapsibleContent className='pl-2'>
-                <ToolCallDetails call={call} />
-              </CollapsibleContent>
-            </Collapsible>
+            </div>
           )
         })}
       </div>
