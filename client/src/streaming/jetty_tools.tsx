@@ -122,7 +122,7 @@ function ListingExample({
   const [state, setState] = useState<ResultState>('complete')
   const [replay, setReplay] = useState(0)
   const [playing, setPlaying] = useState(false)
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const results = kind === 'models' ? modelResults : threadResults
   const name = `list_${kind}`
   useEffect(() => {
@@ -136,7 +136,7 @@ function ListingExample({
 
   function play() {
     setState('loading')
-    setOpen(true)
+    setOpen(false)
     setPlaying(true)
     setReplay((value) => value + 1)
   }
@@ -158,7 +158,7 @@ function ListingExample({
           if (!next) return
           setPlaying(false)
           setState(next)
-          setOpen(true)
+          setOpen(next === 'empty' || next === 'failed')
         }}
       >
         {resultStates.map((value) => (
@@ -187,11 +187,18 @@ function ListingExample({
           <CollapsibleContent>
             {state === 'complete' ? (
               <div key={replay} className='work-raise-enter pl-2'>
-                {kind === 'models'
-                  ? modelResults.map((model) => <ModelRow key={model.id} result={model} />)
-                  : threadResults.map((thread) => (
-                      <ThreadRow key={thread.id} result={thread} onSelect={onSelect} />
-                    ))}
+                <section
+                  className='max-h-35 overflow-y-auto overscroll-contain'
+                  aria-label={`Returned ${kind}`}
+                  // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need focus to scroll the remaining rows
+                  tabIndex={0}
+                >
+                  {kind === 'models'
+                    ? modelResults.map((model) => <ModelRow key={model.id} result={model} />)
+                    : threadResults.map((thread) => (
+                        <ThreadRow key={thread.id} result={thread} onSelect={onSelect} />
+                      ))}
+                </section>
                 <Disclosure title='Tool details'>
                   <RawResult name={name} output={results} />
                 </Disclosure>
