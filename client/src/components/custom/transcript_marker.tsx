@@ -1,10 +1,4 @@
-import {
-  Tick02Icon,
-  Cancel01Icon,
-  HistoryIcon,
-  PauseIcon,
-  Refresh01Icon,
-} from '@/components/custom/huge_icons'
+import { Tick02Icon, HistoryIcon, PauseIcon, Refresh01Icon } from '@/components/custom/huge_icons'
 import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
 import {
   DropdownMenu,
@@ -35,14 +29,6 @@ import { ProjectFileRoot } from './file_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
 
-type Tone = 'allow' | 'deny' | 'dismiss'
-
-const markerIcons: Record<Tone, typeof Tick02Icon> = {
-  allow: Tick02Icon,
-  deny: Cancel01Icon,
-  dismiss: Cancel01Icon,
-}
-
 function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
   const { target, always } = approvalView(item, projectPath)
   if (item.decision === 'always')
@@ -51,7 +37,7 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
       text: (
         <>
           <span className='shrink-0'>Always allowed</span>
-          <Code>{always?.patterns.join(', ') ?? target}</Code>
+          <Code className='text-13'>{always?.patterns.join(', ') ?? target}</Code>
         </>
       ),
     }
@@ -61,7 +47,7 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
       text: (
         <>
           <span className='shrink-0'>Allowed</span>
-          <Code>{target}</Code>
+          <Code className='text-13'>{target}</Code>
         </>
       ),
     }
@@ -70,7 +56,7 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
     text: (
       <>
         <span className='shrink-0'>{item.withdrawn ? 'Withdrawn' : 'Denied'}</span>
-        <Code className='max-w-60 shrink-0'>{target}</Code>
+        <Code className='max-w-60 shrink-0 text-13'>{target}</Code>
         {item.deniedReason && <span className='truncate'>— “{item.deniedReason}”</span>}
       </>
     ),
@@ -90,13 +76,8 @@ export function TranscriptMarker({
 }) {
   const root = use(ProjectFileRoot)
   const { tone, text } = approvalMarker(item, projectPath ?? root)
-  const Icon = markerIcons[tone]
   return (
-    <div
-      data-marker={tone}
-      className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'
-    >
-      <Icon className='size-3 shrink-0' />
+    <div data-marker={tone} className='activity-header text-muted-foreground'>
       {source && (
         <>
           <SourceLabel provider={provider} className='shrink-0'>
@@ -105,7 +86,7 @@ export function TranscriptMarker({
           <span aria-hidden='true'>·</span>
         </>
       )}
-      <span className='flex min-w-0 items-center gap-1.5'>{text}</span>
+      <span className='flex min-w-0 items-baseline gap-1'>{text}</span>
     </div>
   )
 }

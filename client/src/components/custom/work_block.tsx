@@ -277,9 +277,7 @@ function WorkHistory({
             ) : entry.type === 'question' ? (
               <QuestionBlock activity={entry} />
             ) : entry.type === 'approval' ? (
-              <div className='flex min-h-7 items-center py-1'>
-                <TranscriptMarker item={entry.item} source={entry.source} />
-              </div>
+              <TranscriptMarker item={entry.item} source={entry.source} />
             ) : entry.type === 'text' ? (
               <Markdown
                 className={cn('work-text', index < entries.length - 1 && 'work-text-past')}
