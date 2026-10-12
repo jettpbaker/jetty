@@ -251,7 +251,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       return height
     }
     case 'error':
-      return textHeight(row.id, row.message, width * 0.8, true, rough) + 24
+      return textHeight(row.id, row.message, width * 0.8, true, rough) + 4
     case 'gallery':
       return (
         (row.item.images.length === 1

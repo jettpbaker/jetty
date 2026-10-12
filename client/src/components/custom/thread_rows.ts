@@ -86,7 +86,7 @@ export type ThreadRow =
   | { kind: 'backgroundStopped'; id: string }
   // the crash-loop guard held the turn; resumed once anything follows it
   | { kind: 'restartLimit'; id: string; resumed: boolean }
-  | { kind: 'error'; id: string; message: string }
+  | { kind: 'error'; id: string; message: string; turnId: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
@@ -847,7 +847,7 @@ export function threadRows(
         break
       case 'error':
         if (item.message === RESTART_LIMIT_NOTE) heldTurns.add(item.turnId)
-        else rows.push({ kind: 'error', id: item.id, message: item.message })
+        else rows.push({ kind: 'error', id: item.id, message: item.message, turnId: item.turnId })
         break
       case 'pull_request':
         rows.push({ kind: 'pullRequest', id: item.id, item })

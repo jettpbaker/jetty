@@ -280,7 +280,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
     return <RestartSeam label='Background work stopped when Jetty restarted' />
   if (row.kind === 'restartLimit')
     return <RestartLimitSeam threadId={threadId} resumed={row.resumed} />
-  if (row.kind === 'error') return <ErrorMessage message={row.message} />
+  if (row.kind === 'error')
+    return <ErrorMessage message={row.message} threadId={threadId} turnId={row.turnId} />
   if (row.kind === 'gallery')
     return <GalleryMessage images={row.item.images} caption={row.item.caption} />
   if (row.kind === 'video')
