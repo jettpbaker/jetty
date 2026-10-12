@@ -192,15 +192,10 @@ export const AppSidebar = memo(function AppSidebar() {
   const nestedIds = new Set(
     bots.flatMap((bot) => (openBots.includes(bot.id) ? (botThreads.get(bot.id) ?? []) : []))
   )
-  // ⌥1–9 follow the visible rows, with search duplicates sharing their thread's shortcut.
+  // ⌥1–9 follow the visible rows, bots but not the threads nested under them, with search
+  // duplicates sharing their thread's shortcut.
   const numbered = [
-    ...bots.flatMap((bot) => [
-      { kind: 'bot' as const, id: bot.id },
-      ...(openBots.includes(bot.id) ? (botThreads.get(bot.id) ?? []) : []).map((id) => ({
-        kind: 'thread' as const,
-        id,
-      })),
-    ]),
+    ...bots.map((bot) => ({ kind: 'bot' as const, id: bot.id })),
     ...(groups ?? [])
       .flatMap((group) => (group.archived ? [] : group.threads))
       .filter((id) => !nestedIds.has(id))
