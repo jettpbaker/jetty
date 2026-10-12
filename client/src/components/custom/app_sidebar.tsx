@@ -372,7 +372,12 @@ export const AppSidebar = memo(function AppSidebar() {
         </nav>
       </SidebarHeader>
       <ThreadHoverGroup>
-        <section aria-label='Bots' className='flex shrink-0 flex-col gap-0.5 px-1.5 pb-3.5'>
+        {/* Nested threads live here, so a bot with many of them scrolls instead of pushing the
+            thread search, the list and the account footer off the sidebar. */}
+        <section
+          aria-label='Bots'
+          className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-3.5'
+        >
           {/* The plus lines up with the status glyphs below. */}
           <div className='flex h-6 items-center justify-between pr-1.5 pl-2.5'>
             <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
@@ -458,7 +463,7 @@ export const AppSidebar = memo(function AppSidebar() {
         </div>
         <MotionSidebarContent
           layoutScroll
-          className='overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
+          className='min-h-32 overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
         >
           <nav aria-label='Threads'>
             <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>

@@ -3,7 +3,6 @@ import type { Bot } from '@jetty/shared/wire'
 
 import { HeldKeybind } from '@/components/custom/keybinds'
 import { Button } from '@/components/ui/button'
-import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { botFace } from '@jetty/shared/bots'
 import { useEffect, useRef } from 'react'
@@ -64,7 +63,7 @@ export function BotRow({
         className='absolute top-1.5 left-2 opacity-0 group-hover/bot-row:opacity-100 group-has-focus-visible/bot-row:opacity-100'
         aria-expanded={expanded}
         aria-label={`${expanded ? 'Hide' : 'Show'} ${bot.name}'s threads`}
-        {...pressProps(onToggle)}
+        onClick={onToggle}
       >
         <ChevronRightSmallIcon
           className={cn(
