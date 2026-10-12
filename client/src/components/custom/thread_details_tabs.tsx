@@ -17,8 +17,13 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -373,7 +378,7 @@ export function ThreadDetailsTabs({
             align='start'
             className={cn(
               'min-w-36',
-              (pullRequests.links.length > 0 || subagents.all.length > 0) && 'w-72'
+              (inline(pullRequests.links.length) || inline(subagents.all.length)) && 'w-72'
             )}
           >
             {catalog.map((id) => {
@@ -398,47 +403,55 @@ export function ThreadDetailsTabs({
               )
             })}
             <DropdownMenuSeparator />
-            {pullRequests.links.map((link) => {
-              const pr = linkPresentation(link)
-              const open = pullRequests.visible.includes(link)
-              return (
-                <DropdownMenuCheckboxItem
-                  key={pullRequestTabId(link)}
-                  checked={open}
-                  disabled={open && !canClose}
-                  closeOnClick={false}
-                  onCheckedChange={(checked) =>
-                    checked ? openPullRequest(link) : closePullRequest(link)
-                  }
-                >
-                  <pr.icon className={pr.color} />
-                  <span className='font-mono text-muted-foreground'>#{link.number}</span>
-                  <span className='truncate'>{link.title}</span>
-                </DropdownMenuCheckboxItem>
-              )
-            })}
-            <DropdownMenuItem onClick={() => setLinking(true)}>
-              <ChainLink4Icon />
-              Link pull request
-            </DropdownMenuItem>
-            {subagents.all.length > 0 && <DropdownMenuSeparator />}
-            {subagents.all.map((agent) => {
-              const open = subagents.visible.some((entry) => entry.id === agent.id)
-              return (
-                <DropdownMenuCheckboxItem
-                  key={agent.id}
-                  checked={open}
-                  disabled={open && !canClose}
-                  closeOnClick={false}
-                  onCheckedChange={(checked) =>
-                    checked ? openSubagent(agent) : closeSubagent(agent)
-                  }
-                >
-                  <AgentGlyph agent={agent} />
-                  <span className='truncate'>{agent.title}</span>
-                </DropdownMenuCheckboxItem>
-              )
-            })}
+            <MenuGroup label='Pull requests' count={pullRequests.links.length}>
+              <DropdownMenuItem onClick={() => setLinking(true)}>
+                <ChainLink4Icon />
+                Link pull request
+              </DropdownMenuItem>
+              {pullRequests.links.map((link) => {
+                const pr = linkPresentation(link)
+                const open = pullRequests.visible.includes(link)
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={pullRequestTabId(link)}
+                    checked={open}
+                    disabled={open && !canClose}
+                    closeOnClick={false}
+                    onCheckedChange={(checked) =>
+                      checked ? openPullRequest(link) : closePullRequest(link)
+                    }
+                  >
+                    <pr.icon className={pr.color} />
+                    <span className='font-mono text-muted-foreground'>#{link.number}</span>
+                    <span className='truncate'>{link.title}</span>
+                  </DropdownMenuCheckboxItem>
+                )
+              })}
+            </MenuGroup>
+            {subagents.all.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <MenuGroup label='Subagents' count={subagents.all.length}>
+                  {subagents.all.map((agent) => {
+                    const open = subagents.visible.some((entry) => entry.id === agent.id)
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={agent.id}
+                        checked={open}
+                        disabled={open && !canClose}
+                        closeOnClick={false}
+                        onCheckedChange={(checked) =>
+                          checked ? openSubagent(agent) : closeSubagent(agent)
+                        }
+                      >
+                        <AgentGlyph agent={agent} />
+                        <span className='truncate'>{agent.title}</span>
+                      </DropdownMenuCheckboxItem>
+                    )
+                  })}
+                </MenuGroup>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </TabsList>
@@ -500,6 +513,36 @@ export function BotDetailsTabs({
         </TabsTrigger>
       )}
     </TabsList>
+  )
+}
+
+// Up to five entries sit under the group's header; past that, the header opens them as a submenu.
+const inline = (count: number) => count > 0 && count <= 5
+
+function MenuGroup({
+  label,
+  count,
+  children,
+}: {
+  label: string
+  count: number
+  children: ReactNode
+}) {
+  if (count > 5)
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className='gap-1 [&>svg:last-child]:ml-0'>
+          {label}
+          <span className='ml-auto pl-4 font-mono text-muted-foreground'>{count}</span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className='w-72'>{children}</DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuLabel>{label}</DropdownMenuLabel>
+      {children}
+    </DropdownMenuGroup>
   )
 }
 
