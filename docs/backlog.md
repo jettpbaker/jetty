@@ -48,17 +48,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   It came up picking icons: what a dropped task meant wasn't clear. Rethink whether bots need
   their own list beside their threads and the agent's todo list, and what each state means to Jett.
 
-## PR-driven ready for review (follow-up from 12 Oct)
-
-- Ready for review follows the PR, as Capy's does: a thread whose PR is ready shows the ready
-  check, not only one whose agent called `mark_ready_for_review`. It came up weighing one-line
-  sidebar rows, which drop the PR mark; the status glyph would then carry some of that. Settle
-  what "ready" means for drafts, failing checks and threads with several PRs first. Also settle
-  what clears it: today ready clears once the thread is seen (`review_seen_at`), but a PR-driven
-  ready would naturally last until the PR changes (merged, closed, checks fail). Capy 0.2.2 kept
-  `ready_for_review` as a server status its client never clears; 0.4.6 dropped it for unread,
-  which opening the thread clears.
-
 ## sketchpad designs not ported yet (needs Jett's call)
 
 - PR view E (sketchpad `pr_redesign/jetty_style.tsx`). Agreed for the port:
@@ -780,7 +769,7 @@ that clears on session closure or server restart.
   and review state. `server/src/db.ts` persists lineage, notification flag,
   permissions, queue, turn hop/creation counts and idempotent request results.
   `server/src/mcp.ts` exposes `list_threads`, `read_thread`, `list_models`,
-  `create_thread`, `send_message`, `mark_ready_for_review`, PR linking and
+  `create_thread`, `send_message`, PR linking and
   `archive_thread`, plus media tools. These operate on ordinary threads; no
   dedicated coordinator role/type is represented in the inspected contracts.
 - **Scope and inspection limits:** listing/reading/messaging require active,
@@ -806,8 +795,7 @@ that clears on session closure or server restart.
   notifications in `store.ts` require notification enabled, an unarchived parent,
   the parent as turn initiator, hop budget and an outcome not already recorded.
   `notify=false` also suppresses the creator-report instruction. An agent-created
-  child calling `mark_ready_for_review` gets `reportsTo` rather than flagging the
-  user; the parent reports to the user.
+  child reports to its parent; the parent reports to the user.
 - **Control limits:** agents can archive another project thread, not themselves;
   worktrees must be clean, and archive removes the folder while keeping the
   branch. There is no general stop/interrupt-other-thread MCP tool in
@@ -838,7 +826,7 @@ schema, delivery guarantee or implementation plan.
 
 Design Jetty's built-in instructions (`server/src/jetty-instructions.ts`) around
 the desired workflow: work out of a couple of orchestrator threads, children
-report up, the parent reports to the user (`mark_ready_for_review`), and archive
+report up, the parent reports to the user, and archive
 finished threads. Optional behavior belongs in Settings → Agent behaviour.
 Jett reviews every place Jetty talks to agents, not just that file:
 
