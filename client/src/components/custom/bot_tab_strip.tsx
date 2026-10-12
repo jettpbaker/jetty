@@ -88,16 +88,18 @@ export function BotTabStrip({
   return (
     <header
       data-perf-region='thread-header'
-      className='details-chat-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
+      className='details-chat-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 pr-[42px] pl-(--page-header-inset)'
     >
       <PageSidebarTrigger />
       <Tabs value={active} className='min-w-0 flex-1'>
-        <div className='no-scrollbar scroll-fade-x overflow-x-auto overflow-y-hidden'>
+        {/* A tab's 5px inset (border and padding) hangs left of the header's, so the bot's face sits
+            on the header inset. */}
+        <div className='no-scrollbar scroll-fade-x -ml-1.25 overflow-x-auto overflow-y-hidden'>
           <TabsList
             activateOnFocus={false}
             variant='line'
             aria-label={`${bot?.name ?? 'Bot'} work`}
-            className='w-max gap-1.5 p-1'
+            className='w-max gap-1.5 px-0 py-1'
           >
             <TabsTrigger
               ref={active === botTab ? activeRef : undefined}
