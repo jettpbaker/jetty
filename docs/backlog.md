@@ -100,6 +100,9 @@ Everything below is for one combined review of the chat, not separate ports.
 - Child thread card, `/components/child-card`: one card per turn for the
   threads a parent starts, and how a report arrives later (C, bare rows, was
   recommended). Not picked yet.
+- Monitors out of the composer (Jett, 12 Oct, to look into): drop the "Waiting on …" row under
+  the composer, show a monitor starting (and ending) in the turn's activity history ("Worked
+  for 11s"), and rely on the right sidebar to list the ones still running.
 - Message footers: the whole footer reveals on hover; `revealWholeFooter` in
   `message_footer.tsx` flips it to time and model always visible.
 - The final answer carries what the user needs. Interim text and the final answer are both just
