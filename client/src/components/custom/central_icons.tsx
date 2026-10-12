@@ -4,6 +4,7 @@ import { IconLightningBolt as IconLightningBoltFilled } from '@central-icons-rea
 import { IconPause as IconPauseFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconPause'
 import { IconPin as IconPinFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconPin'
 import { IconPlay as IconPlayFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconPlay'
+import { IconSidebarSimpleLeftWide as IconSidebarSimpleLeftWideFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconSidebarSimpleLeftWide'
 import { IconStop as IconStopFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconStop'
 import { IconAddImage } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconAddImage'
 import { IconAiBotHead } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconAiBotHead'
@@ -225,7 +226,10 @@ export const SettingsSliderHorIcon = centralIcon(IconSettingsSliderHor)
 export const ShieldBreakIcon = centralIcon(IconShieldBreak)
 export const ShieldCheckIcon = centralIcon(IconShieldCheck)
 export const ShieldKeyholeIcon = centralIcon(IconShieldKeyhole)
-export const SidebarSimpleLeftWideIcon = centralIcon(IconSidebarSimpleLeftWide)
+export const SidebarSimpleLeftWideIcon = centralIcon(
+  IconSidebarSimpleLeftWide,
+  IconSidebarSimpleLeftWideFilled
+)
 export const SparklesThreeIcon = centralIcon(IconSparklesThree)
 export const SpeedHighIcon = centralIcon(IconSpeedHigh)
 export const SpeedLowIcon = centralIcon(IconSpeedLow)

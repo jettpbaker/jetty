@@ -228,7 +228,7 @@ export function DetailsLayout({
             aria-keyshortcuts='Meta+Alt+B'
             {...pressProps(toggle)}
           >
-            <SidebarSimpleLeftWideIcon className='rotate-180' />
+            <SidebarSimpleLeftWideIcon filled className='rotate-180' />
           </Button>
         </KeybindTooltip>
       </div>

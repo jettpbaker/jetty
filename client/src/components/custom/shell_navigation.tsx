@@ -71,7 +71,7 @@ export function ShellNavigation() {
           aria-label={(isMobile ? openMobile : open) ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           <KeybindIcon binding={keybinds.sidebar}>
-            <SidebarSimpleLeftWideIcon />
+            <SidebarSimpleLeftWideIcon filled />
           </KeybindIcon>
         </SidebarTrigger>
       </KeybindTooltip>

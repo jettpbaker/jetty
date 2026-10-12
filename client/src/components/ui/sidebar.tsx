@@ -258,7 +258,7 @@ function SidebarTrigger({ className, children, ...props }: React.ComponentProps<
       // The mobile sidebar is a sheet, an overlay, so it opens on click (JET-3).
       {...mergeProps(props, isMobile ? { onClick: toggleSidebar } : pressProps(toggleSidebar))}
     >
-      {children ?? <SidebarSimpleLeftWideIcon />}
+      {children ?? <SidebarSimpleLeftWideIcon filled />}
       <span className='sr-only'>Toggle Sidebar</span>
     </Button>
   )
