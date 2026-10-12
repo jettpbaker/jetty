@@ -164,6 +164,10 @@ const createInput = z.object({
     .optional()
     .describe('An id, name or unique short name from list_models.'),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+  fast: z
+    .boolean()
+    .optional()
+    .describe("Turns on the model's Fast mode where the model offers one."),
   full_access: z
     .boolean()
     .optional()
@@ -399,7 +403,11 @@ export function createMcpHandler(
           yield* store.setThreadEnvironment(id, baseCommit)
           yield* store.markAgentThread(id, caller.id, input.notify)
           yield* store.setThreadProviderIfAbsent(id, provider)
-          yield* store.setThreadLoadout(id, { model, effort: input.effort })
+          yield* store.setThreadLoadout(id, {
+            model,
+            effort: input.effort,
+            fast: selected[0]?.fast ? input.fast : undefined,
+          })
           yield* store.setPermissionMode(id, mode)
           // A title with a PR or issue number falls back to the titler, which names the work from that
           // item's own title.
