@@ -1,3 +1,9 @@
+/* The dots run from cap height to the baseline, so beside lowercase text the grid reads high;
+   a pixel down centres it optically. */
+.subagent-glyph {
+  translate: 0 1px;
+}
+
 /* Capy's dot grid as a subagent's status: only running travels; waiting and failed light a shape, done and stopped rest. */
 /* Running: a comet (1, .7, .45 on .25) up, down, up the columns, then left, right, left home through the rows; 16 × 100ms. */
 .subagent-glyph-running circle {
