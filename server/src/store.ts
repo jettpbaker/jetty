@@ -899,8 +899,13 @@ export function createStore() {
         const userMessage = state.items.find(
           (item) => item.turnId === turn.turn_id && item.kind === 'user_message' && !item.from
         )
+        // A turn that carried on from Jett's (PR news, background work) has no message of its own.
+        const said =
+          userMessage?.kind === 'user_message'
+            ? `: "${userMessage.text.slice(0, 200)}"`
+            : ', and it carried on from there'
         const told = userWorked
-          ? `${user} worked with [${thread.title.replace(/[[\]]/g, '\\$&')}](jetty://threads/${threadId}) directly: "${userMessage?.kind === 'user_message' ? userMessage.text.slice(0, 200) : ''}". Its reply: ${reportMessage(closing, final.at(-1)?.id)}`
+          ? `${user} worked with [${thread.title.replace(/[[\]]/g, '\\$&')}](jetty://threads/${threadId}) directly${said}. Its reply: ${reportMessage(closing, final.at(-1)?.id)}`
           : childReport({
               threadId,
               title: thread.title,
