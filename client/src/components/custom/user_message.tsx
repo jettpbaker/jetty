@@ -57,15 +57,10 @@ export function CollapsibleText({
     const element = textRef.current
     if (!element) return
     const cached = collapsibleTexts.get(text)
-    if (!cached) {
-      setCollapsible(measureCollapsible(element, text))
-      return
-    }
-    setCollapsible(cached.collapsible)
-    // Once laid out its width is free to read, and a new one means the cached result is stale.
+    setCollapsible(cached?.collapsible ?? measureCollapsible(element, text))
     const observer = new ResizeObserver(([entry]) => {
-      observer.disconnect()
-      if (entry!.borderBoxSize[0]!.inlineSize !== cached.width)
+      const width = entry!.borderBoxSize[0]!.inlineSize
+      if (width > 0 && width !== collapsibleTexts.get(text)?.width)
         setCollapsible(measureCollapsible(element, text))
     })
     observer.observe(element)
