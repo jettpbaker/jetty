@@ -30,7 +30,8 @@ export {
   useThreadMeta,
   type Chrome,
 } from './chrome'
-export { useConnectionNotice } from './connection'
+export { useConnectionNotice, useOnline } from './connection'
+export { desktopTabId, useDesktop, useDesktopTabs, useOpenDesktop, type Desktop } from './desktops'
 export { useMarkThreadSeen } from './mutations'
 export {
   defaultDiffScope,

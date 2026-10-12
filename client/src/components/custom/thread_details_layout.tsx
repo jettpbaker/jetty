@@ -3,8 +3,10 @@ import type { Attachment } from '@jetty/shared/items'
 import { threadBranch } from '@/lib/thread_worktree'
 import {
   defaultDiffScope,
+  desktopTabId,
   pullRequestTabId,
   readFileDraft,
+  useDesktopTabs,
   useDetailsRequest,
   useFileDirty,
   usePullRequestTabs,
@@ -39,6 +41,7 @@ import { inDialog, keybinds } from './keybinds'
 import { Loading } from './loading'
 import { LivePullRequestView } from './pull_request_view'
 import { ThreadChanges, useThreadChangesPrefetch } from './thread_changes'
+import { ThreadDesktop } from './thread_desktop'
 import { ThreadDetailsTabs, type DetailsTabsHandle } from './thread_details_tabs'
 import { ThreadFile } from './thread_file'
 import { ThreadFiles } from './thread_files'
@@ -131,6 +134,7 @@ export function ThreadDetailsLayout({
     () => ({ links, visible: pullRequestLinks, show, hide }),
     [links, pullRequestLinks, show, hide]
   )
+  const desktops = useDesktopTabs(threadId)
   const { tab: requestedTab, consume } = useDetailsRequest(threadId)
 
   const openFile = useCallback(
@@ -198,7 +202,8 @@ export function ThreadDetailsLayout({
   // A just-linked PR's tab can be requested before the thread's links include it.
   const requestShown =
     requestedTab === 'overview' ||
-    pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab)
+    pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab) ||
+    desktops.ids.some((id) => desktopTabId(id) === requestedTab)
   const openingTab = useRef<string>(undefined)
   useLayoutEffect(() => {
     if (!requestedTab || !requestShown) return
@@ -250,6 +255,7 @@ export function ThreadDetailsLayout({
             threadId={threadId}
             threadCount={childThreads.length}
             pullRequests={pullRequests}
+            desktops={desktops}
             file={
               viewedFile && {
                 path: viewedFile.path,
@@ -320,6 +326,15 @@ export function ThreadDetailsLayout({
             </DetailsTabPanel>
           )
         })}
+        {desktops.ids.map((id) => {
+          const value = desktopTabId(id)
+          // Streams only while shown: the streamer takes one viewer at a time.
+          return (
+            <DetailsTabPanel key={value} value={value} tab={tab}>
+              {open && ready && tab === value && <ThreadDesktop id={id} />}
+            </DetailsTabPanel>
+          )
+        })}
         {viewedFile && (
           <DetailsTabPanel value='file' tab={tab}>
             {open &&
@@ -351,6 +366,7 @@ export function ThreadDetailsLayout({
       childThreads,
       pullRequests,
       pullRequestLinks,
+      desktops,
       requestedFile,
       viewedFile,
       fileDirty,

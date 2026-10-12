@@ -100,6 +100,18 @@ and the session, model-selection and xAI extension handling in
 `JETTY_GROK_LIVE_TEST=1 bun test server/src/grok-live.test.ts` (`JETTY_GROK_MODEL`
 picks its model); ordinary tests use a local protocol fixture.
 
+## Desktop previews
+
+An agent can get its thread a live Linux desktop from jetty-desktop, installed at
+`JETTY_DESKTOP_HOME` (default `~/.local/share/jetty-desktop/current`). The
+`desktop_session` tool starts one with the release's `session-start.sh`, or returns the
+thread's running one; the agent runs a headed browser on its display and links it as
+`[Preview in Jetty](jetty://desktops/<id>)`. The chip opens the desktop in the thread's
+details pane, framing the streamer's viewer through `/desktop/<id>/` on Jetty's own
+origin and port. Desktops survive a restart while they still stream, and stop when
+their thread is archived or deleted. Without jetty-desktop installed, agents aren't
+told about desktops and the tool says it's unavailable.
+
 ## icons
 
 Jetty's icons are [Central Icons](https://centralicons.com), a paid set. They install

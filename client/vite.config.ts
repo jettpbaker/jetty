@@ -153,6 +153,7 @@ export default defineConfig({
       '/perf': { target: server },
       '/attachments': { target: server },
       '/github-media': { target: server },
+      '/desktop': { target: server, ws: true },
     },
   },
 })

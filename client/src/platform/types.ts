@@ -1,5 +1,7 @@
 export type Platform = {
   connectionUrl: (reconnecting: boolean) => Promise<string>
+  // A desktop's viewer, proxied on Jetty's own origin.
+  desktopUrl: (id: string) => string
   pickFiles: (options?: { accept?: string; multiple?: boolean }) => Promise<File[]>
   storage: {
     get: (key: string) => string | undefined

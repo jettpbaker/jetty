@@ -116,6 +116,7 @@ import { IconSquareArrowTopRight } from '@central-icons-react/round-outlined-rad
 import { IconSquareBehindSquare1 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconSquareBehindSquare1'
 import { IconStop } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconStop'
 import { IconStrikeThrough } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconStrikeThrough'
+import { IconStudioDisplay } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconStudioDisplay'
 import { IconTextIndentLeft } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconTextIndentLeft'
 import { IconTextSize } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconTextSize'
 import { IconTrashCanSimple } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconTrashCanSimple'
@@ -253,6 +254,7 @@ export const SquareArrowTopRightIcon = centralIcon(IconSquareArrowTopRight)
 export const SquareBehindSquare1Icon = centralIcon(IconSquareBehindSquare1)
 export const StopIcon = centralIcon(IconStop, IconStopFilled)
 export const StrikeThroughIcon = centralIcon(IconStrikeThrough)
+export const StudioDisplayIcon = centralIcon(IconStudioDisplay)
 export const TextIndentLeftIcon = centralIcon(IconTextIndentLeft)
 export const TextSizeIcon = centralIcon(IconTextSize)
 export const TrashCanSimpleIcon = centralIcon(IconTrashCanSimple)

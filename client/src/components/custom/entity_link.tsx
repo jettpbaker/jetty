@@ -1,14 +1,16 @@
 import type { GitHubIssue } from '@jetty/shared/wire'
 
-import { BranchSimpleIcon, CommitsIcon } from '@/components/custom/central_icons'
+import { BranchSimpleIcon, CommitsIcon, StudioDisplayIcon } from '@/components/custom/central_icons'
 import { CircleCheckIcon, CircleDotIcon, CircleSlashIcon } from '@/components/custom/lucide_icons'
 import { useNow } from '@/hooks/use-now'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
   useBot,
+  useDesktop,
   useIssueSummary,
   useLinkedPull,
+  useOpenDesktop,
   useOpenPullRequestTab,
   useProjectRepos,
   usePullRequestSummary,
@@ -35,11 +37,12 @@ import { visitLinks, type MarkdownNode } from './markdown_links'
 import { OverflowTitle } from './overflow_title'
 import { PersonAvatar } from './person_avatar'
 import { pullRequestFacts, type GitHubPullRequest } from './pull_request_model'
+import { desktopLabels } from './thread_desktop'
 import { ThreadHoverDetails, ThreadHoverPopup } from './thread_hover'
 import { linkPresentation } from './thread_pull_request'
 import { statusPresentation, threadStatus, type Status } from './thread_status'
 
-type Kind = 'thread' | 'bot' | 'pr' | 'issue' | 'commit'
+type Kind = 'thread' | 'bot' | 'desktop' | 'pr' | 'issue' | 'commit'
 type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 
 // The agent writes ordinary markdown links; Jetty swaps the ones it recognises for <entity-link>.
@@ -48,6 +51,7 @@ type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 const entityPatterns: [Kind, RegExp][] = [
   ['thread', /^jetty:\/\/threads\/([\da-f-]+)()$/],
   ['bot', /^jetty:\/\/bots\/([\w-]+)()$/],
+  ['desktop', /^jetty:\/\/desktops\/([\w-]+)()$/],
   ['pr', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)\/?([/?#].*)?$/],
   ['issue', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)\/?([/?#].*)?$/],
   ['commit', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/commit\/([\da-f]{7,40})\/?([/?#].*)?$/],
@@ -62,7 +66,7 @@ function entityOf(url: string) {
     return {
       kind,
       entity:
-        kind === 'thread' || kind === 'bot'
+        kind === 'thread' || kind === 'bot' || kind === 'desktop'
           ? first
           : kind === 'commit'
             ? `${repo}@${second}`
@@ -77,6 +81,7 @@ const githubPaths: Record<string, string> = { pr: 'pull', issue: 'issues', commi
 function entityUrl(kind: string, entity: string) {
   if (kind === 'thread') return `jetty://threads/${entity}`
   if (kind === 'bot') return `jetty://bots/${entity}`
+  if (kind === 'desktop') return `jetty://desktops/${entity}`
   const [repo, id] = entity.split(/[#@]/)
   return `https://github.com/${repo}/${githubPaths[kind]}/${id}`
 }
@@ -538,6 +543,43 @@ function CommitLink({ entity, permalink }: { entity: string; permalink?: string 
   )
 }
 
+// An agent's desktop, opening in the details pane of the thread this chat belongs to, or of its
+// own thread elsewhere. An ended one is plain text. Click, not pointer-down: the chip sits in a
+// scrollable chat.
+function DesktopLink({ id, children }: { id: string; children: ReactNode }) {
+  const paneThreadId = use(OpenPullLink)
+  const desktop = useDesktop(id)
+  const open = useOpenDesktop()
+  const threadId = paneThreadId ?? desktop.threadId
+  const label = desktopLabels[desktop.state]
+  const content = (
+    <Lead icon={StudioDisplayIcon} color='' label={label} size={pullGlyph}>
+      {children}
+    </Lead>
+  )
+  if (desktop.state === 'ended' || !threadId)
+    return (
+      <span title={label} className='text-muted-foreground'>
+        {content}
+      </span>
+    )
+  return (
+    <Link
+      to='/threads/$threadId'
+      params={{ threadId }}
+      title={label}
+      className={inlineLinkClass}
+      onClick={(event) => {
+        if (!plainClick(event)) return
+        open(threadId, id)
+        if (threadId === paneThreadId) event.preventDefault()
+      }}
+    >
+      {content}
+    </Link>
+  )
+}
+
 export function EntityLink({
   kind = '',
   entity = '',
@@ -554,6 +596,7 @@ export function EntityLink({
   if (target?.kind !== kind || target.entity !== entity) return children
   if (kind === 'thread') return <ThreadLink id={entity} fallback={children} />
   if (kind === 'bot') return <BotLink id={entity} fallback={children} />
+  if (kind === 'desktop') return <DesktopLink id={entity}>{children}</DesktopLink>
   if (kind === 'pr') return <PullLink entity={entity} permalink={permalink} />
   if (kind === 'issue') return <IssueLink entity={entity} permalink={permalink} />
   return <CommitLink entity={entity} permalink={permalink} />

@@ -39,6 +39,11 @@ export const browser: Platform = {
     if (secret) url.searchParams.set('secret', secret)
     return url.toString()
   },
+  desktopUrl(id) {
+    const url = new URL(`/desktop/${encodeURIComponent(id)}/`, location.href)
+    if (secret) url.searchParams.set('secret', secret)
+    return url.toString()
+  },
   pickFiles({ accept, multiple = true } = {}) {
     const input = document.createElement('input')
     input.type = 'file'

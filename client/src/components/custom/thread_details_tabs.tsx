@@ -10,6 +10,7 @@ import {
   PlusMediumIcon,
   CrossSmallIcon,
   ChangesIcon,
+  StudioDisplayIcon,
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,7 +24,13 @@ import {
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { storage } from '@/platform'
-import { pullRequestTabId, usePullRequestSummary, type PullRequestRef } from '@/state'
+import {
+  desktopTabId,
+  pullRequestTabId,
+  useDesktop,
+  usePullRequestSummary,
+  type PullRequestRef,
+} from '@/state'
 import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
@@ -45,6 +52,7 @@ import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, keybinds } from './keybinds'
 import { LinkPullRequestDialog } from './pull_request_link'
 import { pullRequestFacts } from './pull_request_model'
+import { desktopLabels } from './thread_desktop'
 import { linkPresentation } from './thread_pull_request'
 
 const tabs = {
@@ -105,12 +113,15 @@ export type PullRequestTabs = {
   hide: (ref: PullRequestRef) => void
 }
 
+export type DesktopTabs = { ids: readonly string[]; close: (id: string) => void }
+
 export function ThreadDetailsTabs({
   ref,
   chat = false,
   threadId,
   threadCount,
   pullRequests,
+  desktops,
   file,
   value,
   onValueChange,
@@ -122,6 +133,7 @@ export function ThreadDetailsTabs({
   threadId: string
   threadCount: number
   pullRequests: PullRequestTabs
+  desktops: DesktopTabs
   file?: { path: string; dirty: boolean; onClose: () => void }
   value: string
   onValueChange: (value: string) => void
@@ -137,7 +149,11 @@ export function ThreadDetailsTabs({
   const available = order.filter((id) => id !== 'threads' || threadCount > 0)
   const openSortable = available.filter((id) => !closedSet.has(id))
   const shownSortable =
-    openSortable.length > 0 || chatOpen || pullRequests.visible.length > 0 || file
+    openSortable.length > 0 ||
+    chatOpen ||
+    pullRequests.visible.length > 0 ||
+    desktops.ids.length > 0 ||
+    file
       ? openSortable
       : [available[0]!]
   const catalog = [...(chat ? ['chat' as const] : []), ...available]
@@ -145,6 +161,7 @@ export function ThreadDetailsTabs({
     ...(chatOpen ? ['chat' as const] : []),
     ...shownSortable,
     ...pullRequests.visible.map(pullRequestTabId),
+    ...desktops.ids.map(desktopTabId),
     ...(file ? ['file'] : []),
   ]
   const fileName = file?.path.split('/').at(-1)
@@ -205,6 +222,12 @@ export function ThreadDetailsTabs({
     pullRequests.hide(link)
     setAnnouncement(`Pull request #${link.number} closed`)
     leave(pullRequestTabId(link))
+  }
+  function closeDesktop(id: string) {
+    if (visible.length < 2) return
+    desktops.close(id)
+    setAnnouncement('Desktop closed')
+    leave(desktopTabId(id))
   }
   function openPullRequest(link: PullRequestLink) {
     pullRequests.show(link)
@@ -269,6 +292,9 @@ export function ThreadDetailsTabs({
             />
           )
         )}
+        {desktops.ids.map((id) => (
+          <DesktopTab key={id} id={id} canClose={canClose} onClose={() => closeDesktop(id)} />
+        ))}
         {file && (
           <TabsTrigger
             value='file'
@@ -427,6 +453,32 @@ function PullTab({
         label={`#${link.number}`}
         mono
         icon={<look.icon className={cn('details-tab-kind size-3', look.color)} />}
+        canClose={canClose}
+        onClose={onClose}
+      />
+    </TabsTrigger>
+  )
+}
+
+function DesktopTab({
+  id,
+  canClose,
+  onClose,
+}: {
+  id: string
+  canClose: boolean
+  onClose: () => void
+}) {
+  const { state } = useDesktop(id)
+  return (
+    <TabsTrigger
+      value={desktopTabId(id)}
+      className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
+      title={desktopLabels[state]}
+    >
+      <TabLabel
+        label='Desktop'
+        icon={<StudioDisplayIcon className='details-tab-kind size-3' />}
         canClose={canClose}
         onClose={onClose}
       />

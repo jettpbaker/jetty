@@ -18,6 +18,12 @@ export const connectionAtom = Atom.make((get) => {
   })
 }).pipe(Atom.keepAlive)
 
+const onlineAtom = Atom.readable((get) => get(statusAtom) === 'online')
+
+export function useOnline() {
+  return useAtomValue(onlineAtom)
+}
+
 // A server restart that settles within a beat passes unannounced.
 const noticeDelayMs = 1000
 
