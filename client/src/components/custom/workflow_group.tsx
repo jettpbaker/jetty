@@ -7,6 +7,7 @@ import { useNow } from '@/hooks/use-now'
 import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
+import { useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { formatSubagentTokens } from './subagent_glyph'
@@ -122,6 +123,7 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
   const stopWorkflow = useStopWorkflow()
   const status = workflowStatus(workflow)
   const running = status === 'running'
+  const [open, setOpen] = useState(running)
   const now = useNow(1000, running)
   const { done, failed, total } = tally(workflow.agents)
   const title = running
@@ -132,7 +134,7 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
         ? 'Failed'
         : 'Stopped'
   return (
-    <Collapsible defaultOpen={running} className='w-full min-w-0'>
+    <Collapsible open={open} onOpenChange={setOpen} className='w-full min-w-0'>
       <CollapsibleTrigger
         render={<Button variant='ghost' />}
         className='group/workflow flex h-auto min-h-9 w-full items-center justify-start gap-2 rounded-sm px-2.5 py-2 text-sm font-normal'
