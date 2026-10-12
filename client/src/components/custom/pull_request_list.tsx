@@ -288,8 +288,11 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
         </div>
         <div className='flex items-center gap-1'>
           {failure && list.items && (
-            <span className='mr-1 hidden text-xs text-muted-foreground @md:inline'>
-              Couldn’t refresh
+            <span
+              className='mr-1 hidden max-w-64 truncate text-xs text-muted-foreground @md:inline'
+              title={list.error ?? unavailableTitle[list.status]}
+            >
+              {list.error ?? unavailableTitle[list.status]}
             </span>
           )}
           <Tooltip>
