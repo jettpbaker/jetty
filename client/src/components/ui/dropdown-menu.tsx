@@ -1,4 +1,4 @@
-import { ChevronRightSmallIcon, Checkmark1SmallIcon } from '@/components/custom/central_icons'
+import { ChevronRightSmallIcon, Checkmark1MediumIcon } from '@/components/custom/central_icons'
 import { cn } from '@/lib/utils'
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 import * as React from 'react'
@@ -198,7 +198,7 @@ function DropdownMenuCheckboxItem({
         data-slot='dropdown-menu-checkbox-item-indicator'
       >
         <MenuPrimitive.CheckboxItemIndicator>
-          <Checkmark1SmallIcon />
+          <Checkmark1MediumIcon />
         </MenuPrimitive.CheckboxItemIndicator>
       </span>
       {children}
@@ -235,7 +235,7 @@ function DropdownMenuRadioItem({
         data-slot='dropdown-menu-radio-item-indicator'
       >
         <MenuPrimitive.RadioItemIndicator>
-          <Checkmark1SmallIcon />
+          <Checkmark1MediumIcon />
         </MenuPrimitive.RadioItemIndicator>
       </span>
       {children}

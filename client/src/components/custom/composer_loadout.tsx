@@ -1,7 +1,7 @@
 import type { ProviderId, ProviderModel } from '@jetty/shared/wire'
 import type { KeyboardEvent, RefObject, SyntheticEvent } from 'react'
 
-import { ArrowUpRightIcon, DotGrid2x3Icon, PlusSmallIcon } from '@/components/custom/central_icons'
+import { ArrowUpRightIcon, DotGrid2x3Icon, PlusMediumIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -195,7 +195,7 @@ const emptyRowClass =
 function EmptyRowLabel() {
   return (
     <span className='flex items-center gap-1.5'>
-      <PlusSmallIcon className='size-3 shrink-0' />
+      <PlusMediumIcon className='size-3 shrink-0' />
       Add configuration
     </span>
   )

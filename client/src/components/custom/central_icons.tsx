@@ -30,7 +30,7 @@ import { IconCalendarClock } from '@central-icons-react/round-outlined-radius-3-
 import { IconChainLink4 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChainLink4'
 import { IconChanges } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChanges'
 import { IconChecklist } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChecklist'
-import { IconCheckmark1Small } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCheckmark1Small'
+import { IconCheckmark1Medium } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCheckmark1Medium'
 import { IconChevronDownSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronDownSmall'
 import { IconChevronLeftSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronLeftSmall'
 import { IconChevronRightSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronRightSmall'
@@ -47,7 +47,7 @@ import { IconConcise } from '@central-icons-react/round-outlined-radius-3-stroke
 import { IconCrop } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCrop'
 import { IconCrossSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCrossSmall'
 import { IconDivider } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconDivider'
-import { IconDotGrid1x3Vertical } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconDotGrid1x3Vertical'
+import { IconDotGrid1x3VerticalTight } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconDotGrid1x3VerticalTight'
 import { IconDotGrid2x3 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconDotGrid2x3'
 import { IconDraft } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconDraft'
 import { IconEditSmall1 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconEditSmall1'
@@ -90,7 +90,7 @@ import { IconPlay } from '@central-icons-react/round-outlined-radius-3-stroke-2/
 import { IconPlayground } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlayground'
 import { IconPlugins } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlugins'
 import { IconPlusLarge } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlusLarge'
-import { IconPlusSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlusSmall'
+import { IconPlusMedium } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlusMedium'
 import { IconProcessor } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconProcessor'
 import { IconPullRequest } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPullRequest'
 import { IconRequestClosed } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconRequestClosed'
@@ -156,7 +156,7 @@ export const CalendarClockIcon = centralIcon(IconCalendarClock)
 export const ChainLink4Icon = centralIcon(IconChainLink4)
 export const ChangesIcon = centralIcon(IconChanges)
 export const ChecklistIcon = centralIcon(IconChecklist)
-export const Checkmark1SmallIcon = centralIcon(IconCheckmark1Small)
+export const Checkmark1MediumIcon = centralIcon(IconCheckmark1Medium)
 export const ChevronDownSmallIcon = centralIcon(IconChevronDownSmall)
 export const ChevronLeftSmallIcon = centralIcon(IconChevronLeftSmall)
 export const ChevronRightSmallIcon = centralIcon(IconChevronRightSmall)
@@ -173,7 +173,7 @@ export const ConciseIcon = centralIcon(IconConcise)
 export const CropIcon = centralIcon(IconCrop)
 export const CrossSmallIcon = centralIcon(IconCrossSmall)
 export const DividerIcon = centralIcon(IconDivider)
-export const DotGrid1x3VerticalIcon = centralIcon(IconDotGrid1x3Vertical)
+export const DotGrid1x3VerticalTightIcon = centralIcon(IconDotGrid1x3VerticalTight)
 export const DotGrid2x3Icon = centralIcon(IconDotGrid2x3)
 export const DraftIcon = centralIcon(IconDraft)
 export const EditSmall1Icon = centralIcon(IconEditSmall1)
@@ -216,7 +216,7 @@ export const PlayIcon = centralIcon(IconPlay, IconPlayFilled)
 export const PlaygroundIcon = centralIcon(IconPlayground)
 export const PluginsIcon = centralIcon(IconPlugins)
 export const PlusLargeIcon = centralIcon(IconPlusLarge)
-export const PlusSmallIcon = centralIcon(IconPlusSmall)
+export const PlusMediumIcon = centralIcon(IconPlusMedium)
 export const ProcessorIcon = centralIcon(IconProcessor)
 export const PullRequestIcon = centralIcon(IconPullRequest)
 export const RequestClosedIcon = centralIcon(IconRequestClosed)

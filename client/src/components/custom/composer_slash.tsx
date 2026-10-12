@@ -12,7 +12,7 @@ import {
   EditSmall1Icon,
   ShieldCheckIcon,
   ShieldBreakIcon,
-  Checkmark1SmallIcon,
+  Checkmark1MediumIcon,
 } from '@/components/custom/central_icons'
 import { inComposition } from '@/lib/composition'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
@@ -751,7 +751,7 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
       <span className='shrink-0'>{entry.name}</span>
       <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
       {entry.kind === 'option' && entry.selected && (
-        <Checkmark1SmallIcon className='text-current' />
+        <Checkmark1MediumIcon className='text-current' />
       )}
       {entry.opens && <ChevronRightSmallIcon className='text-muted-foreground' />}
     </div>

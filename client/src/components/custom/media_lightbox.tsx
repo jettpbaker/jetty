@@ -3,7 +3,7 @@ import type { Attachment } from '@jetty/shared/items'
 import {
   ChevronLeftSmallIcon,
   ChevronRightSmallIcon,
-  Checkmark1SmallIcon,
+  Checkmark1MediumIcon,
   SquareBehindSquare1Icon,
   ZoomOutIcon,
   ZoomInIcon,
@@ -532,7 +532,7 @@ function Toolbar({
         <ZoomInIcon />
       </ToolbarButton>
       <ToolbarButton label={copied ? 'Copied' : 'Copy image'} onPress={copyImage}>
-        {copied ? <Checkmark1SmallIcon /> : <SquareBehindSquare1Icon />}
+        {copied ? <Checkmark1MediumIcon /> : <SquareBehindSquare1Icon />}
       </ToolbarButton>
       <ToolbarButton label='Close' shortcut='Esc' onPress={onClose}>
         <CrossSmallIcon />

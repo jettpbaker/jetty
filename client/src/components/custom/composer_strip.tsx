@@ -7,7 +7,7 @@ import {
   ChevronRightSmallIcon,
   ChevronTopSmallIcon,
   CirclePlaceholderOnIcon,
-  Checkmark1SmallIcon,
+  Checkmark1MediumIcon,
 } from '@/components/custom/central_icons'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
@@ -594,7 +594,7 @@ export function QuestionStrip({
                   )}
                 </span>
                 <span className='flex h-5 w-4 shrink-0 items-center justify-center'>
-                  {selected && <Checkmark1SmallIcon className='size-3.5 text-muted-foreground' />}
+                  {selected && <Checkmark1MediumIcon className='size-3.5 text-muted-foreground' />}
                 </span>
               </button>
             )
@@ -608,7 +608,7 @@ export function QuestionStrip({
 
 function TodoIcon({ status }: { status: Todo['status'] }) {
   if (status === 'done')
-    return <Checkmark1SmallIcon className='size-3.5 shrink-0 text-muted-foreground' />
+    return <Checkmark1MediumIcon className='size-3.5 shrink-0 text-muted-foreground' />
   if (status === 'active')
     return <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
   return <CirclePlaceholderOnIcon className='size-3.5 shrink-0 text-muted-foreground' />

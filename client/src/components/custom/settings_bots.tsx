@@ -10,7 +10,7 @@ import { useState } from 'react'
 
 import { BotAvatar } from './bot_avatar'
 import { BotSettingsSheet } from './bot_settings_sheet'
-import { ChevronRightSmallIcon, Folder1Icon, PlusSmallIcon } from './central_icons'
+import { ChevronRightSmallIcon, Folder1Icon, PlusMediumIcon } from './central_icons'
 import { accessModes } from './composer_access_mode'
 import { copyFilePath } from './file_link'
 import { NewBotDialog } from './new_bot_dialog'
@@ -83,7 +83,7 @@ export function SettingsBots() {
         title='Your bots'
         action={
           <SettingsButton onClick={() => setCreating(true)}>
-            <PlusSmallIcon />
+            <PlusMediumIcon />
             New bot
           </SettingsButton>
         }

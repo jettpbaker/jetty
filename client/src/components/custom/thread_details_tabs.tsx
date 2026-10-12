@@ -7,7 +7,7 @@ import {
   BubblesIcon,
   ListBulletsIcon,
   ChainLink4Icon,
-  PlusSmallIcon,
+  PlusMediumIcon,
   CrossSmallIcon,
   ChangesIcon,
 } from '@/components/custom/central_icons'
@@ -295,7 +295,7 @@ export function ThreadDetailsTabs({
             render={<Button variant='ghost' size='icon-sm' className='shrink-0 rounded-sm' />}
             aria-label='Open tab'
           >
-            <PlusSmallIcon />
+            <PlusMediumIcon />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align='start'

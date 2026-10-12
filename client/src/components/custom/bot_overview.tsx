@@ -3,7 +3,7 @@ import type { Bot, BotTask, ThreadMeta } from '@jetty/shared/wire'
 import {
   ChevronRightSmallIcon,
   CirclePlaceholderOnIcon,
-  Checkmark1SmallIcon,
+  Checkmark1MediumIcon,
   CirclePlaceholderOffIcon,
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
@@ -85,7 +85,7 @@ function TaskGlyph({ status }: { status: BotTask['status'] }) {
     case 'in_progress':
       return <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
     case 'done':
-      return <Checkmark1SmallIcon className={className} />
+      return <Checkmark1MediumIcon className={className} />
     // Lucide's, as for an issue closed as not planned.
     case 'dropped':
       return <CirclePlaceholderOffIcon aria-hidden='true' className={className} />

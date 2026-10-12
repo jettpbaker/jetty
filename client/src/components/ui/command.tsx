@@ -1,4 +1,4 @@
-import { MagnifyingGlass2Icon, Checkmark1SmallIcon } from '@/components/custom/central_icons'
+import { MagnifyingGlass2Icon, Checkmark1MediumIcon } from '@/components/custom/central_icons'
 import {
   Dialog,
   DialogContent,
@@ -151,7 +151,7 @@ function CommandItem({
       {...props}
     >
       {children}
-      <Checkmark1SmallIcon className='ml-auto text-current opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100' />
+      <Checkmark1MediumIcon className='ml-auto text-current opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100' />
     </CommandPrimitive.Item>
   )
 }

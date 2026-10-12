@@ -1,5 +1,5 @@
 import {
-  Checkmark1SmallIcon,
+  Checkmark1MediumIcon,
   ConciseIcon,
   PauseIcon,
   ArrowRotateClockwiseIcon,
@@ -120,7 +120,7 @@ export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resu
   const done = resumed || continuing
   return (
     <ChatSeam>
-      <SeamIcon icon={done ? Checkmark1SmallIcon : PauseIcon} />
+      <SeamIcon icon={done ? Checkmark1MediumIcon : PauseIcon} />
       <span className='truncate'>
         {done ? 'Resumed' : 'Paused'} after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000}{' '}
         minutes

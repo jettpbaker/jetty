@@ -15,7 +15,7 @@ import {
   SquareBehindSquare1Icon,
   ArrowRotateClockwiseIcon,
   StopIcon,
-  Checkmark1SmallIcon,
+  Checkmark1MediumIcon,
 } from '@/components/custom/central_icons'
 import { ComposerAttach } from '@/components/custom/composer_attach'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
@@ -815,7 +815,7 @@ function MessageActions({
                 }}
                 transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
               >
-                <Checkmark1SmallIcon />
+                <Checkmark1MediumIcon />
               </motion.span>
             ) : (
               <motion.span

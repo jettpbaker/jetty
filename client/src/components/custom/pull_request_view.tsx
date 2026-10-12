@@ -30,7 +30,7 @@ import { useMemo, useLayoutEffect, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import {
-  DotGrid1x3VerticalIcon,
+  DotGrid1x3VerticalTightIcon,
   ArrowRotateClockwiseIcon,
   SquareArrowTopRightIcon,
   SquareBehindSquare1Icon,
@@ -83,7 +83,7 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant='ghost' size='icon' aria-label='More' />}>
-        <DotGrid1x3VerticalIcon />
+        <DotGrid1x3VerticalTightIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuGroup>

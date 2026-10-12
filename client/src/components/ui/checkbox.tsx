@@ -1,4 +1,4 @@
-import { Checkmark1SmallIcon } from '@/components/custom/central_icons'
+import { Checkmark1MediumIcon } from '@/components/custom/central_icons'
 import { cn } from '@/lib/utils'
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox'
 
@@ -16,7 +16,7 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
         data-slot='checkbox-indicator'
         className='grid place-content-center text-current transition-none [&>svg]:size-3.5'
       >
-        <Checkmark1SmallIcon />
+        <Checkmark1MediumIcon />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )

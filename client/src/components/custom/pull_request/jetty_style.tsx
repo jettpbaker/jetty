@@ -1,14 +1,14 @@
 import {
   ArrowShareLeftIcon,
-  PlusSmallIcon,
+  PlusMediumIcon,
   ChevronDownSmallIcon,
   ChevronLeftSmallIcon,
   ChevronRightSmallIcon,
   ArrowUpRightIcon,
   SquareBehindSquare1Icon,
   FileBendIcon,
-  DotGrid1x3VerticalIcon,
-  Checkmark1SmallIcon,
+  DotGrid1x3VerticalTightIcon,
+  Checkmark1MediumIcon,
   CommitsIcon,
   MergedIcon,
 } from '@/components/custom/central_icons'
@@ -345,7 +345,7 @@ function ResolveThread({
           />
         }
       >
-        <Checkmark1SmallIcon />
+        <Checkmark1MediumIcon />
       </TooltipTrigger>
       <TooltipContent>
         {resolved ? 'Unresolve conversation' : 'Resolve conversation'}
@@ -729,7 +729,7 @@ function Issues({ pr }: { pr: PrPull }) {
     return (
       <div className='px-0.75'>
         <Action className='gap-2'>
-          <PlusSmallIcon className='size-4' />
+          <PlusMediumIcon className='size-4' />
           Link issue
         </Action>
       </div>
@@ -809,7 +809,7 @@ function Properties({ pr }: { pr: PrPull }) {
         {cloneElement(picker, {
           trigger: (
             <Button variant='ghost-text' size='sm' className='h-7 gap-2 px-0 font-normal'>
-              <PlusSmallIcon className='size-4' />
+              <PlusMediumIcon className='size-4' />
               Add reviewers
             </Button>
           ),
@@ -1451,7 +1451,7 @@ function FileMenu({ file, pr, at }: { file: PrFile; pr: PrPull; at?: string }) {
         render={<Button variant='ghost-text' size='sm' className='h-7 px-0 font-normal' />}
         aria-label={`Actions for ${file.path}`}
       >
-        <DotGrid1x3VerticalIcon className='size-3.5' />
+        <DotGrid1x3VerticalTightIcon className='size-3.5' />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-max'>
         <DropdownMenuItem

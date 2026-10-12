@@ -29,11 +29,11 @@ import { toast } from 'sonner'
 import {
   TrashCanSimpleIcon,
   WorktreeIcon,
-  DotGrid1x3VerticalIcon,
+  DotGrid1x3VerticalTightIcon,
   EditSmall1Icon,
-  PlusSmallIcon,
+  PlusMediumIcon,
   PlaygroundIcon,
-  Checkmark1SmallIcon,
+  Checkmark1MediumIcon,
 } from './central_icons'
 import { environments } from './composer_environment'
 import { ProjectFolderDialog } from './project_folder_dialog'
@@ -182,7 +182,7 @@ function ProjectRow({
           </Button>
         ) : (
           <>
-            <Checkmark1SmallIcon className='size-3.5 shrink-0 text-status-success' />
+            <Checkmark1MediumIcon className='size-3.5 shrink-0 text-status-success' />
             {ok.setupCommand ? (
               <code
                 className='truncate font-mono text-xs text-muted-foreground'
@@ -200,7 +200,7 @@ function ProjectRow({
         <DropdownMenuTrigger
           render={<Button variant='ghost' size='icon' aria-label={`More for ${project.title}`} />}
         >
-          <DotGrid1x3VerticalIcon />
+          <DotGrid1x3VerticalTightIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
           <DropdownMenuItem onClick={() => setRenaming(true)}>
@@ -252,7 +252,7 @@ export function SettingsProjects() {
         title={projects.length === 1 ? '1 project' : `${projects.length} projects`}
         action={
           <SettingsButton ref={addButton} onClick={() => setAdding(true)}>
-            <PlusSmallIcon />
+            <PlusMediumIcon />
             Add project
           </SettingsButton>
         }

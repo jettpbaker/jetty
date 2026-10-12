@@ -5,7 +5,7 @@ import {
   ArchiveIcon,
   EditSmall1Icon,
   PinIcon,
-  PlusSmallIcon,
+  PlusMediumIcon,
   VolumeOffIcon,
   PullRequestIcon,
 } from '@/components/custom/central_icons'
@@ -377,7 +377,7 @@ export const AppSidebar = memo(function AppSidebar() {
             aria-label='New bot'
             onClick={() => setNewBotOpen(true)}
           >
-            <PlusSmallIcon />
+            <PlusMediumIcon />
           </Button>
         </div>
         {bots.length ? (
@@ -400,7 +400,7 @@ export const AppSidebar = memo(function AppSidebar() {
             className='flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
           >
             <span className='flex size-6 shrink-0 items-center justify-center'>
-              <PlusSmallIcon />
+              <PlusMediumIcon />
             </span>
             Create a bot
           </button>

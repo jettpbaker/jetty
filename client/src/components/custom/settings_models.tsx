@@ -40,7 +40,7 @@ import { useEffect, useState } from 'react'
 import {
   ChevronDownSmallIcon,
   LightningBoltIcon,
-  PlusSmallIcon,
+  PlusMediumIcon,
   ArrowRotateClockwiseIcon,
 } from './central_icons'
 import { moveOnKeys, subTriggerClass } from './composer_loadout'
@@ -236,7 +236,7 @@ function SlotRow({
               aria-hidden='true'
               className='flex size-7 shrink-0 items-center justify-center rounded-[7px] border border-dashed border-border [&_svg]:size-3.5'
             >
-              <PlusSmallIcon />
+              <PlusMediumIcon />
             </span>
             Add a model
           </DropdownMenuTrigger>

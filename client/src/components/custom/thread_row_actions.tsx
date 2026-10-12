@@ -1,6 +1,6 @@
 import {
   ArrowOutOfBoxIcon,
-  DotGrid1x3VerticalIcon,
+  DotGrid1x3VerticalTightIcon,
   Pencil2Icon,
   PinIcon,
   TrashCanSimpleIcon,
@@ -99,7 +99,7 @@ export function ThreadRowActions({
               />
             }
           >
-            <DotGrid1x3VerticalIcon className='size-3.5' aria-hidden='true' />
+            <DotGrid1x3VerticalTightIcon className='size-3.5' aria-hidden='true' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>
