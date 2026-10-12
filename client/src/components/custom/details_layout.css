@@ -67,6 +67,7 @@
   display: inline-grid;
   flex-shrink: 0;
   place-items: center;
+  pointer-events: none;
 }
 .details-tab-icon > * {
   grid-area: 1 / 1;
