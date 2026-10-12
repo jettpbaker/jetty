@@ -59,6 +59,10 @@ hue map: https://claude.ai/artifact/MJgn4bx6145bvS7dFRKvaB. Values are oklch, da
   line. Waiting stays `--muted-foreground`; check it doesn't now read brighter than it should.
 - Probably `--pr-running` becomes the lemon too, so "in progress" is one yellow for threads and PR
   checks. Show Jett the `index.css` token diff before changing anything.
+- Ready for review follows the PR, as Capy's does: a thread whose PR is ready shows the ready
+  check, not only one whose agent called `mark_ready_for_review`. It came up weighing one-line
+  sidebar rows, which drop the PR mark; the status glyph would then carry some of that. Settle
+  what "ready" means for drafts, failing checks and threads with several PRs first.
 
 ## sketchpad designs not ported yet (needs Jett's call)
 
