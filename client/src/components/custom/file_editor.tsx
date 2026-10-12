@@ -110,6 +110,8 @@ export function FileEditor({
   checkout,
   focus,
   locked = false,
+  save: saveOverride,
+  home,
 }: {
   threadId: string
   target: FileTarget
@@ -119,6 +121,13 @@ export function FileEditor({
   focus: number
   // shown but never edited, as an attached file is
   locked?: boolean
+  // writes somewhere other than the thread's checkout, with the same conflict contract
+  save?: (
+    contents: string,
+    base: string | null
+  ) => ReturnType<ReturnType<typeof useSaveProjectFile>>
+  // the bot home the file lives in, in place of a checkout
+  home?: string
 }) {
   const { path, line } = target
   const name = path.split('/').at(-1) ?? path
@@ -127,7 +136,9 @@ export function FileEditor({
     const view = diffViewOptions(themeType, {})
     return { ...view, unsafeCSS: `${view.unsafeCSS}${editorCSS}` }
   }, [themeType])
-  const save = useSaveProjectFile()
+  const saveProject = useSaveProjectFile()
+  const save =
+    saveOverride ?? ((...args: [string, string | null]) => saveProject(threadId, path, ...args))
   const writeDraft = useWriteFileDraft()
   const dirty = useFileDirty(threadId, path)
   const readOnly = locked || notUtf8(disk)
@@ -209,7 +220,7 @@ export function FileEditor({
     writing.current = true
     setSaving(true)
     try {
-      const result = await save(threadId, path, contents, over)
+      const result = await save(contents, over)
       if (result) setConflict('conflict' in result ? result.conflict : undefined)
     } finally {
       writing.current = false
@@ -290,7 +301,9 @@ export function FileEditor({
         behavior: 'instant',
       })
   }, [target, path, line])
-  const place = checkout.environment && environments[checkout.environment]
+  const place = home
+    ? environments.local
+    : checkout.environment && environments[checkout.environment]
   return (
     <section
       ref={root}
@@ -336,15 +349,17 @@ export function FileEditor({
                       }
                     >
                       <place.Icon className='size-3 shrink-0' />
-                      {place.label}
+                      {home ? 'Bot home' : place.label}
                     </TooltipTrigger>
                     <TooltipContent align='end' className='max-w-lg'>
                       <span className='flex flex-col'>
                         <span>
                           Saves to the{' '}
-                          {checkout.environment === 'worktree'
-                            ? "thread's worktree"
-                            : 'project checkout'}
+                          {home
+                            ? "bot's home"
+                            : checkout.environment === 'worktree'
+                              ? "thread's worktree"
+                              : 'project checkout'}
                           {checkout.branch && (
                             <>
                               {' on '}
@@ -352,8 +367,10 @@ export function FileEditor({
                             </>
                           )}
                         </span>
-                        {checkout.path && (
-                          <span className='font-mono text-muted-foreground'>{checkout.path}</span>
+                        {(home ?? checkout.path) && (
+                          <span className='font-mono text-muted-foreground'>
+                            {home ?? checkout.path}
+                          </span>
                         )}
                       </span>
                     </TooltipContent>

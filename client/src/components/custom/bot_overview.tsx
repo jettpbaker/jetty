@@ -10,8 +10,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { describeLoadout } from '@/lib/loadout'
+import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
-import { useBotThreadMetas, useModels, useProjects, useThreadRowPrefetch } from '@/state'
+import {
+  useBotInstructions,
+  useBotThreadMetas,
+  useModels,
+  useProjects,
+  useThreadRowPrefetch,
+} from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -24,13 +31,22 @@ import { Section, useCollapsedSections } from './thread_overview'
 import { statusPresentation } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
-export function BotOverview({ bot }: { bot: Bot }) {
+export function BotOverview({
+  bot,
+  onOpenInstructions,
+}: {
+  bot: Bot
+  onOpenInstructions: () => void
+}) {
   const threads = useBotThreadMetas(bot.id)
   const { sectionProps } = useCollapsedSections('jetty.bot-overview.collapsed')
   return (
     <div className='scrollbar-subtle h-full overflow-auto'>
       <div className='flex flex-col gap-3.5 p-2 text-sm'>
-        <ModelRow bot={bot} />
+        <div className='flex flex-col'>
+          <ModelRow bot={bot} />
+          <InstructionsRow botId={bot.id} onOpen={onOpenInstructions} />
+        </div>
         {bot.tasks.length > 0 && (
           <Section label='Tasks' count={bot.tasks.length} {...sectionProps('tasks')}>
             <ol className='flex flex-col gap-1'>
@@ -69,6 +85,28 @@ function ModelRow({ bot }: { bot: Bot }) {
         <ChevronRightSmallIcon className='ml-auto size-3' />
       </Button>
     </BotSettingsSheet>
+  )
+}
+
+// Opens instructions.md as a tab; a rule is a line starting with "- ".
+function InstructionsRow({ botId, onOpen }: { botId: string; onOpen: () => void }) {
+  const { file } = useBotInstructions(botId)
+  const contents = file && 'contents' in file ? file.contents : undefined
+  const rules = contents?.split('\n').filter((line) => line.startsWith('- ')).length
+  return (
+    <Button
+      variant='ghost'
+      className='h-9 w-full justify-start gap-2 rounded-sm px-2.5 font-normal'
+      {...pressProps(onOpen)}
+    >
+      <span className='w-21 shrink-0 text-left text-muted-foreground'>Instructions</span>
+      {rules !== undefined && (
+        <span className={cn('truncate', rules ? 'text-foreground' : 'text-muted-foreground')}>
+          {rules ? `${rules} ${rules === 1 ? 'rule' : 'rules'}` : 'No rules yet'}
+        </span>
+      )}
+      <ChevronRightSmallIcon className='ml-auto size-3' />
+    </Button>
   )
 }
 

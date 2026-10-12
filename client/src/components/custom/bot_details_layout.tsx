@@ -1,6 +1,7 @@
 import type { Attachment } from '@jetty/shared/items'
 import type { Bot } from '@jetty/shared/wire'
 
+import { instructionsPath, useFileDirty } from '@/state'
 import { useCallback, useState, type ReactNode } from 'react'
 
 import { OpenAttachment } from './attachment_files'
@@ -13,7 +14,7 @@ import {
   useDetailsLayout,
 } from './details_layout'
 import { BotDetailsTabs } from './thread_details_tabs'
-import { ThreadFile } from './thread_file'
+import { InstructionsFile, ThreadFile } from './thread_file'
 
 const noCheckout = {}
 
@@ -23,7 +24,8 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
   const layout = useDetailsLayout()
   const { open, full, narrow, expanded, setExpanded, setChatSlot, show } = layout
   const [pickedTab, setTab] = useState('overview')
-  const [file, setFile] = useState<Attachment>()
+  const [file, setFile] = useState<Attachment | 'instructions'>()
+  const instructionsDirty = useFileDirty(bot.id, instructionsPath)
   // Opening shows Overview, even where the chat would be a tab of its own, unless a file opened it.
   const [openingTab, setOpeningTab] = useState<string>()
   const [wasOpen, setWasOpen] = useState(open)
@@ -45,6 +47,10 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
     },
     [open, show]
   )
+  const openInstructions = useCallback(() => {
+    setFile('instructions')
+    setTab('file')
+  }, [])
   return (
     <OpenAttachment value={openAttachment}>
       <DetailsLayout
@@ -64,7 +70,8 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
                 chat={full}
                 file={
                   file && {
-                    name: file.name,
+                    name: file === 'instructions' ? instructionsPath : file.name,
+                    dirty: file === 'instructions' && instructionsDirty,
                     onClose: () => {
                       setFile(undefined)
                       setTab('overview')
@@ -76,11 +83,12 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
           >
             <DetailsChatPanel tab={tab} slotRef={setChatSlot} />
             <DetailsTabPanel value='overview' tab={tab}>
-              {open && <BotOverview bot={bot} />}
+              {open && <BotOverview bot={bot} onOpenInstructions={openInstructions} />}
             </DetailsTabPanel>
             {file && (
               <DetailsTabPanel value='file' tab={tab}>
-                {open && (
+                {open && file === 'instructions' && <InstructionsFile botId={bot.id} focus={0} />}
+                {open && file !== 'instructions' && (
                   <ThreadFile
                     key={file.id}
                     threadId={bot.id}

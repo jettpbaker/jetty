@@ -1,5 +1,5 @@
 import type { ThreadItem } from '@jetty/shared/items'
-import type { DiffScope, ThreadMeta } from '@jetty/shared/wire'
+import type { DiffScope, ProjectFile, ThreadMeta } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
 import { Cause, Effect } from 'effect'
@@ -301,3 +301,77 @@ function saveProjectFile(
 }
 
 export const useSaveProjectFile = () => useAction(saveProjectFile)
+
+const instructionsAtom = Atom.family((botId: string) =>
+  Atom.make((get) =>
+    get.result(connectionAtom).pipe(
+      Effect.flatMap((connection) => connection.request('bot.getInstructions', { botId })),
+      Effect.map(({ instructions }): ProjectFile => ({ contents: instructions }))
+    )
+  ).pipe(Atom.setIdleTTL('10 minutes'))
+)
+
+export const instructionsPath = 'instructions.md'
+
+// A bot's instructions as a file, kept as fresh as an open thread file: the bot appends to them
+// during its turns.
+export function useBotInstructions(botId: string) {
+  const atom = instructionsAtom(botId)
+  const result = useAtomValue(atom)
+  const refresh = useAtomRefresh(atom)
+  const turnEndedAt = useThreadMeta(botId)?.turnEndedAt
+  const turnEnded = useRef(turnEndedAt)
+  useToolsSettled(botId, refresh)
+  useRefreshCached(atom, refresh)
+  useRefreshOnFocus(refresh)
+  useEffect(() => {
+    if (turnEnded.current === turnEndedAt) return
+    turnEnded.current = turnEndedAt
+    refresh()
+  }, [turnEndedAt, refresh])
+  return {
+    file: AsyncResult.getOrElse(result, () => undefined),
+    failed: AsyncResult.isFailure(result),
+  }
+}
+
+// Same contract as saveProjectFile: writes only while the instructions still hold `base`.
+function saveInstructions(
+  registry: AtomRegistry.AtomRegistry,
+  botId: string,
+  contents: string,
+  base: string | null
+) {
+  beginFileSave(botId, instructionsPath)
+  return Effect.runPromise(
+    AtomRegistry.getResult(registry, connectionAtom).pipe(
+      Effect.flatMap((connection) =>
+        Effect.gen(function* () {
+          const now = (yield* connection.request('bot.getInstructions', { botId })).instructions
+          if (base !== null && now !== base) return { conflict: { contents: now } as ProjectFile }
+          yield* connection.request('bot.saveInstructions', { botId, instructions: contents })
+          return { saved: true as const }
+        })
+      ),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          if (!('saved' in result)) return
+          settleFileDraft(registry, botId, instructionsPath, contents)
+          registry.refresh(instructionsAtom(botId))
+        })
+      ),
+      Effect.ensuring(Effect.sync(() => endFileSave(registry, botId, instructionsPath))),
+      Effect.catchCause((cause) =>
+        Effect.sync(() => {
+          const error = Cause.squash(cause)
+          toast.error(`Couldn't save ${instructionsPath}`, {
+            description: error instanceof Error ? error.message : String(error),
+          })
+          return undefined
+        })
+      )
+    )
+  )
+}
+
+export const useSaveInstructions = () => useAction(saveInstructions)

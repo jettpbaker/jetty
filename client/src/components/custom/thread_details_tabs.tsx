@@ -454,8 +454,8 @@ export function BotDetailsTabs({
   file,
 }: {
   chat: boolean
-  // an attached file open read-only
-  file?: { name: string; onClose: () => void }
+  // an attached file open read-only, or the bot's instructions
+  file?: { name: string; dirty?: boolean; onClose: () => void }
 }) {
   const shown: TabId[] = chat ? ['chat', 'overview'] : ['overview']
   return (
@@ -482,7 +482,7 @@ export function BotDetailsTabs({
         <TabsTrigger
           value='file'
           className='details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
-          title={file.name}
+          title={file.dirty ? `${file.name} · Unsaved changes` : file.name}
         >
           <TabLabel
             label={file.name}
@@ -491,6 +491,12 @@ export function BotDetailsTabs({
             canClose
             onClose={file.onClose}
           />
+          {file.dirty && (
+            <>
+              <span aria-hidden='true' className='size-1.5 shrink-0 rounded-full bg-current' />
+              <span className='sr-only'>Unsaved changes</span>
+            </>
+          )}
         </TabsTrigger>
       )}
     </TabsList>

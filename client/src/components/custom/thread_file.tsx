@@ -2,7 +2,14 @@ import type { Attachment } from '@jetty/shared/items'
 import type { ProjectFile } from '@jetty/shared/wire'
 
 import { Loading } from '@/components/custom/loading'
-import { useFileDirty, useProjectFile } from '@/state'
+import {
+  instructionsPath,
+  useBotInstructions,
+  useFileDirty,
+  useProjectFile,
+  useSaveInstructions,
+} from '@/state'
+import { homePath, useSettingsInfo } from '@/state/models'
 import { lazy, Suspense, useEffect, useState } from 'react'
 
 import type { Checkout } from './file_editor'
@@ -117,6 +124,30 @@ function AttachmentFile({
         checkout={noCheckout}
         focus={focus}
         locked
+      />
+    </Suspense>
+  )
+}
+
+// A bot's standing instructions, edited in place in its home.
+export function InstructionsFile({ botId, focus }: { botId: string; focus: number }) {
+  const { file, failed } = useBotInstructions(botId)
+  const info = useSettingsInfo()
+  const saveInstructions = useSaveInstructions()
+  if (!file || !info) {
+    if (failed) return <p className='p-4 text-xs text-destructive'>Couldn&apos;t open file.</p>
+    return loading
+  }
+  return (
+    <Suspense fallback={loading}>
+      <FileEditor
+        threadId={botId}
+        target={{ path: instructionsPath }}
+        disk={file}
+        checkout={noCheckout}
+        focus={focus}
+        save={(contents, base) => saveInstructions(botId, contents, base)}
+        home={homePath(`${info.home}/bots/${botId}`, info)}
       />
     </Suspense>
   )
