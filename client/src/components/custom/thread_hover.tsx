@@ -44,7 +44,7 @@ import { threadPullRequests } from './sidebar_thread_groups'
 import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
 import { SubagentGlyph, subagentGlyphState, renderWorkingTitle } from './subagent_glyph'
 import { rankPullRequests, type ThreadPullRequest } from './thread_pull_request'
-import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
+import { StatusGlyph, threadStatus, type ThreadStatus } from './thread_status'
 import { formatActivityDuration } from './work_model'
 import './subagent_finish.css'
 import './thread_hover.css'
@@ -479,7 +479,7 @@ function ThreadHoverPanel({
                 #{pr.number}
               </span>
               <RowTitle>{pr.title ?? ''}</RowTitle>
-              <span className='shrink-0 text-muted-foreground'>{label}</span>
+              <span className='sr-only'>{label}</span>
             </Row>
           ))}
         </Section>
@@ -564,9 +564,6 @@ function ThreadLinkRow({ thread, onOpen }: { thread: ThreadLink; onOpen: () => v
     <Row onPress={onOpen}>
       <StatusGlyph status={thread.status} className='size-3' />
       <RowTitle>{thread.title}</RowTitle>
-      <span className='shrink-0 text-muted-foreground'>
-        {statusPresentation[thread.status].label}
-      </span>
     </Row>
   )
 }
