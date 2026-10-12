@@ -368,10 +368,13 @@ describe('translate()', () => {
     expect(ctx.toolUseToItemId.get('tu_1')).toBeTruthy()
   })
 
-  test('say starts while its input streams and updates the same item when complete', () => {
+  test('message_user starts while its input streams and updates the same item when complete', () => {
     const ctx = createTranslateCtx('t1')
     translate(
-      { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_say' } } },
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg_message_user' } },
+      },
       ctx
     )
     const start = translate(
@@ -380,7 +383,12 @@ describe('translate()', () => {
         event: {
           type: 'content_block_start',
           index: 0,
-          content_block: { type: 'tool_use', id: 'tu_say', name: 'mcp__jetty__say', input: {} },
+          content_block: {
+            type: 'tool_use',
+            id: 'tu_message_user',
+            name: 'mcp__jetty__message_user',
+            input: {},
+          },
         },
       },
       ctx
@@ -389,7 +397,12 @@ describe('translate()', () => {
     expect(start).toMatchObject([
       {
         type: 'item.started',
-        item: { kind: 'tool_call', toolName: 'mcp__jetty__say', input: {}, status: 'running' },
+        item: {
+          kind: 'tool_call',
+          toolName: 'mcp__jetty__message_user',
+          input: {},
+          status: 'running',
+        },
       },
     ])
     for (const partial of ['{"text":', '"Hello"}']) {
@@ -415,9 +428,14 @@ describe('translate()', () => {
         {
           type: 'assistant',
           message: {
-            id: 'msg_say',
+            id: 'msg_message_user',
             content: [
-              { type: 'tool_use', id: 'tu_say', name: 'mcp__jetty__say', input: { text: 'Hello' } },
+              {
+                type: 'tool_use',
+                id: 'tu_message_user',
+                name: 'mcp__jetty__message_user',
+                input: { text: 'Hello' },
+              },
             ],
           },
         },
@@ -429,7 +447,9 @@ describe('translate()', () => {
         {
           type: 'user',
           message: {
-            content: [{ type: 'tool_result', tool_use_id: 'tu_say', content: '{"sent":true}' }],
+            content: [
+              { type: 'tool_result', tool_use_id: 'tu_message_user', content: '{"sent":true}' },
+            ],
           },
         },
         ctx

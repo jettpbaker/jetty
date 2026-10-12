@@ -1389,93 +1389,82 @@ function makeBotFixture() {
 
 for (const scenario of [
   {
-    name: 'failed say still gets nudge',
+    name: 'failed message_user leaves plain text public',
     source: 'user',
     outcome: 'completed',
     text: 'Last reply',
-    sayCount: 0,
-    failedSay: true,
-    nudge: true,
+    messageCount: 0,
+    failedMessageUser: true,
   },
   {
-    name: 'user reply nudge',
+    name: 'user reply is public',
     source: 'user',
     outcome: 'completed',
     text: 'Last reply',
-    sayCount: 0,
-    nudge: true,
+    messageCount: 0,
   },
   {
-    name: 'queued user reply nudge',
+    name: 'queued user reply is public',
     source: 'queuedUser',
     outcome: 'completed',
     text: 'Last reply',
-    sayCount: 0,
-    nudge: true,
+    messageCount: 0,
   },
   {
     name: 'worker notes stay private',
     source: 'worker',
     outcome: 'completed',
     text: 'Last reply',
-    sayCount: 0,
-    nudge: false,
+    messageCount: 0,
   },
   {
-    name: 'user steered into worker turn gets no nudge',
+    name: 'user steered into worker turn leaves notes private',
     source: 'steered',
     outcome: 'completed',
     text: 'Last reply',
-    sayCount: 0,
-    nudge: false,
+    messageCount: 0,
   },
   {
-    name: 'say suppresses nudge',
-    source: 'user',
+    name: 'wake marker without sender keeps notes private',
+    source: 'wake',
     outcome: 'completed',
     text: 'Last reply',
-    sayCount: 2,
-    nudge: false,
+    messageCount: 2,
   },
   {
-    name: 'background say sends bubbles',
+    name: 'background message_user sends visible messages',
     source: 'worker',
     outcome: 'completed',
     text: 'Last reply',
-    sayCount: 2,
-    nudge: false,
+    messageCount: 2,
   },
   {
     name: 'failed user turn has no nudge',
     source: 'user',
     outcome: 'failed',
     text: 'Last reply',
-    sayCount: 0,
-    nudge: false,
+    messageCount: 0,
   },
   {
     name: 'interrupted user turn has no nudge',
     source: 'user',
     outcome: 'interrupted',
     text: 'Last reply',
-    sayCount: 0,
-    nudge: false,
+    messageCount: 0,
   },
   {
-    name: 'reaction-only turn has no bubble',
+    name: 'empty user turn stays empty',
     source: 'user',
     outcome: 'completed',
     text: '',
-    sayCount: 0,
-    nudge: false,
+    messageCount: 0,
   },
   {
-    name: 'whitespace notes get a nudge',
+    name: 'whitespace user text gets no nudge',
     source: 'user',
     outcome: 'completed',
     text: '   ',
-    sayCount: 0,
-    nudge: true,
+    messageCount: 0,
   },
 ] as const) {
   test(`bot ${scenario.name}`, async () => {
@@ -1511,48 +1500,19 @@ for (const scenario of [
             text: 'Hello',
             createdAt: Date.now(),
             hop: 0,
-            ...(scenario.source !== 'queuedUser' && {
-              from: { threadId: f.thread.id, title: 'Worker' },
-            }),
+            ...(scenario.source === 'wake' && { kind: 'check_in' as const }),
+            ...(scenario.source !== 'queuedUser' &&
+              scenario.source !== 'wake' && {
+                from: { threadId: f.thread.id, title: 'Worker' },
+              }),
           }
           yield* f.store.enqueue(f.id, queued)
           const turn = yield* f.orch.startTurnEffect({ threadId: f.id, text: '', queued })
           turnId = turn.turnId
-          if (scenario.source === 'steered')
-            yield* f.orch.startTurnEffect({ threadId: f.id, messageId: newId(), text: 'From Jett' })
         }
         const emit = f.emitters[0]!
-        const fromUser = scenario.source !== 'worker'
-        if (fromUser) {
-          expect(yield* f.orch.botReaction(f.id, '👍')).toBe(true)
-          expect(yield* f.orch.botReaction(f.id, '👍')).toBe(false)
-        } else {
-          const reacted = yield* f.orch.botReaction(f.id, '👍').pipe(Effect.result)
-          expect(reacted).toMatchObject({
-            _tag: 'Failure',
-            failure: {
-              message: 'No message from the user in this turn to react to. Use say instead.',
-            },
-          })
-        }
+        const fromUser = scenario.source === 'user' || scenario.source === 'queuedUser'
         const textIds: string[] = []
-        if (scenario.name === 'reaction-only turn has no bubble') {
-          const id = newId()
-          yield* emit({
-            type: 'item.started',
-            item: {
-              id,
-              turnId,
-              createdAt: Date.now(),
-              kind: 'tool_call',
-              toolName: 'mcp__jetty__react',
-              input: { emoji: '👍' },
-              output: '',
-              status: 'running',
-            },
-          })
-          yield* emit({ type: 'item.completed', itemId: id, patch: { status: 'succeeded' } })
-        }
         if (scenario.text) {
           for (const text of scenario.text.trim()
             ? ['First note', scenario.text, '']
@@ -1572,6 +1532,12 @@ for (const scenario of [
             })
             yield* emit({ type: 'item.delta', itemId: id, delta: text })
             yield* emit({ type: 'item.completed', itemId: id })
+            if (scenario.source === 'steered' && text === 'First note')
+              yield* f.orch.startTurnEffect({
+                threadId: f.id,
+                messageId: newId(),
+                text: 'From Jett',
+              })
           }
         }
         if (scenario.text.trim()) {
@@ -1589,7 +1555,7 @@ for (const scenario of [
             },
           })
         }
-        if ('failedSay' in scenario) {
+        if ('failedMessageUser' in scenario) {
           const id = newId()
           yield* emit({
             type: 'item.started',
@@ -1598,7 +1564,7 @@ for (const scenario of [
               turnId,
               createdAt: Date.now(),
               kind: 'tool_call',
-              toolName: 'mcp__jetty__say',
+              toolName: 'mcp__jetty__message_user',
               input: { text: 'Unsent' },
               output: '',
               status: 'running',
@@ -1606,18 +1572,17 @@ for (const scenario of [
           })
           yield* emit({ type: 'item.completed', itemId: id, patch: { status: 'failed' } })
         }
-        const privateState = yield* f.store.getThreadState(f.id)
+        const textState = yield* f.store.getThreadState(f.id)
         expect(
-          privateState.items
+          textState.items
             .filter((item) => item.kind === 'assistant_message')
-            .every((item) => item.kind === 'assistant_message' && item.private === true)
+            .every((item) => item.kind === 'assistant_message' && item.private === !fromUser)
         ).toBe(true)
         expect(
-          privateState.items
-            .filter(shownInBotChat)
-            .some((item) => item.kind === 'assistant_message')
-        ).toBe(false)
-        for (let i = 0; i < scenario.sayCount; i++) yield* f.orch.botMessage(f.id, `Message ${i}`)
+          textState.items.filter(shownInBotChat).some((item) => item.kind === 'assistant_message')
+        ).toBe(fromUser && Boolean(scenario.text))
+        for (let i = 0; i < scenario.messageCount; i++)
+          yield* f.orch.botMessage(f.id, `Message ${i}`)
         if (scenario.outcome === 'completed') yield* emit({ type: 'turn.completed', turnId })
         else
           yield* emit({
@@ -1629,24 +1594,25 @@ for (const scenario of [
         const replies = final.items
           .filter((item) => item.kind === 'assistant_message')
           .filter(shownInBotChat)
-        expect(replies.map((item) => item.text)).toEqual(
-          Array.from({ length: scenario.sayCount }, (_, i) => `Message ${i}`)
-        )
+        expect(replies.map((item) => item.text)).toEqual([
+          ...(fromUser
+            ? textState.items
+                .filter((item) => item.kind === 'assistant_message')
+                .filter((item) => !item.agentId)
+                .map((item) => item.text)
+            : []),
+          ...Array.from({ length: scenario.messageCount }, (_, i) => `Message ${i}`),
+        ])
         expect(final.items.filter((item) => item.kind === 'assistant_message')).toHaveLength(
-          textIds.length + scenario.sayCount
+          textIds.length + scenario.messageCount
         )
         expect(
           final.items
             .filter((item) => item.kind === 'assistant_message' && textIds.includes(item.id))
-            .every((item) => item.kind === 'assistant_message' && item.private === true)
+            .every((item) => item.kind === 'assistant_message' && item.private === !fromUser)
         ).toBe(true)
         const thread = yield* f.store.requireThread(f.id)
-        expect(thread.pendingMessages ?? []).toHaveLength(scenario.nudge ? 1 : 0)
-        if (scenario.nudge)
-          expect(thread.pendingMessages![0]).toMatchObject({
-            from: { threadId: f.id, title: 'Jetty' },
-            text: expect.stringContaining('Your last turn ended without a say or a reaction,'),
-          })
+        expect(thread.pendingMessages ?? []).toHaveLength(0)
       })
     )
   })

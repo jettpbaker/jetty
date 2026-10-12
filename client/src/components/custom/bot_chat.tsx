@@ -32,7 +32,6 @@ import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { useAttachments } from '@/hooks/use-attachments'
-import { emojiUrl } from '@/lib/fluent_emoji'
 import { pressProps } from '@/lib/press'
 import { chatStamp, SESSION_GAP } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -93,7 +92,6 @@ type Message = {
   attachments: readonly Attachment[]
   at: number
   replies?: readonly Reply[]
-  reaction?: string
   streaming?: boolean
 }
 
@@ -200,7 +198,7 @@ function toItems(
           attachments: item.kind === 'user_message' ? item.attachments : [],
           at: item.createdAt,
           ...(item.kind === 'user_message'
-            ? { replies: item.replies, reaction: item.reaction }
+            ? { replies: item.replies }
             : { streaming: item.streaming }),
         },
       })
@@ -667,13 +665,6 @@ function MessageRow({
   const jett = message.from === 'jett'
   const images = message.attachments.filter(isImageAttachment)
   const files = message.attachments.filter((attachment) => !isImageAttachment(attachment))
-  // On the message's top-left corner: its thumbs when it has any, else its bubble, else its files.
-  const reactsOn = images.length > 0 ? 'images' : message.text ? 'bubble' : 'files'
-  const reaction = message.reaction && (
-    <span className='absolute -left-[3px] -top-[9px] flex size-[22px] items-center justify-center rounded-full border-2 border-background bg-accent'>
-      <img src={emojiUrl(message.reaction)} alt={message.reaction} className='size-3' />
-    </span>
-  )
   return (
     <div className={cn('flex flex-col', gapClass[gap])}>
       <div
@@ -681,8 +672,7 @@ function MessageRow({
         id={`bot-message-${message.id}`}
         className={cn(
           'group/row flex flex-col',
-          jett ? cn('origin-bottom-right', botAccentClass) : 'origin-bottom-left',
-          message.reaction && 'pt-1.5'
+          jett ? cn('origin-bottom-right', botAccentClass) : 'origin-bottom-left'
         )}
       >
         {message.replies?.map((reply) => (
@@ -706,13 +696,11 @@ function MessageRow({
               {images.length > 0 && (
                 <div className='relative'>
                   <ThumbRow images={images} />
-                  {reactsOn === 'images' && reaction}
                 </div>
               )}
               {files.length > 0 && (
                 <div className='relative'>
                   <FileLines files={files} />
-                  {reactsOn === 'files' && reaction}
                 </div>
               )}
               {message.text && (
@@ -722,7 +710,6 @@ function MessageRow({
                       <BotMentions text={message.text} />
                     </CollapsibleText>
                   </BubbleContent>
-                  {reactsOn === 'bubble' && reaction}
                 </Bubble>
               )}
             </div>
@@ -734,7 +721,6 @@ function MessageRow({
               >
                 <Markdown>{message.text}</Markdown>
               </BubbleContent>
-              {reaction}
             </Bubble>
           )}
           <MessageActions

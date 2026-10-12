@@ -578,8 +578,16 @@ export function createOrchestrator({
           event.type === 'item.started' &&
           event.item.kind === 'assistant_message' &&
           (yield* store.isBot(threadId))
-        )
-          event = { ...event, item: { ...event.item, private: true } }
+        ) {
+          const turnId = event.item.turnId
+          const current = yield* store.getThreadState(threadId)
+          const firstMessage = current.items.find(
+            (item) => item.turnId === turnId && !item.agentId && item.kind === 'user_message'
+          )
+          const fromUser =
+            firstMessage?.kind === 'user_message' && !firstMessage.from && !firstMessage.wake
+          event = { ...event, item: { ...event.item, private: !fromUser } }
+        }
         // A bad value in an item (a negative count, a malformed patch) loses that update, not the turn.
         const appended = yield* store
           .appendEvent(threadId, event)
@@ -654,35 +662,6 @@ export function createOrchestrator({
                 })
               }
             }
-          }
-        }
-        if (event.type === 'turn.completed' && (yield* store.isBot(threadId))) {
-          const turnId = event.turnId
-          const current = appended.state.items.filter(
-            (item) => item.turnId === turnId && !item.agentId
-          )
-          const firstMessage = current.find((item) => item.kind === 'user_message')
-          const fromUser = firstMessage?.kind === 'user_message' && !firstMessage.from
-          // A bubble, a reaction or a question already answers the user.
-          const sent = current.some(
-            (item) =>
-              (item.kind === 'assistant_message' && !item.private) ||
-              item.kind === 'question' ||
-              (item.kind === 'tool_call' &&
-                item.toolName === 'mcp__jetty__react' &&
-                item.status === 'succeeded')
-          )
-          if (fromUser && !sent) {
-            const user = yield* Effect.promise(() => botUserName())
-            const thread = yield* store.requireThread(threadId)
-            if (live.turnId === turnId && !thread.queuePaused && !thread.pendingMessages?.length)
-              yield* store.enqueue(threadId, {
-                id: `nudge:${newId()}`,
-                text: `Your last turn ended without a say or a reaction, so ${user} saw nothing from you. If you meant to answer, send it with say now. If nothing needs saying, react to their message.`,
-                from: { threadId, title: 'Jetty' },
-                hop: 0,
-                createdAt: Date.now(),
-              })
           }
         }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
@@ -1531,49 +1510,6 @@ export function createOrchestrator({
             return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
           const turn = yield* store.turnContext(threadId)
           yield* visibleBotMessage(threadId, turn.turnId, text)
-        })
-      },
-      botReaction(threadId: string, emoji: string) {
-        return Effect.gen(function* () {
-          if (!(yield* store.isBot(threadId)))
-            return yield* Effect.fail(new StoreError('invalid_params', 'Not a bot'))
-          const turn = yield* store.turnContext(threadId)
-          const threadState = yield* store.getThreadState(threadId)
-          const firstMessage = threadState.items.find(
-            (item) => item.turnId === turn.turnId && item.kind === 'user_message'
-          )
-          const fromNudge =
-            firstMessage?.kind === 'user_message' &&
-            firstMessage.id.startsWith('nudge:') &&
-            firstMessage.from?.threadId === threadId &&
-            firstMessage.from.title === 'Jetty'
-          const target = [...threadState.items]
-            .reverse()
-            .find(
-              (item) =>
-                item.kind === 'user_message' &&
-                !item.from &&
-                (item.turnId === turn.turnId || fromNudge)
-            )
-          if (!target || target.kind !== 'user_message')
-            return yield* Effect.fail(
-              new StoreError(
-                'not_found',
-                'No message from the user in this turn to react to. Use say instead.'
-              )
-            )
-          if (target.reaction === emoji) return false
-          yield* append(
-            threadId,
-            {
-              type: 'item.updated',
-              itemId: target.id,
-              patch: { reaction: emoji },
-            },
-            Effect.void,
-            turn.turnId
-          )
-          return true
         })
       },
       botMarker(

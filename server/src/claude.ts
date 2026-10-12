@@ -997,11 +997,9 @@ export function createClaudeAdapter(
                     // A resumed session's first turn otherwise starts before claude.ai connectors
                     // reconnect, and the model sees them all removed, then added back.
                     CLAUDE_CODE_MCP_STARTUP_WAIT_MS: '10000',
-                    // A bot speaks only through say and react, so Claude Code's nudges to write
-                    // something after a quiet turn only make it narrate.
+                    // A quiet bot turn needs no visible reply.
                     ...(bot && {
                       CLAUDE_CODE_SILENT_TURN_REMINDER: '0',
-                      CLAUDE_CODE_TERMINAL_MCP_TOOLS: 'mcp__jetty__react,mcp__jetty__say',
                     }),
                   },
                   systemPrompt: {

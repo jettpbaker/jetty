@@ -181,9 +181,10 @@ function toolDefinitions(home: string, store: Store, callerId: string) {
 test('bots only receive their own safe tools', async () => {
   const { home, store, id } = await botCaller()
   const names = (await Effect.runPromise(toolDefinitions(home, store, id))).map((tool) => tool.name)
-  expect(names).toContain('say')
+  expect(names).toContain('message_user')
   expect(names).not.toContain('tell_user')
-  expect(names).toContain('react')
+  expect(names).not.toContain('say')
+  expect(names).not.toContain('react')
   expect(SEARCH_WIKI_DESCRIPTION).toBe(
     'Hybrid search over your wiki home (pages, logs, brief): BM25 keyword scores merged with EmbeddingGemma embedding similarity. Returns the top k chunks (default 5), each with its path and line range.'
   )
@@ -212,7 +213,7 @@ test('bots only receive their own safe tools', async () => {
     expect(names).not.toContain(forbidden)
 })
 
-test('bot say sends each message and returns only sent', async () => {
+test('bot message_user sends each message and returns only sent', async () => {
   const { home, store, id } = await botCaller()
   const messages: string[] = []
   for (const message of ['First message', 'Second message']) {
@@ -229,7 +230,7 @@ test('bot say sends each message and returns only sent', async () => {
             }),
         },
         id,
-        'say',
+        'message_user',
         { text: message }
       )
     )
@@ -237,27 +238,6 @@ test('bot say sends each message and returns only sent', async () => {
     expect(JSON.parse(result.content[0]!.text)).toEqual({ sent: true })
   }
   expect(messages).toEqual(['First message', 'Second message'])
-})
-
-test('bot react result allows ending without say', async () => {
-  const { home, store, id } = await botCaller()
-  const result = await Effect.runPromise(
-    callTool(
-      home,
-      store,
-      {
-        botReaction: () => Effect.succeed(true),
-      },
-      id,
-      'react',
-      { emoji: '👍' }
-    )
-  )
-  expect(result.isError).toBeUndefined()
-  expect(JSON.parse(result.content[0]!.text)).toEqual({
-    reacted: '👍',
-    note: "If that's your whole reply, end your turn now without calling say.",
-  })
 })
 
 test('bot create_thread refuses max effort', async () => {

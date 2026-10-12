@@ -1074,11 +1074,11 @@ export function createMcpHandler(
             invoke(store.listBotTasks(bot.id).pipe(Effect.map((tasks) => tasks.map(taskResult))))
         )
         server.registerTool(
-          'say',
+          'message_user',
           {
             ...toolMeta,
             description:
-              'Send the user a message in your chat. Each call is one message; you can send several in a turn. Nothing else you write is shown.',
+              "Message the user during a turn they didn't start, when they need to know or decide something.",
             inputSchema: { text },
           },
           ({ text: message }) =>
@@ -1102,29 +1102,6 @@ export function createMcpHandler(
                 }
                 yield* orch.botMessage(bot.id, message)
                 return { sent: true }
-              })
-            )
-        )
-        server.registerTool(
-          'react',
-          {
-            ...toolMeta,
-            description: 'React to the latest user message with one emoji.',
-            inputSchema: { emoji: z.string().min(1).max(20) },
-          },
-          ({ emoji }) =>
-            invoke(
-              Effect.gen(function* () {
-                if (
-                  [...new Intl.Segmenter().segment(emoji)].length !== 1 ||
-                  !/[\p{Extended_Pictographic}\p{Emoji_Presentation}\u20e3]/u.test(emoji)
-                )
-                  return yield* Effect.fail(new StoreError('invalid_params', 'Use one emoji'))
-                yield* orch.botReaction(bot.id, emoji)
-                return {
-                  reacted: emoji,
-                  note: "If that's your whole reply, end your turn now without calling say.",
-                }
               })
             )
         )

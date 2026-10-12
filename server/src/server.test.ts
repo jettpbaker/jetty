@@ -124,7 +124,7 @@ afterEach(async () => {
 })
 
 describe('server skeleton', () => {
-  test('bot text stays private and only user turns get a Jetty nudge', async () => {
+  test('bot text is public in user turns and private in wake turns', async () => {
     const running = await boot()
     const client = await connect(running.port)
     const id = newId()
@@ -163,8 +163,8 @@ describe('server skeleton', () => {
       reply.event.type !== 'item.started' ||
       reply.event.item.kind !== 'assistant_message'
     )
-      throw new Error('No private reply')
-    expect(reply.event.item.private).toBe(true)
+      throw new Error('No public reply')
+    expect(reply.event.item.private).toBe(false)
     const replyTurnId = reply.event.item.turnId
     const replyItemId = reply.event.item.id
     await chat.waitFor(
@@ -174,35 +174,15 @@ describe('server skeleton', () => {
         message.event.turnId === replyTurnId,
       10_000
     )
-    const nudge = await chat.waitFor(
-      (message) =>
-        message.type === 'event' &&
-        message.event.type === 'item.started' &&
-        message.event.item.kind === 'user_message' &&
-        message.event.item.from?.title === 'Jetty' &&
-        message.event.item.turnId !== greetingTurnId,
-      10_000
-    )
-    if (nudge.type !== 'event' || nudge.event.type !== 'item.started')
-      throw new Error('No Jetty nudge')
-    const nudgeTurnId = nudge.event.item.turnId
-    expect(nudge.event.item).toMatchObject({
-      from: { threadId: id, title: 'Jetty' },
-      text: expect.stringContaining('Your last turn ended without a say or a reaction,'),
-    })
-    await chat.waitFor(
-      (message) =>
-        message.type === 'event' &&
-        message.event.type === 'turn.completed' &&
-        message.event.turnId === nudgeTurnId,
-      10_000
-    )
     const completed = await Effect.runPromise(running.store.getThreadState(id))
-    const privateReply = completed.items.find((item) => item.id === replyItemId)
-    expect(privateReply).toMatchObject({ private: true, streaming: false })
+    const publicReply = completed.items.find((item) => item.id === replyItemId)
+    expect(publicReply).toMatchObject({ private: false, streaming: false })
     expect(
       completed.items.filter((item) => item.kind === 'assistant_message' && !item.private)
-    ).toHaveLength(0)
+    ).toHaveLength(1)
+    expect(
+      (await Effect.runPromise(running.store.requireThread(id))).pendingMessages ?? []
+    ).toEqual([])
     await running.store
       .enqueue(id, {
         id: newId(),
@@ -220,7 +200,6 @@ describe('server skeleton', () => {
         message.event.item.kind === 'assistant_message' &&
         message.event.item.turnId !== greetingTurnId &&
         message.event.item.turnId !== replyTurnId &&
-        message.event.item.turnId !== nudgeTurnId &&
         message.event.item.private === true,
       15_000
     )

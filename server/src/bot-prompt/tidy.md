@@ -12,4 +12,4 @@ Work through it in this order:
 
    Don't invent or infer facts, and don't add rules or preferences. If you're unsure whether two statements are the same fact or which is newer, leave both.
 
-Make the edits directly. Finish with a changelog, one line per change: the file, what changed, and why ("pages/people.md: removed Kai's release role, owned by pages/release-process.md"). If nothing needed changing, say so in one line.
+Make the edits directly. Finish with a private plain-text changelog, one line per change: the file, what changed, and why ("pages/people.md: removed Kai's release role, owned by pages/release-process.md"). If nothing needed changing, say so in one line.

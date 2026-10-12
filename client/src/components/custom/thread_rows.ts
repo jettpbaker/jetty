@@ -157,15 +157,10 @@ const jettyTools: Record<string, JettyTool> = {
     words: words('Listing', 'Listed', 'task list'),
     target: () => 'tasks',
   },
-  say: {
+  message_user: {
     action: 'Send message',
     words: words('Sending', 'Sent', 'message'),
     target: (input) => (typeof input.text === 'string' ? input.text : undefined),
-  },
-  react: {
-    action: 'React',
-    words: words('Reacting', 'Reacted', 'reaction'),
-    target: (input) => (typeof input.emoji === 'string' ? input.emoji : undefined),
   },
   list_threads: {
     action: 'List threads',

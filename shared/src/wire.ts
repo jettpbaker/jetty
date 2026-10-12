@@ -1060,7 +1060,7 @@ export const methods = {
     result: Schema.Null,
   },
   // The id is the client's, so it can open the bot's chat before the server answers. The bot
-  // speaks first: creating it starts a turn that counts as Jett's.
+  // speaks first through message_user: the creation wake is private.
   'bot.create': {
     params: Schema.Struct({
       id: BotId,

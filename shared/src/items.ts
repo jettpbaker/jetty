@@ -108,8 +108,6 @@ export const ThreadItem = Schema.Union([
     attachments: Schema.Array(Attachment),
     // What this one quotes, each as it read when Jett sent it.
     replies: Schema.optional(Schema.Array(Reply)),
-    // Bot chats: the bot's emoji reaction to this message.
-    reaction: Schema.optional(Schema.String),
     // Bot chats: Jetty's own wake, a check-in or its tidy pass's changes to review. Its turn shows
     // nothing in the chat unless the bot speaks.
     wake: Schema.optional(Schema.Literals(['check_in', 'tidy'])),
@@ -119,7 +117,7 @@ export const ThreadItem = Schema.Union([
     kind: Schema.Literal('assistant_message'),
     text: Schema.String,
     streaming: Schema.optional(Schema.Boolean),
-    // Bot chats: plain text stays private unless revealed as a fallback reply.
+    // Bot text stays private in turns the user did not start.
     private: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
