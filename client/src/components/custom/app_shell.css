@@ -5,12 +5,13 @@
 .app-thread-bar {
   height: 8px;
 }
-/* The collapsed toggle rests in the page header's leading slot. */
+/* The collapsed toggle rests in the page header's leading slot, its icon (6px inside the button)
+   on the header's inset rather than its box. */
 .app-shell-navigation {
   transition-property: width, translate;
 }
 .app-shell-navigation[data-sidebar-open='false'] {
-  translate: calc(var(--page-header-inset) + 2px) 0;
+  translate: calc(var(--page-header-inset) - 4px) 0;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-shell-navigation {
