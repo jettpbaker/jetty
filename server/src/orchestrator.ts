@@ -13,9 +13,7 @@ import type {
   BotAllowRule,
 } from '@jetty/shared/wire'
 
-import { WAIT_NOTES } from '@jetty/shared/bots'
 import {
-  awaitsInput,
   heldByRestarts,
   type ApprovalDecision,
   type Attachment,
@@ -39,14 +37,10 @@ import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
 import { botTiming } from './bot-lifecycle'
 import {
   CHILD_REPORT_INSTRUCTION,
-  quietChangeInstruction,
-  QUIET_IN_PLACE_INSTRUCTION,
-  READ_ONLY_INSTRUCTION,
   deniedApprovalNote,
   relayedMessage,
   userAnswers,
 } from './jetty-instructions'
-import { createChildWaits, needsUser } from './quiet-threads'
 import {
   isAgentProvider,
   singleAgentRegistry,
@@ -130,10 +124,7 @@ function agentText(
   { text, queued }: StartTurnInput,
   fromCreator: boolean,
   meta: readonly Attachment[],
-  attachments: Attachments | null,
-  readOnly: boolean,
-  landsOn: string | null,
-  inPlace: boolean
+  attachments: Attachments | null
 ) {
   return Effect.gen(function* () {
     const lines = text ? [text] : []
@@ -151,17 +142,7 @@ function agentText(
     const message = lines.join('\n')
     if (!queued?.from) return message
     const relayed = relayedMessage(queued.from, message)
-    const wrapped = [
-      relayed,
-      ...(fromCreator ? [CHILD_REPORT_INSTRUCTION] : []),
-      ...(readOnly
-        ? [READ_ONLY_INSTRUCTION]
-        : landsOn
-          ? [quietChangeInstruction(landsOn)]
-          : inPlace
-            ? [QUIET_IN_PLACE_INSTRUCTION]
-            : []),
-    ].join('\n')
+    const wrapped = [relayed, ...(fromCreator ? [CHILD_REPORT_INSTRUCTION] : [])].join('\n')
     return queued.skill ? `/${queued.skill} ${wrapped}` : wrapped
   }).pipe(
     Effect.mapError((error) =>
@@ -251,8 +232,6 @@ export function createOrchestrator({
       { turnId: string; interrupted: boolean; failed: boolean }
     >()
     const resuming = new Map<string, AbortController>()
-    const childWaits = createChildWaits()
-    yield* Effect.addFinalizer(() => Effect.sync(childWaits.close))
     hub.setThreads(yield* store.listThreads(true))
     const threads = new Map<
       string,
@@ -261,7 +240,6 @@ export function createOrchestrator({
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
-        messageVersion: number
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -280,7 +258,6 @@ export function createOrchestrator({
           publication: Semaphore.makeUnsafe(1),
           turnId: null,
           ready: true,
-          messageVersion: childWaits.version(threadId),
           pendingDelta: null,
         }
         threads.set(threadId, value)
@@ -554,11 +531,7 @@ export function createOrchestrator({
             appended.event.type === 'item.updated' ||
             appended.event.type === 'item.completed') &&
           hub.setRunningSubagents(threadId, runningSubagents(appended.state.items))
-        if (
-          appended.surfaced ||
-          appended.state.status !== appended.prevStatus ||
-          subagentsChanged
-        ) {
+        if (appended.state.status !== appended.prevStatus || subagentsChanged) {
           const thread = yield* store.requireThread(threadId)
           hub.pushChrome({ type: 'thread.upserted', thread })
         }
@@ -617,13 +590,7 @@ export function createOrchestrator({
                 : GH_PR_VIEW.test(command)
                   ? 'claim'
                   : null
-              if (
-                mode &&
-                (mode !== 'claim' ||
-                  (!(yield* store.isBot(threadId)) &&
-                    !appended.thread.quiet &&
-                    !appended.thread.readOnly))
-              )
+              if (mode && (mode !== 'claim' || !(yield* store.isBot(threadId))))
                 yield* onPullRequestOutput(threadId, item.output, mode).pipe(
                   Effect.catchCause((cause) => Effect.logWarning(cause)),
                   Effect.forkIn(scope)
@@ -638,14 +605,7 @@ export function createOrchestrator({
         }
         if (appended.event.type === 'item.started') {
           const item = appended.event.item
-          // A bot waiting on this thread hears about the approval in its wait's result instead.
-          if (
-            item.kind === 'approval' &&
-            !item.decision &&
-            !item.withdrawn &&
-            !item.completedAt &&
-            !childWaits.has(threadId)
-          ) {
+          if (item.kind === 'approval' && !item.decision && !item.withdrawn && !item.completedAt) {
             const bot = yield* store.getOwningBot(threadId)
             if (bot && bot.id !== threadId) {
               const chat = yield* store.getThread(bot.id)
@@ -1125,7 +1085,7 @@ export function createOrchestrator({
                 fromCreator =
                   queued.from !== undefined &&
                   queued.from.threadId === thread.parentThreadId &&
-                  ((yield* store.notifiesParent(thread.id)) || childWaits.has(thread.id))
+                  (yield* store.notifiesParent(thread.id))
                 input = {
                   ...input,
                   text: queued.text,
@@ -1256,16 +1216,7 @@ export function createOrchestrator({
               }
               if (input.text && (yield* store.needsGeneratedTitle(input.threadId)))
                 yield* maybeTitle(input.threadId, chosen.provider, input.text)
-              const landsOn = yield* store.getLandsOn(thread.id)
-              let text = yield* agentText(
-                input,
-                fromCreator,
-                saved.meta,
-                attachments,
-                thread.readOnly === true,
-                landsOn,
-                thread.quiet === true && thread.environment === 'local'
-              )
+              let text = yield* agentText(input, fromCreator, saved.meta, attachments)
               for (const reply of (input.replies ?? []).toReversed())
                 text = `> ${reply.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
               if (botChat) {
@@ -1338,7 +1289,6 @@ export function createOrchestrator({
               }
               const turnId = newId()
               live.turnId = turnId
-              live.messageVersion = childWaits.version(input.threadId)
               live.ready = false
               const loadout = input.model && {
                 model: input.model,
@@ -1413,7 +1363,6 @@ export function createOrchestrator({
                             fast: input.fast,
                             permissionMode: input.permissionMode,
                             parentThreadId: thread.parentThreadId,
-                            readOnly: thread.readOnly,
                           },
                           emit
                         )
@@ -1487,22 +1436,6 @@ export function createOrchestrator({
           if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
           return task
         })
-      },
-      waitForThread(threadId: string, parentId: string, capMs: number, signal: AbortSignal) {
-        return Effect.gen(function* () {
-          const pending = childWaits.wait(
-            threadId,
-            parentId,
-            capMs,
-            signal,
-            state(parentId).messageVersion
-          )
-          yield* Queue.offer(store.queueChanges, undefined)
-          return yield* Effect.promise(() => pending)
-        })
-      },
-      botUserMessage(threadId: string) {
-        childWaits.message(threadId)
       },
       botMessage(threadId: string, text: string) {
         return Effect.gen(function* () {
@@ -1653,7 +1586,6 @@ export function createOrchestrator({
                     effort: thread.effort,
                     fast: thread.fast,
                     parentThreadId: thread.parentThreadId,
-                    readOnly: thread.readOnly,
                   },
                   emit
                 )
@@ -1942,25 +1874,6 @@ export function createOrchestrator({
           }
           for (const thread of threads) {
             if (closing) return
-            if (childWaits.has(thread.id)) {
-              const snapshot = yield* store.getThreadState(thread.id)
-              if (needsUser(thread, snapshot)) {
-                const approval = snapshot.items.findLast(
-                  (item) => item.kind === 'approval' && awaitsInput(item)
-                )
-                const detail = WAIT_NOTES.needs_user.replace(
-                  '{user}',
-                  yield* Effect.promise(() => botUserName())
-                )
-                childWaits.finish(thread.id, {
-                  status: 'needs_user',
-                  detail:
-                    approval?.kind === 'approval'
-                      ? `${detail} It wants approval to ${approvalNotice(approval)}`
-                      : detail,
-                })
-              }
-            }
             if (
               thread.createdBy !== 'agent' ||
               !thread.parentThreadId ||
@@ -1972,7 +1885,7 @@ export function createOrchestrator({
               agentBusy(thread) ||
               Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
               (children.get(thread.id) ?? []).some(busy)
-            const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}:${working}:${childWaits.has(thread.id)}`
+            const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}:${working}`
             if (checked.get(thread.id) === key) continue
             checked.set(thread.id, key)
             yield* locked(
@@ -1980,9 +1893,7 @@ export function createOrchestrator({
               Effect.gen(function* () {
                 const result = yield* store.reportSettledChild(thread.id, {
                   working: working || agentBusy(thread),
-                  wait: childWaits.has(thread.id),
                 })
-                if ('waited' in result && result.waited) childWaits.finish(thread.id, result.waited)
                 if ('note' in result && result.note) yield* publish(thread.id, result.note)
                 if ('asked' in result)
                   hub.pushChrome({

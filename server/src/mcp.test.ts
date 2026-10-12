@@ -490,7 +490,7 @@ test('archive_thread reaches any idle thread, and stop_thread stays on direct ch
   expect(stopped).toEqual([child.id])
 })
 
-test('only a bot gets create_thread quiet options and an optional prompt', async () => {
+test('only a bot gets create_thread setup_worktrees and an optional prompt', async () => {
   const { home, store, id } = await botCaller()
   const project = await Effect.runPromise(store.createProject(home))
   const ordinary = await Effect.runPromise(store.createThread(project.id, newId()))
@@ -500,44 +500,9 @@ test('only a bot gets create_thread quiet options and an optional prompt', async
     const tool = (await Effect.runPromise(toolDefinitions(home, store, callerId))).find(
       (tool) => tool.name === 'create_thread'
     )!
-    for (const option of ['quiet', 'read_only', 'wait', 'setup_worktrees'])
-      expect(option in tool.inputSchema.properties).toBe(callerId === id)
+    for (const option of ['quiet', 'read_only', 'wait'])
+      expect(option in tool.inputSchema.properties).toBe(false)
+    expect('setup_worktrees' in tool.inputSchema.properties).toBe(callerId === id)
     expect(tool.inputSchema.required?.includes('prompt') ?? false).toBe(callerId !== id)
   }
-})
-
-test("a bot's quiet change refuses Grok, which can't commit in a worktree", async () => {
-  const { home, store, id } = await botCaller()
-  const project = await Effect.runPromise(store.createProject(home))
-  const worktrees = {
-    isGit: async () => true,
-    hasOrigin: async () => true,
-    defaultRef: async () => 'origin/main',
-    resolveRef: async () => 'base',
-  } as unknown as Worktrees
-  const quietChange = (model: string, read_only?: boolean) =>
-    Effect.runPromise(
-      callTool(
-        home,
-        store,
-        { botMarker: () => Effect.void },
-        id,
-        'create_thread',
-        {
-          prompt: 'Fix it',
-          project: project.title,
-          model,
-          ...(read_only ? { read_only } : { quiet: true }),
-        },
-        () => Effect.void,
-        worktrees
-      )
-    )
-  const refused = await quietChange('grok-4.7')
-  expect(refused.isError).toBe(true)
-  expect(refused.content[0]!.text).toBe(
-    "Grok threads can't commit in a worktree yet, so a quiet change on Grok can't land. Use a Claude or Codex model."
-  )
-  expect((await quietChange('sonnet')).isError).toBeUndefined()
-  expect((await quietChange('grok-4.7', true)).isError).toBeUndefined()
 })

@@ -27,8 +27,6 @@ export type ThreadPatch = {
   pinned?: boolean
   archived?: boolean
   provider?: ProviderId
-  // false surfaces a quiet thread at once, before the server agrees.
-  quiet?: boolean
 }
 
 export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
@@ -301,14 +299,6 @@ const botThreadsAtom = Atom.family((botId: string) =>
 
 export function useBotThreadMetas(botId: string) {
   return useAtomValue(botThreadsAtom(botId))
-}
-
-const quietThreadIdsAtom = Atom.readable((get) =>
-  (get(chromeAtom)?.threads ?? noThreads).flatMap((thread) => (thread.quiet ? [thread.id] : []))
-).pipe(Atom.withEquality(Equal.equals))
-
-export function useQuietThreadIds() {
-  return useAtomValue(quietThreadIdsAtom)
 }
 
 // Each linked PR by repo#number (the first thread's link to it), and each project's PR repos.

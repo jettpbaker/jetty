@@ -25,7 +25,6 @@ export type TurnInput = {
   threadId: string
   turnId: string
   text: string
-  readOnly?: boolean
   compact?: boolean
   images?: AgentImage[]
   model?: string

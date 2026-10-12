@@ -412,11 +412,6 @@ export const ThreadMeta = Schema.Struct({
   pendingMessages: Schema.optional(Schema.Array(QueuedMessage)),
   // The bot whose work this is: set on every thread below a bot, however deep.
   botId: Schema.optional(Schema.String),
-  // A bot's quiet thread, out of the sidebar and the bot's chat until it needs Jett, opens a pull
-  // request, or he opens or pins it. Absent from then on: it's an ordinary thread.
-  quiet: Schema.optional(Schema.Boolean),
-  // Reads the project checkout with edits blocked. Set at creation, never cleared.
-  readOnly: Schema.optional(Schema.Boolean),
   // The desktop its agent opened with desktop_session, until it stops.
   desktop: Schema.optional(
     Schema.Struct({ id: Schema.String, state: Schema.Literals(['starting', 'live']) })
@@ -743,7 +738,6 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String, title: Schema.String }),
     result: Schema.Null,
   },
-  // Pinning a quiet thread surfaces it.
   'thread.pin': {
     params: Schema.Struct({ threadId: Schema.String, pinned: Schema.Boolean }),
     result: Schema.Null,

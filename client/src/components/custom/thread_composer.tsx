@@ -652,7 +652,6 @@ export function ThreadComposer({
                 environment={meta?.environment}
                 branch={meta && threadBranch(meta)}
                 path={projectPath}
-                readOnly={meta?.readOnly}
                 provider={provider}
                 ring={!ambient}
                 note={

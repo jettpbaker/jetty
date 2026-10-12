@@ -699,9 +699,6 @@ export function createWorktrees(
   return {
     branches,
     setupGuide,
-    hasOrigin,
-    isGit: async (path: string) => (await gitState(path)) === 'ok',
-    defaultRef,
     configured: async (cwd: string) => {
       const top = await tryGit(cwd, 'rev-parse', '--show-toplevel')
       return Bun.file(join(top || cwd, CONFIG)).exists()

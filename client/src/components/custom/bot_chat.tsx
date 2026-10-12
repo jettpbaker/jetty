@@ -20,7 +20,6 @@ import {
   useInterruptTurn,
   usePendingBotMessages,
   useProject,
-  useQuietThreadIds,
   useSendToBot,
   useModels,
   useThread,
@@ -49,7 +48,6 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
     [others, showQuiet, tidying]
   )
   const [room, setRoom] = useState<Room>()
-  const quietThreadIds = useQuietThreadIds()
   const project = useProject(bot.projectId ?? undefined)
   const sendToBot = useSendToBot()
   const interrupt = useInterruptTurn()
@@ -63,12 +61,9 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const setReplies = (quotes: readonly Reply[] | undefined) => updateDraft({ quotes })
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const overlay = useThreadOverlay(bot.id, thread)
-  // A quiet thread's marker stays hidden until the thread surfaces, then shows where it was started.
   const items = useMemo(
     () => [
-      ...overlay.items.filter(
-        (item) => !(item.kind === 'thread_marker' && quietThreadIds.includes(item.threadId))
-      ),
+      ...overlay.items,
       ...pending.map(
         (message): ThreadItem => ({
           kind: 'user_message',
@@ -81,7 +76,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
         })
       ),
     ],
-    [overlay.items, quietThreadIds, pending]
+    [overlay.items, pending]
   )
   const turnId = thread?.activeTurnId
   // Only the bot's own card stops its turn; a worker waiting on Jett leaves it working.

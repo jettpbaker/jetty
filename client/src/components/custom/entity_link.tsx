@@ -203,7 +203,7 @@ export function ThreadLink({
           <Link
             to='/threads/$threadId'
             params={{ threadId: id }}
-            className={cn(inlineLinkClass, meta.quiet && 'text-muted-foreground')}
+            className={inlineLinkClass}
             onPointerEnter={() => prefetch.enter(id)}
             onPointerLeave={() => prefetch.leave(id)}
           />

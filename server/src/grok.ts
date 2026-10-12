@@ -103,13 +103,9 @@ export function grokArgs(input: TurnInput) {
   return [
     '--no-plan',
     '--permission-mode',
-    input.readOnly
-      ? 'default'
-      : input.permissionMode === 'full_access'
-        ? 'bypassPermissions'
-        : 'auto',
+    input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
     '--sandbox',
-    !input.readOnly && input.permissionMode === 'full_access' ? 'off' : 'workspace',
+    input.permissionMode === 'full_access' ? 'off' : 'workspace',
     'agent',
     '--no-leader',
     'stdio',
@@ -305,38 +301,6 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         }
         const itemId = newId()
         const base = { id: itemId, turnId: session.input.turnId, createdAt: Date.now() }
-        if (
-          (method === 'x.ai/hooks/run' || method === '_x.ai/hooks/run') &&
-          session.input.readOnly
-        ) {
-          const read =
-            [
-              'read_file',
-              'list_dir',
-              'grep',
-              'web_search',
-              'web_fetch',
-              'todo_write',
-              'ask_user_question',
-            ].includes(string(params.toolName)) ||
-            SELF_TOOLS.some(
-              (name) =>
-                params.toolName === `jetty__${name}` ||
-                params.toolName === `mcp__jetty__${name}` ||
-                (params.toolName === 'use_tool' &&
-                  object(params.toolInput).tool_name === `jetty__${name}`)
-            )
-          yield* connection.respond(
-            id,
-            read
-              ? { decision: 'continue' }
-              : {
-                  decision: 'deny',
-                  systemMessage: 'This thread is read-only. Only read tools are allowed.',
-                }
-          )
-          return
-        }
         if (method === 'session/request_permission') {
           const options = Array.isArray(params.options) ? params.options.map(object) : []
           const tool = object(params.toolCall)
@@ -475,13 +439,6 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             env,
           }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
-          if (session.input.readOnly) {
-            const events = object(
-              object(object(init.agentCapabilities)._meta)['x.ai/hooks']
-            ).blockingEvents
-            if (!Array.isArray(events) || !events.includes('pre_tool_use'))
-              return yield* Effect.fail(new AgentError('Grok cannot enforce read-only tool access'))
-          }
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'grok')
           if (resume && object(init.agentCapabilities).loadSession !== true)
             return yield* Effect.fail(
@@ -500,14 +457,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 ]
               : [],
             ...(resume ? { sessionId: resume } : {}),
-            _meta: {
-              ...(rules ? { rules } : {}),
-              ...(session.input.readOnly
-                ? {
-                    'x.ai/hooks': { pre_tool_use: [{ hookCallbackIds: ['jetty-read-only'] }] },
-                  }
-                : {}),
-            },
+            _meta: rules ? { rules } : {},
           })
           const sessionId = resume ?? string(result.sessionId)
           if (!sessionId) return yield* Effect.fail(new AgentError('Grok returned no session id'))

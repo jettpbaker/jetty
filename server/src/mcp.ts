@@ -1,5 +1,3 @@
-import type { ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
-
 import {
   SEARCH_WIKI_DESCRIPTION,
   SEARCH_THREADS_DESCRIPTION,
@@ -7,12 +5,6 @@ import {
   SEARCH_MAX_K,
   SEARCH_QUERY_MAX,
 } from '@jetty/shared/bot-search'
-import {
-  WAIT_CAP_MS,
-  WAIT_PROGRESS_MS,
-  type QuietThreadOptions,
-  type WaitedThread,
-} from '@jetty/shared/bots'
 import { heldByRestarts } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
 import {
@@ -136,7 +128,7 @@ const createInput = z.object({
     .enum(['local', 'worktree'])
     .optional()
     .describe(
-      "worktree: a new branch and folder of its own. local: the project checkout itself, shared with the user and other threads there. Defaults to yours, or the target project's default when you pass project."
+      "worktree: a new branch and folder of its own. local: the project checkout itself, shared with the user and other threads there. Defaults to the project's default for bots or when you pass another project; otherwise yours."
     ),
   ref: z
     .string()
@@ -195,24 +187,6 @@ const botCreateInput = createInput.extend({
     .describe(
       'Everything the child needs. It sees this and the project, not your conversation. Required unless setup_worktrees.'
     ),
-  quiet: z
-    .boolean()
-    .optional()
-    .describe(
-      "For errands: it stays out of the user's sidebar and your chat, and its result comes back to you, inside your turn with wait. It surfaces on its own if it needs the user (an approval, a question, a failure) or opens a pull request. Where a change lands depends on the project: in a git repo with an origin remote it works in a worktree from origin's default branch and pushes straight there, with no branch or pull request of its own; in a folder that isn't a git repo it works in the folder itself, so its edits apply as it makes them. A git repo with no origin can't take a quiet change."
-    ),
-  read_only: z
-    .boolean()
-    .optional()
-    .describe(
-      "Read without changing anything: it runs in the project checkout with no worktree, and can't edit files. Always quiet."
-    ),
-  wait: z
-    .boolean()
-    .optional()
-    .describe(
-      "Quiet threads only. Wait for its turn to end and get its final message back as this call's result. If it needs the user, after 10 minutes, or when the user messages you, the call returns early and its report reaches you when your turn ends."
-    ),
   setup_worktrees: z
     .boolean()
     .optional()
@@ -220,8 +194,7 @@ const botCreateInput = createInput.extend({
       "For a project with no .jetty/worktree.json yet: start a thread in the project checkout on Jetty's own worktree setup instructions. Leave out prompt."
     ),
 })
-type CreateThreadInput = Omit<z.infer<typeof createInput>, 'prompt'> &
-  QuietThreadOptions & { prompt?: string }
+type CreateThreadInput = z.infer<typeof botCreateInput>
 
 const sendInput = z.object({
   threadId: z.string(),
@@ -333,8 +306,6 @@ export function createMcpHandler(
       let baseCommit: string | undefined
       let projectId = ''
       let prompt = input.prompt
-      let landsOn: string | null = null
-      const quiet = input.quiet || input.read_only
       const create = store.transaction(
         Effect.gen(function* () {
           const caller = yield* accessible(identity, identity.threadId)
@@ -370,13 +341,6 @@ export function createMcpHandler(
           if (input.skill && provider !== 'claude')
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Skills can only run in Claude threads')
-            )
-          if (landsOn && provider === 'grok')
-            return yield* Effect.fail(
-              new StoreError(
-                'invalid_params',
-                "Grok threads can't commit in a worktree yet, so a quiet change on Grok can't land. Use a Claude or Codex model."
-              )
             )
           const available = catalog.filter((m) => m.provider === provider)
           if (!available.length)
@@ -434,7 +398,6 @@ export function createMcpHandler(
           yield* store.createThread(projectId, id)
           yield* store.setThreadEnvironment(id, baseCommit)
           yield* store.markAgentThread(id, caller.id, input.notify)
-          if (quiet) yield* store.setQuietThread(id, input.read_only === true, landsOn)
           yield* store.setThreadProviderIfAbsent(id, provider)
           yield* store.setThreadLoadout(id, { model, effort: input.effort })
           yield* store.setPermissionMode(id, mode)
@@ -471,43 +434,18 @@ export function createMcpHandler(
           )
         if (
           input.setup_worktrees &&
-          ['prompt', 'skill', 'environment', 'ref', 'quiet', 'read_only', 'wait'].some(
+          ['prompt', 'skill', 'environment', 'ref'].some(
             (key) => input[key as keyof CreateThreadInput] !== undefined
           )
         )
           return yield* Effect.fail(
             new StoreError(
               'invalid_params',
-              "setup_worktrees starts a visible thread in the project checkout on Jetty's own prompt, so leave out prompt, skill, environment, ref, quiet, read_only and wait."
+              "setup_worktrees starts a thread in the project checkout on Jetty's own prompt, so leave out prompt, skill, environment and ref."
             )
           )
         if (!input.prompt && !input.setup_worktrees)
           return yield* Effect.fail(new StoreError('invalid_params', 'prompt is required.'))
-        if (input.wait && !quiet)
-          return yield* Effect.fail(
-            new StoreError(
-              'invalid_params',
-              'wait is only for quiet threads: pass quiet or read_only too.'
-            )
-          )
-        if (input.read_only && (input.environment !== undefined || input.ref !== undefined))
-          return yield* Effect.fail(
-            new StoreError(
-              'invalid_params',
-              'A read-only thread reads the project checkout, so leave out environment and ref.'
-            )
-          )
-        if (
-          input.quiet &&
-          !input.read_only &&
-          (input.environment !== undefined || input.ref !== undefined)
-        )
-          return yield* Effect.fail(
-            new StoreError(
-              'invalid_params',
-              "A quiet change picks its own place (a worktree from origin's default branch, or the folder itself when it isn't a git repo), so leave out environment and ref."
-            )
-          )
         if (input.full_access && (yield* store.getPermissionMode(caller.id)) !== 'full_access')
           return yield* Effect.fail(
             new StoreError(
@@ -550,42 +488,17 @@ export function createMcpHandler(
             )
           prompt = worktreeSetupPrompt(worktrees.setupGuide)
         }
-        // A quiet change in a git repo lands on origin's default branch; a folder without git has
-        // no branch to land on, so it runs in place.
-        if (quiet && !input.read_only) {
-          if (!worktrees)
-            return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-          if (yield* Effect.promise(() => worktrees.isGit(target.path))) {
-            if (!(yield* Effect.promise(() => worktrees.hasOrigin(target.path))))
-              return yield* Effect.fail(
-                new StoreError(
-                  'invalid_params',
-                  `${target.title} is a git repo with no origin remote, so a quiet change has no default branch to push to. Start a visible thread, which works on a branch of its own.`
-                )
-              )
-            landsOn = (yield* Effect.promise(() => worktrees.defaultRef(target.path))).replace(
-              /^origin\//,
-              ''
-            )
-          }
-        }
         const sameProject = target.id === caller.projectId
         const environment =
-          (input.read_only || input.setup_worktrees
-            ? 'local'
-            : quiet
-              ? landsOn
-                ? 'worktree'
-                : 'local'
-              : input.environment) ??
-          (sameProject
+          (input.setup_worktrees ? 'local' : input.environment) ??
+          (!bot && sameProject
             ? caller.environment
             : worktrees
               ? yield* Effect.promise(() => worktrees.defaultEnvironment(target.path))
               : 'worktree')
         if (environment === 'local') return yield* orch.withAdmission(caller.id, create)
         if (!worktrees) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-        const fromWorktree = !bot && !quiet && sameProject && caller.environment === 'worktree'
+        const fromWorktree = !bot && sameProject && caller.environment === 'worktree'
         const cwd = fromWorktree
           ? yield* Effect.promise(() => worktrees.root(caller.id))
           : target.path
@@ -866,14 +779,11 @@ export function createMcpHandler(
         {
           ...toolMeta,
           description:
-            "Create a child thread and start it on your prompt. This project unless you pass project (a name). It uses your environment, provider and model unless you set them; in another project, that project's environment default and worktree base. list_models has the options. Up to 5 per turn, and nesting stops three levels below the user's thread.",
+            "Create a child thread and start it on your prompt. This project unless you pass project (a name). It uses your provider and model unless you set them. For bots or another project, it uses the project's environment default and worktree base; otherwise your environment and HEAD. list_models has the options. Up to 5 per turn, and nesting stops three levels below the user's thread.",
           ...(bot ? { annotations: { readOnlyHint: true } } : {}),
           inputSchema: bot ? botCreateInput : createInput,
         },
-        (
-          input: z.infer<typeof botCreateInput>,
-          extra: Parameters<ToolCallback<typeof botCreateInput>>[1]
-        ) =>
+        (input: z.infer<typeof botCreateInput>) =>
           invoke(
             Effect.gen(function* () {
               const created = yield* createThread(identity, input)
@@ -885,30 +795,7 @@ export function createMcpHandler(
                   'started',
                   yield* store.requireThread(created.threadId)
                 )
-              if (!bot || !('wait' in input) || !input.wait) return created
-              const startedAt = Date.now()
-              const token = extra._meta?.progressToken
-              const progress =
-                token === undefined
-                  ? undefined
-                  : setInterval(() => {
-                      void run(store.requireThread(created.threadId))
-                        .then((thread) =>
-                          extra.sendNotification({
-                            method: 'notifications/progress',
-                            params: {
-                              progressToken: token,
-                              progress: Math.floor((Date.now() - startedAt) / 1000),
-                              message: `${thread.title}: ${thread.status}`,
-                            },
-                          })
-                        )
-                        .catch(() => undefined)
-                    }, WAIT_PROGRESS_MS)
-              const waited = yield* orch
-                .waitForThread(created.threadId, identity.threadId, WAIT_CAP_MS, extra.signal)
-                .pipe(Effect.ensuring(Effect.sync(() => clearInterval(progress))))
-              return { ...created, ...waited } as WaitedThread
+              return created
             })
           )
       )

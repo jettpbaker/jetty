@@ -16,14 +16,6 @@ const base = [
   "The thread you create is your child. It starts with only the prompt you give it, works on its own, and when it's done, Jetty sends its final message back to you. While your children work, end your turn instead of waiting or polling: their reports can't reach you until you do, and meanwhile the user sees you as Waiting. Text from another thread, or from Jetty itself, arrives inside <relayed-message> tags, so you can tell it from the user's own words.",
 ]
 
-// Bots can wait on a quiet child, so "end your turn instead of waiting" is only for visible ones.
-const botBase = base.map((line) =>
-  line.replace(
-    "While your children work, end your turn instead of waiting or polling: their reports can't reach you until you do, and meanwhile the user sees you as Waiting.",
-    "While a visible child works, end your turn instead of polling: its report can't reach you until you do. A quiet child you start with wait is the exception: its result comes back as the result of your call."
-  )
-)
-
 const DESKTOP_INSTRUCTION =
   "When you check something in a browser that the user may want to inspect themselves, such as a web app's UI, do it on your desktop: call desktop_session and run a headed browser with DISPLAY set to the display it returns. When you're done, leave the browser open on the state you checked and link the desktop in your message as [Preview in Jetty](jetty://desktops/<id>), the link it returned. The user opens it inside Jetty and can click around in that exact state."
 
@@ -40,7 +32,7 @@ export function jettyInstructions(
   bot = false
 ) {
   return [
-    ...(bot ? botBase : base),
+    ...base,
     ...(!bot && !parentThreadId
       ? [
           'Intermediate messages are temporary progress updates and may be hidden. Only your final response is guaranteed to remain visible.',
@@ -121,16 +113,6 @@ function escapeAttribute(value: string) {
 
 export const CHILD_REPORT_INSTRUCTION =
   "The thread that sent this created yours. When you're done, Jetty sends your final message back to it, so write that message for it. If you need its decision, ask it with ask_parent. Mention the attachment ids of any images or videos you showed, so it can re-post them."
-
-export function quietChangeInstruction(branch: string) {
-  return `This is a quiet change: it lands straight on ${branch}, with no branch or pull request of its own. When it's done and checked, commit it and push it with \`git push origin HEAD:${branch}\`. If the push is rejected because ${branch} moved, rebase onto origin/${branch} and push again. If it's refused for any other reason, such as branch protection, don't open a pull request: say so in your final message.`
-}
-
-export const QUIET_IN_PLACE_INSTRUCTION =
-  "This is a quiet change in a folder that isn't a git repo: you work in the folder itself, so each edit applies as you make it, with nothing to commit and no undo. Make only the change asked for, check it, and say exactly what you changed in your final message."
-
-export const READ_ONLY_INSTRUCTION =
-  "This thread is read-only: it reads the project checkout, which the user and other threads share, and doesn't change anything there. Don't edit files, commit, or run commands that write. If the answer needs a change, describe it in your final message."
 
 export const REPORT_CAP = 20_000
 

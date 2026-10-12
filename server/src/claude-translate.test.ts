@@ -59,7 +59,7 @@ describe('translate()', () => {
     }
   )
 
-  test('a quiet wait result still completes its tool after a heartbeat', () => {
+  test('an MCP result still completes its tool after a heartbeat', () => {
     const ctx = createTranslateCtx('turn')
     const itemId = startedItemId(
       translate(
@@ -71,7 +71,7 @@ describe('translate()', () => {
                 type: 'tool_use',
                 id: 'wait',
                 name: 'mcp__jetty__create_thread',
-                input: { read_only: true, wait: true, prompt: 'Read the config.' },
+                input: { prompt: 'Read the config.' },
               },
             ],
           },
@@ -85,8 +85,7 @@ describe('translate()', () => {
     )
     const output = JSON.stringify({
       threadId: 'worker',
-      status: 'finished',
-      report: 'Port is 4322.',
+      link: 'jetty://threads/worker',
     })
     expect(
       translate(

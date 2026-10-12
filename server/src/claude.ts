@@ -1040,7 +1040,6 @@ export function createClaudeAdapter(
                   disallowedTools: [
                     'EnterPlanMode',
                     'ExitPlanMode',
-                    ...(input.readOnly ? ['Edit', 'Write', 'NotebookEdit'] : []),
                     ...(input.parentThreadId ? ['AskUserQuestion'] : []),
                     ...(bot ? BOT_DISALLOWED_TOOLS : []),
                   ],

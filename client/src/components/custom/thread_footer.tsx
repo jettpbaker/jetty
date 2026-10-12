@@ -13,7 +13,6 @@ export function ThreadFooter({
   environment,
   branch,
   path,
-  readOnly,
   provider,
   ring,
   note,
@@ -22,7 +21,6 @@ export function ThreadFooter({
   environment?: 'local' | 'worktree'
   branch?: string
   path?: string
-  readOnly?: boolean
   provider: string
   ring: boolean
   // A passing state, shown in the environment's place: editing a queued message.
@@ -54,7 +52,6 @@ export function ThreadFooter({
           <TooltipContent align='start' className='max-w-lg'>
             <span className='flex flex-col'>
               {place && <span>{place.label}</span>}
-              {readOnly && <span>Read-only</span>}
               {path && <span className='font-mono text-muted-foreground'>{path}</span>}
             </span>
           </TooltipContent>
