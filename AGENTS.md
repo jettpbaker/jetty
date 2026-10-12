@@ -59,22 +59,24 @@
 - Features the design has but the app can't do yet stay visible but disabled
   (e.g. "Link issue") — never hidden. They're reminders of
   what's still wanted, not clutter.
-- Icons are Lucide for git and issue concepts (branches, PRs, commits, diffs) and
-  Hugeicons stroke-rounded for everything else, carets included. Deliberate
-  Lucide exceptions outside git: `Settings2` (the thread list's filter button and the PR list's Group button).
-  Deliberate Hugeicons exception inside git: the worktree folder (`FolderGit2`),
-  whose folder matches the project folder it sits beside. Lucide is imported only in `lucide_icons.tsx`, Hugeicons
-  only in `huge_icons.tsx`, which wraps each glyph; oxlint bans both packs
-  everywhere else, and Phosphor and Octicons outright. Registry components arrive
-  speaking lucide — swap their non-git icons to Hugeicons when adding them.
+- Icons are Central Icons in Round r3 (`@central-icons-react/round-outlined-radius-3-stroke-2`,
+  filled variants from `round-filled-radius-3-stroke-2`), imported only in `central_icons.tsx`,
+  which wraps each glyph and holds the composed ones (file types, effort, worktree). The one
+  exception is GitHub's issue states (open, completed, not planned), which stay Lucide in
+  `lucide_icons.tsx` so they match GitHub. oxlint bans both packs everywhere else, and Hugeicons,
+  Phosphor and Octicons outright. Registry components arrive speaking lucide — swap their icons to
+  Central when adding them. Chevrons are the Small variants; project icons are emoji only.
+- The repo is public and Central's licence forbids sharing its icons, so never commit Central's
+  paths or SVGs. The glyphs come from the npm package: a composed icon masks or clips Central's own
+  components and adds our strokes, and a glyph a component can't render (a CSS mask, a sprite
+  sheet) comes from the `virtual:central-svgs` module, which builds it from the package.
 
 ### icons
 
-- Every icon line is 1.333px at every size (CSS non-scaling stroke). Hugeicons
-  draw 1.125× their slot through an inset viewBox, centred, without changing
-  layout; Lucide draws at slot size.
+- Every icon line is 1.25px at every size (CSS non-scaling stroke); Central's thin detail
+  strokes keep their own weight. Icons draw at their slot size.
 - Fill (`filled`) only solid metaphors: stop, fast-mode flash, video play/pause,
-  the pinned pin. Checks passed/failed reuse the status discs; selected answers
+  the pinned pin, and the sidebar and details pane toggles. Checks passed/failed reuse the status discs; selected answers
   stay stroked. GitHub is the official filled svgl mark. Provider logos, the
   in-progress glyph, status discs and context ring stay custom.
 - Keycaps: a shortcut the app registers shows as the `KeybindChip` of its entry in `keybinds.tsx`; a one-off key that isn't an app shortcut (↵ in a dialog's footer) is a `Kbd`. Both fill with translucent foreground (`bg-foreground/8`) so they sit on any surface. Never give a keycap an opaque fill.

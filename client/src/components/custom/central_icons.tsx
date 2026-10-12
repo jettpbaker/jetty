@@ -398,14 +398,18 @@ export function WorktreeIcon({ size = 16, ...props }: Omit<IconProps, 'filled'>)
   )
 }
 
+// The px line index.css gives every icon: Central's 2-unit strokes take it, its thin details keep their own.
+const iconLine = 1.25
+const linePx = (width: string) => (Number(width) === 2 ? iconLine : Number(width))
+
 // A glyph as an SVG data URL for CSS masks, where a component can't render (inside Pierre's shadow
-// roots), with its line at 2px for `size` as index.css draws the components.
+// roots), with its line as index.css draws the components at `size`.
 function centralMask(svg: string, size: number) {
   const sized = svg
     .replace('width="24px" height="24px"', `width="${size}" height="${size}"`)
     .replace(
       /stroke-width="([\d.]+)"/g,
-      (_, width: string) => `stroke-width="${(Number(width) * 24) / size}"`
+      (_, width: string) => `stroke-width="${(linePx(width) * 24) / size}"`
     )
     .replaceAll('currentColor', 'black')
   return `url("data:image/svg+xml,${encodeURIComponent(sized)}")`
@@ -419,11 +423,12 @@ export const centralMasks = {
   magnifyingGlass2: centralMask(centralSvgs.MagnifyingGlass2, 12),
 }
 
-// A glyph as a sprite-sheet symbol, its line 2px at any size.
+// A glyph as a sprite-sheet symbol, its line as index.css draws the components at any size.
 function centralSymbol(svg: string, id: string) {
   const shapes = svg
     .replace(/^<svg[^>]*>|<\/svg>$/g, '')
     .replace(/<(path|circle|rect|line) /g, '<$1 vector-effect="non-scaling-stroke" ')
+    .replace(/stroke-width="([\d.]+)"/g, (_, width: string) => `stroke-width="${linePx(width)}"`)
   return `<symbol id="${id}" viewBox="0 0 24 24">${shapes}</symbol>`
 }
 

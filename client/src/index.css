@@ -348,7 +348,7 @@
 :is(svg[data-icon-pack='central'], svg.lucide)
   :is(path, circle, rect, line, polyline, polygon, ellipse) {
   vector-effect: non-scaling-stroke;
-  stroke-width: 2px;
+  stroke-width: 1.25px;
 }
 svg[data-icon-pack='central'] [stroke-width='0.75'] {
   stroke-width: 0.75px;
