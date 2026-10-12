@@ -206,7 +206,7 @@ export function DetailsLayout({
         inert={open && full}
         aria-hidden={(open && full) || undefined}
       >
-        <div ref={attachLeftSlot} className='flex h-full min-w-[320px] flex-col' />
+        <div ref={attachLeftSlot} className='flex h-full min-w-[min(320px,100%)] flex-col' />
       </div>
       {createPortal(children, chatHost)}
       <aside
