@@ -82,7 +82,7 @@ import { IconMinimize45 } from '@central-icons-react/round-outlined-radius-3-str
 import { IconNewspaper } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconNewspaper'
 import { IconNumberedList } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconNumberedList'
 import { IconPaintBrush } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPaintBrush'
-import { IconPaperclip3 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPaperclip3'
+import { IconPaperclip2 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPaperclip2'
 import { IconPause } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPause'
 import { IconPencil2 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPencil2'
 import { IconPin } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPin'
@@ -208,7 +208,7 @@ export const Minimize45Icon = centralIcon(IconMinimize45)
 export const NewspaperIcon = centralIcon(IconNewspaper)
 export const NumberedListIcon = centralIcon(IconNumberedList)
 export const PaintBrushIcon = centralIcon(IconPaintBrush)
-export const Paperclip3Icon = centralIcon(IconPaperclip3)
+export const Paperclip2Icon = centralIcon(IconPaperclip2)
 export const PauseIcon = centralIcon(IconPause, IconPauseFilled)
 export const Pencil2Icon = centralIcon(IconPencil2)
 export const PinIcon = centralIcon(IconPin, IconPinFilled)

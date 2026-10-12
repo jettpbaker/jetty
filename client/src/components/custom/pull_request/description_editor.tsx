@@ -1,7 +1,7 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 import {
-  Paperclip3Icon,
+  Paperclip2Icon,
   ArrowUpIcon,
   ChecklistIcon,
   CodeIcon,
@@ -805,7 +805,7 @@ export function DeferredMarkdownEditor({
                 ?.click()
             }}
           >
-            <Paperclip3Icon />
+            <Paperclip2Icon />
           </Button>,
           props.attachSlot
         )}
@@ -887,7 +887,7 @@ function ComposerActions({
         aria-label='Attach image or video'
         onClick={pickFiles}
       >
-        <Paperclip3Icon />
+        <Paperclip2Icon />
       </Button>
       <InputGroupButton
         variant='default'
@@ -1599,7 +1599,7 @@ export function MarkdownEditor({
             title='Attach image or video'
             onClick={pickFiles}
           >
-            <Paperclip3Icon />
+            <Paperclip2Icon />
           </Button>,
           attachSlot
         )}

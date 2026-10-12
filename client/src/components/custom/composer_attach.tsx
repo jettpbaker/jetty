@@ -1,6 +1,6 @@
 import type { ComposerAttachment } from '@/hooks/use-attachments'
 
-import { CrossSmallIcon, Paperclip3Icon, PlusLargeIcon } from '@/components/custom/central_icons'
+import { CrossSmallIcon, Paperclip2Icon, PlusLargeIcon } from '@/components/custom/central_icons'
 import { CircleDotIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,7 +38,7 @@ export function ComposerAttach({
       <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => void pickFiles({ multiple: true }).then(onAttach)}>
-            <Paperclip3Icon />
+            <Paperclip2Icon />
             Attach files
           </DropdownMenuItem>
           <DisabledTooltip reason='Coming soon' side='right'>
