@@ -27,6 +27,7 @@ import { newId } from '@jetty/shared/wire'
 import { Cause, Context, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
+import type { Desktops } from './desktops'
 import type { Hub } from './hub'
 import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
@@ -212,6 +213,7 @@ type OrchestratorOptions = {
   agent: Agent | AgentRegistry
   hub: Hub
   worktrees?: Worktrees
+  desktops?: Desktops
   titler?: ProviderTitler | null
   attachments?: Attachments | null
   onPullRequestOutput?: (
@@ -230,6 +232,7 @@ export function createOrchestrator({
   agent,
   hub,
   worktrees,
+  desktops,
   titler = null,
   attachments = null,
   onPullRequestOutput,
@@ -369,6 +372,15 @@ export function createOrchestrator({
       )
     }
 
+    // A desktop that won't stop never holds up an archive or delete.
+    function stopDesktop(threadId: string) {
+      return desktops
+        ? Effect.tryPromise(() => desktops.stop(threadId)).pipe(
+            Effect.catch((error) => Effect.logWarning(error))
+          )
+        : Effect.void
+    }
+
     function stopAdmittedThread(threadId: string) {
       return Effect.gen(function* () {
         yield* interruptUpkeep(threadId)
@@ -443,6 +455,7 @@ export function createOrchestrator({
                     for (const thread of [...group].reverse())
                       yield* worktreeTask(() => worktrees.remove(thread.id, false, true))
                   }
+                  for (const thread of group) yield* stopDesktop(thread.id)
                 }
                 yield* hub.withChromePublication(
                   store
@@ -2253,6 +2266,7 @@ export function createOrchestrator({
             yield* withTreeAdmission(store.threadTree(threadId), (tree) =>
               Effect.gen(function* () {
                 for (const thread of tree) yield* stopAdmittedThread(thread.id)
+                for (const thread of tree) yield* stopDesktop(thread.id)
                 for (const thread of [...tree].reverse()) {
                   if (worktrees)
                     yield* worktreeTask(() => worktrees.cleanUp(thread.id)).pipe(

@@ -415,6 +415,10 @@ export const ThreadMeta = Schema.Struct({
   quiet: Schema.optional(Schema.Boolean),
   // Reads the project checkout with edits blocked. Set at creation, never cleared.
   readOnly: Schema.optional(Schema.Boolean),
+  // The desktop its agent opened with desktop_session, until it stops.
+  desktop: Schema.optional(
+    Schema.Struct({ id: Schema.String, state: Schema.Literals(['starting', 'live']) })
+  ),
 })
 export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
 

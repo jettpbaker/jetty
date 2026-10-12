@@ -50,6 +50,7 @@ import { discoverClaudeModels } from './claude-models'
 import { codexLayer, type CodexOptions } from './codex'
 import { discoverCodexModels } from './codex-models'
 import { databaseLayer } from './db'
+import { createDesktops } from './desktops'
 import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
@@ -374,6 +375,10 @@ function createServer(opts: ServerOptions = {}) {
       hub.pushChrome({ type: 'thread.upserted', thread })
     )
     yield* Effect.promise(() => worktrees.reconcile())
+    const desktops = createDesktops(store, (thread) =>
+      hub.pushChrome({ type: 'thread.upserted', thread })
+    )
+    yield* Effect.promise(() => desktops.reconcile())
     const io = yield* Layer.build(
       Layer.mergeAll(
         AttachmentsLive(home),
@@ -559,6 +564,7 @@ function createServer(opts: ServerOptions = {}) {
         modelCatalog,
         knownModels: () => models ?? [],
         worktrees,
+        desktops,
       })
     )
     const orch = Context.get(services, OrchestratorService)
@@ -625,7 +631,8 @@ function createServer(opts: ServerOptions = {}) {
       pullRequestLinks,
       (threadId) => handlers['thread.archive']({ threadId, archived: true }),
       worktrees,
-      createSearchService(searchClient, store)
+      createSearchService(searchClient, store),
+      desktops
     )
     registerClaudeMcp = handleMcp.register
     const app = Effect.gen(function* () {

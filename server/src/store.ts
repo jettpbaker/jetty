@@ -112,6 +112,7 @@ type ThreadRow = {
   environment: 'local' | 'worktree'
   git_json: string | null
   worktree_json: string | null
+  desktop_json: string | null
   pending_messages: string
   awaiting_parent: number
   bot_id: string | null
@@ -155,6 +156,11 @@ export type WorktreeRecord = {
   state: 'pending' | 'setting_up' | 'ready' | 'failed' | 'stopped'
   error: string | null
 }
+
+// A thread's desktop: its id while jetty-desktop starts it, then where its streamer listens.
+export type DesktopRecord =
+  | { id: string; state: 'starting' }
+  | { id: string; state: 'live'; display: string; port: number; token: string }
 
 export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
 
@@ -220,6 +226,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     : null
   const provider = publicProvider(row.provider)
   const worktree = row.worktree_json ? (JSON.parse(row.worktree_json) as WorktreeRecord) : null
+  const desktop = row.desktop_json ? (JSON.parse(row.desktop_json) as DesktopRecord) : null
   return {
     id: row.id,
     projectId: row.project_id,
@@ -242,6 +249,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     pinned: row.pinned !== 0,
     readyForReview: row.ready_for_review !== 0,
     ...(row.awaiting_parent ? { awaitingParent: true } : {}),
+    ...(desktop ? { desktop: { id: desktop.id, state: desktop.state } } : {}),
     pullRequests: [],
     updatedAt: row.updated_at,
     ...(row.turn_started_at === null ? {} : { turnStartedAt: row.turn_started_at }),
@@ -1570,6 +1578,36 @@ export function createStore() {
             rows.map((row) => ({
               threadId: row.id,
               record: JSON.parse(row.worktree_json) as WorktreeRecord,
+            }))
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      getDesktop(threadId: string) {
+        return sql<{
+          desktop_json: string | null
+        }>`SELECT desktop_json FROM threads WHERE id = ${threadId}`.pipe(
+          Effect.map((rows) =>
+            rows[0]?.desktop_json ? (JSON.parse(rows[0].desktop_json) as DesktopRecord) : null
+          ),
+          Effect.mapError(storeError)
+        )
+      },
+      saveDesktop(threadId: string, record: DesktopRecord | null) {
+        return sql`UPDATE threads SET desktop_json = ${record && JSON.stringify(record)} WHERE id = ${threadId}`.pipe(
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
+      },
+      listDesktops() {
+        return sql<{
+          id: string
+          desktop_json: string
+        }>`SELECT id, desktop_json FROM threads WHERE desktop_json IS NOT NULL`.pipe(
+          Effect.map((rows) =>
+            rows.map((row) => ({
+              threadId: row.id,
+              record: JSON.parse(row.desktop_json) as DesktopRecord,
             }))
           ),
           Effect.mapError(storeError)

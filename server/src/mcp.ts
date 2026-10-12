@@ -28,6 +28,7 @@ import { Effect, FileSystem, Path, Scope } from 'effect'
 import { z } from 'zod'
 
 import type { Attachments } from './attachments'
+import type { Desktops } from './desktops'
 import type { McpIdentity, McpSessions } from './mcp-sessions'
 import type { Orchestrator } from './orchestrator'
 import type { PullRequestLinks } from './pull-requests'
@@ -249,7 +250,8 @@ export function createMcpHandler(
   pullRequestLinks: PullRequestLinks,
   archiveThread: (threadId: string) => Effect.Effect<unknown, WireError>,
   worktrees?: Worktrees,
-  search?: SearchService
+  search?: SearchService,
+  desktops?: Desktops
 ) {
   return Effect.gen(function* () {
     const context = yield* Effect.context<FileSystem.FileSystem | Path.Path | Scope.Scope>()
@@ -1267,6 +1269,29 @@ export function createMcpHandler(
           video.handler
         )
       }
+      if (!bot && desktops)
+        server.registerTool(
+          'desktop_session',
+          {
+            ...toolMeta,
+            description:
+              "Get this thread's Linux desktop, a virtual display the user can watch and drive live inside Jetty, starting it if it isn't running. Set DISPLAY to its display to run a headed browser or any other app there. Calling again returns the same desktop while it runs; it stops when the thread is archived or deleted.",
+            inputSchema: {},
+          },
+          () =>
+            invoke(
+              Effect.tryPromise({
+                try: () => desktops.ensure(identity.threadId),
+                catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+              }).pipe(
+                Effect.map(({ id, display }) => ({
+                  id,
+                  display,
+                  link: `jetty://desktops/${id}`,
+                }))
+              )
+            )
+        )
     }
 
     async function handle(request: Request): Promise<Response> {

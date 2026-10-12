@@ -8,6 +8,7 @@ export const SELF_TOOLS = [
   'link_pull_request',
   'send_images',
   'send_video',
+  'desktop_session',
   'ask_parent',
   'say',
   'react',

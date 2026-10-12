@@ -7,6 +7,8 @@ import {
   type QueuedMessage,
 } from '@jetty/shared/wire'
 
+import { desktopsInstalled } from './desktops'
+
 const base = [
   '# Jetty',
   "You're running inside Jetty, a local app where the user runs coding agents in threads. Each thread is one agent conversation in a project. It works either in its own git worktree, with its own branch and folder, or in the project checkout itself, which it shares with the user and any other threads there. The user follows threads from a sidebar that shows each one's status.",
@@ -21,6 +23,9 @@ const botBase = base.map((line) =>
     "While a visible child works, end your turn instead of polling: its report can't reach you until you do. A quiet child you start with wait is the exception: its result comes back as the result of your call."
   )
 )
+
+const DESKTOP_INSTRUCTION =
+  "When you check something in a browser that the user may want to inspect themselves, such as a web app's UI, do it on your desktop: call desktop_session and run a headed browser with DISPLAY set to the display it returns. When you're done, leave the browser open on the state you checked and link the desktop in your message as [Preview in Jetty](jetty://desktops/<id>), the link it returned. The user opens it inside Jetty and can click around in that exact state."
 
 export type ThreadWorkspace = {
   environment: 'local' | 'worktree'
@@ -58,6 +63,7 @@ export function jettyInstructions(
     ]
       .filter(Boolean)
       .join(' '),
+    ...(!bot && desktopsInstalled() ? [DESKTOP_INSTRUCTION] : []),
     ...agentBehaviours.flatMap((behaviour) =>
       'instruction' in behaviour && behaviours[behaviour.key] ? [behaviour.instruction] : []
     ),
