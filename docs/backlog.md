@@ -174,7 +174,52 @@ Everything below is for one combined review of the chat, not separate ports.
   parent's, so their PRs could open as a GitHub stack, and one async merge of
   the top PR lands every downstack layer together or none of them. Needs a
   stack model in the GitHub client.
-- Bot group chats with other people's bots (a colleague's Jetty). Neither Jetty
+- Drive Jetty from Slack (discussion with Jett, 12 Oct; notes only, not a build
+  request). The immediate goal is delegating work from Slack, not continuously
+  ingesting the workspace into a bot's memory. Example: colleagues discuss a bug
+  in a thread in #FE; Jett replies "@jetty please fix this"; Jetty reads the
+  discussion, starts work in the relevant project and replies in the same Slack
+  thread with questions, progress and the eventual PR.
+  - No tunnel, public Jetty URL or hosted relay is necessary. Posting uses
+    outgoing HTTPS to Slack. Receiving mentions and interactions can use Slack
+    Socket Mode: Jetty opens an outbound WebSocket and events arrive over that
+    connection. Jetty must be running and connected to receive events live.
+  - A mention is the trigger, not the complete context. Use its channel and
+    `thread_ts` to fetch the root message and replies with `conversations.replies`.
+    Include everyone's contributions, not just Jett's messages. If invoked at
+    channel top level, nearby messages via `conversations.history` can help, but
+    "this" is less precise; a reply inside the relevant thread is the clearest
+    interaction. Slack links supplied by the user could provide further context.
+  - Permissions follow conversation access, not message authorship. The app needs
+    the relevant history scopes (`channels:history` for public channels,
+    `groups:history` for private ones), plus access to the conversation. Mentions
+    use `app_mentions:read`; posting uses `chat:write`; DMs have their own event
+    subscription/history permission. Exact scopes and token types should be
+    verified against the chosen Slack app configuration during implementation.
+  - On-demand thread reading is Jetty behaviour, not a Slack permission that
+    grants access to only the invoked thread. History permissions are broader.
+    Do not describe the app as technically unable to read other history in
+    accessible channels. Reading colleagues' context and deciding who may
+    instruct the local coding agent are separate decisions; Jett has not yet
+    chosen who else may drive his Jetty.
+  - Slack has a first-class agent experience: thread-based sessions, working /
+    waiting states, streaming responses and a native stop button. Map the Slack
+    workspace/channel/thread to a Jetty conversation so follow-ups continue the
+    same task. Slack's agent UI does not run the coding agent; Jetty still does.
+    Project routing, follow-up handling and approvals need design with Jett.
+  - Jett plans to discuss this with his engineering manager. Proposed ask: an
+    internal Slack app to delegate coding tasks from existing discussions, with
+    on-demand access to surrounding conversation and no public endpoint. Confirm
+    app installation approval, accessible channels, model processing of Slack
+    data and local retention. Existing Claude Code approval should not be assumed
+    to cover Slack data. Broad proactive channel reading is a separate proposal.
+  - Sources: [Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode/),
+    [mentions](https://docs.slack.dev/reference/events/app_mention/),
+    [context](https://docs.slack.dev/ai/agent-context-management/),
+    [thread API](https://docs.slack.dev/reference/methods/conversations.replies/),
+    [agent sessions](https://docs.slack.dev/ai/agent-sessions/).
+- Bot group chats with other people's bots (a colleague's Jetty). Separate from
+  the immediate Slack task-delegation idea above. Neither Jetty
   needs a public URL; both connect out to something shared. Slack via Socket
   Mode fits best (the chat is a real channel the people can read and join, and
   bot↔bot messages are already written for that), but installing the app needs
@@ -306,12 +351,129 @@ Everything below is for one combined review of the chat, not separate ports.
   (mergeability flips, thread resolution). If that bites, a 10-minute full
   refresh floor for linked PRs is a two-line addition (an open PR view already
   refreshes fully every 30s).
-- Discuss with Jett the best balance of GitHub polling to keep PR state hyper in sync (12 Oct).
-  Today a PR chip asks again every two minutes while open and every thirty once closed, four
-  times slower when the rate limit runs low (`chipRefreshInterval`, `server/src/pull-requests.ts`).
-  It matters more once the sidebar shows PR readiness inline and the PR page groups by it. Worth
-  weighing: shorter windows while something is about to change (checks running, review
-  requested), refreshing on focus, and push instead of poll (webhooks).
+- GitHub webhook sync: Codex experiment ready for Claude to integrate (12 Oct).
+  Jett favours webhooks as the fast path with polling in the background for
+  safety. Keep the current polling cadence initially; measure real usage before
+  reducing redundant polling. Sidebar readiness and PR grouping make freshness
+  more important. This is still an opt-in experiment, not a landed feature.
+  - **Handoff:** branch `codex/github-webhook-sync`, commit
+    `73e22b7fce5d9d98e944ccf16787c9fe2895c0a5` ("Try opt-in GitHub webhook
+    forwarding with polling fallback"), worktree
+    `/Users/jettb/.codex/worktrees/github-webhook-sync/jetty`. It is committed,
+    unmerged and unpushed; Claude's active checkout/app were left untouched.
+    The implementation was based on local main at `6db1736f`, which was ahead
+    of origin/main at the time. Main has since moved: integrate the commit onto
+    current main and resolve overlaps, particularly in `main.ts`,
+    `pull-requests.ts` and `store.ts`, rather than replacing those files.
+  - **Why it works locally:** GitHub's official `cli/gh-webhook` extension opens
+    an outbound connection to GitHub and forwards deliveries to a local HTTP
+    receiver. No public Jetty endpoint, tunnel or standing relay is needed.
+    This corrects the earlier assumption that GitHub webhooks necessarily need
+    us to expose a public URL. GitHub documents this facility for development
+    and testing; Jett is comfortable trying it in his personal local app.
+  - **Setup:** `gh extension install cli/gh-webhook`, then start the server with
+    `JETTY_GITHUB_WEBHOOK_REPOS=jettpbaker/jetty`. Comma-separate explicit repo
+    allowlists; unset means polling only. Programmatic server options accept
+    `githubWebhookRepos`. The extension is already installed on Jett's Mac;
+    it is not bundled with Jetty. Auth needs permission to manage hooks on the
+    chosen repos; org restrictions/SSO still apply. Repository forwarding is
+    used, not organisation-wide forwarding. Setup docs are included in the
+    commit at `docs/github-webhook-sync.md`.
+  - **Files:** new `server/src/github-webhooks.ts` owns the receiver and CLI
+    supervision; `main.ts` scopes its lifecycle and wires refreshes;
+    `pull-requests.ts` adds `refreshFromWebhook` and read shutdown;
+    `store.ts` adds `openPullRequests`; the fifth file is the setup guide.
+  - **Delivery path:** one `gh webhook forward` process per allowed repo,
+    targeting an ephemeral `127.0.0.1` receiver. Subscriptions cover
+    `pull_request`, `pull_request_review`, `pull_request_review_comment`,
+    `pull_request_review_thread`, `issue_comment`, `check_run`, `check_suite`,
+    `status` and `push`. Non-PR issue comments are ignored. Treat payloads as
+    invalidation hints; fetch canonical PR state through existing GitHub API
+    reads, save it and publish through the existing PR/thread metadata paths.
+    Also refresh both account PR lists (`for-you`, `created`, maxAge 5s), so
+    new PRs can be discovered rather than only updating already cached ones.
+  - **Refresh selection:** direct PR numbers are extracted where available;
+    checks can supply multiple PR numbers. Push/status events without numbers
+    refresh known cached open PRs in the repo. Explicit numbers and the
+    refresh-all flag are unioned. Direct refresh only touches already cached
+    PR data; list refresh discovers unknown PRs. If a read started before the
+    event is in flight, await it and then refresh again so it cannot swallow
+    the invalidation. Existing rate-limit backoff remains in effect.
+  - **Burst handling:** a fixed 750ms coalescing window unions events, without
+    restarting the timer on every arrival. One refresh per repo runs at once;
+    events during a refresh queue another pass 2s after it finishes. This
+    avoids a request per webhook and prevents continuous events starving a
+    refresh. Existing polling continues throughout, including on errors.
+  - **Receiver protection:** random 32-byte secret per service start, SHA-256
+    HMAC over the raw body, constant-time signature comparison, explicit repo
+    allowlist, POST only, browser Origin rejected and a 2 MiB body limit.
+    No agent instructions or authoritative PR state are taken from payloads.
+    Logs are generic rather than dumping raw payloads or tokens.
+  - **Forwarder ownership:** docs warn about one forwarding session per
+    repo/org. In practice two CLI processes could both look connected, so do
+    not rely on that restriction as a lock. Before launching, the experiment
+    lists repo hooks and requires zero hooks named `cli`. Existing hook or
+    failed access check means polling only, with another probe in 5 minutes.
+    It never explicitly replaces or deletes someone else's hook. The probe
+    has a 15s timeout. There remains a check/start race for simultaneous
+    launches; this is not a cross-machine ownership guarantee.
+  - **Reconnect and shutdown:** after a connected forwarder exits, retry in
+    30s; failed startups back off through 60/120/240s to a 300s cap. CLI
+    readiness triggers a catch-up refresh of known open PRs plus the lists.
+    That readiness text is emitted before hook activation, so the log alone
+    is not proof that deliveries are active. Stop kills owned process groups,
+    clears queued work, closes the receiver and waits for current refreshes.
+    Exit/SIGINT/SIGTERM handlers also terminate children for Bun watch restarts.
+    GitHub hook removal on disconnect was verified. Abrupt parent SIGKILL /
+    orphan recovery was not established; don't claim guaranteed cleanup for it.
+  - **Shutdown fix worth keeping:** the live experiment exposed existing
+    PR-list prefetch jobs publishing after SQLite closed. The commit tracks
+    scheduled read promises, refuses new reads during closing, cancels queued
+    reads and waits for active ones before database shutdown. Preserve the
+    finalizer ordering when integrating; it addresses a real observed error.
+  - **Polling baseline:** generic chips use 2min while open / 30min closed,
+    with a 4x multiplier at low rate limit. Linked PR change detection already
+    polls about every 30s while visible / 60s for hidden watchers. Focused open
+    PRs refresh fully about every 30s, or 10s while watched checks are running.
+    The original 2min note described only chips, not all existing polling.
+    No polling timing was changed by the webhook experiment.
+  - **Verification on the experiment commit:** typecheck, lint, format and
+    diff checks passed; existing tests: 478 passed, 3 skipped, 0 failed.
+    Temporary harnesses checked signature/body/origin/repo rejection, burst
+    coalescing, events arriving during refresh, ignored ping, reconnect and
+    catch-up, process/receiver cleanup and existing-hook ownership. The
+    existing-hook test initially exposed the dual-connection issue above;
+    after the explicit preflight, a second instance left the first intact.
+    No permanent tests were added (repo policy: tests after sign-off).
+  - **Real GitHub verification:** isolated app/home/SQLite, echo agent, no
+    clients/polling watchers and guide prefetch disabled to avoid model usage.
+    Seeded deliberately stale metadata for existing Jetty PR #53 in the test
+    DB only, then called `POST repos/jettpbaker/jetty/hooks/<id>/tests` to
+    deliver an existing push event. The actual app webhook path restored the
+    PR's real merged state/title; GitHub recorded HTTP 202. Final run took
+    7,999ms from requesting the test delivery to seeing the corrected DB.
+    **This is not measured GitHub-event-to-Jetty notification latency:** it
+    includes the test request, dispatch, forwarding, coalescing and API/cache
+    refresh. Receipt was not separately timestamped, and this was a replay of
+    an existing push, not a newly changed PR. No upstream PR/code was edited.
+  - **Reproduction evidence on this Mac:** temporary harnesses
+    `/private/tmp/jetty-webhook-harness.ts`, `jetty-webhook-reconnect.ts`,
+    `jetty-webhook-conflict.ts`, `jetty-webhook-live.ts` (same directory).
+    Logs: `/private/tmp/jetty-webhook-tests.log`, `jetty-webhook-live.log`;
+    result: `jetty-webhook-live-result.json`. These are temporary, not durable
+    repo fixtures. All test servers/forwarders were stopped and temporary
+    GitHub hooks were confirmed removed. The committed worktree remains.
+  - **Claude integration:** inspect/cherry-pick the commit onto current main,
+    rerun the current repo checks, then enable only explicitly selected repos.
+    Preserve polling and the unset-variable off switch. Before asserting
+    latency, timestamp receiver arrival, refresh start/end and publication
+    separately; before broader use, exercise app restart/offline recovery and
+    a real PR/check/review change. Reconcile the linked-PR polling caveat above
+    with current code rather than treating webhooks as complete coverage.
+  - Sources: [official extension](https://github.com/cli/gh-webhook),
+    [GitHub forwarding docs](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/using-the-github-cli-to-forward-webhooks-for-testing),
+    [webhook REST endpoints](https://docs.github.com/en/rest/repos/webhooks),
+    [API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api).
 - For Jett to look at when home (night-shift decisions of 2026-10-06):
   - The thread row's Archive/More buttons, now a named AGENTS.md exception: look closer
     at whether they should become real ghost `icon-xs` buttons after all.
