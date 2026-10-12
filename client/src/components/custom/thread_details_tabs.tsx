@@ -738,7 +738,8 @@ function StaticTabLabel({
   )
 }
 
-function TabLabel({
+// A tab's icon becomes its close button while the tab is active and hovered.
+export function TabLabel({
   label,
   mono = false,
   icon,

@@ -76,11 +76,13 @@
   pointer-events: none;
   opacity: 0;
 }
-.details-header-tab[data-active]:hover .details-tab-kind,
+/* A tab's icon turns into its close while it's active and hovered; a data-hover-close tab (a bot's
+   thread tab) on any hover, so it can close without opening first. */
+.details-header-tab:is([data-active], [data-hover-close]):hover .details-tab-kind,
 .details-header-tab:has(.details-tab-close:focus-visible) .details-tab-kind {
   opacity: 0;
 }
-.details-header-tab[data-active]:hover .details-tab-close,
+.details-header-tab:is([data-active], [data-hover-close]):hover .details-tab-close,
 .details-tab-close:focus-visible {
   pointer-events: auto;
   opacity: 1;
