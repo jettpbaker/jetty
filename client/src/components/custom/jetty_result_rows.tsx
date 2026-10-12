@@ -15,7 +15,7 @@ import { StatusGlyph, threadStatus, type Status } from './thread_status'
 export type ModelResult = Pick<
   ProviderModel,
   'provider' | 'id' | 'name' | 'efforts' | 'defaultEffort'
-> & { notes?: string }
+>
 export type ThreadResult = {
   id: string
   title: string
@@ -97,7 +97,6 @@ export function ModelRow({ result }: { result: ModelResult }) {
         <p className='font-mono'>{model.id}</p>
         <p>Effort: {model.efforts.join(' · ')}</p>
         {model.defaultEffort && <p>Default: {model.defaultEffort}</p>}
-        {'notes' in result && <p className='max-w-sm leading-relaxed'>{result.notes}</p>}
       </div>
     </Disclosure>
   )

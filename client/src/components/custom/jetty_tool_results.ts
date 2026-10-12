@@ -106,7 +106,7 @@ export function jettyResults(call: ToolActivity, config: ResultTool): JettyResul
             fast: false,
             autoMode: false,
           })
-          results.push({ kind: 'model', value: { ...value, notes: text(record(row).notes) } })
+          results.push({ kind: 'model', value })
           break
         }
         case 'bot':

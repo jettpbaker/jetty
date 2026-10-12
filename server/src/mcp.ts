@@ -37,9 +37,6 @@ import { listSkills } from './skills'
 import { StoreError } from './store'
 import { NUMBERED } from './titler'
 
-const GROK_WORKTREE_NOTE =
-  "Can't commit in a worktree yet (its sandbox can't write the repo's git folder). Fine for reading, and for threads in the project checkout."
-
 const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok' }
 const modelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -783,7 +780,6 @@ export function createMcpHandler(
                 name,
                 efforts: bot ? efforts.filter((effort) => effort !== 'max') : efforts,
                 defaultEffort,
-                ...(provider === 'grok' ? { notes: GROK_WORKTREE_NOTE } : {}),
               }))
             })
           )

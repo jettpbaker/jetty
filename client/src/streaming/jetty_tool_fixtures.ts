@@ -38,8 +38,6 @@ export const modelResults = [
     name: 'Grok 4.7',
     efforts: ['low', 'medium', 'high', 'xhigh'],
     defaultEffort: 'high',
-    notes:
-      "Can't commit in a worktree yet (its sandbox can't write the repo's git folder). Fine for reading, and for threads in the project checkout.",
   },
 ] as const
 
