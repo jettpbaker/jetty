@@ -85,7 +85,6 @@ export type LinkedThread = {
   title: string
   status: SessionStatus
   readyForReview?: boolean
-  done?: boolean
 }
 const chromeThreadsAtom = Atom.map(chromeAtom, (chrome) => chrome?.threads)
 
@@ -96,12 +95,11 @@ const linkedThreadsAtom = Atom.family((key: string) =>
       .filter((thread) =>
         thread.pullRequests?.some((link) => link.repo === repo && link.number === number)
       )
-      .map(({ id, title, status, readyForReview, done }) => ({
+      .map(({ id, title, status, readyForReview }) => ({
         id,
         title,
         status,
         readyForReview,
-        done,
       }))
   }).pipe(
     Atom.withEquality<LinkedThread[]>(
@@ -113,8 +111,7 @@ const linkedThreadsAtom = Atom.family((key: string) =>
             thread.id === other.id &&
             thread.title === other.title &&
             thread.status === other.status &&
-            thread.readyForReview === other.readyForReview &&
-            thread.done === other.done
+            thread.readyForReview === other.readyForReview
           )
         })
     )

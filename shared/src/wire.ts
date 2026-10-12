@@ -398,7 +398,6 @@ export const ThreadMeta = Schema.Struct({
   pinned: Schema.Boolean,
   // PR state, independent of whether the thread has been opened.
   readyForReview: Schema.optional(Schema.Boolean),
-  done: Schema.optional(Schema.Boolean),
   updatedAt: Schema.Int,
   turnStartedAt: Schema.optional(Schema.Int),
   turnEndedAt: Schema.optional(Schema.Int),

@@ -22,7 +22,6 @@ export type ThreadResult = {
   project?: string
   status?: SessionStatus
   readyForReview?: boolean
-  done?: boolean
   archived?: boolean
 }
 
@@ -134,9 +133,7 @@ export function ThreadRow({
         <StatusGlyph
           status={
             status ??
-            (result.archived
-              ? 'archived'
-              : threadStatus(result.status!, result.readyForReview, result.done))
+            (result.archived ? 'archived' : threadStatus(result.status!, result.readyForReview))
           }
           className='size-3.25'
         />

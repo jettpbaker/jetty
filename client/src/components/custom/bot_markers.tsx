@@ -25,7 +25,7 @@ function MarkerLink({
   return (
     <span className='inline-flex min-w-0 items-center gap-[3px]'>
       <StatusGlyph
-        status={outcome ?? threadStatus(meta.status, meta.readyForReview, meta.done)}
+        status={outcome ?? threadStatus(meta.status, meta.readyForReview)}
         className='size-3'
       />
       <Link
@@ -58,10 +58,7 @@ function MarkerMenuEntry({ marker }: { marker: Marker }) {
       params={{ threadId: marker.threadId }}
       className={cn(menuEntryClass, 'hover:bg-accent focus-visible:bg-accent')}
     >
-      <StatusGlyph
-        status={threadStatus(meta.status, meta.readyForReview, meta.done)}
-        className='size-3.5'
-      />
+      <StatusGlyph status={threadStatus(meta.status, meta.readyForReview)} className='size-3.5' />
       <span className='min-w-0 flex-1 truncate'>{meta.title}</span>
       <span className='shrink-0 text-muted-foreground'>{project?.title}</span>
     </Link>
@@ -116,7 +113,7 @@ function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly 
   for (const marker of markers) {
     const meta = metas.find((entry) => entry.id === marker.threadId)
     if (!meta) continue
-    const status = threadStatus(meta.status, meta.readyForReview, meta.done)
+    const status = threadStatus(meta.status, meta.readyForReview)
     tally.set(status, (tally.get(status) ?? 0) + 1)
   }
   return [...tally].map(([status, count]) => (

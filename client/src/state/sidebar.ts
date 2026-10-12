@@ -43,7 +43,6 @@ const listAtom = Atom.readable((get) => {
         projectId: thread.projectId,
         status: thread.status,
         readyForReview: thread.readyForReview,
-        done: thread.done,
         listedDay: new Date(listedAt(thread)).setHours(0, 0, 0, 0),
         listedAt: listedAt(thread),
         pinned: thread.pinned,

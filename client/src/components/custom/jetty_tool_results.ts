@@ -78,7 +78,6 @@ function threadResult(output: unknown, input: Record<string, unknown>): ThreadRe
     project: text(row.project),
     status,
     readyForReview: row.readyForReview === true,
-    done: row.done === true,
     archived: row.archived === true,
   }
 }

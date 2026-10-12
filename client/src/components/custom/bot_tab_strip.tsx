@@ -120,7 +120,7 @@ export function BotTabStrip({
                 {...pressProps(() => open(thread.id))}
               >
                 <StatusGlyph
-                  status={threadStatus(thread.status, thread.readyForReview, thread.done)}
+                  status={threadStatus(thread.status, thread.readyForReview)}
                   className='size-3.25'
                 />
                 <span className='min-w-0 truncate group-hover/tab:[mask-image:linear-gradient(to_right,black_calc(100%-16px),transparent_calc(100%-6px))]'>

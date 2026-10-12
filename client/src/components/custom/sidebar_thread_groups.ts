@@ -29,7 +29,7 @@ export function sidebarThread({ thread, project }: SidebarRow, now: number): Sid
     title: thread.title,
     project: project?.title ?? '',
     projectIcon: project?.icon,
-    status: threadStatus(thread.status, thread.readyForReview, thread.done),
+    status: threadStatus(thread.status, thread.readyForReview),
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length
         ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
@@ -56,7 +56,7 @@ export function threadPullRequests(links: readonly PullRequestLink[]) {
 }
 
 const statusGroups = (
-  ['needs-attention', 'ready', 'error', 'working', 'monitoring', 'idle', 'done'] as const
+  ['needs-attention', 'ready', 'error', 'working', 'monitoring', 'idle'] as const
 ).map((id) => ({ id, label: statusPresentation[id].label }))
 
 const dateGroups = [
@@ -118,7 +118,7 @@ function listedThreads({ threads, projects, bots }: SidebarList) {
     ...thread,
     project: byId.get(thread.projectId)?.title ?? '',
     projectIcon: byId.get(thread.projectId)?.icon,
-    status: threadStatus(thread.status, thread.readyForReview, thread.done),
+    status: threadStatus(thread.status, thread.readyForReview),
     // A bot the Bots section doesn't list has no group, so its threads go with No bot.
     botId: thread.botId && botIds.has(thread.botId) ? thread.botId : undefined,
   }))

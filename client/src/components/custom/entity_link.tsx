@@ -192,8 +192,7 @@ export function ThreadLink({
   if (!meta) return fallback
   const look =
     statusPresentation[
-      outcome ??
-        (meta.archived ? 'archived' : threadStatus(meta.status, meta.readyForReview, meta.done))
+      outcome ?? (meta.archived ? 'archived' : threadStatus(meta.status, meta.readyForReview))
     ]
   return (
     <PreviewCard.Root>

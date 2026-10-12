@@ -769,7 +769,6 @@ export function createMcpHandler(
                 project: titles.get(t.projectId) ?? t.projectId,
                 status: t.status,
                 readyForReview: t.readyForReview,
-                done: t.done,
                 provider: t.provider,
                 model: t.model,
                 parentThreadId: t.parentThreadId,

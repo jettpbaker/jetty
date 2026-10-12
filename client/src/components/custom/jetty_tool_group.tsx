@@ -34,7 +34,6 @@ export function JettyThreadRow({ result, outcome }: { result: ThreadResult; outc
         title: meta?.title ?? result.title,
         status: meta?.status ?? result.status,
         readyForReview: meta?.readyForReview ?? result.readyForReview,
-        done: meta?.done ?? result.done,
         archived: meta?.archived ?? result.archived,
       }}
       status={meta?.archived || result.archived ? 'archived' : outcome}

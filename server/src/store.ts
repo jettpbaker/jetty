@@ -397,9 +397,6 @@ export function createStore() {
       return {
         ...rowToThread(row),
         pullRequests,
-        done:
-          pullRequests.some((pr) => pr.state === 'merged') &&
-          pullRequests.every((pr) => pr.state === 'merged' || pr.state === 'closed'),
         readyForReview: open.length > 0 && !blocked && (!unknown || row.ready_for_review !== 0),
       } satisfies ThreadMeta
     }
