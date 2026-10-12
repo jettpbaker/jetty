@@ -102,6 +102,10 @@ export function botColorStyle(color: BotColor) {
 // Text in the bot's colour: its deep ink in light, as its face is drawn.
 export const botTextClass = 'text-(--bot-deep) dark:text-(--bot)'
 
+// A bot's face and name as a link: the exchange line, and a mention in a message.
+export const botNameLinkClass =
+  'inline-flex items-center gap-1 rounded-sm align-middle whitespace-nowrap outline-none decoration-current/40 underline-offset-[3px] hover:underline focus-visible:ring-2 focus-visible:ring-ring/50'
+
 // The bot's colour plays the accent inside: bubbles and buttons that fill with primary take it,
 // deep with light text in light. Links keep the app's accent, so this never wraps them.
 export const botAccentClass =

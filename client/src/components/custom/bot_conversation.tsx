@@ -1,6 +1,11 @@
 import type { Bot, BotConversationMessage } from '@jetty/shared/wire'
 
-import { BotAvatar, botColorStyle, botTextClass } from '@/components/custom/bot_avatar'
+import {
+  BotAvatar,
+  botColorStyle,
+  botNameLinkClass,
+  botTextClass,
+} from '@/components/custom/bot_avatar'
 import { ArrowsLeftRightIcon, CrossSmallIcon } from '@/components/custom/central_icons'
 import { JettyBot } from '@/components/custom/jetty_bot'
 import { Markdown } from '@/components/custom/markdown'
@@ -23,9 +28,6 @@ const PIN_SLACK = 8
 // The conversation's padding, which its edges fade across as it scrolls under them.
 const EDGE = 24
 const EDGE_MASK = `linear-gradient(to bottom, transparent, #000 ${EDGE}px, #000 calc(100% - ${EDGE}px), transparent)`
-
-const nameLinkClass =
-  'inline-flex items-center gap-1 rounded-sm outline-none decoration-current/40 underline-offset-[3px] hover:underline focus-visible:ring-2 focus-visible:ring-ring/50'
 
 // The bots' messages since the chat last showed anything else, as one line that counts them.
 // Click, not pointer-down: the line sits in a scrollable chat and opens a modal.
@@ -89,7 +91,7 @@ function RoomLink({
       type='button'
       onClick={onOpen}
       style={botColorStyle(bot.color)}
-      className={cn(nameLinkClass, botTextClass)}
+      className={cn(botNameLinkClass, botTextClass)}
     >
       <BotAvatar bot={bot} size={14} unread={false} />
       {bot.name}
@@ -111,7 +113,7 @@ function RoomsMenu({
   const bots = others.flatMap((id) => all.find((bot) => bot.id === id) ?? [])
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={cn(nameLinkClass, 'text-foreground')}>
+      <PopoverTrigger className={cn(botNameLinkClass, 'text-foreground')}>
         <span className='flex'>
           {bots.slice(0, 3).map((bot, index) => (
             <JettyBot

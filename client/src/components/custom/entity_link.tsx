@@ -32,9 +32,7 @@ import {
   type SVGProps,
 } from 'react'
 
-import { botColorStyle } from './bot_avatar'
-import './bot_link.css'
-import { JettyBot } from './jetty_bot'
+import { BotAvatar, botColorStyle, botNameLinkClass, botTextClass } from './bot_avatar'
 import { visitLinks, type MarkdownNode } from './markdown_links'
 import { OverflowTitle } from './overflow_title'
 import { PersonAvatar } from './person_avatar'
@@ -248,7 +246,7 @@ function SubagentLink({ name, fallback }: { name: string; fallback: ReactNode })
 }
 
 // A bot's mention: its face and current name in its colour, opening its chat. Click, not
-// pointer-down: the chip sits in a scrollable chat.
+// pointer-down: the link sits in a scrollable chat.
 export function BotLink({ id, fallback }: { id: string; fallback: ReactNode }) {
   const bot = useBot(id)
   if (!bot) return fallback
@@ -257,9 +255,9 @@ export function BotLink({ id, fallback }: { id: string; fallback: ReactNode }) {
       to='/bots/$botId'
       params={{ botId: id }}
       style={botColorStyle(bot.color)}
-      className='bot-link outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+      className={cn(botNameLinkClass, botTextClass)}
     >
-      <JettyBot shape={bot.shape} color={bot.color} size={14} />
+      <BotAvatar bot={bot} size={14} unread={false} />
       {bot.name}
     </Link>
   )
