@@ -179,8 +179,15 @@ function reconcileOnStartup(store: Store) {
       const stoppedNames: string[] = []
       yield* store.transaction(
         Effect.gen(function* () {
-          for (const item of state.items)
-            if (
+          for (const item of state.items) {
+            if (item.kind === 'background' && item.endedAt === undefined) {
+              stoppedNames.push(item.label)
+              yield* store.appendEvent(thread.id, {
+                type: 'item.completed',
+                itemId: item.id,
+                patch: { endedAt: Date.now() },
+              })
+            } else if (
               (item.kind === 'subagent' || item.kind === 'workflow') &&
               item.status === 'running'
             ) {
@@ -194,6 +201,7 @@ function reconcileOnStartup(store: Store) {
                     : { status: 'stopped' },
               })
             }
+          }
           // A turn that ended waiting on stopped background work was cut short too.
           const cutTurnId =
             state.activeTurnId ??
