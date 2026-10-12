@@ -55,7 +55,7 @@ export function jettyInstructions(
       : []),
     [
       parentThreadId ? 'Your final message is your report to the thread that created yours.' : '',
-      'To mention a thread, link it as [title](jetty://threads/<id>); a subagent you started gives you its own link when it finishes; use that to mention it. Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
+      'To mention a thread, link it as [title](jetty://threads/<id>); link a subagent as [title](jetty://subagents/<id>). Use its provided link, or its returned subagent id if no link was provided. Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
       'In your final message, list the threads and subagents you started that turn, each as one of those links.',
     ]
       .filter(Boolean)

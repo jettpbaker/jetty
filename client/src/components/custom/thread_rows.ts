@@ -679,6 +679,17 @@ export function threadRows(
   function hidden(item: ThreadItem) {
     return (
       isAnsweredQuestionTool(item) ||
+      (item.kind === 'tool_call' &&
+        typeof item.input === 'object' &&
+        item.input !== null &&
+        'variant' in item.input &&
+        item.input.variant === 'Task' &&
+        'prompt' in item.input &&
+        threadSubagents(allItems).some(
+          (agent) =>
+            agent.turnId === item.turnId &&
+            agent.prompt === (item.input as { prompt: unknown }).prompt
+        )) ||
       (item.kind === 'tool_call' && item.status !== 'succeeded' && deniedTools.has(item.id)) ||
       (item.kind === 'tool_call' &&
         ['ToolSearch', 'mcp__jetty__add_instruction'].includes(item.toolName)) ||

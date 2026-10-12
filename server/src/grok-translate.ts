@@ -4,11 +4,16 @@ import { newId } from '@jetty/shared/wire'
 
 import { object, string } from './stdio-rpc'
 
-export function createGrokTranslator(turnId: string, workflows = new Set<string>()) {
+export function createGrokTranslator(
+  turnId: string,
+  workflows = new Set<string>(),
+  subagents = new Map<string, string>()
+) {
   const tools = new Map<string, { id: string; done: boolean }>()
   // ids handed out for tool calls Grok hasn't reported yet (a permission prompt can come first)
   const reserved = new Map<string, string>()
   const hiddenTools = new Set<string>()
+  const subagentPrompts = new Map<string, string>()
   let text: { id: string; kind: 'assistant_message' | 'reasoning' } | undefined
   let compactionId: string | undefined
 
@@ -49,6 +54,56 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
           item: { ...base, id: newId(), kind: 'compaction', status },
         })
       compactionId = undefined
+      return events
+    }
+    if (update.sessionUpdate === 'subagent_spawned') {
+      const taskId = string(update.subagent_id)
+      if (!taskId || subagents.has(taskId)) return events
+      const id = newId()
+      const title = string(update.description) || 'Subagent'
+      subagents.set(taskId, id)
+      events.push(...closeText(), {
+        type: 'item.started',
+        item: {
+          ...base,
+          id,
+          kind: 'subagent',
+          taskId,
+          title,
+          prompt: subagentPrompts.get(title) ?? '',
+          agentType: string(update.subagent_type) || undefined,
+          model: string(update.model) || undefined,
+          status: 'running',
+        },
+      })
+      return events
+    }
+    if (
+      update.sessionUpdate === 'subagent_progress' ||
+      update.sessionUpdate === 'subagent_finished'
+    ) {
+      const id = subagents.get(string(update.subagent_id))
+      if (!id) return events
+      const finished = update.sessionUpdate === 'subagent_finished'
+      events.push({
+        type: finished ? 'item.completed' : 'item.updated',
+        itemId: id,
+        patch: {
+          ...(finished
+            ? {
+                status:
+                  update.status === 'failed' || update.status === 'error'
+                    ? 'failed'
+                    : ['stopped', 'interrupted', 'cancelled'].includes(string(update.status))
+                      ? 'stopped'
+                      : 'completed',
+                result: string(update.output),
+              }
+            : {}),
+          tokens: natural(update.tokens_used),
+          durationMs: natural(update.duration_ms),
+        },
+      })
       return events
     }
     if (update.sessionUpdate === 'workflow_updated') {
@@ -172,6 +227,9 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
       const key = string(update.toolCallId)
       if (!key) return events
       // Workflows and todo_write have their own updates: workflow_updated and plan.
+      const input = object(update.rawInput)
+      if (input.variant === 'Task')
+        subagentPrompts.set(string(input.description), string(input.prompt))
       const name = grokToolName(update).toLowerCase()
       if (name === 'workflow' || name === 'todo_write') hiddenTools.add(key)
       const outputType = object(update.rawOutput).type
@@ -238,7 +296,7 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
     reserved.set(toolCallId, id)
     return id
   }
-  return { translate, finish, workflows, toolItemId }
+  return { translate, finish, workflows, subagents, toolItemId }
 }
 
 // `_x.ai/session/info` backs Grok's /context: `used` is the last request's prompt size.

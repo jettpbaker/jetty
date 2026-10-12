@@ -203,7 +203,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
       })
     }
 
-    function settleOpenItems(session: Session) {
+    function settleOpenItems(session: Session, stopBackground = false) {
       return Effect.gen(function* () {
         for (const [itemId, pending] of session.pending) {
           yield* publish(session, {
@@ -215,6 +215,18 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           })
         }
         session.pending.clear()
+        if (stopBackground || session.stopped) {
+          for (const taskId of session.runningSubagents) {
+            const itemId = session.translator.subagents.get(taskId)
+            if (itemId)
+              yield* publish(session, {
+                type: 'item.completed',
+                itemId,
+                patch: { status: 'stopped' },
+              })
+          }
+          session.runningSubagents.clear()
+        }
         for (const event of session.translator.finish(session.stopped))
           yield* publish(session, event)
       })
@@ -517,7 +529,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     session.input = { ...session.input, turnId: newId(), text: '' }
                     session.translator = createGrokTranslator(
                       session.input.turnId,
-                      session.translator.workflows
+                      session.translator.workflows,
+                      session.translator.subagents
                     )
                     session.awaitingResult = true
                     session.accepting = true
@@ -583,7 +596,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     yield* settleOpenItems(session)
                     session.translator = createGrokTranslator(
                       session.input.turnId,
-                      session.translator.workflows
+                      session.translator.workflows,
+                      session.translator.subagents
                     )
                     yield* session.emit({ type: 'session.status', status: 'running' })
                     yield* prompt(session, next.text, next.images)
@@ -680,7 +694,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 existing!.emit = emit
                 existing!.translator = createGrokTranslator(
                   input.turnId,
-                  existing!.translator.workflows
+                  existing!.translator.workflows,
+                  existing!.translator.subagents
                 )
                 existing!.done = yield* Deferred.make<void, AgentError>()
                 existing!.reason = null
@@ -729,7 +744,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               .withPermit(
                 Effect.gen(function* () {
                   session.accepting = false
-                  yield* settleOpenItems(session).pipe(Effect.ignore)
+                  yield* settleOpenItems(session, true).pipe(Effect.ignore)
                   if (session.awaitingResult) {
                     yield* session
                       .emit({
