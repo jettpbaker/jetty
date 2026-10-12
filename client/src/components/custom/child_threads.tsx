@@ -9,7 +9,7 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
-import { renderWorkingTitle } from './subagent_row'
+import { renderWorkingTitle } from './subagent_glyph'
 import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 

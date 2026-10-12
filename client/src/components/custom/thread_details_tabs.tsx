@@ -27,9 +27,11 @@ import { storage } from '@/platform'
 import {
   desktopTabId,
   pullRequestTabId,
+  subagentTabId,
   useDesktop,
   usePullRequestSummary,
   type PullRequestRef,
+  type SubagentSummary,
 } from '@/state'
 import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
@@ -52,6 +54,7 @@ import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, keybinds } from './keybinds'
 import { LinkPullRequestDialog } from './pull_request_link'
 import { pullRequestFacts } from './pull_request_model'
+import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
 import { desktopLabels } from './thread_desktop'
 import { linkPresentation } from './thread_pull_request'
 
@@ -121,6 +124,13 @@ export type DesktopTabs = {
   close: (id: string) => void
 }
 
+export type SubagentTabs = {
+  all: readonly SubagentSummary[]
+  visible: readonly SubagentSummary[]
+  show: (id: string) => void
+  hide: (id: string) => void
+}
+
 export function ThreadDetailsTabs({
   ref,
   chat = false,
@@ -128,6 +138,7 @@ export function ThreadDetailsTabs({
   threadCount,
   pullRequests,
   desktops,
+  subagents,
   file,
   value,
   onValueChange,
@@ -140,6 +151,7 @@ export function ThreadDetailsTabs({
   threadCount: number
   pullRequests: PullRequestTabs
   desktops: DesktopTabs
+  subagents: SubagentTabs
   file?: { path: string; dirty: boolean; onClose: () => void }
   value: string
   onValueChange: (value: string) => void
@@ -159,6 +171,7 @@ export function ThreadDetailsTabs({
     chatOpen ||
     pullRequests.visible.length > 0 ||
     desktops.ids.length > 0 ||
+    subagents.visible.length > 0 ||
     file
       ? openSortable
       : [available[0]!]
@@ -168,6 +181,7 @@ export function ThreadDetailsTabs({
     ...shownSortable,
     ...pullRequests.visible.map(pullRequestTabId),
     ...desktops.ids.map(desktopTabId),
+    ...subagents.visible.map((agent) => subagentTabId(agent.id)),
     ...(file ? ['file'] : []),
   ]
   const fileName = file?.path.split('/').at(-1)
@@ -240,6 +254,17 @@ export function ThreadDetailsTabs({
     setAnnouncement(`Pull request #${link.number} opened`)
     onValueChange(pullRequestTabId(link))
   }
+  function closeSubagent(agent: SubagentSummary) {
+    if (visible.length < 2) return
+    subagents.hide(agent.id)
+    setAnnouncement(`${agent.title} closed`)
+    leave(subagentTabId(agent.id))
+  }
+  function openSubagent(agent: SubagentSummary) {
+    subagents.show(agent.id)
+    setAnnouncement(`${agent.title} opened`)
+    onValueChange(subagentTabId(agent.id))
+  }
   const canClose = visible.length > 1
   return (
     <DragDropProvider
@@ -301,6 +326,21 @@ export function ThreadDetailsTabs({
         {desktops.ids.map((id) => (
           <DesktopTab key={id} id={id} canClose={canClose} onClose={() => closeDesktop(id)} />
         ))}
+        {subagents.visible.map((agent) => (
+          <TabsTrigger
+            key={agent.id}
+            value={subagentTabId(agent.id)}
+            className='details-header-tab h-auto max-w-48 rounded-sm px-1 py-1 text-xs'
+            title={agent.title}
+          >
+            <TabLabel
+              label={agent.title}
+              icon={<AgentGlyph agent={agent} className='details-tab-kind' />}
+              canClose={canClose}
+              onClose={() => closeSubagent(agent)}
+            />
+          </TabsTrigger>
+        ))}
         {file && (
           <TabsTrigger
             value='file'
@@ -331,7 +371,10 @@ export function ThreadDetailsTabs({
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align='start'
-            className={cn('min-w-36', pullRequests.links.length > 0 && 'w-72')}
+            className={cn(
+              'min-w-36',
+              (pullRequests.links.length > 0 || subagents.all.length > 0) && 'w-72'
+            )}
           >
             {catalog.map((id) => {
               const { label, Icon } = tabs[id]
@@ -378,8 +421,24 @@ export function ThreadDetailsTabs({
               <ChainLink4Icon />
               Link pull request
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DesktopMenuItem desktops={desktops} canClose={canClose} onClose={closeDesktop} />
+            {subagents.all.length > 0 && <DropdownMenuSeparator />}
+            {subagents.all.map((agent) => {
+              const open = subagents.visible.some((entry) => entry.id === agent.id)
+              return (
+                <DropdownMenuCheckboxItem
+                  key={agent.id}
+                  checked={open}
+                  disabled={open && !canClose}
+                  closeOnClick={false}
+                  onCheckedChange={(checked) =>
+                    checked ? openSubagent(agent) : closeSubagent(agent)
+                  }
+                >
+                  <AgentGlyph agent={agent} />
+                  <span className='truncate'>{agent.title}</span>
+                </DropdownMenuCheckboxItem>
+              )
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </TabsList>
@@ -435,6 +494,15 @@ export function BotDetailsTabs({
         </TabsTrigger>
       )}
     </TabsList>
+  )
+}
+
+function AgentGlyph({ agent, className }: { agent: SubagentSummary; className?: string }) {
+  return (
+    <SubagentGlyph
+      state={subagentGlyphState(agent.status, agent.waiting)}
+      className={cn('size-3.25', className)}
+    />
   )
 }
 

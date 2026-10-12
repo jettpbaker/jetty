@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { useStopWorkflow } from '@/state'
 
 import { DisabledTooltip } from './disabled_tooltip'
-import { formatSubagentTokens } from './subagent_row'
+import { formatSubagentTokens } from './subagent_glyph'
 import {
   AgentGlyph,
   FailedCount,

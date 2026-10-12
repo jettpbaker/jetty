@@ -212,6 +212,8 @@ export const ThreadItem = Schema.Union([
     prompt: Schema.String,
     agentType: Schema.optional(Schema.String),
     model: Schema.optional(Schema.String),
+    // The id the agent knows it by, which its jetty://subagents link can use.
+    taskId: Schema.optional(Schema.String),
     status: SubagentStatus,
     tokens: Schema.optional(Schema.Natural),
     durationMs: Schema.optional(Schema.Natural),

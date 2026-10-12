@@ -1,16 +1,24 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
+import { useOpenSubagent } from '@/state'
 import { useState } from 'react'
 
 import { ActivityChevron } from './activity_disclosure'
-import { CountedResults } from './jetty_result_rows'
+import { CountedResults, ThreadRow } from './jetty_result_rows'
 import { JettyThreadRow, JettyToolGroup } from './jetty_tool_group'
 import { jettyResultTools } from './jetty_tool_results'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
+import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
 import { ToolCall, ToolCallDetails } from './tool_call'
-import { describeToolBatch, workEnded, type ThreadBatch, type ToolBatch } from './work_model'
+import {
+  describeToolBatch,
+  workEnded,
+  type SubagentBatch,
+  type ThreadBatch,
+  type ToolBatch,
+} from './work_model'
 
 export function ToolGroup({ batch }: { batch: ToolBatch }) {
   return batch.calls[0]?.jettyTool && jettyResultTools[batch.calls[0].jettyTool] ? (
@@ -106,6 +114,34 @@ export function ThreadGroup({ batch }: { batch: ThreadBatch }) {
         <JettyThreadRow
           key={thread.id}
           result={{ id: thread.threadId, title: thread.title ?? thread.threadId }}
+        />
+      ))}
+    </CountedResults>
+  )
+}
+
+export function SubagentGroup({ threadId, batch }: { threadId: string; batch: SubagentBatch }) {
+  const open = useOpenSubagent()
+  const active = batch.agents.some((agent) => agent.status === 'running')
+  return (
+    <CountedResults
+      verb={active ? 'Starting' : 'Started'}
+      count={batch.agents.length}
+      noun='subagent'
+      active={active}
+      autoOpen={active}
+    >
+      {batch.agents.map((agent) => (
+        <ThreadRow
+          key={agent.id}
+          result={{ id: agent.id, title: agent.title }}
+          glyph={
+            <SubagentGlyph
+              state={subagentGlyphState(agent.status, agent.waiting)}
+              className='size-3.25'
+            />
+          }
+          onSelect={() => open(threadId, agent.id)}
         />
       ))}
     </CountedResults>

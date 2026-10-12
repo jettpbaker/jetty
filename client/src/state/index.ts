@@ -67,17 +67,21 @@ export {
   useThreadRowPrefetch,
 } from './threads'
 export {
-  MAIN_TAB,
   useDetailsRequest,
   useRequestReveal,
   useRequestSectionReveal,
   useRevealRow,
   useRevealSection,
-  useSubagentOutcome,
-  useSubagentTabs,
-  useThreadTab,
-  type SubagentTab,
 } from './thread_tab'
+export {
+  subagentTabId,
+  useOpenSubagent,
+  useSubagent,
+  useSubagentOutcome,
+  useSubagents,
+  useSubagentTabs,
+  type SubagentSummary,
+} from './subagents'
 export {
   useArchiveThread,
   useCreateProject,

@@ -12,8 +12,10 @@ import {
   useLinkedPull,
   useOpenDesktop,
   useOpenPullRequestTab,
+  useOpenSubagent,
   useProjectRepos,
   usePullRequestSummary,
+  useSubagent,
   useThreadMeta,
   useThreadRowPrefetch,
 } from '@/state'
@@ -37,12 +39,13 @@ import { visitLinks, type MarkdownNode } from './markdown_links'
 import { OverflowTitle } from './overflow_title'
 import { PersonAvatar } from './person_avatar'
 import { pullRequestFacts, type GitHubPullRequest } from './pull_request_model'
+import { subagentGlyphIcons, subagentGlyphLabel, subagentGlyphState } from './subagent_glyph'
 import { desktopLabels } from './thread_desktop'
 import { ThreadHoverDetails, ThreadHoverPopup } from './thread_hover'
 import { linkPresentation } from './thread_pull_request'
 import { statusPresentation, threadStatus, type Status } from './thread_status'
 
-type Kind = 'thread' | 'bot' | 'desktop' | 'pr' | 'issue' | 'commit'
+type Kind = 'thread' | 'subagent' | 'bot' | 'desktop' | 'pr' | 'issue' | 'commit'
 type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 
 // The agent writes ordinary markdown links; Jetty swaps the ones it recognises for <entity-link>.
@@ -50,12 +53,21 @@ type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 // The last group is a place within the entity (a comment, a file, a tab): a permalink.
 const entityPatterns: [Kind, RegExp][] = [
   ['thread', /^jetty:\/\/threads\/([\da-f-]+)()$/],
+  ['subagent', /^jetty:\/\/subagents\/([^/?#]+)()$/],
   ['bot', /^jetty:\/\/bots\/([\w-]+)()$/],
   ['desktop', /^jetty:\/\/desktops\/([\w-]+)()$/],
   ['pr', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)\/?([/?#].*)?$/],
   ['issue', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)\/?([/?#].*)?$/],
   ['commit', /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/commit\/([\da-f]{7,40})\/?([/?#].*)?$/],
 ]
+
+function decodeSegment(segment: string) {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
 
 function entityOf(url: string) {
   for (const [kind, pattern] of entityPatterns) {
@@ -66,11 +78,13 @@ function entityOf(url: string) {
     return {
       kind,
       entity:
-        kind === 'thread' || kind === 'bot' || kind === 'desktop'
-          ? first
-          : kind === 'commit'
-            ? `${repo}@${second}`
-            : `${repo}#${second}`,
+        kind === 'subagent'
+          ? decodeSegment(first)
+          : kind === 'thread' || kind === 'bot' || kind === 'desktop'
+            ? first
+            : kind === 'commit'
+              ? `${repo}@${second}`
+              : `${repo}#${second}`,
       ...(within && { permalink: url }),
     }
   }
@@ -80,6 +94,7 @@ const githubPaths: Record<string, string> = { pr: 'pull', issue: 'issues', commi
 
 function entityUrl(kind: string, entity: string) {
   if (kind === 'thread') return `jetty://threads/${entity}`
+  if (kind === 'subagent') return `jetty://subagents/${encodeURIComponent(entity)}`
   if (kind === 'bot') return `jetty://bots/${entity}`
   if (kind === 'desktop') return `jetty://desktops/${entity}`
   const [repo, id] = entity.split(/[#@]/)
@@ -208,6 +223,27 @@ export function ThreadLink({
         <ThreadHoverDetails threadId={id} />
       </ThreadHoverPopup>
     </PreviewCard.Root>
+  )
+}
+
+// A subagent the thread started, named by its id or title: it opens in the details pane. Click, not
+// pointer-down: the link sits in a scrollable chat.
+function SubagentLink({ name, fallback }: { name: string; fallback: ReactNode }) {
+  const threadId = use(OpenPullLink)
+  const agent = useSubagent(threadId, name)
+  const open = useOpenSubagent()
+  if (!threadId || !agent) return fallback
+  const state = subagentGlyphState(agent.status, agent.waiting)
+  return (
+    <button type='button' className={inlineLinkClass} onClick={() => open(threadId, agent.id)}>
+      <LeadTitle
+        icon={subagentGlyphIcons[state]}
+        color=''
+        label={subagentGlyphLabel(state)}
+        size={discGlyph}
+        text={shorten(agent.title)}
+      />
+    </button>
   )
 }
 
@@ -595,6 +631,7 @@ export function EntityLink({
   const target = entityOf(permalink ?? entityUrl(kind, entity))
   if (target?.kind !== kind || target.entity !== entity) return children
   if (kind === 'thread') return <ThreadLink id={entity} fallback={children} />
+  if (kind === 'subagent') return <SubagentLink name={entity} fallback={children} />
   if (kind === 'bot') return <BotLink id={entity} fallback={children} />
   if (kind === 'desktop') return <DesktopLink id={entity}>{children}</DesktopLink>
   if (kind === 'pr') return <PullLink entity={entity} permalink={permalink} />

@@ -114,7 +114,6 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
           provider={bot.provider}
           bot={rowOptions}
           onOpenRoom={setRoom}
-          onSelectAgent={ignore}
         />
       ) : (
         <div className='min-h-0 flex-1' />

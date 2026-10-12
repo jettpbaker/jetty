@@ -20,7 +20,6 @@ const tabsListVariants = cva(
       variant: {
         default: 'bg-muted',
         line: 'gap-1 bg-transparent',
-        thread: 'h-auto w-full justify-start gap-2 rounded-none bg-transparent p-1',
       },
     },
     defaultVariants: {
@@ -44,23 +43,7 @@ function TabsList({
   )
 }
 
-function TabsTrigger({
-  className,
-  variant = 'default',
-  ...props
-}: TabsPrimitive.Tab.Props & { variant?: 'default' | 'thread' }) {
-  if (variant === 'thread') {
-    return (
-      <TabsPrimitive.Tab
-        data-slot='tabs-trigger'
-        className={cn(
-          "relative inline-flex h-7.5 w-[200px] min-w-[100px] max-w-[200px] shrink cursor-pointer items-center justify-start gap-1.5 rounded-sm px-2.5 text-sm font-normal bg-card text-muted-foreground select-none hover:bg-sidebar-accent hover:text-foreground data-active:bg-sidebar-accent data-active:text-foreground data-active:shadow-[inset_0_0_0_1px_var(--tab-selected-border)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:text-disabled-foreground disabled:[&_svg]:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-          className
-        )}
-        {...props}
-      />
-    )
-  }
+function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
   return (
     <TabsPrimitive.Tab
       data-slot='tabs-trigger'

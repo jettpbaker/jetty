@@ -173,9 +173,6 @@ function estimateSignature(row: ThreadRow) {
     case 'video':
       inputs = [row.item.video, row.item.caption]
       break
-    case 'subagents':
-      inputs = row.agents.length
-      break
     case 'wake':
       inputs = row.reports?.length
       break
@@ -267,8 +264,6 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       return (
         videoHeight(row.item.video, width) + captionHeight(row.id, row.item.caption, width, rough)
       )
-    case 'subagents':
-      return 44 + 50 * row.agents.length
     case 'workflow':
       return row.item.status === 'running'
         ? 72 + 32 * row.item.phases.length + 28 * row.item.agents.length

@@ -100,15 +100,3 @@ export function ShellNavigation() {
     </nav>
   )
 }
-
-export function ShellNavigationSpace() {
-  const { expanded, width } = useNavigationWidth()
-  return (
-    <div
-      aria-hidden='true'
-      data-sidebar-open={expanded}
-      className={`shrink-0 ${widthTransition}`}
-      style={{ width }}
-    />
-  )
-}

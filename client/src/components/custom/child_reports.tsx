@@ -1,12 +1,12 @@
 import type { ChildReport, ThreadItem } from '@jetty/shared/items'
 
-import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
+import { useOpenSubagent } from '@/state'
 
 import { inlineLinkClass, ThreadLink } from './entity_link'
 import { Markdown } from './markdown'
-import { subagentAvatarColor } from './subagent_row'
+import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
 import { formatActivityDuration } from './work_model'
 
 export const reportOutcomes = {
@@ -49,21 +49,23 @@ export function ChildReports({ reports }: { reports: readonly ChildReport[] }) {
 }
 
 const subagentOutcomes = {
-  completed: { color: subagentAvatarColor.complete, verb: 'finished', time: 'worked for' },
-  failed: { color: subagentAvatarColor.error, verb: 'failed', time: 'after' },
-  stopped: { color: subagentAvatarColor.stopped, verb: 'was stopped', time: 'after' },
+  completed: { verb: 'finished', time: 'worked for' },
+  failed: { verb: 'failed', time: 'after' },
+  stopped: { verb: 'was stopped', time: 'after' },
 } as const
 
-// A background subagent's finish, where its result reached the agent; it opens the subagent's tab.
+// A background subagent's finish, where its result reached the agent; it opens the subagent in the
+// details pane.
 export function SubagentDone({
+  threadId,
   agent,
-  onSelect,
 }: {
+  threadId: string
   agent: Extract<ThreadItem, { kind: 'subagent' }>
-  onSelect: (id: string) => void
 }) {
+  const open = useOpenSubagent()
   if (agent.status === 'running') return null
-  const { color, verb, time } = subagentOutcomes[agent.status]
+  const { verb, time } = subagentOutcomes[agent.status]
   const worked = agent.durationMs ? formatActivityDuration(agent.durationMs / 1000) : undefined
   return (
     <Message align='start' className='pb-1'>
@@ -71,13 +73,14 @@ export function SubagentDone({
         <Bubble variant='ghost' align='start'>
           <BubbleContent>
             <p>
-              <button type='button' className={inlineLinkClass} onClick={() => onSelect(agent.id)}>
-                <DitherAvatar
-                  name={agent.id}
-                  mirror='horizontal'
-                  animate={false}
-                  color={color}
-                  className='mr-1 inline-block size-3.5 align-[-2px]'
+              <button
+                type='button'
+                className={inlineLinkClass}
+                onClick={() => open(threadId, agent.id)}
+              >
+                <SubagentGlyph
+                  state={subagentGlyphState(agent.status)}
+                  className='mr-1 inline-block size-3.25 align-[-2px]'
                 />
                 {agent.title}
               </button>{' '}

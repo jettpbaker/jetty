@@ -10,16 +10,17 @@ import {
   useRequestReveal,
   useRevealSection,
   useThreadDiff,
+  useOpenSubagent,
+  useSubagents,
   useThreadMeta,
-  useThreadTab,
 } from '@/state'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
 import { PullRequestRow } from './pull_request_row'
-import { SubagentRow } from './subagent_row'
-import { threadSubagents, toSubagent } from './thread_rows'
+import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
+import { threadSubagents } from './thread_rows'
 import { currentTodos } from './todo_model'
 import { WorkflowLineGrid } from './workflow_lines'
 import { type Workflow } from './workflow_parts'
@@ -100,7 +101,8 @@ export function ThreadOverview({
 }) {
   const { items, lastTurn } = useOverviewItems(threadId)
   const meta = useThreadMeta(threadId)
-  const [tab, setTab] = useThreadTab(threadId)
+  const openSubagent = useOpenSubagent()
+  const agents = useSubagents(threadId)
   const reveal = useRequestReveal()
   const { diff } = useThreadDiff(threadId)
   const { setCollapsed, sectionProps } = useCollapsedSections('jetty.overview.collapsed')
@@ -117,10 +119,6 @@ export function ThreadOverview({
         (a, b) => (b.updatedAt ?? b.linkedAt) - (a.updatedAt ?? a.linkedAt)
       ),
     [meta?.pullRequests]
-  )
-  const now = useNow(
-    1000,
-    subagentItems.some((agent) => agent.status === 'running')
   )
   const minuteNow = useNow(60_000)
 
@@ -166,16 +164,20 @@ export function ThreadOverview({
         {subagentItems.length > 0 && (
           <Section label='Subagents' count={subagentItems.length} {...sectionProps('subagents')}>
             <div className='flex flex-col gap-0.5'>
-              {subagentItems.map((item) => (
-                <SubagentRow
-                  key={item.id}
-                  agent={toSubagent(item, now)}
-                  selected={tab === item.id}
-                  onSelect={() => {
-                    setTab(item.id)
-                    onShowChat()
-                  }}
-                />
+              {agents.map((agent) => (
+                <Button
+                  key={agent.id}
+                  variant='ghost'
+                  size='sm'
+                  className='w-full justify-start gap-2 rounded-sm px-2.5 font-normal'
+                  onClick={() => openSubagent(threadId, agent.id)}
+                >
+                  <SubagentGlyph
+                    state={subagentGlyphState(agent.status, agent.waiting)}
+                    className='size-3.25'
+                  />
+                  <span className='truncate'>{agent.title}</span>
+                </Button>
               ))}
             </div>
           </Section>

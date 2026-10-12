@@ -1,53 +1,19 @@
 .app-workspace {
-  --motion-thread-tabs-open-duration: 150ms;
-  --motion-thread-tabs-close-duration: 100ms;
   --page-header-inset: 16px;
 }
 
-.app-thread-tabs {
-  opacity: 1;
-  transform: translateY(0);
-  visibility: visible;
-  transition:
-    opacity var(--motion-thread-tabs-open-duration) var(--motion-sidebar-ease),
-    transform var(--motion-thread-tabs-open-duration) var(--motion-sidebar-ease),
-    visibility 0s;
-}
-.app-thread-tabs[data-visible='false'] {
-  opacity: 0;
-  transform: translateY(-6px);
-  visibility: hidden;
-  pointer-events: none;
-  transition-duration:
-    var(--motion-thread-tabs-close-duration), var(--motion-thread-tabs-close-duration), 0s;
-  transition-delay: 0s, 0s, var(--motion-thread-tabs-close-duration);
-}
-@media (prefers-reduced-motion: reduce) {
-  .app-thread-tabs,
-  .app-thread-tabs[data-visible='false'] {
-    transform: none;
-    transition: none;
-  }
-}
-
 .app-thread-bar {
-  height: var(--app-tab-bar-height);
-  transition: height var(--motion-thread-tabs-open-duration) var(--motion-sidebar-ease);
-}
-.app-workspace[data-thread-tabs='false'] .app-thread-bar {
   height: 8px;
-  transition-duration: var(--motion-thread-tabs-close-duration);
 }
-/* Without a tab row, the collapsed toggle rests in the page header's leading slot. */
-.app-workspace[data-thread-tabs='false'] .app-shell-navigation {
+/* The collapsed toggle rests in the page header's leading slot. */
+.app-shell-navigation {
   transition-property: width, translate;
 }
-.app-workspace[data-thread-tabs='false'] .app-shell-navigation[data-sidebar-open='false'] {
+.app-shell-navigation[data-sidebar-open='false'] {
   translate: calc(var(--page-header-inset) + 2px) 8.5px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-thread-bar,
-  .app-workspace[data-thread-tabs='false'] .app-shell-navigation {
+  .app-shell-navigation {
     transition: none;
   }
 }

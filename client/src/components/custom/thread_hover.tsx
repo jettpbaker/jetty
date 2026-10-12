@@ -1,7 +1,6 @@
 import type { SubagentStatus } from '@jetty/shared/items'
 import type { Bot, ProviderId, RunningSubagent } from '@jetty/shared/wire'
 
-import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
@@ -43,7 +42,7 @@ import { ProviderGlyph } from './provider_glyph'
 import { RollingDuration } from './rolling_duration'
 import { threadPullRequests } from './sidebar_thread_groups'
 import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
-import { renderWorkingTitle } from './subagent_row'
+import { SubagentGlyph, subagentGlyphState, renderWorkingTitle } from './subagent_glyph'
 import { rankPullRequests, type ThreadPullRequest } from './thread_pull_request'
 import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 import { formatActivityDuration } from './work_model'
@@ -587,15 +586,6 @@ const outcomeLabels: Record<Ended, string> = {
   stopped: 'Stopped',
 }
 
-// The avatar keeps the accent while it runs, then shades to green, red, or grey for a stop (or an
-// ending the card can't see).
-const avatarColor: Record<Ended | 'running', string> = {
-  running: 'text-primary',
-  completed: 'text-status-success',
-  failed: 'text-status-error-glyph',
-  stopped: 'text-muted-foreground',
-}
-
 const endedTitle = (text: string) => <span className='text-muted-foreground'>{text}</span>
 const failedTitle = (text: string) => <span className='text-status-error'>{text}</span>
 
@@ -647,20 +637,10 @@ function SubagentRows({ subagents }: { subagents: readonly SubagentRow[] }) {
       >
         <div>
           <div data-overflow-hover className={rowClass}>
-            <span
-              className={cn(
-                'flex shrink-0 items-center',
-                avatarColor[ended ? (agent.outcome ?? 'stopped') : 'running']
-              )}
-            >
-              <DitherAvatar
-                name={agent.id}
-                mirror='horizontal'
-                animate={false}
-                color='currentColor'
-                className='finish-avatar size-3'
-              />
-            </span>
+            <SubagentGlyph
+              state={ended ? subagentGlyphState(agent.outcome ?? 'stopped') : 'running'}
+              className='size-3 shrink-0'
+            />
             <RowTitle
               renderText={
                 !ended ? renderWorkingTitle : agent.outcome === 'failed' ? failedTitle : endedTitle

@@ -13,7 +13,6 @@ import {
 } from '@jetty/shared/items'
 import { claudeModelLabel } from '@jetty/shared/model-name'
 
-import type { Subagent } from './subagent_row'
 import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_model'
 
 import { foldTodos, todoTools } from './todo_model'
@@ -26,7 +25,7 @@ type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
-type StepItem = WorkItem | AssistantItem | QuestionItem | ApprovalItem
+type StepItem = WorkItem | AssistantItem | QuestionItem | ApprovalItem | SubagentItem
 type MarkerItem = Extract<ThreadItem, { kind: 'thread_marker' }>
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
@@ -88,7 +87,6 @@ export type ThreadRow =
   | { kind: 'error'; id: string; message: string }
   | { kind: 'gallery'; id: string; item: GalleryItem }
   | { kind: 'video'; id: string; item: VideoItem }
-  | { kind: 'subagents'; id: string; agents: SubagentItem[] }
   | { kind: 'workflow'; id: string; item: WorkflowItem }
 
 function toolKind(name: string): ToolKind {
@@ -327,8 +325,17 @@ function toActivity(
   sessionRunning: boolean,
   sessionActive: boolean,
   projectPath: string | undefined,
-  source?: string
+  source?: string,
+  waitingAgents?: ReadonlySet<string>
 ): WorkActivity {
+  if (item.kind === 'subagent')
+    return {
+      type: 'subagent',
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      waiting: waitingAgents?.has(item.id) ?? false,
+    }
   if (item.kind === 'approval') return { type: 'approval', id: item.id, item, source }
   if (item.kind === 'question') return { type: 'question', id: item.id, item, source }
   if (item.kind === 'assistant_message')
@@ -409,25 +416,6 @@ function workStatus(
 // Before the subagent's first reply its model is unknown; its type stands in.
 export function subagentLabel({ model }: { model?: string }) {
   return model ? claudeModelLabel(model) : ''
-}
-
-export function toSubagent(item: SubagentItem, now: number): Subagent {
-  return {
-    id: item.id,
-    title: item.title,
-    model: subagentLabel(item),
-    status:
-      item.status === 'running'
-        ? 'working'
-        : item.status === 'completed'
-          ? 'complete'
-          : item.status === 'stopped'
-            ? 'stopped'
-            : 'error',
-    elapsedSeconds:
-      (item.durationMs ?? Math.max(0, (item.completedAt ?? now) - item.createdAt)) / 1000,
-    tokens: item.tokens ?? 0,
-  }
 }
 
 const selectSubagents = createItemSelection((item) => item.kind === 'subagent')
@@ -595,6 +583,9 @@ export function threadRows(
   const agentTitles = new Map(
     agentId ? [] : threadSubagents(allItems).map((agent) => [agent.id, agent.title])
   )
+  const waitingAgents = new Set(
+    allItems.flatMap((item) => (item.agentId && awaitsInput(item) ? [item.agentId] : []))
+  )
   const rows: ThreadRow[] = []
   const turns = bot && botTurns(items, bot)
   // A turn that shows nothing of its own: another bot's, or a check-in or tidy Jett didn't join
@@ -619,16 +610,6 @@ export function threadRows(
       !item.private &&
       turns.get(item.turnId)?.opener !== 'jett'
     )
-  }
-  const agent = agentId && allItems.find((item) => item.id === agentId)
-  if (agent && agent.kind === 'subagent' && agent.prompt) {
-    const { turnId, createdAt, prompt } = agent
-    const id = `${agent.id}:prompt`
-    rows.push({
-      kind: 'user',
-      id,
-      item: { id, turnId, createdAt, kind: 'user_message', text: prompt, attachments: [] },
-    })
   }
   const tail = items.at(-1)
   const sessionRunning = status === 'running' || status === 'starting'
@@ -674,9 +655,10 @@ export function threadRows(
     if (turns && turns.get(item.turnId)?.opener !== 'jett') return true
     return item.turnId === liveTurnId || lastReplies.get(item.turnId) !== item.id
   }
-  function isStep(item: ThreadItem): item is WorkItem | QuestionItem | ApprovalItem {
+  function isStep(item: ThreadItem): item is WorkItem | QuestionItem | ApprovalItem | SubagentItem {
     return (
       ((item.kind === 'reasoning' || item.kind === 'tool_call') && !hidden(item)) ||
+      item.kind === 'subagent' ||
       (item.kind === 'question' && !awaitsInput(item)) ||
       (item.kind === 'approval' &&
         !awaitsInput(item) &&
@@ -789,10 +771,6 @@ export function threadRows(
     }
     const last = rows.at(-1)
     switch (item.kind) {
-      case 'subagent':
-        if (last?.kind === 'subagents') last.agents.push(item)
-        else rows.push({ kind: 'subagents', id: item.id, agents: [item] })
-        break
       case 'workflow':
         rows.push({ kind: 'workflow', id: item.id, item })
         break
@@ -877,7 +855,8 @@ export function threadRows(
             sessionRunning,
             sessionActive,
             projectPath,
-            item.agentId ? agentTitles.get(item.agentId) : undefined
+            item.agentId ? agentTitles.get(item.agentId) : undefined,
+            waitingAgents
           ),
         ]
       const update = todos.get(item.id)

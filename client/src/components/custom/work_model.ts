@@ -1,4 +1,4 @@
-import type { ThreadItem } from '@jetty/shared/items'
+import type { SubagentStatus, ThreadItem } from '@jetty/shared/items'
 
 import { formatDuration } from '@/lib/time'
 
@@ -39,6 +39,13 @@ export type ThinkingActivity = {
 }
 export type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }
 export type CreatedActivity = { type: 'created'; id: string; threadId: string; title?: string }
+export type SubagentActivity = {
+  type: 'subagent'
+  id: string
+  title: string
+  status: SubagentStatus
+  waiting: boolean
+}
 export type TextActivity = { type: 'text'; id: string; text: string; streaming: boolean }
 export type QuestionActivity = {
   type: 'question'
@@ -57,14 +64,17 @@ export type WorkActivity =
   | ThinkingActivity
   | TodoActivity
   | CreatedActivity
+  | SubagentActivity
   | TextActivity
   | QuestionActivity
   | ApprovalActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
 export type ThreadBatch = { type: 'threads'; id: string; threads: CreatedActivity[] }
+export type SubagentBatch = { type: 'subagents'; id: string; agents: SubagentActivity[] }
 export type WorkEntry =
   | ToolBatch
   | ThreadBatch
+  | SubagentBatch
   | ThinkingActivity
   | TodoActivity
   | TextActivity
@@ -155,6 +165,8 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
       previous.calls.push(activity)
     } else if (activity.type === 'created' && previous?.type === 'threads') {
       previous.threads.push(activity)
+    } else if (activity.type === 'subagent' && previous?.type === 'subagents') {
+      previous.agents.push(activity)
     } else {
       if (previous?.type === 'tools') previous.sealed = true
       entries.push(
@@ -162,7 +174,9 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
           ? { type: 'tools', id: activity.id, calls: [activity], sealed: false }
           : activity.type === 'created'
             ? { type: 'threads', id: activity.id, threads: [activity] }
-            : activity
+            : activity.type === 'subagent'
+              ? { type: 'subagents', id: activity.id, agents: [activity] }
+              : activity
       )
     }
   }
@@ -205,6 +219,13 @@ export function createWorkEntries() {
         old?.type === 'threads' &&
         entry.threads.length === old.threads.length &&
         entry.threads.every((thread, index) => sameActivity(thread, old.threads[index]!))
+      )
+        return old
+      if (
+        entry.type === 'subagents' &&
+        old?.type === 'subagents' &&
+        entry.agents.length === old.agents.length &&
+        entry.agents.every((agent, index) => sameActivity(agent, old.agents[index]!))
       )
         return old
       return entry

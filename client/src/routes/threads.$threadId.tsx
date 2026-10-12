@@ -5,13 +5,11 @@ import { ThreadComposer } from '@/components/custom/thread_composer'
 import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
 import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
-import { threadSubagents } from '@/components/custom/thread_rows'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import { settingUpWorktree } from '@/lib/thread_worktree'
 import { perf } from '@/perf'
 import {
-  MAIN_TAB,
   useArchiveThread,
   useBumpDraft,
   useChromeReady,
@@ -20,7 +18,6 @@ import {
   useThread,
   useThreadMeta,
   useThreadOverlay,
-  useThreadTab,
 } from '@/state'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useLayoutEffect, useRef } from 'react'
@@ -50,10 +47,7 @@ function Thread() {
   )
   const project = useProject(meta?.projectId)
   const projectPath = meta?.workingPath ?? project?.path
-  const [tab, setTab] = useThreadTab(threadId)
   const archiveThread = useArchiveThread()
-  const agents = threadSubagents(overlay.items)
-  const agent = agents.find((entry) => entry.id === tab)
   // Until the thread loads, a thread that has never started a turn is taken to be empty. Threads
   // from before turn times were recorded only have their provider to show for it. A first message
   // held in the queue (its worktree setup stopped or failed) still shows in the chat.
@@ -99,30 +93,21 @@ function Thread() {
             <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
           ) : thread || !overlay.empty ? (
             <ThreadList
-              key={`${threadId}:${agent?.id ?? MAIN_TAB}`}
+              key={threadId}
               threadId={threadId}
               items={overlay.items}
-              status={
-                agent
-                  ? agent.status === 'running'
-                    ? 'running'
-                    : 'idle'
-                  : (thread?.status ?? 'idle')
-              }
-              running={agent ? false : overlay.running}
-              settingUp={!agent && settingUpWorktree(meta)}
-              outcomes={agent ? undefined : thread?.turnOutcomes}
-              loadouts={agent ? undefined : thread?.turnLoadouts}
+              status={thread?.status ?? 'idle'}
+              running={overlay.running}
+              settingUp={settingUpWorktree(meta)}
+              outcomes={thread?.turnOutcomes}
+              loadouts={thread?.turnLoadouts}
               projectPath={projectPath}
               provider={meta?.provider}
-              agentId={agent?.id}
-              onSelectAgent={setTab}
             />
           ) : (
             <div className='min-h-0 flex-1' />
           )}
-          {/* A thread left on a subagent's tab reopens there, where there's no composer. */}
-          {!empty && !agent && (thread || tab === MAIN_TAB) && composer}
+          {!empty && composer}
         </ThreadDetailsLayout>
       )}
     </section>

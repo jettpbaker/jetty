@@ -11,7 +11,7 @@ import { QuestionBlock } from './question_block'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
 import { TodoLink } from './todo_link'
-import { ThreadGroup, ToolGroup } from './tool_group'
+import { SubagentGroup, ThreadGroup, ToolGroup } from './tool_group'
 import { TranscriptMarker } from './transcript_marker'
 import {
   formatActivityDuration,
@@ -291,6 +291,8 @@ function WorkHistory({
               <TodoLink threadId={threadId} update={entry.update} />
             ) : entry.type === 'threads' ? (
               <ThreadGroup batch={entry} />
+            ) : entry.type === 'subagents' ? (
+              <SubagentGroup threadId={threadId} batch={entry} />
             ) : (
               <ToolGroup batch={entry} />
             )}

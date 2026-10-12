@@ -59,7 +59,8 @@ export function jettyInstructions(
         : bot
           ? ''
           : 'When you hand finished work back to the user, or need their decision, call mark_ready_for_review so the thread stands out in their sidebar.',
-      'To mention a thread, link it as [title](jetty://threads/<id>). Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
+      'To mention a thread, link it as [title](jetty://threads/<id>); to mention a subagent you started, link it as [title](jetty://subagents/<agentId>), using the agentId its result reports, or its title if it reports none. Link pull requests, issues and commits by their GitHub URLs. Jetty renders these as live links with their current status.',
+      'In your final message, list the threads and subagents you started that turn, each as one of those links.',
     ]
       .filter(Boolean)
       .join(' '),

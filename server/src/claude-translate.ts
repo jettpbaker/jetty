@@ -344,9 +344,11 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
   const tokens = natural(msg.usage?.total_tokens)
   if (msg.subtype === 'task_started') {
     if (msg.task_id) ctx.tasks.set(msg.task_id, itemId)
-    return msg.subagent_type
-      ? [{ type: 'item.updated', itemId, patch: { agentType: msg.subagent_type } }]
-      : []
+    const patch = {
+      ...(msg.subagent_type ? { agentType: msg.subagent_type } : {}),
+      ...(msg.task_id ? { taskId: msg.task_id } : {}),
+    }
+    return Object.keys(patch).length ? [{ type: 'item.updated', itemId, patch }] : []
   }
   if (msg.subtype === 'task_progress' && tokens != null)
     return [{ type: 'item.updated', itemId, patch: { tokens } }]

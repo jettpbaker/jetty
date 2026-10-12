@@ -13,17 +13,10 @@ import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { AgentMessageFooter } from '@/components/custom/message_footer'
 import { ScrollToBottom } from '@/components/custom/scroll_to_bottom'
-import { SubagentGroup } from '@/components/custom/subagent_group'
 import { useLayoutCheck } from '@/components/custom/thread_list_check'
 import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
-import {
-  createThreadRows,
-  toSubagent,
-  type BotRows,
-  type SubagentItem,
-  type ThreadRow,
-} from '@/components/custom/thread_rows'
+import { createThreadRows, type BotRows, type ThreadRow } from '@/components/custom/thread_rows'
 import {
   CompactionSeam,
   PullRequestSeam,
@@ -37,7 +30,6 @@ import { WorkBlock } from '@/components/custom/work_block'
 import { WorkflowGroup } from '@/components/custom/workflow_group'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
-import { useNow } from '@/hooks/use-now'
 import { bottomGlide } from '@/lib/bottom-glide'
 import { whenIdle } from '@/lib/preload'
 import { getSendMotionTransition } from '@/lib/send-motion'
@@ -160,8 +152,6 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.images.length}:${row.item.caption?.length ?? 0}`
     case 'video':
       return row.item.caption?.length ?? 0
-    case 'subagents':
-      return row.agents.map((agent) => `${agent.id}:${agent.status}`).join(',')
     case 'workflow':
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'compaction':
@@ -184,60 +174,29 @@ function rowStamp(row: ThreadRow) {
             ? `${activity.id}:${activity.text.length}:${activity.streaming}`
             : activity.type === 'thinking'
               ? `${activity.id}:${activity.summary.length}:${activity.status}`
-              : activity.type === 'todo' ||
-                  activity.type === 'created' ||
-                  activity.type === 'question' ||
-                  activity.type === 'approval'
-                ? activity.id
-                : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
+              : activity.type === 'subagent'
+                ? `${activity.id}:${activity.status}:${activity.waiting}`
+                : activity.type === 'todo' ||
+                    activity.type === 'created' ||
+                    activity.type === 'question' ||
+                    activity.type === 'approval'
+                  ? activity.id
+                  : `${activity.id}:${activity.output?.length ?? 0}:${activity.status}`
         )
         .join(',')}`
   }
-}
-
-function SubagentsRow({
-  agents,
-  selectedId,
-  onSelect,
-}: {
-  agents: readonly SubagentItem[]
-  selectedId?: string
-  onSelect: (id: string) => void
-}) {
-  const running = agents.some((agent) => agent.status === 'running')
-  const now = useNow(1000, running)
-  // Open while any run; closes itself once the last one finishes, and reopens if another starts.
-  const [open, setOpen] = useState(running)
-  const [wasRunning, setWasRunning] = useState(running)
-  if (running !== wasRunning) {
-    setWasRunning(running)
-    setOpen(running)
-  }
-  return (
-    <SubagentGroup
-      agents={agents.map((agent) => toSubagent(agent, now))}
-      open={open}
-      onOpenChange={setOpen}
-      selectedId={selectedId}
-      onSelect={onSelect}
-    />
-  )
 }
 
 // Rows keep their identity while unchanged, so a list re-render (scroll, measurement) skips them.
 const ThreadItemRow = memo(function ThreadItemRow({
   row,
   threadId,
-  selectedAgent,
-  onSelectAgent,
   provider,
   projectPath,
   onOpenRoom,
 }: {
   row: ThreadRow
   threadId: string
-  selectedAgent?: string
-  onSelectAgent: (id: string) => void
   provider?: string
   projectPath?: string
   onOpenRoom?: (room: Room) => void
@@ -306,11 +265,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
         />
       </ProjectFileRoot>
     )
-  if (row.kind === 'subagents')
-    return <SubagentsRow agents={row.agents} selectedId={selectedAgent} onSelect={onSelectAgent} />
   if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
-  if (row.kind === 'subagentDone')
-    return <SubagentDone agent={row.agent} onSelect={onSelectAgent} />
+  if (row.kind === 'subagentDone') return <SubagentDone threadId={threadId} agent={row.agent} />
   if (row.kind === 'compaction') return <CompactionSeam running={row.running} />
   if (row.kind === 'pullRequest') return <PullRequestSeam item={row.item} />
   if (row.kind === 'pullRequestGroup') return <PullRequestGroupSeam items={row.items} />
@@ -340,7 +296,6 @@ export function ThreadList({
   settingUp,
   bot,
   onOpenRoom,
-  onSelectAgent,
 }: {
   threadId: string
   items: readonly ThreadItem[]
@@ -355,7 +310,6 @@ export function ThreadList({
   // A bot's chat: its other bots, and whether check-ins and tidies show.
   bot?: BotRows
   onOpenRoom?: (room: Room) => void
-  onSelectAgent: (id: string) => void
 }) {
   const [buildRows] = useState(createThreadRows)
   const rows = useMemo(
@@ -932,8 +886,6 @@ export function ThreadList({
                   <ThreadItemRow
                     row={rows[virtualRow.index]!}
                     threadId={threadId}
-                    selectedAgent={agentId}
-                    onSelectAgent={onSelectAgent}
                     provider={provider}
                     projectPath={projectPath}
                     onOpenRoom={onOpenRoom}

@@ -102,12 +102,15 @@ export function ThreadRow({
   result,
   onSelect,
   status,
+  glyph,
   render,
   placeholder = false,
 }: {
   result: ThreadResult
   onSelect?: (result: ThreadResult) => void
   status?: Status
+  // Stands in for the status glyph, for a row that isn't a thread.
+  glyph?: ReactNode
   placeholder?: boolean
   render?: ReactElement<{
     className?: string
@@ -120,7 +123,8 @@ export function ThreadRow({
   const title = result.title
   const children = (
     <>
-      {(status || result.archived || result.status) && (
+      {glyph}
+      {!glyph && (status || result.archived || result.status) && (
         <StatusGlyph
           status={status ?? (result.archived ? 'archived' : threadStatus(result.status!))}
           className='size-3.25'

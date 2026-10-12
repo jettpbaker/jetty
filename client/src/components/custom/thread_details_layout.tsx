@@ -6,10 +6,13 @@ import {
   desktopTabId,
   pullRequestTabId,
   readFileDraft,
+  subagentTabId,
   useDesktopTabs,
   useDetailsRequest,
   useFileDirty,
   usePullRequestTabs,
+  useSubagents,
+  useSubagentTabs,
   useThreadMeta,
   useThreadPullRequests,
 } from '@/state'
@@ -40,6 +43,7 @@ import { OpenFileLink, projectRelativePath, type FileTarget } from './file_link'
 import { inDialog, keybinds } from './keybinds'
 import { Loading } from './loading'
 import { LivePullRequestView } from './pull_request_view'
+import { SubagentView } from './subagent_view'
 import { ThreadChanges, useThreadChangesPrefetch } from './thread_changes'
 import { ThreadDesktop } from './thread_desktop'
 import { ThreadDetailsTabs, type DetailsTabsHandle } from './thread_details_tabs'
@@ -135,6 +139,25 @@ export function ThreadDetailsLayout({
     [links, pullRequestLinks, show, hide]
   )
   const desktops = useDesktopTabs(threadId)
+  const allSubagents = useSubagents(threadId)
+  const {
+    visible: openedSubagents,
+    show: showSubagent,
+    hide: hideSubagent,
+  } = useSubagentTabs(threadId)
+  const visibleSubagents = useMemo(
+    () => openedSubagents.flatMap((id) => allSubagents.filter((agent) => agent.id === id)),
+    [openedSubagents, allSubagents]
+  )
+  const subagents = useMemo(
+    () => ({
+      all: allSubagents,
+      visible: visibleSubagents,
+      show: showSubagent,
+      hide: hideSubagent,
+    }),
+    [allSubagents, visibleSubagents, showSubagent, hideSubagent]
+  )
   const { tab: requestedTab, consume } = useDetailsRequest(threadId)
 
   const openFile = useCallback(
@@ -203,7 +226,8 @@ export function ThreadDetailsLayout({
   const requestShown =
     requestedTab === 'overview' ||
     pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab) ||
-    desktops.ids.some((id) => desktopTabId(id) === requestedTab)
+    desktops.ids.some((id) => desktopTabId(id) === requestedTab) ||
+    visibleSubagents.some((agent) => subagentTabId(agent.id) === requestedTab)
   const openingTab = useRef<string>(undefined)
   useLayoutEffect(() => {
     if (!requestedTab || !requestShown) return
@@ -256,6 +280,7 @@ export function ThreadDetailsLayout({
             threadCount={childThreads.length}
             pullRequests={pullRequests}
             desktops={desktops}
+            subagents={subagents}
             file={
               viewedFile && {
                 path: viewedFile.path,
@@ -335,6 +360,18 @@ export function ThreadDetailsLayout({
             </DetailsTabPanel>
           )
         })}
+        {visibleSubagents.map((agent) => {
+          const id = subagentTabId(agent.id)
+          return (
+            <DetailsTabPanel key={id} value={id} tab={tab}>
+              {open && ready && (
+                <Activity mode={tab === id ? 'visible' : 'hidden'}>
+                  <SubagentView threadId={threadId} agentId={agent.id} projectPath={projectPath} />
+                </Activity>
+              )}
+            </DetailsTabPanel>
+          )
+        })}
         {viewedFile && (
           <DetailsTabPanel value='file' tab={tab}>
             {open &&
@@ -367,6 +404,9 @@ export function ThreadDetailsLayout({
       pullRequests,
       pullRequestLinks,
       desktops,
+      subagents,
+      visibleSubagents,
+      projectPath,
       requestedFile,
       viewedFile,
       fileDirty,

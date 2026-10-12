@@ -302,7 +302,6 @@ function Replay({
         loadouts={thread.turnLoadouts}
         projectPath={source.projectPath}
         provider={source.provider}
-        onSelectAgent={() => undefined}
       />
     </div>
   )
