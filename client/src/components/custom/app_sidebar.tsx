@@ -51,7 +51,7 @@ import { usePrefetchProviderUsage } from '@/state/provider-usage'
 import { botThreadsByBot, useSidebarList, useSidebarRow } from '@/state/sidebar'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
-import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
+import { useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -342,12 +342,7 @@ export const AppSidebar = memo(function AppSidebar() {
       variant='inset'
       collapsible='offcanvas'
     >
-      <SidebarHeader className='shrink-0 gap-5 px-1.5 pb-4 pt-4'>
-        <div className='flex items-center justify-between pl-2.5'>
-          <Link to='/' className='text-base font-medium tracking-tight'>
-            jetty
-          </Link>
-        </div>
+      <SidebarHeader className='shrink-0 px-1.5 pb-4 pt-2'>
         <nav aria-label='Main navigation'>
           <SidebarMenu className='gap-0.5'>
             <SidebarMenuItem>
