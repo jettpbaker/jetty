@@ -42,7 +42,7 @@ export function BotOverview({
   const { sectionProps } = useCollapsedSections('jetty.bot-overview.collapsed')
   return (
     <div className='scrollbar-subtle h-full overflow-auto'>
-      <div className='flex flex-col gap-3.5 p-2 text-sm'>
+      <div className='flex flex-col gap-3.5 p-2 text-13'>
         <div className='flex flex-col'>
           <ModelRow bot={bot} />
           <InstructionsRow botId={bot.id} onOpen={onOpenInstructions} />
@@ -74,7 +74,7 @@ function ModelRow({ bot }: { bot: Bot }) {
     <BotSettingsSheet bot={bot}>
       <Button
         variant='ghost'
-        className='h-9 w-full justify-start gap-2 rounded-sm px-2.5 font-normal'
+        className='h-9 w-full justify-start gap-2 rounded-sm px-2.5 text-13 font-normal'
       >
         <span className='w-21 shrink-0 text-left text-muted-foreground'>Model</span>
         <ProviderGlyph provider={bot.provider} className='size-3.5 text-muted-foreground' />
@@ -96,7 +96,7 @@ function InstructionsRow({ botId, onOpen }: { botId: string; onOpen: () => void 
   return (
     <Button
       variant='ghost'
-      className='h-9 w-full justify-start gap-2 rounded-sm px-2.5 font-normal'
+      className='h-9 w-full justify-start gap-2 rounded-sm px-2.5 text-13 font-normal'
       {...pressProps(onOpen)}
     >
       <span className='w-21 shrink-0 text-left text-muted-foreground'>Instructions</span>

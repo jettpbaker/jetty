@@ -153,13 +153,13 @@ export function ThreadOverview({
   if (empty)
     return (
       <div className='flex h-full items-center justify-center p-4'>
-        <p className='text-sm text-muted-foreground'>Nothing yet</p>
+        <p className='text-13 text-muted-foreground'>Nothing yet</p>
       </div>
     )
 
   return (
     <div ref={scroller} className='scrollbar-subtle h-full overflow-auto'>
-      <div className='flex flex-col gap-3 p-2 text-sm'>
+      <div className='flex flex-col gap-3 p-2 text-13'>
         {running.length > 0 && (
           <Section label='Running' count={running.length} {...sectionProps('running')}>
             <div className='flex flex-col'>
@@ -184,7 +184,7 @@ export function ThreadOverview({
                   key={agent.id}
                   variant='ghost'
                   size='sm'
-                  className='w-full justify-start gap-2 rounded-sm px-2.5 font-normal'
+                  className='w-full justify-start gap-2 rounded-sm px-2.5 text-13 font-normal'
                   onClick={() => openSubagent(threadId, agent.id)}
                 >
                   <SubagentGlyph
