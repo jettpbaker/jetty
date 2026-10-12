@@ -1,4 +1,4 @@
-import type { QuestionSpec, ThreadItem } from '@jetty/shared/items'
+import type { ThreadItem } from '@jetty/shared/items'
 import type { Bot } from '@jetty/shared/wire'
 
 import { botAccentClass } from '@/components/custom/bot_avatar'
@@ -48,28 +48,6 @@ function BotApprovalCard({
   const respond = useRespondApproval()
   const view = approvalView(item, undefined)
   const command = view.target || item.toolName
-  if (item.decision || item.withdrawn || item.completedAt)
-    return (
-      <div className={cn(cardClass, 'py-2 text-muted-foreground')}>
-        <div className='flex min-w-0 items-center gap-2 text-sm'>
-          {(item.decision === 'always' || item.decision === 'allow') && (
-            <Checkmark1MediumIcon className='size-3.5 shrink-0' />
-          )}
-          <span className='shrink-0'>
-            {item.decision === 'always'
-              ? 'Allowed always'
-              : item.decision === 'allow'
-                ? 'Allowed once'
-                : item.decision === 'deny'
-                  ? 'Denied'
-                  : 'Withdrawn'}
-          </span>
-          <span className='truncate font-mono text-xs' title={command}>
-            {view.run ? withoutCd(command) : command}
-          </span>
-        </div>
-      </div>
-    )
   return (
     <div className={cardClass}>
       <div className='flex flex-col gap-0.5'>
@@ -134,7 +112,6 @@ function BotQuestionCard({
     custom: item.questions.map(() => ''),
   }
   const spec = item.questions[progress.step]
-  const answered = Boolean(item.answers || item.dismissed || item.completedAt)
   function save(next: QuestionProgress) {
     update({ questions: { ...draft.questions, [item.id]: next } })
   }
@@ -172,42 +149,6 @@ function BotQuestionCard({
         custom: progress.custom.with(progress.step, ''),
       })
   }
-  if (answered)
-    return (
-      <div className={cn(cardClass, 'text-muted-foreground')}>
-        {item.questions.map((question) => {
-          const answer = item.answers?.[question.question]
-          return (
-            <div key={question.question} className='flex flex-col gap-3'>
-              <div className='text-sm leading-[22.75px]'>{question.question}</div>
-              <div className='overflow-hidden rounded-md border border-border bg-background'>
-                {answer ? (
-                  answerRows(question, answer).map((option) => (
-                    <div
-                      key={option.label}
-                      className='flex items-start gap-2 border-t border-border px-[11px] py-2 first:border-t-0'
-                    >
-                      <span className='flex h-5 w-4 shrink-0 items-center'>
-                        <Checkmark1MediumIcon className='size-3.5' />
-                      </span>
-                      <OptionText option={option} />
-                    </div>
-                  ))
-                ) : (
-                  <div className='px-[11px] py-2 text-sm'>
-                    {item.answeredInChat
-                      ? 'Answered in chat'
-                      : item.dismissed
-                        ? 'Dismissed'
-                        : 'Withdrawn'}
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
   if (!spec) return null
   const total = item.questions.length
   const current = progress.custom[progress.step] ?? ''
@@ -302,19 +243,6 @@ function OptionText({ option }: { option: { label: string; description: string }
       )}
     </span>
   )
-}
-
-// Bots start most commands with `cd <dir> &&`; the collapsed row names what ran after it.
-function withoutCd(command: string) {
-  return command.replace(/^(?:cd\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*)+/, '')
-}
-
-// Multi-select answers are the ticked labels, then any Other text, joined by ", ".
-function answerRows(question: QuestionSpec, answer: string) {
-  const parts = question.multiSelect ? answer.split(', ') : [answer]
-  const options = question.options.filter((option) => parts.includes(option.label))
-  const other = parts.filter((part) => !options.some((option) => option.label === part)).join(', ')
-  return other ? [...options, { label: other, description: '' }] : options
 }
 
 // Chrome won't break a path at its slashes on its own.

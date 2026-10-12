@@ -13,6 +13,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 import { FileLines, isImageAttachment } from './attachment_files'
 import { botAccentClass, botColorStyle } from './bot_avatar'
+import { BotMentions } from './entity_link'
 import { ThreadSourceLabel, type MessageSource } from './source_label'
 
 export const collapsedTextHeight = 240
@@ -205,7 +206,8 @@ export function UserMessage({
                   filled={!!bot}
                   className={cn('leading-relaxed', images.length > 0 && 'mt-2')}
                 >
-                  {skill ? `/${skill} ${text}` : text}
+                  {skill ? `/${skill} ` : null}
+                  <BotMentions text={text} />
                 </CollapsibleText>
               ) : null}
             </BubbleContent>

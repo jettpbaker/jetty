@@ -1,44 +1,27 @@
 import type { ReadyAttachment } from '@/hooks/use-attachments'
-import type { PendingBotMessage } from '@/state/bots'
-import type { Attachment, Reply, ThreadItem } from '@jetty/shared/items'
-import type { Bot, ThreadMeta } from '@jetty/shared/wire'
+import type { Reply, ThreadItem } from '@jetty/shared/items'
+import type { Bot } from '@jetty/shared/wire'
 
-import { AddToPrompt } from '@/components/custom/add_to_prompt'
-import { FileLines, isImageAttachment } from '@/components/custom/attachment_files'
-import { StagedAttachments, ThumbRow } from '@/components/custom/bot_attachments'
+import { StagedAttachments } from '@/components/custom/bot_attachments'
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
-import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
+import { BotConversation, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
-import {
-  ArrowShareLeftIcon,
-  ArrowUpIcon,
-  SquareBehindSquare1Icon,
-  ArrowRotateClockwiseIcon,
-  StopIcon,
-  Checkmark1MediumIcon,
-} from '@/components/custom/central_icons'
+import { ArrowUpIcon, StopIcon } from '@/components/custom/central_icons'
 import { ComposerAttach } from '@/components/custom/composer_attach'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
-import { BotMentions, inlineLinkClass } from '@/components/custom/entity_link'
-import { JettyBot } from '@/components/custom/jetty_bot'
-import { Markdown } from '@/components/custom/markdown'
-import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
-import { ScrollToBottom, scrollToBottomAfter } from '@/components/custom/scroll_to_bottom'
+import { ReplyTab } from '@/components/custom/reply_quote'
 import { linkMentions } from '@/components/custom/slash_model'
-import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
-import { CollapsibleText } from '@/components/custom/user_message'
-import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
 import { InputGroupTextarea } from '@/components/ui/input-group'
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { useAttachments } from '@/hooks/use-attachments'
+import { useShowQuietTurns } from '@/lib/bot-quiet-turns'
 import { pressProps } from '@/lib/press'
-import { chatStamp, SESSION_GAP } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
   useBotPresence,
   useBots,
-  useChildThreadMetas,
+  useChatComposer,
   useDraft,
   useInterruptTurn,
   usePendingBotMessages,
@@ -46,405 +29,113 @@ import {
   useQuietThreadIds,
   useSendToBot,
   useThread,
-  useThreadMeta,
   useThreadOverlay,
   withQuotes,
 } from '@/state'
-import {
-  botTurnActivity,
-  exchangeEntry,
-  quietTurn,
-  shownInBotChat,
-  type ExchangeEntry,
-} from '@jetty/shared/bots'
+import { pendingTurnId } from '@/state/turns'
+import { quietTurn } from '@jetty/shared/bots'
 import { awaitsInput } from '@jetty/shared/items'
-import { Link } from '@tanstack/react-router'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import { toast } from 'sonner'
+import { useMemo, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
-import './bot_chat.css'
-
-const curve = [0.23, 1, 0.32, 1] as const
-const EASE = `cubic-bezier(${curve.join(', ')})`
-const glideMs = (distance: number) => Math.min(340, 220 + Math.abs(distance) * 0.6)
-const RISE = 20
-const RISE_SCALE = 0.96
-const RISE_MS = 250
-const RISE_FADE_MS = 160
-const RISE_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)'
-const STAGGER = 90
-const FADE_MS = 150
-const EXIT_MS = 90
-// px from the bottom that still counts as at it; in a column-reverse scroller, 0 is the bottom.
-const PIN_SLACK = 8
-// Scrolled up, the fade comes in over the first 48px, so at the bottom there's none.
-const FADE_IN = 48
-// Gone under the composer, back to full 28px above its dock.
-const FADE_MASK =
-  'linear-gradient(to top, rgb(0 0 0 / calc(1 - var(--fade, 0))) calc(var(--dock) - 16px), #000 calc(var(--dock) + 28px))'
-const TIDY_NOTE = 'This can take a couple of minutes. Your message is next.'
-
-type Message = {
-  id: string
-  from: 'jett' | 'bot'
-  text: string
-  attachments: readonly Attachment[]
-  at: number
-  replies?: readonly Reply[]
-  streaming?: boolean
-}
-
-type Marker = Extract<ThreadItem, { kind: 'thread_marker' }>
-type ErrorItem = Extract<ThreadItem, { kind: 'error' }>
-type DecisionItem = Extract<ThreadItem, { kind: 'approval' | 'question' }>
-type RowItem =
-  | { kind: 'message'; message: Message }
-  | { kind: 'markers'; markers: Marker[] }
-  | { kind: 'error'; error: ErrorItem }
-  | { kind: 'decision'; decision: DecisionItem }
-  | { kind: 'exchange'; entries: ExchangeEntry[] }
-type Gap = 'none' | 'run' | 'tight'
-type Row = { key: string; gap: Gap } & ({ kind: 'stamp'; at: number } | RowItem)
-type Presence = 'typing' | 'working' | 'tidying'
-type Glide = { from: number; ms: number; start: number; animation: Animation }
-type Arrival = { element: HTMLElement; kind: Row['kind'] | 'indicator'; gap: number }
-const gapClass: Record<Gap, string> = { none: '', run: 'mt-3.5', tight: 'mt-0.75' }
-const gapPx: Record<Gap, number> = { none: 0, run: 14, tight: 3 }
-
-function bezier(t: number, a: number, b: number) {
-  return 3 * (1 - t) ** 2 * t * a + 3 * (1 - t) * t ** 2 * b + t ** 3
-}
-
-function eased(x: number) {
-  let lo = 0,
-    hi = 1
-  for (let i = 0; i < 24; i++) {
-    const t = (lo + hi) / 2
-    if (bezier(t, curve[0], curve[2]) < x) lo = t
-    else hi = t
-  }
-  return bezier(lo, curve[1], curve[3])
-}
-
-function offsetAt(glide: Glide | null, now: number) {
-  const x = glide ? (now - glide.start) / glide.ms : 1
-  return glide && x < 1 ? glide.from * (1 - eased(Math.max(0, x))) : 0
-}
-
-function timeUntil(glide: Glide, left: number) {
-  const target = 1 - left / Math.abs(glide.from)
-  if (target <= 0) return 0
-  let lo = 0,
-    hi = 1
-  for (let i = 0; i < 24; i++) {
-    const mid = (lo + hi) / 2
-    if (eased(mid) < target) lo = mid
-    else hi = mid
-  }
-  return hi * glide.ms
-}
-
-function play(
-  element: Element,
-  keyframes: Keyframe[],
-  duration: number,
-  start: number,
-  delay = 0,
-  easing = EASE
-) {
-  const animation = element.animate(keyframes, { duration, delay, easing, fill: 'backwards' })
-  animation.startTime = start
-  return animation
-}
-
-function fade(scroller: HTMLElement) {
-  scroller.style.setProperty('--fade', String(Math.min(1, -scroller.scrollTop / FADE_IN)))
-}
-
-// The scroller is reversed, so its scrollTop counts down from 0 at the bottom.
-function farFromBottom(scroller: HTMLElement) {
-  return -scroller.scrollTop > scroller.clientHeight * scrollToBottomAfter
-}
-
-// A quiet thread's marker stays hidden until the thread surfaces, then shows where it was started.
-function toItems(
-  items: readonly ThreadItem[],
-  pending: readonly PendingBotMessage[],
-  otherBots: ReadonlySet<string>,
-  quiet: ReadonlySet<string>
-): RowItem[] {
-  const listed = new Set(items.map((item) => item.id))
-  const visible: RowItem[] = []
-  for (const item of items) {
-    // Messages between bots gather on one line until the chat shows something else.
-    const entry = exchangeEntry(item, otherBots)
-    if (entry) {
-      const last = visible.at(-1)
-      if (last?.kind === 'exchange') last.entries.push(entry)
-      else visible.push({ kind: 'exchange', entries: [entry] })
-      continue
-    }
-    if (!shownInBotChat(item)) continue
-    if (item.kind === 'thread_marker' && quiet.has(item.threadId)) continue
-    if (item.kind === 'assistant_message' && (item.streaming || !item.text.trim())) continue
-    if (item.kind === 'user_message' || item.kind === 'assistant_message')
-      visible.push({
-        kind: 'message',
-        message: {
-          id: item.id,
-          from: item.kind === 'user_message' ? 'jett' : 'bot',
-          text: item.text,
-          attachments: item.kind === 'user_message' ? item.attachments : [],
-          at: item.createdAt,
-          ...(item.kind === 'user_message'
-            ? { replies: item.replies }
-            : { streaming: item.streaming }),
-        },
-      })
-    else if (item.kind === 'thread_marker') {
-      const last = visible.at(-1)
-      if (
-        last?.kind === 'markers' &&
-        item.createdAt - last.markers.at(-1)!.createdAt <= SESSION_GAP
-      )
-        last.markers.push(item)
-      else visible.push({ kind: 'markers', markers: [item] })
-    } else if (item.kind === 'error') visible.push({ kind: 'error', error: item })
-    else if (item.kind === 'approval' || item.kind === 'question')
-      visible.push({ kind: 'decision', decision: item })
-  }
-  for (const message of pending)
-    if (!listed.has(message.id))
-      visible.push({
-        kind: 'message',
-        message: {
-          id: message.id,
-          from: 'jett',
-          text: message.text,
-          attachments: message.attachments,
-          at: message.sentAt,
-          replies: message.replies,
-        },
-      })
-  return visible
-}
-
-function toRows(items: RowItem[]): Row[] {
-  const rows: Row[] = []
-  let previous: RowItem | undefined
-  for (const item of items) {
-    const at =
-      item.kind === 'message'
-        ? item.message.at
-        : item.kind === 'error'
-          ? item.error.createdAt
-          : item.kind === 'decision'
-            ? item.decision.createdAt
-            : item.kind === 'exchange'
-              ? item.entries[0]!.at
-              : item.markers[0]!.createdAt
-    const key =
-      item.kind === 'message'
-        ? item.message.id
-        : item.kind === 'error'
-          ? item.error.id
-          : item.kind === 'decision'
-            ? item.decision.id
-            : item.kind === 'exchange'
-              ? item.entries[0]!.id
-              : item.markers[0]!.id
-    const prevAt =
-      previous?.kind === 'message'
-        ? previous.message.at
-        : previous?.kind === 'error'
-          ? previous.error.createdAt
-          : previous?.kind === 'decision'
-            ? previous.decision.createdAt
-            : previous?.kind === 'exchange'
-              ? previous.entries[0]!.at
-              : previous?.markers[0]?.createdAt
-    const session = prevAt === undefined || at - prevAt > SESSION_GAP
-    if (session)
-      rows.push({ kind: 'stamp', key: `stamp-${key}`, at, gap: previous ? 'run' : 'none' })
-    const sameSender =
-      (item.kind === 'message' &&
-        previous?.kind === 'message' &&
-        item.message.from === previous.message.from) ||
-      (item.kind === 'decision' &&
-        (previous?.kind === 'decision' ||
-          (previous?.kind === 'message' && previous.message.from === 'bot')))
-    rows.push({
-      ...item,
-      key: `${item.kind}-${key}`,
-      gap: session || !sameSender ? 'run' : 'tight',
-    })
-    previous = item
-  }
-  return rows
-}
+function ignore() {}
 
 // `overlayHost` is the page the bots' conversation opens over.
 export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLElement | null }) {
   const thread = useThread(bot.id)
   const pending = usePendingBotMessages(bot.id)
-  const otherBots = new Set(useBots().flatMap((other) => (other.id === bot.id ? [] : [other.id])))
+  const bots = useBots()
+  const [showQuiet] = useShowQuietTurns()
+  const rowOptions = useMemo(
+    () => ({
+      others: new Set(bots.flatMap((other) => (other.id === bot.id ? [] : [other.id]))),
+      showQuiet,
+    }),
+    [bots, bot.id, showQuiet]
+  )
   const [room, setRoom] = useState<Room>()
-  const childMetas = useChildThreadMetas(bot.id)
   const quietThreadIds = useQuietThreadIds()
+  const project = useProject(bot.projectId ?? undefined)
   const sendToBot = useSendToBot()
   const interrupt = useInterruptTurn()
-  const calm = useReducedMotion() ?? false
-  const [now] = useState(() => Date.now())
   // Quotes live in the draft, like a thread's, so a failed send brings them back with the text.
   const { draft, update: updateDraft, read: readDraft } = useDraft(bot.id)
   const replies = draft.quotes
   const setReplies = (quotes: readonly Reply[] | undefined) => updateDraft({ quotes })
   const fieldRef = useRef<HTMLTextAreaElement>(null)
-  const scrollerRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
-  const pinnedRef = useRef(true)
-  // The scroll-to-bottom arrow: whether the reader is far enough up for it (set only when that
-  // flips, not per scroll event), and whether something new arrived below meanwhile.
-  const [away, setAway] = useState(false)
-  const awayRef = useRef(false)
-  const [fresh, setFresh] = useState(false)
-  // The floating composer's height, for the mask and the room the transcript leaves under it. A ref
-  // callback follows the dock to whichever element it's on; an effect run once at mount kept
-  // measuring the old one after a hot update moved it.
-  function measureDock(dock: HTMLDivElement) {
-    const observer = new ResizeObserver(() =>
-      scrollerRef.current?.style.setProperty('--dock', `${dock.offsetHeight}px`)
-    )
-    observer.observe(dock)
-    return () => observer.disconnect()
-  }
-  // Once the view is a pixel off the bottom, Chrome's scroll anchoring holds the rows on screen
-  // still and new ones land under the composer, so a reader at the bottom is kept there.
-  useEffect(() => {
-    const scroller = scrollerRef.current
-    const content = contentRef.current
-    if (!scroller || !content) return
-    const observer = new ResizeObserver(() => {
-      if (pinnedRef.current) scroller.scrollTop = 0
-      // Growth below a reader up the chat can carry them past the point where the arrow shows.
-      else if (farFromBottom(scroller) !== awayRef.current) {
-        awayRef.current = !awayRef.current
-        setAway(awayRef.current)
-      }
-    })
-    observer.observe(scroller)
-    observer.observe(content)
-    return () => observer.disconnect()
-  }, [])
-  const { serverItems: items } = useThreadOverlay(bot.id, thread)
-  const quiet = new Set(quietThreadIds)
-  const rows = toRows(toItems(items, pending, otherBots, quiet))
-  // Something new at the end while the reader is up the chat puts a dot on the arrow.
-  const tailRow = rows.at(-1)
-  const tail = tailRow
-    ? `${rows.length}:${tailRow.key}:${tailRow.kind === 'message' ? tailRow.message.text.length : ''}`
-    : ''
-  const seenTail = useRef(tail)
-  useEffect(() => {
-    if (tail === seenTail.current) return
-    seenTail.current = tail
-    if (!pinnedRef.current) setFresh(true)
-  }, [tail])
-  function toBottom() {
-    pinnedRef.current = true
-    setFresh(false)
-    scrollerRef.current?.scrollTo({ top: 0, behavior: calm ? 'instant' : 'smooth' })
-  }
+  const overlay = useThreadOverlay(bot.id, thread)
+  // A quiet thread's marker stays hidden until the thread surfaces, then shows where it was started.
+  const items = useMemo(
+    () => [
+      ...overlay.items.filter(
+        (item) => !(item.kind === 'thread_marker' && quietThreadIds.includes(item.threadId))
+      ),
+      ...pending.map(
+        (message): ThreadItem => ({
+          kind: 'user_message',
+          id: message.id,
+          turnId: pendingTurnId,
+          createdAt: message.sentAt,
+          text: message.text,
+          attachments: message.attachments,
+          ...(message.replies?.length && { replies: message.replies }),
+        })
+      ),
+    ],
+    [overlay.items, quietThreadIds, pending]
+  )
   const turnId = thread?.activeTurnId
   // Only the bot's own card stops its turn; a worker waiting on Jett leaves it working.
-  const asking = items.some(awaitsInput)
-  const turn = turnId && !asking ? botTurnActivity(items, turnId) : 'quiet'
-  // Tidying shows only while Jett's message waits on a compaction that can't stop for it.
-  const presence = bot.activity === 'tidying' ? 'tidying' : turn === 'quiet' ? null : turn
-  // Stop lasts the whole turn, including the quiet stretch after a bubble, but not a turn Jetty
-  // started on its own while it shows nothing.
-  const running = turnId ? !asking && (presence !== null || !quietTurn(items, turnId)) : false
+  const asking = overlay.items.some(awaitsInput)
+  // Stop lasts the whole turn, but not a turn Jetty started on its own until the bot speaks.
+  const busy = turnId ? !asking && !quietTurn(items, turnId) : false
   function send(text: string, attachments: readonly ReadyAttachment[]) {
     sendToBot(bot.id, text, replies, [], attachments, bot.id)
     setReplies(undefined)
-    pinnedRef.current = true
-    if (scrollerRef.current) scrollerRef.current.scrollTop = 0
   }
   function reply(quote: Reply) {
     setReplies(withQuotes(readDraft().quotes, [quote]))
     fieldRef.current?.focus()
   }
-  function jump(id: string) {
-    const target = document.getElementById(`bot-message-${id}`)
-    target?.scrollIntoView({ behavior: calm ? 'instant' : 'smooth', block: 'center' })
-    target?.querySelector('[data-slot=bubble-content]')?.animate(
-      [
-        { outlineColor: 'var(--primary)', outlineWidth: '2px', outlineStyle: 'solid' },
-        { outlineColor: 'transparent', outlineWidth: '2px', outlineStyle: 'solid' },
-      ],
-      { duration: calm ? 150 : 800 }
-    )
-  }
+  useChatComposer(bot.id, { edit: ignore, quote: reply, keepFocus: ignore })
   return (
     <div
       className='relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
       style={botColorStyle(bot.color)}
     >
-      <div
-        ref={scrollerRef}
-        className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-6'
-        style={{ maskImage: FADE_MASK }}
-        onScroll={({ currentTarget }) => {
-          pinnedRef.current = currentTarget.scrollTop > -PIN_SLACK
-          if (pinnedRef.current && fresh) setFresh(false)
-          if (farFromBottom(currentTarget) !== awayRef.current) {
-            awayRef.current = !awayRef.current
-            setAway(awayRef.current)
-          }
-          fade(currentTarget)
-        }}
-      >
-        <div ref={contentRef} className='flex shrink-0 grow flex-col'>
-          <div className='grow' />
-          <Transcript
-            rows={rows}
-            now={now}
-            presence={presence}
-            bot={bot}
-            childMetas={childMetas}
-            calm={calm}
-            loaded={thread !== undefined}
-            onReply={reply}
-            onJump={jump}
-            onOpenRoom={setRoom}
-          />
-          <div className='h-(--dock) shrink-0' />
-        </div>
+      {thread || items.length > 0 ? (
+        <ThreadList
+          threadId={bot.id}
+          items={items}
+          status={thread?.status ?? 'idle'}
+          running={overlay.running || pending.length > 0}
+          outcomes={thread?.turnOutcomes}
+          loadouts={thread?.turnLoadouts}
+          projectPath={project?.path}
+          provider={bot.provider}
+          bot={rowOptions}
+          onOpenRoom={setRoom}
+          onSelectAgent={ignore}
+        />
+      ) : (
+        <div className='min-h-0 flex-1' />
+      )}
+      <div className='mx-auto flex w-full max-w-[873px] shrink-0 flex-col gap-2 px-6 pb-4'>
+        {overlay.items.map(
+          (item) =>
+            (item.kind === 'approval' || item.kind === 'question') &&
+            awaitsInput(item) && <BotDecisionCard key={item.id} item={item} bot={bot} />
+        )}
+        <BotComposer
+          key={bot.id}
+          bot={bot}
+          fieldRef={fieldRef}
+          busy={busy}
+          replies={replies}
+          onRemoveReply={(index) => setReplies(withQuotes(replies?.toSpliced(index, 1)))}
+          onSend={send}
+          onStop={() => interrupt(bot.id)}
+        />
       </div>
-      {/* Outside the scroller, floating over its bottom, clear of the mask. It spans the chat, so
-          the / menu over the composer isn't clipped. */}
-      <div className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] pointer-events-none absolute inset-0 flex flex-col justify-end overflow-hidden px-6'>
-        <div ref={measureDock} className='mx-auto w-full max-w-[825px] py-4'>
-          {/* No height, on the composer's top edge, so the arrow sits just above it; the dot takes
-              the bot's colour. */}
-          <div className={cn('relative', botAccentClass)}>
-            <ScrollToBottom shown={away} fresh={fresh} onScroll={toBottom} />
-          </div>
-          <BotComposer
-            key={bot.id}
-            bot={bot}
-            fieldRef={fieldRef}
-            busy={running}
-            replies={replies}
-            onRemoveReply={(index) => setReplies(withQuotes(replies?.toSpliced(index, 1)))}
-            onSend={send}
-            onStop={() => interrupt(bot.id)}
-            className='pointer-events-auto'
-          />
-        </div>
-      </div>
-      <AddToPrompt chatRef={scrollerRef} onAdd={reply} />
       {room && (
         <BotConversation
           key={room.botId}
@@ -456,628 +147,6 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
       )}
     </div>
   )
-}
-
-function Transcript({
-  rows,
-  now,
-  presence,
-  bot,
-  childMetas,
-  calm,
-  loaded,
-  onReply,
-  onJump,
-  onOpenRoom,
-}: {
-  rows: Row[]
-  now: number
-  presence: Presence | null
-  bot: Bot
-  childMetas: readonly ThreadMeta[]
-  calm: boolean
-  loaded: boolean
-  onReply: (reply: Reply) => void
-  onJump: (id: string) => void
-  onOpenRoom: (room: Room) => void
-}) {
-  const stackRef = useRef<HTMLDivElement>(null)
-  const [seen] = useState(() => new Set(rows.map((row) => row.key)))
-  const initializedRef = useRef(loaded)
-  const stateRef = useRef({
-    height: -1,
-    glide: null as Glide | null,
-    live: false,
-    shown: false,
-    exit: null as Animation | null,
-  })
-  const [prior, setPrior] = useState(presence)
-  const [leaving, setLeaving] = useState<Presence | null>(null)
-  if (presence !== prior) {
-    setPrior(presence)
-    setLeaving(presence || calm ? null : prior)
-  }
-  const indicator = presence ?? leaving
-  useEffect(() => {
-    const stack = stackRef.current
-    if (!stack) return
-    const observer = new ResizeObserver(() => {
-      stateRef.current.height = stack.offsetHeight
-    })
-    observer.observe(stack)
-    return () => observer.disconnect()
-  }, [])
-  useLayoutEffect(() => {
-    const stack = stackRef.current
-    const state = stateRef.current
-    if (!stack) return
-    const height = stack.offsetHeight
-    const grew = state.height < 0 ? 0 : height - state.height
-    state.height = height
-    if (!initializedRef.current) {
-      for (const row of rows) seen.add(row.key)
-      if (!loaded) return
-      initializedRef.current = true
-      return
-    }
-    const start = Number(document.timeline.currentTime ?? performance.now())
-    const arrivals: Arrival[] = []
-    for (const row of rows) {
-      if (seen.has(row.key)) continue
-      seen.add(row.key)
-      const element = [...stack.querySelectorAll<HTMLElement>('[data-row]')].find(
-        (entry) => entry.dataset.row === row.key
-      )
-      if (element) arrivals.push({ element, kind: row.kind, gap: gapPx[row.gap] })
-    }
-    const face = stack.querySelector<HTMLElement>('[data-indicator]')
-    const handoff = state.live && !presence
-    if (presence && face && !state.shown)
-      arrivals.push({ element: face, kind: 'indicator', gap: 20 })
-    if (presence || !leaving) {
-      state.exit?.cancel()
-      state.exit = null
-    }
-    state.live = presence !== null
-    state.shown = indicator !== null
-    let glide: Glide | null = null
-    if (grew && !calm) {
-      const from = offsetAt(state.glide, start) + grew
-      const ms = glideMs(from)
-      state.glide?.animation.cancel()
-      const animation = play(
-        stack,
-        [{ transform: `translateY(${from}px)` }, { transform: 'none' }],
-        ms,
-        start
-      )
-      glide = state.glide = { from, ms, start, animation }
-    }
-    const hold = (element: Element) => {
-      if (glide)
-        play(element, [{ translate: `0 ${-glide.from}px` }, { translate: '0 0' }], glide.ms, start)
-    }
-    if (leaving && face && !state.exit) {
-      hold(face)
-      const exit = face.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: EXIT_MS,
-        easing: EASE,
-        fill: 'forwards',
-      })
-      exit.startTime = start
-      exit.onfinish = () => setLeaving(null)
-      state.exit = exit
-    }
-    if (!arrivals.length) return
-    const clear = glide ? timeUntil(glide, arrivals[0]!.gap + RISE) : 0
-    const base = Math.max(clear, handoff && !calm ? EXIT_MS * 0.75 : 0)
-    let index = 0
-    for (const { element, kind } of arrivals) {
-      const delay = base + (kind === 'message' ? index++ * STAGGER : 0)
-      if (
-        calm ||
-        kind === 'stamp' ||
-        kind === 'markers' ||
-        kind === 'exchange' ||
-        kind === 'error' ||
-        kind === 'decision'
-      ) {
-        play(element, [{ opacity: 0 }, { opacity: 1 }], FADE_MS, start, delay)
-        continue
-      }
-      hold(element)
-      play(
-        element,
-        [{ transform: `translateY(${RISE}px) scale(${RISE_SCALE})` }, { transform: 'none' }],
-        RISE_MS,
-        start,
-        delay,
-        RISE_EASE
-      )
-      play(element, [{ opacity: 0 }, { opacity: 1 }], RISE_FADE_MS, start, delay, RISE_EASE)
-    }
-  })
-  return (
-    <div ref={stackRef} className='relative mx-auto flex w-full max-w-[825px] flex-col pt-6'>
-      {rows.map((row) =>
-        row.kind === 'stamp' ? (
-          <Stamp key={row.key} id={row.key} label={chatStamp(row.at, now)} gap={row.gap} />
-        ) : row.kind === 'message' ? (
-          <MessageRow
-            key={row.key}
-            id={row.key}
-            message={row.message}
-            gap={row.gap}
-            onReply={onReply}
-            onJump={onJump}
-          />
-        ) : row.kind === 'markers' ? (
-          <MarkerRow
-            key={row.key}
-            id={row.key}
-            markers={row.markers}
-            gap={row.gap}
-            metas={childMetas}
-          />
-        ) : row.kind === 'exchange' ? (
-          <div key={row.key} data-row={row.key} className={gapClass[row.gap]}>
-            <ExchangeLine chatBotId={bot.id} entries={row.entries} onOpen={onOpenRoom} />
-          </div>
-        ) : row.kind === 'decision' ? (
-          <div key={row.key} data-row={row.key} className={cn('flex flex-col', gapClass[row.gap])}>
-            <BotDecisionCard item={row.decision} bot={bot} />
-          </div>
-        ) : (
-          <ErrorRow key={row.key} id={row.key} error={row.error} bot={bot} gap={row.gap} />
-        )
-      )}
-      {indicator && (
-        <Indicator presence={indicator} leaving={!presence} spaced={rows.length > 0} bot={bot} />
-      )}
-    </div>
-  )
-}
-
-function Stamp({ id, label, gap }: { id: string; label: string; gap: Gap }) {
-  return (
-    <div
-      data-row={id}
-      className={cn('flex justify-center pt-1 text-xs text-muted-foreground', gapClass[gap])}
-    >
-      {label}
-    </div>
-  )
-}
-
-function MessageRow({
-  id,
-  message,
-  gap,
-  onReply,
-  onJump,
-}: {
-  id: string
-  message: Message
-  gap: Gap
-  onReply: (reply: Reply) => void
-  onJump: (id: string) => void
-}) {
-  const jett = message.from === 'jett'
-  const images = message.attachments.filter(isImageAttachment)
-  const files = message.attachments.filter((attachment) => !isImageAttachment(attachment))
-  return (
-    <div className={cn('flex flex-col', gapClass[gap])}>
-      <div
-        data-row={id}
-        id={`bot-message-${message.id}`}
-        className={cn(
-          'group/row flex flex-col',
-          jett ? cn('origin-bottom-right', botAccentClass) : 'origin-bottom-left'
-        )}
-      >
-        {message.replies?.map((reply) => (
-          <RepliedTo
-            key={`${reply.itemId}:${reply.text}`}
-            text={reply.text}
-            onJump={() => onJump(reply.itemId)}
-            className='mb-0.75'
-          />
-        ))}
-        {/* The width cap sits here, not on the bubble, so this box hugs the bubble and the hover
-            actions sit right beside it even when its text wraps. */}
-        <div
-          className={cn(
-            'relative w-fit min-w-0 max-w-[min(515px,calc(100%-3.5rem))]',
-            jett ? 'ml-auto' : 'has-[pre,table]:max-w-[calc(100%-3.5rem)]'
-          )}
-        >
-          {jett ? (
-            <div className='flex flex-col items-end gap-1'>
-              {images.length > 0 && (
-                <div className='relative'>
-                  <ThumbRow images={images} />
-                </div>
-              )}
-              {files.length > 0 && (
-                <div className='relative'>
-                  <FileLines files={files} />
-                </div>
-              )}
-              {message.text && (
-                <Bubble variant='default' align='end' className='max-w-full'>
-                  <BubbleContent className='rounded-[18.5px] border-0 leading-normal selection:bg-primary-foreground/25 selection:text-primary-foreground'>
-                    <CollapsibleText id={message.id} text={message.text} filled>
-                      <BotMentions text={message.text} />
-                    </CollapsibleText>
-                  </BubbleContent>
-                </Bubble>
-              )}
-            </div>
-          ) : (
-            <Bubble variant='muted' align='start' className='max-w-full'>
-              <BubbleContent
-                data-quote={message.id}
-                className='bot-reply rounded-[18.5px] border-0 leading-normal'
-              >
-                <Markdown>{message.text}</Markdown>
-              </BubbleContent>
-            </Bubble>
-          )}
-          <MessageActions
-            side={jett ? 'left' : 'right'}
-            text={message.text}
-            onReply={() =>
-              onReply({
-                itemId: message.id,
-                text: message.text || attachmentsLabel(message.attachments),
-              })
-            }
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// What a quote of a message with no text reads as.
-function attachmentsLabel(attachments: readonly Attachment[]) {
-  const images = attachments.filter(isImageAttachment).length
-  if (images === attachments.length) return images === 1 ? 'Image' : `${images} images`
-  if (attachments.length === 1) return attachments[0]!.name
-  return images === 0 ? `${attachments.length} files` : `${attachments.length} attachments`
-}
-
-function MessageActions({
-  text,
-  onReply,
-  side,
-}: {
-  text: string
-  onReply: () => void
-  side: 'left' | 'right'
-}) {
-  const [copied, setCopied] = useState(false)
-  const calm = useReducedMotion() ?? false
-  useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 1200)
-    return () => clearTimeout(timer)
-  }, [copied])
-  return (
-    <div
-      className={cn(
-        'absolute bottom-1 flex gap-0.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 motion-reduce:transition-none',
-        side === 'left' ? 'right-full mr-1.5 flex-row-reverse' : 'left-full ml-1.5'
-      )}
-    >
-      {text && (
-        <Button
-          variant='ghost'
-          size='icon-xs'
-          aria-label={copied ? 'Copied' : 'Copy message'}
-          className='relative active:scale-[0.97] active:transition-transform active:duration-150'
-          onClick={() =>
-            void navigator.clipboard.writeText(text).then(
-              () => setCopied(true),
-              () => toast.error("Couldn't copy")
-            )
-          }
-        >
-          <AnimatePresence initial={false} mode='sync'>
-            {copied ? (
-              <motion.span
-                key='tick'
-                className='absolute inset-0 flex items-center justify-center'
-                initial={{
-                  opacity: 0,
-                  scale: calm ? 1 : 0.9,
-                  filter: calm ? 'blur(0px)' : 'blur(2px)',
-                }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{
-                  opacity: 0,
-                  scale: calm ? 1 : 0.9,
-                  filter: calm ? 'blur(0px)' : 'blur(2px)',
-                }}
-                transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-              >
-                <Checkmark1MediumIcon />
-              </motion.span>
-            ) : (
-              <motion.span
-                key='copy'
-                className='absolute inset-0 flex items-center justify-center'
-                initial={{
-                  opacity: 0,
-                  scale: calm ? 1 : 0.9,
-                  filter: calm ? 'blur(0px)' : 'blur(2px)',
-                }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{
-                  opacity: 0,
-                  scale: calm ? 1 : 0.9,
-                  filter: calm ? 'blur(0px)' : 'blur(2px)',
-                }}
-                transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-              >
-                <SquareBehindSquare1Icon />
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </Button>
-      )}
-      <Button
-        variant='ghost'
-        size='icon-xs'
-        aria-label='Reply to message'
-        className='active:scale-[0.97] active:transition-transform active:duration-150'
-        onClick={onReply}
-      >
-        <ArrowShareLeftIcon />
-      </Button>
-    </div>
-  )
-}
-
-function Indicator({
-  presence,
-  leaving,
-  spaced,
-  bot,
-}: {
-  presence: Presence
-  leaving: boolean
-  spaced: boolean
-  bot: Bot
-}) {
-  const textRef = useRef<HTMLDivElement>(null)
-  const shownRef = useRef(presence)
-  useLayoutEffect(() => {
-    if (shownRef.current === presence) return
-    shownRef.current = presence
-    textRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: EASE })
-  }, [presence])
-  const tidying = presence === 'tidying'
-  return (
-    <div
-      data-indicator
-      style={{ transformOrigin: `left calc(100% - ${tidying ? 24 : 20}px)` }}
-      className={cn(
-        'flex items-center gap-2 pb-1.5',
-        spaced ? 'pt-5' : 'pt-1.5',
-        leaving && 'pointer-events-none absolute bottom-0 left-0'
-      )}
-    >
-      <JettyBot
-        shape={bot.shape}
-        color={bot.color}
-        state={presence === 'typing' ? 'thinking' : presence}
-        size={28}
-      />
-      <div ref={textRef} className='flex min-w-0 flex-col'>
-        <span className='block text-sm whitespace-nowrap text-muted-foreground shimmer motion-reduce:shimmer-none'>
-          {bot.name} is {tidying ? 'tidying its notes' : presence}
-        </span>
-        {tidying && <span className='text-xs text-muted-foreground'>{TIDY_NOTE}</span>}
-      </div>
-    </div>
-  )
-}
-
-// A thread with no meta was deleted: its marker keeps the title, unlinked and without a status.
-function MarkerLink({ marker }: { marker: Marker }) {
-  const meta = useThreadMeta(marker.threadId)
-  if (!meta) return <span className='max-w-60 truncate text-foreground'>{marker.title}</span>
-  return (
-    <span className='inline-flex min-w-0 items-center gap-[3px]'>
-      <StatusGlyph status={threadStatus(meta.status, meta.readyForReview)} className='size-3' />
-      <Link
-        to='/threads/$threadId'
-        params={{ threadId: marker.threadId }}
-        className={cn(inlineLinkClass, 'max-w-60 truncate')}
-      >
-        {meta.title}
-      </Link>
-    </span>
-  )
-}
-
-const menuEntryClass =
-  'flex h-7.5 min-w-0 items-center gap-2 rounded-menu-item px-2 text-xs text-foreground outline-none'
-
-function MarkerMenuEntry({ marker }: { marker: Marker }) {
-  const meta = useThreadMeta(marker.threadId)
-  const project = useProject(meta?.projectId)
-  if (!meta)
-    return (
-      <div className={menuEntryClass}>
-        <span aria-hidden='true' className='size-3.5 shrink-0' />
-        <span className='min-w-0 flex-1 truncate'>{marker.title}</span>
-      </div>
-    )
-  return (
-    <Link
-      to='/threads/$threadId'
-      params={{ threadId: marker.threadId }}
-      className={cn(menuEntryClass, 'hover:bg-accent focus-visible:bg-accent')}
-    >
-      <StatusGlyph status={threadStatus(meta.status, meta.readyForReview)} className='size-3.5' />
-      <span className='min-w-0 flex-1 truncate'>{meta.title}</span>
-      <span className='shrink-0 text-muted-foreground'>{project?.title}</span>
-    </Link>
-  )
-}
-
-function MarkerRun({ markers, metas }: { markers: Marker[]; metas: readonly ThreadMeta[] }) {
-  const first = markers[0]!
-  const sameThread = markers.every((marker) => marker.threadId === first.threadId)
-  if (first.action === 'messaged' && sameThread && markers.length > 1)
-    return (
-      <span className='inline-flex items-center gap-[5px]'>
-        <span className='text-foreground'>{markers.length}</span> messages to{' '}
-        <MarkerLink marker={first} />
-      </span>
-    )
-  if (first.action === 'started' && markers.length === 2)
-    return (
-      <span className='inline-flex items-center gap-[5px]'>
-        Started <MarkerLink marker={first} /> and <MarkerLink marker={markers[1]!} />
-      </span>
-    )
-  if (first.action === 'started' && markers.length >= 3)
-    return (
-      <span className='inline-flex items-center gap-[5px]'>
-        Started{' '}
-        <Popover>
-          <PopoverTrigger className='rounded-sm text-foreground hover:underline'>
-            {markers.length} threads
-          </PopoverTrigger>
-          <PopoverContent className='w-75 gap-0 rounded-sm p-1'>
-            <PopoverTitle className='sr-only'>Started threads</PopoverTitle>
-            {markers.map((marker) => (
-              <MarkerMenuEntry key={marker.id} marker={marker} />
-            ))}
-          </PopoverContent>
-        </Popover>
-        <span className='inline-flex items-center gap-[7px] pl-0.5'>
-          <MarkerTallies markers={markers} metas={metas} />
-        </span>
-      </span>
-    )
-  return (
-    <span className='inline-flex items-center gap-[5px]'>
-      {first.action === 'started' ? 'Started' : 'Messaged'} <MarkerLink marker={first} />
-    </span>
-  )
-}
-
-function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly ThreadMeta[] }) {
-  const tally = new Map<ReturnType<typeof threadStatus>, number>()
-  for (const marker of markers) {
-    const meta = metas.find((entry) => entry.id === marker.threadId)
-    if (!meta) continue
-    const status = threadStatus(meta.status, meta.readyForReview)
-    tally.set(status, (tally.get(status) ?? 0) + 1)
-  }
-  return [...tally].map(([status, count]) => (
-    <span
-      key={status}
-      className='inline-flex items-center gap-[3px] font-mono text-muted-foreground'
-    >
-      <StatusGlyph status={status} className='size-3' />
-      {count}
-    </span>
-  ))
-}
-
-function MarkerRow({
-  id,
-  markers,
-  gap,
-  metas,
-}: {
-  id: string
-  markers: Marker[]
-  gap: Gap
-  metas: readonly ThreadMeta[]
-}) {
-  const groups: Marker[][] = []
-  for (const marker of markers) {
-    const previous = groups.at(-1)
-    if (
-      previous?.[0]?.action === marker.action &&
-      (marker.action === 'started' || previous[0].threadId === marker.threadId)
-    )
-      previous.push(marker)
-    else groups.push([marker])
-  }
-  return (
-    <div
-      data-row={id}
-      className={cn(
-        'flex flex-col items-center gap-1 text-xs text-muted-foreground',
-        gapClass[gap]
-      )}
-    >
-      {groups.map((group) => (
-        <div key={group[0]!.id} className='flex min-w-0 items-center justify-center py-0.5'>
-          <MarkerRun markers={group} metas={metas} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ErrorRow({ id, error, bot, gap }: { id: string; error: ErrorItem; bot: Bot; gap: Gap }) {
-  const thread = useThread(bot.id)
-  const pending = usePendingBotMessages(bot.id)
-  const sendToBot = useSendToBot()
-  const latestTurnId = thread && Object.keys(thread.turnOutcomes).at(-1)
-  const firstMessage = thread?.items.find(
-    (item) => item.turnId === error.turnId && item.kind === 'user_message'
-  )
-  const message =
-    firstMessage?.kind === 'user_message' && !firstMessage.from
-      ? thread?.items.findLast(
-          (item) => item.turnId === error.turnId && item.kind === 'user_message' && !item.from
-        )
-      : undefined
-  const retry =
-    thread?.lastTurnOutcome === 'failed' &&
-    !thread.activeTurnId &&
-    latestTurnId === error.turnId &&
-    !pending.length &&
-    message?.kind === 'user_message'
-      ? () => sendToBot(bot.id, message.text, message.replies, message.attachments)
-      : undefined
-  return (
-    <div data-row={id} className={cn('flex flex-col items-start gap-1.5', gapClass[gap])}>
-      <div className='max-w-[515px] rounded-xl bg-(--status-error-wash) px-3 py-2 text-sm leading-normal text-status-error'>
-        {bot.name}’s turn failed: {sentenceCase(error.message)}
-      </div>
-      <Button
-        variant='ghost-text'
-        size='xs'
-        disabled={!retry}
-        onClick={retry}
-        className='ml-1 gap-1.5'
-      >
-        <ArrowRotateClockwiseIcon />
-        Retry
-      </Button>
-    </div>
-  )
-}
-
-// The names provider and Jetty errors open with.
-const names = new Set(['Anthropic', 'Claude', 'Codex', 'Grok', 'Jetty'])
-
-// "The model provider is overloaded." reads on after the colon as "the model provider…". Only a
-// plain capitalised word is lowered: acronyms (API), mixed case (GitHub) and names keep theirs.
-function sentenceCase(message: string) {
-  const detail = message.replace(/^Error: /i, '')
-  const word = /^[A-Z][a-z]+\b/.exec(detail)?.[0]
-  return word && !names.has(word) ? detail[0]!.toLowerCase() + detail.slice(1) : detail
 }
 
 let measure: CanvasRenderingContext2D | null = null
@@ -1097,7 +166,6 @@ function BotComposer({
   onRemoveReply,
   onSend,
   onStop,
-  className,
 }: {
   bot: Bot
   fieldRef: RefObject<HTMLTextAreaElement | null>
@@ -1106,7 +174,6 @@ function BotComposer({
   onRemoveReply: (index: number) => void
   onSend: (text: string, attachments: readonly ReadyAttachment[]) => void
   onStop: () => void
-  className?: string
 }) {
   const { draft: storedDraft, update } = useDraft(bot.id)
   const attachments = useAttachments(bot.id, { keepFailed: true })
@@ -1121,10 +188,6 @@ function BotComposer({
   const { field, shown } = slash
   const [stacked, setStacked] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
-  const [sent, setSent] = useState(0)
-  const heightRef = useRef(0)
-  const sentRef = useRef(0)
-  const calm = useReducedMotion() ?? false
   // A failed image stays in view but sends nothing.
   const empty = !draft.trim() && attachments.items.every((item) => item.error)
   useBotPresence(bot.id, !empty)
@@ -1140,31 +203,7 @@ function BotComposer({
     onSend(linkMentions(draft.trim(), others), attachments.take())
     update({ text: '' })
     setStacked(false)
-    setSent((count) => count + 1)
   }
-  // A send eases the pill back to one row on the glide's clock, so the transcript resting on it
-  // moves as one with the new bubble instead of dropping a frame ahead of it. Growing stays instant.
-  useLayoutEffect(() => {
-    const box = boxRef.current
-    if (!box) return
-    if (stacked || replies || staged)
-      for (const animation of box.getAnimations()) animation.cancel()
-    const from = heightRef.current
-    const to = box.offsetHeight
-    heightRef.current = to
-    if (sent === sentRef.current) return
-    sentRef.current = sent
-    if (!calm && to < from)
-      play(
-        box,
-        [
-          { height: `${from}px`, alignContent: 'end' },
-          { height: `${to}px`, alignContent: 'end' },
-        ],
-        glideMs(from - to),
-        Number(document.timeline.currentTime ?? performance.now())
-      )
-  })
   // Replying stacks the pill like a wrapped draft: the quotes, then the text, each on its own row
   // above the buttons. Staged images take a row of their own on top and leave the text beside them.
   const rows = stacked || replies
@@ -1180,8 +219,7 @@ function BotComposer({
       className={cn(
         'grid grid-cols-[auto_1fr_auto] items-center gap-x-1.5 rounded-[20px] bg-popover p-1.5',
         botAccentClass,
-        (rows || staged) && 'gap-y-1.5',
-        className
+        (rows || staged) && 'gap-y-1.5'
       )}
     >
       {staged && (
