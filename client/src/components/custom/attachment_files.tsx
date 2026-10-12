@@ -75,7 +75,7 @@ export function FileLine({ attachment }: { attachment: Attachment }) {
       type='button'
       title={attachment.name}
       onClick={() => open(attachment)}
-      className='flex max-w-75 items-center gap-1.5 rounded-full border border-border py-1 pr-2.5 pl-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring'
+      className='flex max-w-[min(100%,18.75rem)] items-center gap-1.5 rounded-full border border-border py-1 pr-2.5 pl-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring'
     >
       <FileTypeIcon
         mimeType={attachment.mimeType}
