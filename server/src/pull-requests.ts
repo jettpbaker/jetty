@@ -2116,15 +2116,15 @@ export function createPullRequests(store: Store, hub: Hub) {
   // only changed ones pay for a full read. Check runs don't bump updatedAt, so the rollup state
   // is compared too, and neither does a base push that makes it conflict, so mergeability is too
   // (GitHub works it out lazily, and asking is what starts it). Merged links are left to a PR
-  // view's own 30-minute cadence. PR watchers keep it going, a minute apart, while no window
-  // shows Jetty.
+  // view's own 30-minute cadence. PR watchers keep it going, 30s apart, while no window shows
+  // Jetty.
   function refreshChangedLinks(watching = false) {
     return Effect.gen(function* () {
       const hidden = hub.githubActivity() === 'hidden'
       if (
         (hidden && !watching) ||
         backingOff() ||
-        Date.now() - linksPolledAt < (hidden ? 60_000 : 30_000) * cadenceMultiplier()
+        Date.now() - linksPolledAt < (hidden ? 30_000 : 10_000) * cadenceMultiplier()
       )
         return
       let page = yield* store.activePullRequestLinks(linksCursor)
