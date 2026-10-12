@@ -51,6 +51,12 @@ import { ThreadFile } from './thread_file'
 import { ThreadFiles } from './thread_files'
 import { ThreadOverview, useHasOverview } from './thread_overview'
 
+let lastFileRequest = 0
+
+function nextFileRequest() {
+  return ++lastFileRequest
+}
+
 type ThreadFileTarget = { threadId: string; target: FileTarget }
 
 export function ThreadDetailsLayout({
@@ -210,7 +216,7 @@ export function ThreadDetailsLayout({
     (path: string) => {
       showFile({ threadId, target: { path } })
       setTab('file')
-      setFocusFile((count) => count + 1)
+      setFocusFile(nextFileRequest())
     },
     [threadId, showFile]
   )
@@ -247,7 +253,7 @@ export function ThreadDetailsLayout({
     (event) => {
       if (inDialog(event)) return
       tabs.current?.show('files')
-      setFindFile((count) => count + 1)
+      setFindFile(nextFileRequest())
       if (open) return
       openingTab.current = 'files'
       showPane()
