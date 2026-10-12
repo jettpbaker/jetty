@@ -11,7 +11,7 @@ import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
 import { PullRequestMark, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
-import { StatusGlyph, type ThreadStatus } from './thread_status'
+import { quietStatus, StatusGlyph, type ThreadStatus } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 import './thread_row.css'
 
@@ -49,7 +49,7 @@ export function ThreadRow({
   onOpenPullRequest: () => void
 }) {
   const bot = useBot(botId)
-  const quiet = status !== 'error' && status !== 'ready' && status !== 'needs-attention'
+  const quiet = quietStatus(status)
   return (
     <div className='thread-row keybind-target' data-selected={selected || undefined}>
       <ThreadHoverCard threadId={id}>

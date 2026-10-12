@@ -9,8 +9,13 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
-import { renderWorkingTitle } from './subagent_glyph'
-import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
+import {
+  quietStatus,
+  StatusGlyph,
+  statusPresentation,
+  threadStatus,
+  type ThreadStatus,
+} from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
 export type ChildThread = {
@@ -68,8 +73,10 @@ function ChildTitle({ child }: { child: ChildThread }) {
   return (
     <OverflowTitle
       focusable={false}
-      renderText={child.status === 'working' ? renderWorkingTitle : undefined}
-      className='font-normal leading-normal'
+      className={cn(
+        'font-normal leading-normal',
+        quietStatus(child.status) && 'text-muted-foreground'
+      )}
     >
       {child.title}
     </OverflowTitle>

@@ -25,7 +25,7 @@ import { markdownText } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
 import { prPresentation } from '@/components/custom/thread_pull_request'
-import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
+import { quietStatus, StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -827,7 +827,15 @@ function Properties({ pr }: { pr: PrPull }) {
               status={threadStatus(thread.status, thread.readyForReview)}
               className='size-4'
             />
-            <span className='truncate'>{thread.title}</span>
+            <span
+              className={cn(
+                'truncate',
+                quietStatus(threadStatus(thread.status, thread.readyForReview)) &&
+                  'text-muted-foreground'
+              )}
+            >
+              {thread.title}
+            </span>
           </Button>
         ))}
       </div>

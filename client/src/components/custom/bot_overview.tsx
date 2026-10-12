@@ -28,7 +28,7 @@ import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { sidebarThread } from './sidebar_thread_groups'
 import { Section, useCollapsedSections } from './thread_overview'
-import { statusPresentation } from './thread_status'
+import { quietStatus, statusPresentation } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
 export function BotOverview({
@@ -171,7 +171,13 @@ function BotThreadList({ bot, threads }: { bot: Bot; threads: readonly ThreadMet
             onPointerEnter={() => prefetch.enter(thread.id)}
             onPointerLeave={() => prefetch.leave(thread.id)}
             heading={
-              <OverflowTitle focusable={false} className='font-normal leading-normal'>
+              <OverflowTitle
+                focusable={false}
+                className={cn(
+                  'font-normal leading-normal',
+                  quietStatus(row.status) && 'text-muted-foreground'
+                )}
+              >
                 {row.title}
               </OverflowTitle>
             }

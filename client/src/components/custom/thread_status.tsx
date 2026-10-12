@@ -30,6 +30,10 @@ export type ThreadStatus = Extract<
   'monitoring' | 'idle' | 'working' | 'needs-attention' | 'error' | 'ready'
 >
 
+// Only a thread that needs Jett (needs input, ready, or failed) keeps a foreground title in a list.
+export const quietStatus = (status: Status) =>
+  status !== 'error' && status !== 'ready' && status !== 'needs-attention'
+
 export function threadStatus(status: SessionStatus, readyForReview = false): ThreadStatus {
   switch (status) {
     case 'monitoring':

@@ -44,7 +44,7 @@ import { threadPullRequests } from './sidebar_thread_groups'
 import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
 import { SubagentGlyph, subagentGlyphState, renderWorkingTitle } from './subagent_glyph'
 import { rankPullRequests, type ThreadPullRequest } from './thread_pull_request'
-import { StatusGlyph, threadStatus, type ThreadStatus } from './thread_status'
+import { quietStatus, StatusGlyph, threadStatus, type ThreadStatus } from './thread_status'
 import { formatActivityDuration } from './work_model'
 import './subagent_finish.css'
 import './thread_hover.css'
@@ -544,15 +544,20 @@ function Row({ onPress, children }: { onPress: () => void; children: ReactNode }
 function RowTitle({
   children,
   renderText,
+  quiet = false,
 }: {
   children: string
   renderText?: (text: string) => ReactNode
+  quiet?: boolean
 }) {
   return (
     <OverflowTitle
       focusable={false}
       renderText={renderText}
-      className='text-xs leading-4 font-normal text-foreground'
+      className={cn(
+        'text-xs leading-4 font-normal',
+        quiet ? 'text-muted-foreground' : 'text-foreground'
+      )}
     >
       {children}
     </OverflowTitle>
@@ -563,7 +568,7 @@ function ThreadLinkRow({ thread, onOpen }: { thread: ThreadLink; onOpen: () => v
   return (
     <Row onPress={onOpen}>
       <StatusGlyph status={thread.status} className='size-3' />
-      <RowTitle>{thread.title}</RowTitle>
+      <RowTitle quiet={quietStatus(thread.status)}>{thread.title}</RowTitle>
     </Row>
   )
 }
