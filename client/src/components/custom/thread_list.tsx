@@ -3,6 +3,8 @@ import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
+import { ExchangeLine, type Room } from '@/components/custom/bot_conversation'
+import { ThreadMarkers, WakeMarker } from '@/components/custom/bot_markers'
 import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { ProjectFileRoot } from '@/components/custom/file_link'
@@ -18,6 +20,7 @@ import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import {
   createThreadRows,
   toSubagent,
+  type BotRows,
   type SubagentItem,
   type ThreadRow,
 } from '@/components/custom/thread_rows'
@@ -143,6 +146,12 @@ function rowStamp(row: ThreadRow) {
       return row.item.text.length
     case 'reports':
       return row.reports.map((report) => report.threadId).join(',')
+    case 'wake':
+      return `${row.wake}:${row.reports?.map((report) => report.threadId).join(',')}`
+    case 'exchange':
+      return row.entries.length
+    case 'markers':
+      return row.markers.length
     case 'subagentDone':
       return row.agent.status
     case 'error':
@@ -223,6 +232,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   onSelectAgent,
   provider,
   projectPath,
+  onOpenRoom,
 }: {
   row: ThreadRow
   threadId: string
@@ -230,6 +240,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   onSelectAgent: (id: string) => void
   provider?: string
   projectPath?: string
+  onOpenRoom?: (room: Room) => void
 }) {
   if (row.kind === 'user')
     return (
@@ -247,6 +258,10 @@ const ThreadItemRow = memo(function ThreadItemRow({
       />
     )
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
+  if (row.kind === 'wake') return <WakeMarker reports={row.reports} wake={row.wake} />
+  if (row.kind === 'markers') return <ThreadMarkers botId={threadId} markers={row.markers} />
+  if (row.kind === 'exchange' && onOpenRoom)
+    return <ExchangeLine chatBotId={threadId} entries={row.entries} onOpen={onOpenRoom} />
   if (row.kind === 'assistant' || row.kind === 'plan')
     return (
       // Mid-run messages have no footer; with the list's 12px row gap, pb-1 makes a paragraph's gap.
@@ -323,6 +338,8 @@ export function ThreadList({
   provider,
   agentId,
   settingUp,
+  bot,
+  onOpenRoom,
   onSelectAgent,
 }: {
   threadId: string
@@ -335,6 +352,9 @@ export function ThreadList({
   provider?: string
   agentId?: string
   settingUp?: boolean
+  // A bot's chat: its other bots, and whether check-ins and tidies show.
+  bot?: BotRows
+  onOpenRoom?: (room: Room) => void
   onSelectAgent: (id: string) => void
 }) {
   const [buildRows] = useState(createThreadRows)
@@ -349,6 +369,7 @@ export function ThreadList({
         threadId,
         agentId,
         settingUp,
+        bot,
       }),
     [
       buildRows,
@@ -361,6 +382,7 @@ export function ThreadList({
       threadId,
       agentId,
       settingUp,
+      bot,
     ]
   )
   const view = `${threadId}:${agentId ?? ''}`
@@ -914,6 +936,7 @@ export function ThreadList({
                     onSelectAgent={onSelectAgent}
                     provider={provider}
                     projectPath={projectPath}
+                    onOpenRoom={onOpenRoom}
                   />
                 </div>
               </div>

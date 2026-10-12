@@ -9,7 +9,7 @@ import { Markdown } from './markdown'
 import { subagentAvatarColor } from './subagent_row'
 import { formatActivityDuration } from './work_model'
 
-const outcomes = {
+export const reportOutcomes = {
   finished: { status: 'done', verb: 'finished', time: 'worked for' },
   failed: { status: 'error', verb: 'failed', time: 'after' },
   interrupted: { status: 'stopped', verb: 'was stopped', time: 'after' },
@@ -26,7 +26,7 @@ export function ChildReports({ reports }: { reports: readonly ChildReport[] }) {
         <Bubble variant='ghost' align='start'>
           <BubbleContent className='flex flex-col gap-1'>
             {reports.map((report, index) => {
-              const { status, verb, time } = outcomes[report.outcome]
+              const { status, verb, time } = reportOutcomes[report.outcome]
               const worked = time && report.seconds > 0 && formatActivityDuration(report.seconds)
               return (
                 <div key={`${report.threadId}:${index}`} className='flex flex-col gap-1'>

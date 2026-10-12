@@ -1,8 +1,10 @@
 import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
+import { SESSION_GAP } from '@/lib/time'
 import { createItemSelection, itemDeltasSince } from '@/state/item_selection'
 import { pendingTurnId } from '@/state/turns'
+import { exchangeEntry, type ExchangeEntry } from '@jetty/shared/bots'
 import {
   awaitsInput,
   RESTART_LIMIT_NOTE,
@@ -25,6 +27,7 @@ type GalleryItem = Extract<ThreadItem, { kind: 'image_gallery' }>
 type VideoItem = Extract<ThreadItem, { kind: 'video' }>
 type WorkItem = Extract<ThreadItem, { kind: 'reasoning' | 'tool_call' }>
 type StepItem = WorkItem | AssistantItem | QuestionItem | ApprovalItem
+type MarkerItem = Extract<ThreadItem, { kind: 'thread_marker' }>
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
@@ -34,6 +37,17 @@ export type ThreadRow =
   // steered: it went into a running turn; steering: on its way into one
   | { kind: 'user'; id: string; item: UserItem; steered?: boolean; steering?: boolean }
   | { kind: 'reports'; id: string; reports: readonly ChildReport[] }
+  // Bot chats only. What woke the bot: a worker's report, or one of Jetty's own wakes.
+  | {
+      kind: 'wake'
+      id: string
+      reports?: readonly ChildReport[]
+      wake?: 'check_in' | 'tidy'
+    }
+  // Bot chats only. Messages with other bots, gathered into one line.
+  | { kind: 'exchange'; id: string; entries: ExchangeEntry[] }
+  // Bot chats only. Threads the bot started or messaged.
+  | { kind: 'markers'; id: string; markers: MarkerItem[] }
   | { kind: 'subagentDone'; id: string; agent: SubagentItem }
   | {
       kind: 'assistant'
@@ -431,6 +445,55 @@ type ThreadRowsOptions = {
   threadId?: string
   agentId?: string
   settingUp?: boolean
+  bot?: BotRows
+}
+
+// A bot's chat is its thread with a few rows of its own. A turn another bot started folds into an
+// exchange line, and a check-in or tidy shows only with `showQuiet` or when the bot messaged.
+export type BotRows = { others: ReadonlySet<string>; showQuiet: boolean }
+
+type BotTurn = {
+  // Who opened the turn: Jett's own message, another bot, or anyone else (a worker's report, a
+  // wake). Only Jett's turns write public text; elsewhere it's private unless sent as a message.
+  opener: 'jett' | 'bot' | 'other'
+  quiet: boolean
+  joined: boolean
+  messaged: boolean
+}
+
+const messageUserTool = 'mcp__jetty__message_user'
+
+function botTurns(items: readonly ThreadItem[], { others }: BotRows) {
+  const turns = new Map<string, BotTurn & { opened: boolean }>()
+  for (const item of items) {
+    if (item.agentId) continue
+    let turn = turns.get(item.turnId)
+    if (!turn) {
+      turn = {
+        opener: 'other',
+        quiet: item.kind === 'compaction',
+        joined: false,
+        messaged: false,
+        opened: false,
+      }
+      turns.set(item.turnId, turn)
+    }
+    if (item.kind === 'user_message') {
+      if (!turn.opened) {
+        turn.opened = true
+        turn.opener =
+          !item.from && !item.wake
+            ? 'jett'
+            : item.from && others.has(item.from.threadId)
+              ? 'bot'
+              : 'other'
+        turn.quiet = item.wake !== undefined
+      }
+      if (!item.from && !item.wake) turn.joined = true
+    }
+    if (item.kind === 'assistant_message' && !item.private) turn.messaged = true
+  }
+  return turns
 }
 
 type LastTurn = { start: number; row: number }
@@ -498,7 +561,12 @@ export function createThreadRows() {
       items,
       options,
       rows,
-      turn: rows === incremental ? turn : lastTurn(items, rows, options.agentId),
+      // A bot's exchange line gathers across turns, so its last turn isn't built alone.
+      turn: options.bot
+        ? undefined
+        : rows === incremental
+          ? turn
+          : lastTurn(items, rows, options.agentId),
     }
     return rows
   }
@@ -515,6 +583,7 @@ export function threadRows(
     threadId,
     agentId,
     settingUp = false,
+    bot,
   }: ThreadRowsOptions
 ): ThreadRow[] {
   // A subagent's requests for input also surface on the main timeline, attributed to it.
@@ -527,6 +596,30 @@ export function threadRows(
     agentId ? [] : threadSubagents(allItems).map((agent) => [agent.id, agent.title])
   )
   const rows: ThreadRow[] = []
+  const turns = bot && botTurns(items, bot)
+  // A turn that shows nothing of its own: another bot's, or a check-in or tidy Jett didn't join
+  // and the bot didn't message about. Its errors, thread markers and message_user messages stay.
+  function silent(item: ThreadItem) {
+    const turn = turns?.get(item.turnId)
+    if (!turn || turn.joined) return false
+    return turn.opener === 'bot' || (turn.quiet && !bot!.showQuiet && !turn.messaged)
+  }
+  function dropped(item: ThreadItem) {
+    if (!silent(item)) return false
+    if (item.kind === 'error' || item.kind === 'thread_marker') return false
+    if (item.kind === 'assistant_message') return item.private === true
+    return true
+  }
+  // Outside Jett's turns the bot's text is private except what it sends as a message, which
+  // stands as a reply of its own.
+  function sentMessage(item: ThreadItem) {
+    return (
+      turns !== undefined &&
+      item.kind === 'assistant_message' &&
+      !item.private &&
+      turns.get(item.turnId)?.opener !== 'jett'
+    )
+  }
   const agent = agentId && allItems.find((item) => item.id === agentId)
   if (agent && agent.kind === 'subagent' && agent.prompt) {
     const { turnId, createdAt, prompt } = agent
@@ -565,8 +658,21 @@ export function threadRows(
       isAnsweredQuestionTool(item) ||
       (item.kind === 'tool_call' && item.status !== 'succeeded' && deniedTools.has(item.id)) ||
       (item.kind === 'tool_call' && item.toolName === 'ToolSearch') ||
-      (item.kind === 'user_message' && item.from?.threadId === threadId && !item.reports)
+      (turns !== undefined &&
+        item.kind === 'tool_call' &&
+        item.toolName === messageUserTool &&
+        turns.get(item.turnId)?.opener !== 'jett') ||
+      (item.kind === 'user_message' &&
+        item.from?.threadId === threadId &&
+        !item.reports &&
+        !(bot && item.wake))
     )
+  }
+  // Outside Jett's turns a bot's private text stays with the work.
+  function foldsIntoWork(item: AssistantItem) {
+    if (sentMessage(item)) return false
+    if (turns && turns.get(item.turnId)?.opener !== 'jett') return true
+    return item.turnId === liveTurnId || lastReplies.get(item.turnId) !== item.id
   }
   function isStep(item: ThreadItem): item is WorkItem | QuestionItem | ApprovalItem {
     return (
@@ -578,7 +684,8 @@ export function threadRows(
     )
   }
   // Replies stay with the work until the turn ends, then its last reply becomes the answer.
-  // A steering message or compaction starts another block.
+  // A steering message or compaction starts another block, and in a bot's chat so does a thread
+  // marker or a message it sent.
   const segments: string[] = []
   const lastReplies = new Map<string, string>()
   // A block's time runs from where its segment began, so a live one counts before its first step.
@@ -587,7 +694,9 @@ export function threadRows(
     const previous = segments.at(-1)
     const before = items[index - 1]
     const segment =
-      item.kind === 'user_message' || (item.kind === 'compaction' && item.status !== 'failed')
+      item.kind === 'user_message' ||
+      (item.kind === 'compaction' && item.status !== 'failed') ||
+      (turns && (item.kind === 'thread_marker' || sentMessage(item)))
         ? item.id
         : previous === undefined || before!.turnId !== item.turnId
           ? item.turnId
@@ -600,7 +709,7 @@ export function threadRows(
     tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
       ? tail.turnId
       : undefined
-  const liveSegment = liveTurnId ? segments.at(-1) : undefined
+  const liveSegment = liveTurnId && !(tail && silent(tail)) ? segments.at(-1) : undefined
   const blocks = new Map<string, { row: WorkRow; steps: StepItem[]; next?: ThreadItem }>()
   function openBlock(segment: string, turnId: string) {
     let block = blocks.get(segment)
@@ -657,6 +766,14 @@ export function threadRows(
     const steered = item.turnId !== pendingTurnId && startedTurns.has(item.turnId)
     startedTurns.add(item.turnId)
     if (hidden(item)) continue
+    const entry = bot && exchangeEntry(item, bot.others)
+    if (entry) {
+      const last = rows.at(-1)
+      if (last?.kind === 'exchange') last.entries.push(entry)
+      else rows.push({ kind: 'exchange', id: item.id, entries: [entry] })
+      continue
+    }
+    if (dropped(item) || (bot && item.kind === 'subagent')) continue
     // A finish line sits where the subagent finished, ahead of the turn it woke.
     flushFinished(item.createdAt)
     if (item.kind === 'subagent') launched.push(item)
@@ -664,11 +781,7 @@ export function threadRows(
       for (const agent of launched)
         if ((agent.completedAt ?? Infinity) > item.createdAt) talkedPast.add(agent.id)
     const segment = segments[index]!
-    if (
-      isStep(item) ||
-      (item.kind === 'assistant_message' &&
-        (item.turnId === liveTurnId || lastReplies.get(item.turnId) !== item.id))
-    ) {
+    if (isStep(item) || (item.kind === 'assistant_message' && foldsIntoWork(item))) {
       const block = openBlock(segment, item.turnId)
       block.steps.push(item)
       block.next = items[index + 1]
@@ -685,15 +798,17 @@ export function threadRows(
         break
       case 'user_message':
         rows.push(
-          item.reports?.length
-            ? { kind: 'reports', id: item.id, reports: item.reports }
-            : {
-                kind: 'user',
-                id: item.id,
-                item,
-                ...(steered && { steered }),
-                ...(steering && item.turnId === pendingTurnId && { steering }),
-              }
+          bot && (item.reports?.length || item.wake)
+            ? { kind: 'wake', id: item.id, reports: item.reports, wake: item.wake }
+            : item.reports?.length
+              ? { kind: 'reports', id: item.id, reports: item.reports }
+              : {
+                  kind: 'user',
+                  id: item.id,
+                  item,
+                  ...(steered && { steered }),
+                  ...(steering && item.turnId === pendingTurnId && { steering }),
+                }
         )
         break
       case 'assistant_message':
@@ -713,6 +828,14 @@ export function threadRows(
           streaming: textRunning(item, item === tail, sessionRunning),
           loadout: loadouts[item.turnId],
         })
+        break
+      case 'thread_marker':
+        if (
+          last?.kind === 'markers' &&
+          item.createdAt - last.markers.at(-1)!.createdAt <= SESSION_GAP
+        )
+          last.markers.push(item)
+        else rows.push({ kind: 'markers', id: item.id, markers: [item] })
         break
       case 'compaction':
         // A compaction that failed, or was cut off with its turn, didn't happen.
@@ -829,7 +952,13 @@ function stitchRuns(rows: ThreadRow[]) {
     working = false
   }
   for (const row of rows) {
-    if (row.kind === 'user') close()
+    if (
+      row.kind === 'user' ||
+      row.kind === 'wake' ||
+      row.kind === 'markers' ||
+      row.kind === 'exchange'
+    )
+      close()
     else if (row.kind === 'assistant' || row.kind === 'plan') {
       last = row
     } else if (row.kind === 'work' && (row.status === 'running' || row.status === 'waiting'))

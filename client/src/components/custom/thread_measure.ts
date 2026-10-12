@@ -176,6 +176,12 @@ function estimateSignature(row: ThreadRow) {
     case 'subagents':
       inputs = row.agents.length
       break
+    case 'wake':
+      inputs = row.reports?.length
+      break
+    case 'markers':
+      inputs = row.markers.length
+      break
     case 'workflow':
       inputs = [row.item.status, row.item.phases.length, row.item.agents.length]
       break
@@ -267,6 +273,11 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       return row.item.status === 'running'
         ? 72 + 32 * row.item.phases.length + 28 * row.item.agents.length
         : 36
+    case 'wake':
+      return 4 + 24 * Math.max(1, row.reports?.length ?? 0)
+    case 'markers':
+      return 4 + 24 * row.markers.length
+    case 'exchange':
     case 'compaction':
     case 'restart':
     case 'backgroundStopped':
