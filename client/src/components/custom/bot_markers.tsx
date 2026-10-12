@@ -176,7 +176,9 @@ export function WakeMarker({
           </div>
         )
       })}
-      {wake && <div className={lineClass}>{wake === 'tidy' ? 'Tidied up' : 'Checked in'}</div>}
+      {wake && (
+        <div className={lineClass}>{wake === 'tidy' ? 'Tidied its notes' : 'Checked in'}</div>
+      )}
     </div>
   )
 }
