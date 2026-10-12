@@ -64,7 +64,8 @@ export function useOpenAttachmentFile() {
 
 export function bytes(size: number) {
   if (size >= 1_048_576) return `${(size / 1_048_576).toFixed(1)} MB`
-  return `${Math.round(size / 1024)} KB`
+  if (size >= 1024) return `${Math.round(size / 1024)} KB`
+  return `${size} B`
 }
 
 // A sent file as one quiet line, opened on click.
