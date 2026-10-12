@@ -166,7 +166,9 @@ export function startBotScheduler(
           now - (record.checkedInAt ?? 0) < checkIn.ms
         )
           return
-        const brief = yield* Effect.promise(() => readFile(join(home, 'brief.md'), 'utf8'))
+        const brief = yield* Effect.promise(() =>
+          readFile(join(home, 'brief.md'), 'utf8').catch(() => '')
+        )
         if (!brief.trim()) return
         const user = yield* Effect.promise(botUserName)
         const list = yield* checkInItems(bot, record, threads, store, hub, timing, now, user)
