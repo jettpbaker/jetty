@@ -215,7 +215,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       const images = attachments.some(isImageAttachment)
       const full = text ? textHeight(row.id, text, width * 0.8, true, rough) : 0
       let height =
-        (text || images ? 28 : 0) +
+        (text || images ? 26 : 0) +
         footerRow +
         (full > collapseAfterHeight
           ? (expandedMessages.has(row.item.id) ? full : collapsedTextHeight) + 28
