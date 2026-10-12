@@ -34,12 +34,20 @@ async function readExisting(path: string) {
   }
 }
 
+async function createInstructions(home: string) {
+  try {
+    await writeFile(join(home, 'instructions.md'), '# Your instructions\n\n', { flag: 'wx' })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+  }
+}
+
 export async function createBotHome(home: string) {
   await commitSharedPreferences(home)
   for (const folder of ['pages', 'log', 'files'])
     await mkdir(join(home, folder), { recursive: true })
   for (const file of ['brief.md', 'index.md']) await writeFile(join(home, file), '', { flag: 'a' })
-  await writeFile(join(home, 'instructions.md'), '# Your instructions\n\n', { flag: 'wx' })
+  await createInstructions(home)
   await writeFile(join(home, 'CLAUDE.md'), '@instructions.md\n@brief.md\n@index.md\n')
   await git(home, ['init', '-q', '-b', 'main'])
   await commitBotHome(home, 'Initial bot home')
@@ -155,7 +163,7 @@ export async function botInstructions(
       await migrate(
         `Jetty update: you now have standing instructions in instructions.md (see "Your instructions" in your prompt). Look through your index and pages for how ${user} wants things done and for lessons you wrote for yourself, add each with add_instruction (reason: "moved from pages/<file>"), and take them out of the pages. Facts stay in pages. Don't message ${user} about this.`
       )
-    await writeFile(join(home, 'instructions.md'), '# Your instructions\n\n', { flag: 'wx' })
+    await createInstructions(home)
   }
   const named = projects.map((project) => `${project.title} (${displayPath(project.path)})`)
   const selected = projects.find((project) => project.id === bot.projectId)

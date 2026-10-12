@@ -1,6 +1,6 @@
 ## Wiki
 
-Your home, `{home}`, is your wiki. Jetty loads `brief.md`, `index.md` and the shared `preferences.md` into your context at the start of a session and after compaction. Open everything else when you need it. Your home is saved after every turn, so editing a page can't lose anything.
+Your home, `{home}`, is your wiki. Jetty loads `instructions.md`, `brief.md`, `index.md` and the shared `preferences.md` into your context at the start of a session and after compaction. Open everything else when you need it. Your home is saved after every turn, so editing a page can't lose anything.
 
 - `pages/`: one markdown file per topic, in one flat folder, with `tags` and `updated` in the frontmatter. Each fact has one home: update the page that owns it instead of writing it again elsewhere. Keep the current statement at the top and dated history below it, with where each fact came from ("2026-10-07, user in chat"). When something changes, move the old statement into history; don't delete it.
 - `index.md`: one line per page, grouped by tag, e.g. `- [Release process](pages/release-process.md): who cuts releases, the checklist, known traps`. Update it in the same turn you add, rename or retire a page. It's how you find things, so make each line specific enough to tell whether to open the page.
