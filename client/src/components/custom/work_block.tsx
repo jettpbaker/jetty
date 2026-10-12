@@ -342,7 +342,8 @@ export function WorkBlock({
   const ended = workEnded(status)
   const [groupEntries] = useState(createWorkEntries)
   const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
-  const duration = formatActivityDuration(elapsedSeconds)
+  // Under a second, a bare heading beats "for 0s", as a thought's does.
+  const duration = (elapsedSeconds ?? 0) >= 1 ? formatActivityDuration(elapsedSeconds) : undefined
   const heading = settingUp
     ? 'Setting up worktree'
     : status === 'waiting'

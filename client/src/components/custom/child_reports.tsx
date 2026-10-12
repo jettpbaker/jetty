@@ -27,7 +27,7 @@ export function ChildReports({ reports }: { reports: readonly ChildReport[] }) {
           <BubbleContent className='flex flex-col gap-1'>
             {reports.map((report, index) => {
               const { status, verb, time } = reportOutcomes[report.outcome]
-              const worked = time && report.seconds > 0 && formatActivityDuration(report.seconds)
+              const worked = time && report.seconds >= 1 && formatActivityDuration(report.seconds)
               return (
                 <div key={`${report.threadId}:${index}`} className='flex flex-col gap-1'>
                   <p>
@@ -66,7 +66,8 @@ export function SubagentDone({
   const open = useOpenSubagent()
   if (agent.status === 'running') return null
   const { verb, time } = subagentOutcomes[agent.status]
-  const worked = agent.durationMs ? formatActivityDuration(agent.durationMs / 1000) : undefined
+  const ms = agent.durationMs ?? 0
+  const worked = ms >= 1000 ? formatActivityDuration(ms / 1000) : undefined
   return (
     <Message align='start' className='pb-1'>
       <MessageContent>

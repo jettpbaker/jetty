@@ -154,11 +154,13 @@ export function WorkflowGroup({ threadId, workflow }: { threadId: string; workfl
             {done}/{total} agents
             <FailedCount failed={failed} />
           </span>
-          <span>
-            {running
-              ? formatDuration(workflowSeconds(workflow, now))
-              : formatSubagentTokens(workflow.tokens)}
-          </span>
+          {(running || workflow.tokens > 0) && (
+            <span>
+              {running
+                ? formatDuration(workflowSeconds(workflow, now))
+                : formatSubagentTokens(workflow.tokens)}
+            </span>
+          )}
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent>
