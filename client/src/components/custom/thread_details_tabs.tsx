@@ -113,7 +113,13 @@ export type PullRequestTabs = {
   hide: (ref: PullRequestRef) => void
 }
 
-export type DesktopTabs = { ids: readonly string[]; close: (id: string) => void }
+export type DesktopTabs = {
+  ids: readonly string[]
+  // The thread's own desktop, while its agent has one starting or live.
+  running?: string
+  show: (id: string) => void
+  close: (id: string) => void
+}
 
 export function ThreadDetailsTabs({
   ref,
@@ -372,6 +378,8 @@ export function ThreadDetailsTabs({
               <ChainLink4Icon />
               Link pull request
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DesktopMenuItem desktops={desktops} canClose={canClose} onClose={closeDesktop} />
           </DropdownMenuContent>
         </DropdownMenu>
       </TabsList>
@@ -457,6 +465,40 @@ function PullTab({
         onClose={onClose}
       />
     </TabsTrigger>
+  )
+}
+
+function DesktopMenuItem({
+  desktops: { ids, running, show },
+  canClose,
+  onClose,
+}: {
+  desktops: DesktopTabs
+  canClose: boolean
+  onClose: (id: string) => void
+}) {
+  const open = running !== undefined && ids.includes(running)
+  return (
+    <DisabledTooltip
+      reason={
+        running ? undefined : 'No desktop yet. Agents start one when they verify in a browser.'
+      }
+      side='right'
+    >
+      <DropdownMenuCheckboxItem
+        checked={open}
+        disabled={!running || (open && !canClose)}
+        closeOnClick={false}
+        onCheckedChange={(checked) => {
+          if (!running) return
+          if (checked) show(running)
+          else onClose(running)
+        }}
+      >
+        <StudioDisplayIcon />
+        Desktop
+      </DropdownMenuCheckboxItem>
+    </DisabledTooltip>
   )
 }
 

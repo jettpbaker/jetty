@@ -3,7 +3,7 @@ import { Equal } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useMemo } from 'react'
 
-import { chromeAtom } from './chrome'
+import { chromeAtom, threadMetaAtom } from './chrome'
 import { useAction } from './connection'
 import { detailsRequestAtom } from './thread_tab'
 
@@ -32,15 +32,24 @@ const desktopTabsAtom = Atom.family((_threadId: string) =>
   Atom.make<readonly string[]>([]).pipe(Atom.keepAlive)
 )
 
+const runningDesktopAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadMetaAtom(threadId))?.desktop?.id)
+)
+
 export function useDesktopTabs(threadId: string) {
   const registry = useContext(RegistryContext)
   const ids = useAtomValue(desktopTabsAtom(threadId))
+  const running = useAtomValue(runningDesktopAtom(threadId))
+  const show = useCallback(
+    (id: string) => openDesktop(registry, threadId, id),
+    [registry, threadId]
+  )
   const close = useCallback(
     (id: string) =>
       registry.update(desktopTabsAtom(threadId), (open) => open.filter((entry) => entry !== id)),
     [registry, threadId]
   )
-  return useMemo(() => ({ ids, close }), [ids, close])
+  return useMemo(() => ({ ids, running, show, close }), [ids, running, show, close])
 }
 
 function openDesktop(registry: AtomRegistry.AtomRegistry, threadId: string, id: string) {
