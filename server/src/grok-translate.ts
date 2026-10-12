@@ -7,7 +7,9 @@ import { object, string } from './stdio-rpc'
 export function createGrokTranslator(
   turnId: string,
   workflows = new Set<string>(),
-  subagents = new Map<string, string>()
+  subagents = new Map<string, string>(),
+  background = new Map<string, string>(),
+  backgroundTools = new Set<string>()
 ) {
   const tools = new Map<string, { id: string; done: boolean }>()
   // ids handed out for tool calls Grok hasn't reported yet (a permission prompt can come first)
@@ -16,6 +18,13 @@ export function createGrokTranslator(
   const subagentPrompts = new Map<string, string>()
   let text: { id: string; kind: 'assistant_message' | 'reasoning' } | undefined
   let compactionId: string | undefined
+
+  function endBackground(taskId: string): ThreadEvent[] {
+    const id = background.get(taskId)
+    if (!id) return []
+    background.delete(taskId)
+    return [{ type: 'item.completed', itemId: id, patch: { endedAt: Date.now() } }]
+  }
 
   function closeText(): ThreadEvent[] {
     if (!text) return []
@@ -31,6 +40,63 @@ export function createGrokTranslator(
   function translate(update: Record<string, unknown>): ThreadEvent[] {
     const events: ThreadEvent[] = []
     const base = { turnId, createdAt: Date.now() }
+    if (update.sessionUpdate === 'task_backgrounded') {
+      const taskId = string(update.task_id)
+      if (!taskId || background.has(taskId)) return events
+      const id = newId()
+      const monitor = string(update.monitor_description)
+      const toolCallId = string(update.tool_call_id)
+      if (toolCallId) backgroundTools.add(toolCallId)
+      const tool = tools.get(toolCallId)
+      if (tool && !tool.done) {
+        tool.done = true
+        events.push({ type: 'item.completed', itemId: tool.id, patch: { status: 'succeeded' } })
+      }
+      background.set(taskId, id)
+      events.push({
+        type: 'item.started',
+        item: {
+          ...base,
+          id,
+          kind: 'background',
+          taskId,
+          task: monitor ? 'monitor' : 'command',
+          label: monitor || string(update.command) || string(update.description),
+        },
+      })
+      return events
+    }
+    if (update.sessionUpdate === 'task_completed')
+      return endBackground(string(object(update.task_snapshot).task_id))
+    if (update.sessionUpdate === 'background_tasks') {
+      const tasks = (Array.isArray(update.tasks) ? update.tasks.map(object) : []).filter(
+        (task) => task.status === 'running' && string(task.task_id)
+      )
+      const live = new Set(tasks.map((task) => string(task.task_id)))
+      for (const task of tasks) {
+        const taskId = string(task.task_id)
+        if (background.has(taskId)) continue
+        const id = newId()
+        const monitor = task.kind === 'monitor'
+        background.set(taskId, id)
+        events.push({
+          type: 'item.started',
+          item: {
+            ...base,
+            createdAt: Date.parse(string(task.started_at)) || base.createdAt,
+            id,
+            kind: 'background',
+            taskId,
+            task: monitor ? 'monitor' : 'command',
+            label: monitor ? string(task.description) : string(task.command),
+          },
+        })
+      }
+      return [
+        ...events,
+        ...[...background.keys()].flatMap((id) => (live.has(id) ? [] : endBackground(id))),
+      ]
+    }
     if (update.sessionUpdate === 'auto_compact_started') {
       if (compactionId) return events
       compactionId = newId()
@@ -226,6 +292,7 @@ export function createGrokTranslator(
     ) {
       const key = string(update.toolCallId)
       if (!key) return events
+      if (backgroundTools.has(key)) return events
       // Workflows and todo_write have their own updates: workflow_updated and plan.
       const input = object(update.rawInput)
       if (input.variant === 'Task')
@@ -233,6 +300,8 @@ export function createGrokTranslator(
       const name = grokToolName(update).toLowerCase()
       if (name === 'workflow' || name === 'todo_write') hiddenTools.add(key)
       const outputType = object(update.rawOutput).type
+      if (outputType === 'BackgroundTaskStarted' || outputType === 'Monitor')
+        backgroundTools.add(key)
       if (hiddenTools.has(key) || outputType === 'Workflow' || outputType === 'Todo') return events
       events.push(...closeText())
       let tool = tools.get(key)
@@ -296,7 +365,19 @@ export function createGrokTranslator(
     reserved.set(toolCallId, id)
     return id
   }
-  return { translate, finish, workflows, subagents, toolItemId }
+  function endAllBackground() {
+    return [...background.keys()].flatMap(endBackground)
+  }
+  return {
+    translate,
+    finish,
+    workflows,
+    subagents,
+    background,
+    backgroundTools,
+    endAllBackground,
+    toolItemId,
+  }
 }
 
 // `_x.ai/session/info` backs Grok's /context: `used` is the last request's prompt size.
@@ -334,7 +415,7 @@ function grokToolInput(rawInput: unknown) {
 function grokToolName(update: Record<string, unknown>): string {
   const mcp = grokMcpTool(update.rawInput)
   if (mcp) return mcp.name
-  switch (update.kind) {
+  switch (update.kind ?? object(object(update._meta)['x.ai/tool']).kind) {
     case 'read':
       return 'Read'
     case 'edit':

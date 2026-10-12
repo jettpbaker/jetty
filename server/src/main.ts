@@ -449,7 +449,7 @@ function createServer(opts: ServerOptions = {}) {
                   })
                 ),
                 codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp })),
-                grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp })),
+                grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp, hooks })),
               },
               agentKind
             )

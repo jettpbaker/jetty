@@ -1,6 +1,6 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
-import { newId } from '@jetty/shared/wire'
+import { newId, type BackgroundTask } from '@jetty/shared/wire'
 import { Cause, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
@@ -13,6 +13,7 @@ import {
   compactFailureReason,
   couldntCompact,
   type Agent,
+  type AgentHooks,
   type AgentImage,
   type Emit,
   type TurnInput,
@@ -37,6 +38,7 @@ export type GrokOptions = StdioProcessOptions & {
   interruptGraceMs?: number
   ttlMs?: number
   mcp?: McpSessions
+  hooks?: AgentHooks
 }
 type Pending = {
   id: RpcId
@@ -61,6 +63,7 @@ type Session = {
   expired: boolean
   runningWorkflows: Set<string>
   runningSubagents: Set<string>
+  backgroundTasks: readonly BackgroundTask[]
   settings: string
   modelId?: string
   effort?: TurnInput['effort']
@@ -133,7 +136,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         if (
           session.awaitingResult ||
           session.runningWorkflows.size ||
-          session.runningSubagents.size
+          session.runningSubagents.size ||
+          session.backgroundTasks.length
         )
           return
         if (session.idle) yield* Fiber.interrupt(session.idle)
@@ -145,6 +149,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   session.awaitingResult ||
                   session.runningWorkflows.size ||
                   session.runningSubagents.size ||
+                  session.backgroundTasks.length ||
                   sessions.get(session.input.threadId) !== session ||
                   !session.fiber
                 )
@@ -165,11 +170,58 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         if (event.type === 'item.started' && event.item.kind === 'workflow')
           session.runningWorkflows.add(event.item.id)
         if (event.type === 'item.completed') session.runningWorkflows.delete(event.itemId)
-        if (session.runningWorkflows.size || session.runningSubagents.size) {
+        if (
+          session.runningWorkflows.size ||
+          session.runningSubagents.size ||
+          session.backgroundTasks.length
+        ) {
           if (session.idle) yield* Fiber.interrupt(session.idle)
           session.idle = null
         } else if (!session.awaitingResult) yield* armIdle(session)
       })
+    }
+
+    function setBackgroundTasks(session: Session, tasks: readonly BackgroundTask[]) {
+      session.backgroundTasks = tasks
+      return options.hooks?.onBackgroundTasks?.(session.input.threadId, tasks) ?? Effect.void
+    }
+
+    function updateBackgroundTasks(session: Session, update: Record<string, unknown>) {
+      if (update.sessionUpdate === 'background_tasks') {
+        const tasks = (Array.isArray(update.tasks) ? update.tasks.map(object) : [])
+          .filter((task) => task.status === 'running' && string(task.task_id))
+          .map(
+            (task): BackgroundTask => ({
+              id: string(task.task_id),
+              kind: task.kind === 'monitor' ? 'monitor' : 'command',
+              label: task.kind === 'monitor' ? string(task.description) : string(task.command),
+              startedAt: Date.parse(string(task.started_at)) || Date.now(),
+            })
+          )
+        return setBackgroundTasks(session, tasks)
+      }
+      if (update.sessionUpdate === 'task_backgrounded') {
+        const id = string(update.task_id)
+        if (!id || session.backgroundTasks.some((task) => task.id === id)) return Effect.void
+        const monitor = string(update.monitor_description)
+        return setBackgroundTasks(session, [
+          ...session.backgroundTasks,
+          {
+            id,
+            kind: monitor ? 'monitor' : 'command',
+            label: monitor || string(update.command) || string(update.description),
+            startedAt: Date.now(),
+          },
+        ])
+      }
+      if (update.sessionUpdate === 'task_completed') {
+        const id = string(object(update.task_snapshot).task_id)
+        return setBackgroundTasks(
+          session,
+          session.backgroundTasks.filter((task) => task.id !== id)
+        )
+      }
+      return Effect.void
     }
 
     function mcpFailure(session: Session, message: RpcMessage) {
@@ -216,6 +268,8 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         }
         session.pending.clear()
         if (stopBackground || session.stopped) {
+          for (const event of session.translator.endAllBackground()) yield* publish(session, event)
+          yield* setBackgroundTasks(session, [])
           for (const taskId of session.runningSubagents) {
             const itemId = session.translator.subagents.get(taskId)
             if (itemId)
@@ -506,6 +560,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     message.method === '_x.ai/session_notification') &&
                   message.params.sessionId === sessionId
                 if (notification) {
+                  yield* updateBackgroundTasks(session, update)
                   if (
                     session.input.compact &&
                     !session.stopped &&
@@ -524,13 +579,16 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     !session.awaitingResult &&
                     (update.sessionUpdate === 'agent_message_chunk' ||
                       update.sessionUpdate === 'agent_thought_chunk' ||
-                      update.sessionUpdate === 'tool_call')
+                      (update.sessionUpdate === 'tool_call' &&
+                        !session.translator.backgroundTools.has(string(update.toolCallId))))
                   ) {
                     session.input = { ...session.input, turnId: newId(), text: '' }
                     session.translator = createGrokTranslator(
                       session.input.turnId,
                       session.translator.workflows,
-                      session.translator.subagents
+                      session.translator.subagents,
+                      session.translator.background,
+                      session.translator.backgroundTools
                     )
                     session.awaitingResult = true
                     session.accepting = true
@@ -597,7 +655,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     session.translator = createGrokTranslator(
                       session.input.turnId,
                       session.translator.workflows,
-                      session.translator.subagents
+                      session.translator.subagents,
+                      session.translator.background,
+                      session.translator.backgroundTools
                     )
                     yield* session.emit({ type: 'session.status', status: 'running' })
                     yield* prompt(session, next.text, next.images)
@@ -670,7 +730,11 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                   return
                 }
                 if (existing!.settings !== settings) {
-                  if (existing!.runningWorkflows.size || existing!.runningSubagents.size)
+                  if (
+                    existing!.runningWorkflows.size ||
+                    existing!.runningSubagents.size ||
+                    existing!.backgroundTasks.length
+                  )
                     return yield* Effect.fail(
                       new AgentError('Grok permission mode cannot change during background work')
                     )
@@ -695,7 +759,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                 existing!.translator = createGrokTranslator(
                   input.turnId,
                   existing!.translator.workflows,
-                  existing!.translator.subagents
+                  existing!.translator.subagents,
+                  existing!.translator.background,
+                  existing!.translator.backgroundTools
                 )
                 existing!.done = yield* Deferred.make<void, AgentError>()
                 existing!.reason = null
@@ -728,6 +794,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             expired: false,
             runningWorkflows: new Set(),
             runningSubagents: new Set(),
+            backgroundTasks: [],
             settings,
             fastIds: new Map(),
             reason: null,
@@ -864,6 +931,19 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             ),
             Effect.forkIn(owner)
           )
+        })
+      },
+      stopBackgroundTasks(threadId, taskId) {
+        return Effect.gen(function* () {
+          const session = sessions.get(threadId)
+          if (!session?.connection || !session.providerThreadId) return
+          for (const task of session.backgroundTasks) {
+            if (taskId && task.id !== taskId) continue
+            yield* session.connection.request('_x.ai/task/kill', {
+              sessionId: session.providerThreadId,
+              taskId: task.id,
+            })
+          }
         })
       },
       respondToApproval(threadId, itemId, decision, message?: string) {
