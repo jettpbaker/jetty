@@ -42,6 +42,11 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   would jump around the sidebar. Instead, an "Assign to …" action on a thread row hands it to a
   bot, and optionally a bot can claim an unowned thread through an explicit tool, never one another
   bot owns, with a "Data took this over · Undo" toast rather than a confirm.
+- Come back to bot tasks as a whole (Jett, 12 Oct). Each bot keeps its own task list on its
+  overview page (`bot_overview.tsx`; todo, in progress, done or dropped, `BotTaskStatus` in
+  `shared/src/wire.ts`), and done or dropped tasks fall off after a while (`shared/src/bots.ts`).
+  It came up picking icons: what a dropped task meant wasn't clear. Rethink whether bots need
+  their own list beside their threads and the agent's todo list, and what each state means to Jett.
 
 ## status colours (agreed with Jett 12 Oct, coming back to it soon)
 
