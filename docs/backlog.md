@@ -36,6 +36,12 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   the two chats each build bubbles, copy, errors, stop, line-height and scroll-to-bottom their own
   way (`~/code/scratch/teardowns/chat-jetty.md`, §8 item 8). Bots become Jetty chat plus a few
   extras, so the chat re-pass covers both.
+- Thread ownership stays one bot and only moves on purpose (agreed with Jett 12 Oct). Today
+  `threads.bot_id` is set when a bot's thread spawns the child. Messaging must not transfer it:
+  `send_message` reaches any thread, so a bot pinging another's thread would steal it, and threads
+  would jump around the sidebar. Instead, an "Assign to …" action on a thread row hands it to a
+  bot, and optionally a bot can claim an unowned thread through an explicit tool, never one another
+  bot owns, with a "Data took this over · Undo" toast rather than a confirm.
 
 ## status colours (agreed with Jett 12 Oct, coming back to it soon)
 
