@@ -10,7 +10,7 @@
   transition-property: width, translate;
 }
 .app-shell-navigation[data-sidebar-open='false'] {
-  translate: calc(var(--page-header-inset) + 2px) 8.5px;
+  translate: calc(var(--page-header-inset) + 2px) 0;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-shell-navigation {

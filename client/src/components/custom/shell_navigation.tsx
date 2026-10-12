@@ -60,7 +60,7 @@ export function ShellNavigation() {
       aria-label='Thread navigation'
       data-slot='shell-navigation'
       data-sidebar-open={expanded}
-      className={`app-shell-navigation absolute left-1.5 top-1.5 z-30 flex shrink-0 items-center justify-between gap-1 ${widthTransition}`}
+      className={`app-shell-navigation absolute left-1.5 top-[14.5px] z-30 flex shrink-0 items-center justify-between gap-1 ${widthTransition}`}
       style={{ width }}
     >
       <KeybindTooltip binding={keybinds.sidebar}>
