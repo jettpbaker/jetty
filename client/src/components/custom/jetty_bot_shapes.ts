@@ -177,14 +177,14 @@ export const colorIds = Object.keys(botColors) as BotColor[]
 // light value) and the eyes go light. Dark keeps botColors.
 export const deepBotColors = {
   accent: 'var(--bot-accent-deep)',
-  coral: 'oklch(0.52 0.16 32)',
-  orange: 'oklch(0.49 0.13 50)',
-  butter: 'oklch(0.52 0.10 90)',
-  mint: 'oklch(0.52 0.12 158)',
-  teal: 'oklch(0.49 0.085 185)',
-  blue: 'oklch(0.50 0.17 255)',
-  lilac: 'oklch(0.50 0.18 282.178)',
-  rose: 'oklch(0.50 0.18 355)',
+  coral: 'oklch(0.52 0.182 32)',
+  orange: 'oklch(0.49 0.136 50)',
+  butter: 'oklch(0.52 0.114 90)',
+  mint: 'oklch(0.52 0.155 158)',
+  teal: 'oklch(0.49 0.108 185)',
+  blue: 'oklch(0.5 0.195 255)',
+  lilac: 'oklch(0.5 0.28 282.178)',
+  rose: 'oklch(0.5 0.197 355)',
   cloud: 'oklch(0.25 0 0)',
   slate: 'oklch(0.50 0.015 260)',
 } satisfies Record<BotColor, string>
