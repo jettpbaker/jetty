@@ -499,7 +499,9 @@ export function ThreadComposer({
             ? undefined
             : running
               ? 'Queue a follow-up while the agent works'
-              : 'Ask for follow-up changes',
+              : ambient
+                ? 'What would you like to work on?'
+                : 'Ask for follow-up changes',
           sendLabel: editingEntry
             ? 'Save'
             : running
