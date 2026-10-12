@@ -20,7 +20,7 @@ const WORKER_COLOR = 'blue'
 const SPARE_COLORS = ['rose', 'coral', 'slate']
 
 // Bot tools that are the bot speaking, drawn inside its turn instead of in Tools.
-const SPEECH_TOOLS: Record<string, SpanKind> = { say: 'tell', tell_user: 'tell', react: 'react' }
+const SPEECH_TOOLS: Record<string, SpanKind> = { message_user: 'tell' }
 
 // Attachments that recur after every tool result; drawn as ticks, hidden from the log by default.
 const QUIET_ATTACHMENTS = new Set(['total_tokens_reminder'])
@@ -52,7 +52,6 @@ export type SpanKind =
   | 'bubble'
   | 'note'
   | 'tell'
-  | 'react'
   | 'ask'
   | 'error'
   | 'harness'
@@ -334,7 +333,7 @@ export function buildTimeline(sources: Sources): Timeline {
     )
   }
 
-  // tell_user writes its bubble as an assistant message; it joins the tell_user mark.
+  // message_user writes an assistant message; it joins the message_user mark.
   const told = new Set<string>()
   const toldBy = new Map<string, ItemFold>()
   for (const fold of items) {
@@ -472,18 +471,18 @@ export function buildTimeline(sources: Sources): Timeline {
         const name = shortTool(item.toolName)
         const speech = SPEECH_TOOLS[name]
         if (speech) {
-          const input = item.input as { text?: unknown; emoji?: unknown } | null
-          const said = String((speech === 'react' ? input?.emoji : input?.text) ?? '')
+          const input = item.input as { text?: unknown } | null
+          const said = String(input?.text ?? '')
           add({
             ...inTurn,
             raw: [...fold.raw, ...(toldBy.get(item.id)?.raw ?? [])],
             kind: speech,
             end: item.createdAt,
             instant: true,
-            label: speech === 'tell' ? `↗ ${oneLine(said)}` : said,
+            label: `↗ ${oneLine(said)}`,
             tag: name,
             text: oneLine(said),
-            detail: speech === 'tell' ? said : item.output || undefined,
+            detail: said,
             failed: item.status === 'failed',
           })
           break
@@ -812,7 +811,7 @@ function mapTranscript(
   const completion = (span: Span) => span.end ?? span.start
   const matchThinking = createMatcher(ofKind('thinking'), completion)
   const matchText = createMatcher(ofKind('bubble', 'note'), completion)
-  const matchTool = createMatcher(ofKind('tool', 'tell', 'react'), (span) => span.start)
+  const matchTool = createMatcher(ofKind('tool', 'tell'), (span) => span.start)
   const byToolUse = new Map<string, Span>()
   const seen = new Set<string>()
   const queued: TranscriptLine[] = []
