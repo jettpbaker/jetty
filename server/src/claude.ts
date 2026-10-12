@@ -3,6 +3,7 @@ import {
   getSessionMessages,
   type McpSdkServerConfigWithInstance,
   type EffortLevel,
+  type HookCallback,
   type Options,
   type PermissionMode,
   type PermissionResult,
@@ -230,6 +231,19 @@ function withoutToolFailure(event: ThreadEvent, agents: ReadonlySet<string>): Th
 function trackAgents(running: Set<string>, event: ThreadEvent) {
   if (event.type === 'item.started' && event.item.kind === 'subagent') running.add(event.item.id)
   if (event.type === 'item.completed') running.delete(event.itemId)
+}
+
+// The agent never sees a subagent's id, so its result carries the exact link to cite.
+const subagentLinkHook: HookCallback = async (hookInput) => {
+  if (hookInput.hook_event_name !== 'PostToolUse') return {}
+  const { description } = (hookInput.tool_input ?? {}) as { description?: unknown }
+  const title = typeof description === 'string' && description ? description : 'Subagent'
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse' as const,
+      additionalContext: `To mention this subagent, link it as [${title}](jetty://subagents/${hookInput.tool_use_id}).`,
+    },
+  }
 }
 
 export function createClaudeAdapter(
@@ -1032,9 +1046,9 @@ export function createClaudeAdapter(
                   forwardSubagentText: true,
                   perTaskStopAffordance: true,
                   canUseTool,
-                  ...(bot
-                    ? {
-                        hooks: {
+                  hooks: {
+                    ...(bot
+                      ? {
                           PreToolUse: [
                             {
                               hooks: [
@@ -1068,9 +1082,10 @@ export function createClaudeAdapter(
                               ],
                             },
                           ],
-                        },
-                      }
-                    : {}),
+                        }
+                      : {}),
+                    PostToolUse: [{ matcher: 'Agent|Task', hooks: [subagentLinkHook] }],
+                  },
                   resume: resume ?? undefined,
                   resumeSessionAt: resume ? compactAnchor : undefined,
                   mcpServers: sdkMcp ? { jetty: sdkMcp } : {},
