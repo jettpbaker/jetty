@@ -309,6 +309,18 @@
 
 @source '../node_modules/streamdown/dist/*.js';
 
+/* The chat's top fade shows once it leaves its top, over its first 32px of scroll. */
+@keyframes chat-top-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.chat-top-fade {
+  animation: chat-top-fade-in linear both;
+  animation-timeline: --chat-top;
+  animation-range: 0 32px;
+}
+
 @utility scrollbar-subtle {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;

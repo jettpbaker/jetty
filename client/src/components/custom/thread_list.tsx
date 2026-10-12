@@ -857,10 +857,13 @@ export function ThreadList({
 
   return (
     <MediaLightboxProvider>
-      <div data-perf-region='messages' className='relative flex min-h-0 flex-1 flex-col'>
+      <div
+        data-perf-region='messages'
+        className='relative flex min-h-0 flex-1 flex-col [timeline-scope:--chat-top]'
+      >
         <section
           ref={scroller}
-          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] [scroll-timeline:--chat-top_block] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
@@ -907,6 +910,10 @@ export function ThreadList({
             ))}
           </div>
         </section>
+        <div
+          aria-hidden='true'
+          className='chat-top-fade pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-linear-to-b from-background to-transparent'
+        />
         <ScrollToBottom
           shown={remainingMessages > 0}
           fresh={fresh}
