@@ -18,6 +18,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
+import { CharmedFileIcon } from './diff/file_name'
 import { PullRequestRow } from './pull_request_row'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
 import { threadSubagents } from './thread_rows'
@@ -279,6 +280,9 @@ function ChangedFileRow({ file, onOpen }: { file: ChangedFile; onOpen: () => voi
       title={file.path}
       className='h-7 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-mono text-xs font-normal'
     >
+      <span data-charmed='soft' className='inline-flex size-4 shrink-0'>
+        <CharmedFileIcon path={file.path} inline />
+      </span>
       <span className='shrink-0 text-foreground'>{file.path.slice(slash + 1)}</span>
       <span className='min-w-0 truncate text-muted-foreground'>
         {file.path.slice(0, slash + 1)}
