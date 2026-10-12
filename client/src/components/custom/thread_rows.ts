@@ -625,12 +625,15 @@ export function threadRows(
   )
   const rows: ThreadRow[] = []
   const turns = bot && botTurns(items, bot)
-  // A turn that shows nothing of its own: another bot's, or a check-in or tidy Jett didn't join
-  // and the bot didn't message about. Its errors, thread markers and message_user messages stay.
+  // A turn that shows nothing of its own. Another bot's is an exchange line. A check-in, a tidy,
+  // the note that created the bot, or a worker report shows only with `showQuiet`, or once the
+  // bot sends a public message. Its errors, thread markers and that message stay.
   function silent(item: ThreadItem) {
     const turn = turns?.get(item.turnId)
     if (!turn || turn.joined) return false
-    return turn.opener === 'bot' || (turn.quiet && !bot!.showQuiet && !turn.messaged)
+    if (turn.opener === 'bot') return true
+    if (turn.messaged) return false
+    return !bot!.showQuiet
   }
   function dropped(item: ThreadItem) {
     if (!silent(item)) return false
