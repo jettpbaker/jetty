@@ -724,6 +724,7 @@ export function threadRows(
   // marker or a message it sent (a message to another bot joins the exchange line instead).
   const segments: string[] = []
   const lastReplies = new Map<string, string>()
+  const lastSentMessages = new Map<string, string>()
   // A block's time runs from where its segment began, so a live one counts before its first step.
   const segmentStarts = new Map<string, number>()
   for (const [index, item] of items.entries()) {
@@ -741,12 +742,13 @@ export function threadRows(
     segments.push(segment)
     if (!segmentStarts.has(segment)) segmentStarts.set(segment, item.createdAt)
     if (item.kind === 'assistant_message') lastReplies.set(item.turnId, item.id)
+    if (sentMessage(item)) lastSentMessages.set(item.turnId, item.id)
   }
   const liveTurnId =
     tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
       ? tail.turnId
       : undefined
-  const liveSegment = liveTurnId && !(tail && silent(tail)) ? segments.at(-1) : undefined
+  let liveSegment = liveTurnId && !(tail && silent(tail)) ? segments.at(-1) : undefined
   const blocks = new Map<string, { row: WorkRow; steps: StepItem[]; next?: ThreadItem }>()
   function openBlock(segment: string, turnId: string) {
     let block = blocks.get(segment)
@@ -911,6 +913,30 @@ export function threadRows(
   )
     openBlock(liveSegment, tail.turnId)
   finishTurn(false)
+  // Private work after a bot's last public message belongs with the work before that reply.
+  if (bot) {
+    const previousBlocks = new Map<string, string>()
+    for (const [segment, block] of blocks) {
+      if (
+        lastSentMessages.get(block.row.turnId) !== segment ||
+        !block.steps.every(
+          (item) => item.kind === 'reasoning' || (item.kind === 'assistant_message' && item.private)
+        )
+      ) {
+        previousBlocks.set(block.row.turnId, segment)
+        continue
+      }
+      const previous = previousBlocks.get(block.row.turnId)
+      const earlier = previous && blocks.get(previous)
+      if (earlier) {
+        earlier.steps.push(...block.steps)
+        earlier.next = block.next
+      }
+      if (liveSegment === segment) liveSegment = previous
+      blocks.delete(segment)
+      rows.splice(rows.indexOf(block.row), 1)
+    }
+  }
   // The main agent's todo calls read as one line each; a subagent's stay ordinary tool calls.
   const todos = agentId ? undefined : foldTodos(allItems).updates
   // A turn's ending (a restart, a stop) is its last block's; a block before a mid-turn message
