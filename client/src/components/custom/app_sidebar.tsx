@@ -224,14 +224,6 @@ export const AppSidebar = memo(function AppSidebar() {
     )
   }
 
-  useHotkey(
-    keybinds.newThread.hotkey,
-    (event) => {
-      if (appShortcut(event)) newThread()
-    },
-    { requireReset: true, ignoreInputs: false }
-  )
-
   // Read when a row acts, so a thread switch leaves the rows' callbacks, and so the rows, alone.
   const selectedRef = useRef(selectedId)
   useLayoutEffect(() => {
