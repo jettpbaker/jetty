@@ -121,10 +121,12 @@ export function BackgroundSeam({ item }: { item: BackgroundItem }) {
       <span className='shrink-0'>
         {monitor ? (ended ? 'Watched' : 'Watching') : ended ? 'Ran' : 'Running'}
       </span>
-      <span className='min-w-0 truncate font-mono'>{item.label}</span>
+      <span className='min-w-0 truncate font-mono'>
+        {monitor ? item.label.replace(/^(watch(ing)?|monitor(ing)?)\s+/i, '') : item.label}
+      </span>
       {ended && (
         <span className='shrink-0 font-mono text-faint-foreground'>
-          {formatDuration((item.endedAt! - item.createdAt) / 1000)}
+          {formatDuration((item.endedAt! - item.createdAt) / 1000).replace(/ 0s$/, '')}
         </span>
       )}
     </ChatSeam>

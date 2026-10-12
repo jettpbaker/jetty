@@ -27,8 +27,8 @@ export type TranslateCtx = {
   // the SDK's workflow task id → the agents its last snapshot reported
   workflows: Map<string, readonly WorkflowAgent[]>
   workflowTools: Map<string, string>
-  // Bash tool_use id → its command, until a background task starts from it
-  commands: Map<string, string>
+  // tool_use id → what a background Monitor or Bash call will show as, until its task starts
+  launches: Map<string, { task: 'monitor' | 'command'; label: string }>
   // the SDK's task id → the background item a running monitor or command has
   background: Map<string, string>
   currentAssistantId: string | null
@@ -58,7 +58,7 @@ export function createTranslateCtx(
     tasks: shared?.tasks ?? new Map(),
     workflows: shared?.workflows ?? new Map(),
     workflowTools: shared?.workflowTools ?? new Map(),
-    commands: shared?.commands ?? new Map(),
+    launches: shared?.launches ?? new Map(),
     background: shared?.background ?? new Map(),
     currentAssistantId: null,
     currentReasoningId: null,
@@ -253,8 +253,6 @@ export function subagentOf(ctx: TranslateCtx, taskId: string | undefined) {
   return taskId ? ctx.tasks.get(taskId) : undefined
 }
 
-const MONITOR_TASKS: ReadonlySet<string> = new Set(['monitor_mcp', 'monitor_ws'])
-
 function endBackground(ctx: TranslateCtx, taskId: string): ThreadEvent[] {
   const itemId = ctx.background.get(taskId)
   if (!itemId) return []
@@ -279,10 +277,10 @@ function backgroundEvents(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[]
   if (msg.subtype === 'task_notification' && ctx.background.has(msg.task_id))
     return endBackground(ctx, msg.task_id)
   if (msg.subtype !== 'task_started' || msg.ambient) return undefined
-  const monitor = MONITOR_TASKS.has(msg.task_type ?? '')
-  if (!monitor && !(msg.task_type === 'local_bash' && msg.is_backgrounded)) return undefined
-  const label = monitor ? msg.description : msg.tool_use_id && ctx.commands.get(msg.tool_use_id)
-  if (!label) return undefined
+  // Monitors are local_bash tasks too, so the tool call that launched the task says which it is.
+  const launch = msg.tool_use_id ? ctx.launches.get(msg.tool_use_id) : undefined
+  if (!launch) return undefined
+  const { task, label } = launch
   const id = newId()
   ctx.background.set(msg.task_id, id)
   return [
@@ -293,7 +291,7 @@ function backgroundEvents(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[]
         ...itemBase(ctx),
         kind: 'background',
         taskId: msg.task_id,
-        task: monitor ? 'monitor' : 'command',
+        task,
         label,
       },
     },
@@ -472,8 +470,18 @@ function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unk
       status: 'running',
     }
   }
-  const command = name === 'Bash' && record(input).command
-  if (toolUseId && typeof command === 'string' && command) ctx.commands.set(toolUseId, command)
+  if (toolUseId) {
+    const { command, description, run_in_background } = record(input)
+    if (name === 'Monitor' && typeof description === 'string' && description)
+      ctx.launches.set(toolUseId, { task: 'monitor', label: description })
+    else if (
+      name === 'Bash' &&
+      run_in_background === true &&
+      typeof command === 'string' &&
+      command
+    )
+      ctx.launches.set(toolUseId, { task: 'command', label: command })
+  }
   const itemId = (toolUseId && toolCallItemId(ctx, toolUseId, name)) || newId()
   return {
     id: itemId,
