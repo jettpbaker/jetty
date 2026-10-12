@@ -360,7 +360,7 @@ export function WorkBlock({
               ? 'You stopped'
               : 'You stopped this response'
   const timing =
-    runningSeconds !== undefined ? (
+    runningSeconds !== undefined && runningSeconds >= 1 ? (
       <span className='inline-flex items-baseline whitespace-pre'>
         {' for '}
         <RollingDuration seconds={runningSeconds} />
