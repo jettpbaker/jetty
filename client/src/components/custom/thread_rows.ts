@@ -322,19 +322,25 @@ function toActivity(
   item: StepItem,
   next: ThreadItem | undefined,
   sessionRunning: boolean,
-  sessionActive: boolean,
+  turnLive: boolean,
+  outcome: TurnOutcome | undefined,
   projectPath: string | undefined,
   source?: string,
   waitingAgents?: ReadonlySet<string>
 ): WorkActivity {
-  if (item.kind === 'subagent')
+  if (item.kind === 'subagent') {
+    // A subagent outlives a finished turn. Stop and a restart cut one off when its status
+    // never settled; a later turn must not keep that row spinning.
+    const cutOff =
+      item.status === 'running' && (outcome === 'interrupted' || outcome === 'server_restarted')
     return {
       type: 'subagent',
       id: item.id,
       title: item.title,
-      status: item.status,
+      status: cutOff ? 'stopped' : item.status,
       waiting: waitingAgents?.has(item.id) ?? false,
     }
+  }
   if (item.kind === 'approval') return { type: 'approval', id: item.id, item, source }
   if (item.kind === 'question') return { type: 'question', id: item.id, item, source }
   if (item.kind === 'assistant_message')
@@ -342,14 +348,14 @@ function toActivity(
       type: 'text',
       id: item.id,
       text: item.text,
-      streaming: textRunning(item, !next, sessionRunning),
+      streaming: turnLive && textRunning(item, !next, sessionRunning),
     }
   if (item.kind === 'reasoning') {
     const running = textRunning(item, !next, sessionRunning)
     return {
       type: 'thinking',
       id: item.id,
-      status: !running ? 'complete' : sessionActive ? 'running' : 'interrupted',
+      status: !running ? 'complete' : turnLive ? 'running' : 'interrupted',
       summary: item.text,
       tokens: item.tokens,
       elapsedSeconds: running ? undefined : elapsedSeconds([item], next),
@@ -379,14 +385,14 @@ function toActivity(
     description: toolDescription(item.input),
     files: ['read', 'edit', 'write'].includes(kind) ? toolFiles(fields, projectPath) : undefined,
     fileChange: item.fileChange,
-    // A tool Stop cut off is completed with its status left unsettled; a later turn keeps the
-    // session active, but that tool stays stopped.
+    // Stop leaves a cut-off tool unsettled. It spins only while its own turn is still live,
+    // including a completion that arrives before the turn's outcome.
     status:
       item.status === 'failed'
         ? 'failed'
         : item.status === 'succeeded'
           ? 'complete'
-          : sessionActive && item.completedAt === undefined
+          : turnLive && item.completedAt === undefined
             ? 'running'
             : 'interrupted',
     input,
@@ -751,6 +757,11 @@ export function threadRows(
     tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
       ? tail.turnId
       : undefined
+  // A subagent transcript has one agent, and its liveness is the status this view was given.
+  // On the main timeline only the tail turn is live, so an older turn stays stopped.
+  function turnLive(turnId: string) {
+    return agentId ? sessionActive : turnId === liveTurnId
+  }
   let liveSegment = liveTurnId && !(tail && silent(tail)) ? segments.at(-1) : undefined
   const blocks = new Map<string, { row: WorkRow; steps: StepItem[]; next?: ThreadItem }>()
   function openBlock(segment: string, turnId: string) {
@@ -858,7 +869,7 @@ export function threadRows(
           kind: 'assistant',
           id: item.id,
           item,
-          streaming: textRunning(item, item === tail, sessionRunning),
+          streaming: turnLive(item.turnId) && textRunning(item, item === tail, sessionRunning),
           loadout: loadouts[item.turnId],
         })
         break
@@ -867,7 +878,7 @@ export function threadRows(
           kind: 'plan',
           id: item.id,
           item,
-          streaming: textRunning(item, item === tail, sessionRunning),
+          streaming: turnLive(item.turnId) && textRunning(item, item === tail, sessionRunning),
           loadout: loadouts[item.turnId],
         })
         break
@@ -949,7 +960,8 @@ export function threadRows(
             item,
             steps[index + 1] ?? next,
             sessionRunning,
-            sessionActive,
+            turnLive(item.turnId),
+            outcomes[item.turnId],
             projectPath,
             item.agentId ? agentTitles.get(item.agentId) : undefined,
             waitingAgents

@@ -21,7 +21,10 @@ export function SubagentView({
   const thread = useThread(threadId)
   const items = thread?.items ?? []
   const agent = threadSubagents(items).find((item) => item.id === agentId)
-  const running = agent?.status === 'running'
+  const outcome = agent ? thread?.turnOutcomes[agent.turnId] : undefined
+  // Stop can leave the item running. The transcript follows the spawn turn, so its tools stop too.
+  const running =
+    agent?.status === 'running' && outcome !== 'interrupted' && outcome !== 'server_restarted'
   const now = useNow(1000, running)
   if (!agent) return null
   const seconds =
