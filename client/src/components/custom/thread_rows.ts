@@ -913,6 +913,10 @@ export function threadRows(
   finishTurn(false)
   // The main agent's todo calls read as one line each; a subagent's stay ordinary tool calls.
   const todos = agentId ? undefined : foldTodos(allItems).updates
+  // A turn's ending (a restart, a stop) is its last block's; a block before a mid-turn message
+  // or a compaction just worked.
+  const lastSegments = new Map<string, string>()
+  for (const [segment, { row }] of blocks) lastSegments.set(row.turnId, segment)
   for (const [segment, { row, steps, next }] of blocks) {
     row.activities = steps.flatMap((item, index): WorkActivity[] => {
       if (!todos?.has(item.id))
@@ -930,8 +934,12 @@ export function threadRows(
       const update = todos.get(item.id)
       return update ? [{ type: 'todo', id: item.id, update }] : []
     })
-    row.status = workStatus(row.activities, outcomes[row.turnId], segment === liveSegment)
-    if (outcomes[row.turnId] === 'server_restarted') row.restarted = true
+    const outcome =
+      outcomes[row.turnId] && lastSegments.get(row.turnId) !== segment
+        ? 'completed'
+        : outcomes[row.turnId]
+    row.status = workStatus(row.activities, outcome, segment === liveSegment)
+    if (outcome === 'server_restarted') row.restarted = true
     const answerEnd =
       next?.turnId === row.turnId && next.kind !== 'compaction' ? next.completedAt : undefined
     const start = segmentStarts.get(segment)!
