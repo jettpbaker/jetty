@@ -65,6 +65,45 @@ export async function githubConnection(): Promise<{
   }
 }
 
+export type UserIdentity = { login: string | null; name: string; avatarUrl: string | null }
+
+let viewerRead: { token: string; value: UserIdentity } | undefined
+
+async function gitUserName() {
+  try {
+    const child = Bun.spawn(['git', 'config', 'user.name'], {
+      stdout: 'pipe',
+      stderr: 'ignore',
+      signal: AbortSignal.timeout(3000),
+    })
+    const [out] = await Promise.all([new Response(child.stdout).text(), child.exited])
+    return out.trim()
+  } catch {
+    return ''
+  }
+}
+
+// The signed-in GitHub account, fetched once per gh login. Without GitHub it is the git user name
+// and no avatar; failures aren't cached, so the next ask tries GitHub again.
+export async function userIdentity(): Promise<UserIdentity> {
+  const token = await ghToken()
+  if (token && viewerRead?.token === token) return viewerRead.value
+  try {
+    const response = record(await graphql('query { viewer { login name avatarUrl } }'))
+    const viewer = record(record(response.data).viewer)
+    if (typeof viewer.login === 'string' && typeof viewer.avatarUrl === 'string') {
+      const value = {
+        login: viewer.login,
+        name: typeof viewer.name === 'string' && viewer.name ? viewer.name : viewer.login,
+        avatarUrl: viewer.avatarUrl,
+      }
+      if (token) viewerRead = { token, value }
+      return value
+    }
+  } catch {}
+  return { login: null, name: await gitUserName(), avatarUrl: null }
+}
+
 export function validRepo(repo: string): boolean {
   const parts = repo.split('/')
   return (

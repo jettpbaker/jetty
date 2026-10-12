@@ -35,6 +35,7 @@ import { IconChanges } from '@central-icons-react/round-outlined-radius-3-stroke
 import { IconChecklist } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChecklist'
 import { IconCheckmark1Medium } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCheckmark1Medium'
 import { IconChevronDownSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronDownSmall'
+import { IconChevronGrabberVertical } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronGrabberVertical'
 import { IconChevronLeftSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronLeftSmall'
 import { IconChevronRightSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronRightSmall'
 import { IconChevronTopSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChevronTopSmall'
@@ -49,6 +50,7 @@ import { IconCode } from '@central-icons-react/round-outlined-radius-3-stroke-2/
 import { IconCommits } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCommits'
 import { IconConcise } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconConcise'
 import { IconConsoleSimple } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconConsoleSimple'
+import { IconContrast } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconContrast'
 import { IconCrop } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCrop'
 import { IconCrossSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCrossSmall'
 import { IconDivider } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconDivider'
@@ -168,6 +170,7 @@ export const ChecklistIcon = centralIcon(IconChecklist)
 export const Checkmark1MediumIcon = centralIcon(IconCheckmark1Medium)
 export const ChevronDownSmallIcon = centralIcon(IconChevronDownSmall)
 export const ChevronLeftSmallIcon = centralIcon(IconChevronLeftSmall)
+export const ChevronGrabberVerticalIcon = centralIcon(IconChevronGrabberVertical)
 export const ChevronRightSmallIcon = centralIcon(IconChevronRightSmall)
 export const ChevronTopSmallIcon = centralIcon(IconChevronTopSmall)
 export const CircleCheckIcon = centralIcon(IconCircleCheck, IconCircleCheckFilled)
@@ -207,6 +210,7 @@ export const H3Icon = centralIcon(IconH3)
 export const Images1Icon = centralIcon(IconImages1)
 export const ImportIcon = centralIcon(IconImport)
 export const ItalicIcon = centralIcon(IconItalic)
+export const ContrastIcon = centralIcon(IconContrast)
 export const KeyboardIcon = centralIcon(IconKeyboard)
 export const LightningBoltIcon = centralIcon(IconLightningBolt, IconLightningBoltFilled)
 export const LinebreakIcon = centralIcon(IconLinebreak)

@@ -809,6 +809,14 @@ export const methods = {
       state: Schema.Literals(['connected', 'signed-out', 'missing', 'error']),
     }),
   },
+  'user.identity': {
+    params: Schema.Struct({}),
+    result: Schema.Struct({
+      login: Schema.NullOr(Schema.String),
+      name: Schema.String,
+      avatarUrl: Schema.NullOr(Schema.String),
+    }),
+  },
   'pullRequest.unlink': {
     params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
     result: Schema.Struct({ thread: ThreadMeta }),

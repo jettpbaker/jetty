@@ -78,6 +78,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'settings.setJobModel': () => Effect.succeed(null),
           'settings.setAgentBehaviour': () => Effect.succeed(null),
           'github.connection': () => Effect.succeed({ state: 'connected' as const }),
+          'user.identity': () => Effect.succeed({ login: null, name: 'Test', avatarUrl: null }),
           'project.create': ({ path }) =>
             Effect.succeed({
               project: { id: 'project', path, title: 'Project', createdAt: 0 },

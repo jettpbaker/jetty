@@ -74,6 +74,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('thread.writeFile'),
   unary('pullRequest.link'),
   unary('github.connection'),
+  unary('user.identity'),
   unary('pullRequest.unlink'),
   unary('pullRequest.get'),
   unary('pullRequest.guide'),

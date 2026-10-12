@@ -1,7 +1,5 @@
 import {
   ChevronRightSmallIcon,
-  AnalyticsIcon,
-  SettingsGear1Icon,
   ArchiveIcon,
   EditSmall1Icon,
   PinIcon,
@@ -29,7 +27,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
@@ -47,7 +44,6 @@ import {
   useBots,
 } from '@/state'
 import { threadTreeIds, useReadChrome, type Chrome } from '@/state/chrome'
-import { usePrefetchProviderUsage } from '@/state/provider-usage'
 import { botThreadsByBot, useSidebarList, useSidebarRow } from '@/state/sidebar'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
@@ -59,16 +55,10 @@ import { toast } from 'sonner'
 import { BotAvatar } from './bot_avatar'
 import { BotRow } from './bot_row'
 import { DisabledTooltip } from './disabled_tooltip'
-import {
-  HoverKeybind,
-  KeybindIcon,
-  KeybindTooltip,
-  keybinds,
-  appShortcut,
-  type Keybind,
-} from './keybinds'
+import { HoverKeybind, keybinds, appShortcut, type Keybind } from './keybinds'
 import { NewBotDialog } from './new_bot_dialog'
 import { ProjectGlyph } from './project_glyph'
+import { SidebarProfileMenu } from './sidebar_profile_menu'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import { sidebarGroups, sidebarThread, type ThreadGrouping } from './sidebar_thread_groups'
 import { ThreadHoverGroup } from './thread_hover'
@@ -128,7 +118,6 @@ export const AppSidebar = memo(function AppSidebar() {
   const [openBots, setOpenBots] = useStoredState('jetty.sidebar.bots.open', [], isBotIds)
   const [newBotOpen, setNewBotOpen] = useState(false)
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
-  const onUsage = pathname === '/usage'
   const onPullRequests = pathname.startsWith('/pull-requests')
   const reducedMotion = useReducedMotion()
   const [deletePrompt, setDeletePrompt] = useState<{ threadId: string; count: number }>()
@@ -147,7 +136,6 @@ export const AppSidebar = memo(function AppSidebar() {
     storage.set(viewKey, JSON.stringify(next))
   }
   const prefetch = useThreadRowPrefetch()
-  const prefetchUsage = usePrefetchProviderUsage()
   const openPullRequest = useOpenPullRequest()
 
   const list = useSidebarList()
@@ -591,38 +579,8 @@ export const AppSidebar = memo(function AppSidebar() {
           </nav>
         </MotionSidebarContent>
       </ThreadHoverGroup>
-      <SidebarFooter className='sidebar-footer shrink-0 flex-row items-center gap-1 px-2.5 py-1.5'>
-        <KeybindTooltip binding={keybinds.settings}>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='hover:bg-sidebar-accent'
-            aria-label='Settings'
-            {...pressProps(() => void navigate({ to: '/settings' }))}
-          >
-            <KeybindIcon binding={keybinds.settings}>
-              <SettingsGear1Icon />
-            </KeybindIcon>
-          </Button>
-        </KeybindTooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant='ghost'
-                size='icon'
-                className='hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
-                aria-label='Usage'
-                aria-current={onUsage ? 'page' : undefined}
-                onPointerEnter={prefetchUsage}
-                {...pressProps(() => void navigate({ to: '/usage' }))}
-              />
-            }
-          >
-            <AnalyticsIcon />
-          </TooltipTrigger>
-          <TooltipContent>Usage</TooltipContent>
-        </Tooltip>
+      <SidebarFooter className='sidebar-footer shrink-0 px-1.5 py-1.5'>
+        <SidebarProfileMenu rowClass={navigationButtonClass} />
       </SidebarFooter>
       <Dialog
         open={Boolean(deletePrompt)}
