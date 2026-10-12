@@ -108,7 +108,7 @@ export function CollapsibleText({
 }
 
 // A sent message's images as thumbnails, each opening the media viewer.
-function MessageImages({ images, tinted }: { images: readonly Attachment[]; tinted?: boolean }) {
+function MessageImages({ images, filled }: { images: readonly Attachment[]; filled?: boolean }) {
   const openMedia = useOpenMedia()
   const thumbnailsRef = useRef<(HTMLButtonElement | null)[]>([])
   if (images.length === 0) return null
@@ -124,7 +124,7 @@ function MessageImages({ images, tinted }: { images: readonly Attachment[]; tint
           aria-label={`Open ${image.name}`}
           className={cn(
             'shrink-0 cursor-zoom-in rounded-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2',
-            tinted ? 'focus-visible:outline-ring' : 'focus-visible:outline-primary-foreground'
+            filled ? 'focus-visible:outline-primary-foreground' : 'focus-visible:outline-ring'
           )}
           onClick={() =>
             openMedia({
@@ -172,7 +172,7 @@ export function UserMessage({
 }) {
   const reveal = useRequestReveal()
   const bot = useBot(from?.threadId)
-  // Another thread's message is tinted; Jett's, and a bot's in its colour, are filled.
+  // Another thread's message is tinted, Jett's is muted, and a bot's is filled in its colour.
   const tinted = from && !bot
   const images = attachments.filter(isImageAttachment)
   const files = attachments.filter((attachment) => !isImageAttachment(attachment))
@@ -189,20 +189,20 @@ export function UserMessage({
         ))}
         <FileLines files={files} />
         <Bubble
-          variant={tinted ? 'tinted' : 'default'}
+          variant={tinted ? 'tinted' : bot ? 'default' : 'muted'}
           align='end'
           className={cn(bot && botAccentClass)}
           style={bot ? botColorStyle(bot.color) : undefined}
         >
           {/* A message of files alone has no bubble, only its footer under them. */}
           {(text || skill || images.length > 0) && (
-            <BubbleContent className='rounded-lg'>
-              <MessageImages images={images} tinted={tinted} />
+            <BubbleContent className='rounded-sm px-2.5 py-1.5'>
+              <MessageImages images={images} filled={!!bot} />
               {text || skill ? (
                 <CollapsibleText
                   id={id}
                   text={text}
-                  filled={!tinted}
+                  filled={!!bot}
                   className={cn('leading-relaxed', images.length > 0 && 'mt-2')}
                 >
                   {skill ? `/${skill} ${text}` : text}
