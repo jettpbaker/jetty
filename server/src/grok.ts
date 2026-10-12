@@ -565,10 +565,12 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                     yield* settleOpenItems(session)
                     session.awaitingResult = false
                     session.promptId = undefined
+                    // A cancel Jetty asked for (Stop, archive) ends the turn the way Jetty named it.
                     const stopError =
                       update.stop_reason === 'end_turn'
                         ? null
-                        : 'Grok stopped: ' + String(update.stop_reason ?? 'unknown')
+                        : (session.reason ??
+                          'Grok stopped: ' + String(update.stop_reason ?? 'unknown'))
                     const compactError = session.reason ?? stopError
                     if (session.input.compact && compactError)
                       yield* noteCompactFailure(session, compactError)
