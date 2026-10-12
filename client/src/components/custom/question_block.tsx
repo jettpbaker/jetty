@@ -13,7 +13,7 @@ export function QuestionBlock({ activity }: { activity: QuestionActivity }) {
       renderContent={() => (
         <div className='pl-2'>
           {source && <SourceLabel className='pb-1'>{source}</SourceLabel>}
-          <dl className='thinking-text flex flex-col gap-2'>
+          <dl className='thinking-text flex flex-col gap-2 whitespace-pre-wrap'>
             {item.questions.map((question) => (
               <div key={question.question}>
                 <dt className='text-foreground'>{question.question}</dt>

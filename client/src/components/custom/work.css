@@ -35,7 +35,7 @@
   @apply text-foreground;
 }
 .thinking-text {
-  @apply px-2 pb-1 text-13 leading-relaxed whitespace-pre-wrap text-muted-foreground;
+  @apply px-2 pb-1 text-13 leading-relaxed text-muted-foreground;
 }
 .work-text {
   @apply px-2 py-1 text-13 leading-5 text-foreground;
@@ -45,6 +45,7 @@
   @apply text-muted-foreground;
 }
 .work-text .inline-code,
+.thinking-text .inline-code,
 .thread-reply .inline-code {
   font-size: inherit;
 }

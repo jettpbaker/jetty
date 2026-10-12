@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 
 import { ActivityContent } from './activity_content'
 import { ActivityChevron } from './activity_disclosure'
+import { Markdown } from './markdown'
 import { formatActivityDuration, workEnded, type ThinkingActivity } from './work_model'
 
 const TICK_MS = 120
@@ -98,7 +99,7 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
       {summary && (
         <ActivityContent id={contentId} open={expanded}>
           <div className='pl-2'>
-            <p className='thinking-text'>{summary}</p>
+            <Markdown className='thinking-text'>{summary}</Markdown>
           </div>
         </ActivityContent>
       )}
