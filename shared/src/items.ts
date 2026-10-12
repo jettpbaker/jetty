@@ -88,6 +88,15 @@ const itemBase = {
   agentId: Schema.optional(Schema.String),
 }
 
+// A failed compaction's chat row. The detail, when there is one, follows the colon.
+export const COMPACT_FAILED_PREFIX = "Couldn't compact: "
+
+export function compactFailureDetail(message: string) {
+  if (!message.startsWith(COMPACT_FAILED_PREFIX)) return undefined
+  const detail = message.slice(COMPACT_FAILED_PREFIX.length).trim()
+  return detail || undefined
+}
+
 export const ThreadItem = Schema.Union([
   Schema.Struct({
     ...itemBase,
@@ -96,6 +105,8 @@ export const ThreadItem = Schema.Union([
     status: Schema.Literals(['running', 'completed', 'failed']).pipe(
       Schema.withDecodingDefault(Effect.succeed('completed' as const))
     ),
+    // Set when a compaction fails and the chat should say why. Absent on a stop.
+    error: Schema.optional(Schema.String),
   }),
   Schema.Struct({
     ...itemBase,

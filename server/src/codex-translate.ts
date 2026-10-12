@@ -71,7 +71,7 @@ export function createCodexTranslator(turnId: string) {
                   typeof raw.aggregatedOutput === 'string' ? raw.aggregatedOutput : toolOutput(raw),
               }
             : item.kind === 'compaction'
-              ? { status: 'completed' }
+              ? { status: raw.status === 'failed' ? 'failed' : 'completed' }
               : {
                   streaming: false,
                   ...(raw.type === 'reasoning'

@@ -1,5 +1,6 @@
 import {
   Checkmark1MediumIcon,
+  CircleXIcon,
   ClockIcon,
   ConciseIcon,
   ConsoleSimpleIcon,
@@ -7,6 +8,7 @@ import {
   ArrowRotateClockwiseIcon,
   PullRequestIcon,
 } from '@/components/custom/central_icons'
+import { IdleIcon } from '@/components/custom/idle_icon'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +29,7 @@ import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jet
 import { Link, useNavigate } from '@tanstack/react-router'
 import { use } from 'react'
 
-import type { BackgroundItem, PullRequestItem } from './thread_rows'
+import type { BackgroundItem, CompactionState, PullRequestItem } from './thread_rows'
 
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
@@ -99,11 +101,33 @@ export function TranscriptMarker({
   )
 }
 
-export function CompactionSeam({ running }: { running: boolean }) {
+function FailedCompactIcon({ className }: { className?: string }) {
+  return <CircleXIcon filled className={className} />
+}
+
+export function CompactionSeam({ state, reason }: { state: CompactionState; reason?: string }) {
+  if (state === 'failed') {
+    const text = reason ? `Couldn't compact: ${reason}` : "Couldn't compact"
+    return (
+      <ChatSeam>
+        <SeamIcon icon={FailedCompactIcon} tone='text-status-error' />
+        <span className='min-w-0 truncate text-status-error' title={reason}>
+          {text}
+        </span>
+      </ChatSeam>
+    )
+  }
+  if (state === 'stopped')
+    return (
+      <ChatSeam>
+        <SeamIcon icon={IdleIcon} tone='text-status-idle' />
+        <span className='truncate'>Compaction stopped</span>
+      </ChatSeam>
+    )
   return (
     <ChatSeam>
       <SeamIcon icon={ConciseIcon} />
-      {running ? <span className='shimmer'>Compacting</span> : 'Compacted'}
+      {state === 'running' ? <span className='shimmer'>Compacting</span> : 'Compacted'}
     </ChatSeam>
   )
 }

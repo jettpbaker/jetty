@@ -14,6 +14,7 @@ import type {
 } from '@jetty/shared/wire'
 
 import {
+  compactFailureDetail,
   heldByRestarts,
   type ApprovalDecision,
   type Attachment,
@@ -1571,7 +1572,19 @@ export function createOrchestrator({
                 yield* Effect.logInfo(`compacting ${threadId} at ${Math.round(fraction * 100)}%`)
               }
               let compactNoted = false
+              let compactionItemId: string | undefined
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) => {
+                if (
+                  event.type === 'item.started' &&
+                  event.item.kind === 'compaction' &&
+                  !event.item.agentId
+                )
+                  compactionItemId = event.item.id
+                const failure =
+                  event.type === 'item.started' && event.item.kind === 'error'
+                    ? compactFailureDetail(event.item.message)
+                    : undefined
+                if (failure) compactNoted = true
                 if (background) {
                   const compact = backgroundCompactions.get(threadId)
                   if (
@@ -1581,15 +1594,22 @@ export function createOrchestrator({
                       (event.type === 'item.completed' && event.patch?.status === 'failed'))
                   )
                     compact.failed = true
-                  if (event.type === 'item.started' && event.item.kind === 'error')
+                  // An error row shows even in a quiet turn. A bot's automatic compact stays as
+                  // quiet as a check-in: the reason lives on the compaction, and the error does not.
+                  if (event.type === 'item.started' && event.item.kind === 'error') {
+                    if (compactionItemId && failure)
+                      return append(
+                        threadId,
+                        {
+                          type: 'item.completed',
+                          itemId: compactionItemId,
+                          patch: { status: 'failed', error: failure },
+                        },
+                        onCommit
+                      ).pipe(Effect.mapError(toAgentError))
                     return onCommit ?? Effect.void
+                  }
                 }
-                if (
-                  event.type === 'item.started' &&
-                  event.item.kind === 'error' &&
-                  event.item.message.startsWith("Couldn't compact:")
-                )
-                  compactNoted = true
                 return append(threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
               }
               const lifecycle = agent
@@ -1612,9 +1632,7 @@ export function createOrchestrator({
                   Effect.catch((error) => {
                     const detail = compactFailureReason(false, error.message)
                     return (
-                      background || compactNoted || !detail
-                        ? Effect.void
-                        : emit(couldntCompact(turnId, detail))
+                      compactNoted || !detail ? Effect.void : emit(couldntCompact(turnId, detail))
                     ).pipe(
                       Effect.andThen(emit({ type: 'turn.failed', turnId, error: error.message }))
                     )

@@ -1,5 +1,4 @@
 import type { ContextUsage, EffortLevel, ThreadEvent } from '@jetty/shared/events'
-import type { ApprovalDecision, ThreadItem } from '@jetty/shared/items'
 import type {
   BackgroundTask,
   Bot,
@@ -10,6 +9,7 @@ import type {
   ProviderUsage,
 } from '@jetty/shared/wire'
 
+import { COMPACT_FAILED_PREFIX, type ApprovalDecision, type ThreadItem } from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
@@ -53,12 +53,13 @@ export function couldntCompact(turnId: string, reason: string): ThreadEvent {
       turnId,
       createdAt: Date.now(),
       kind: 'error',
-      message: `Couldn't compact: ${detail}`,
+      message: `${COMPACT_FAILED_PREFIX}${detail}`,
     },
   }
 }
 
-// A manual /compact the user stopped stays quiet. Anything else it failed at is a row.
+// A stop has no failure reason: the chat shows the compaction as stopped. Anything else is the
+// reason on the failed row.
 export function compactFailureReason(stopped: boolean, reason: string | null | undefined) {
   if (stopped) return null
   const detail = reason?.trim() ?? ''

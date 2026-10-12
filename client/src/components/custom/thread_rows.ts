@@ -7,6 +7,7 @@ import { pendingTurnId } from '@/state/turns'
 import { exchangeEntry, type ExchangeEntry } from '@jetty/shared/bots'
 import {
   awaitsInput,
+  compactFailureDetail,
   RESTART_LIMIT_NOTE,
   type ChildReport,
   type ThreadItem,
@@ -17,6 +18,9 @@ import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_m
 
 import { foldTodos, todoTools } from './todo_model'
 
+export type CompactionState = 'running' | 'done' | 'failed' | 'stopped'
+
+type CompactionItem = Extract<ThreadItem, { kind: 'compaction' }>
 type UserItem = Extract<ThreadItem, { kind: 'user_message' }>
 type AssistantItem = Extract<ThreadItem, { kind: 'assistant_message' }>
 type PlanItem = Extract<ThreadItem, { kind: 'plan' }>
@@ -80,7 +84,7 @@ export type ThreadRow =
       // a Jetty restart cut the turn off
       restarted?: boolean
     }
-  | { kind: 'compaction'; id: string; running: boolean }
+  | { kind: 'compaction'; id: string; state: CompactionState; reason?: string }
   | { kind: 'pullRequest'; id: string; item: PullRequestItem }
   | { kind: 'pullRequestGroup'; id: string; items: PullRequestItem[] }
   | { kind: 'restart'; id: string }
@@ -580,6 +584,20 @@ export function createThreadRows() {
   }
 }
 
+// A stop or a restart cuts a compaction off. A failed status, a failed turn, or a couldn't-compact
+// note means it failed. A completed compaction with no note stays completed.
+function compactionState(
+  status: CompactionItem['status'],
+  outcome: TurnOutcome | undefined,
+  reason: string | undefined
+): CompactionState {
+  if (status === 'completed' && !reason) return 'done'
+  if (outcome === 'interrupted' || outcome === 'server_restarted') return 'stopped'
+  if (status === 'failed' || outcome === 'failed' || reason) return 'failed'
+  if (!outcome) return 'running'
+  return 'done'
+}
+
 export function threadRows(
   allItems: readonly ThreadItem[],
   {
@@ -729,8 +747,9 @@ export function threadRows(
     )
   }
   // Replies stay with the work until the turn ends, then its last reply becomes the answer.
-  // A steering message or compaction starts another block, and in a bot's chat so does a thread
-  // marker or a message it sent (a message to another bot joins the exchange line instead).
+  // A steering message or compaction starts another block (a failed one too, so its seam sits
+  // between the work), and in a bot's chat so does a thread marker or a message it sent (a
+  // message to another bot joins the exchange line instead).
   const segments: string[] = []
   const lastReplies = new Map<string, string>()
   const lastSentMessages = new Map<string, string>()
@@ -741,7 +760,7 @@ export function threadRows(
     const before = items[index - 1]
     const segment =
       item.kind === 'user_message' ||
-      (item.kind === 'compaction' && item.status !== 'failed') ||
+      item.kind === 'compaction' ||
       (turns &&
         ((item.kind === 'thread_marker' && !exchangeEntry(item, bot!.others)) || sentMessage(item)))
         ? item.id
@@ -802,6 +821,31 @@ export function threadRows(
   // A message that isn't the first of its turn was steered into it. One shown as sent ahead of
   // the server's copy is steering when a turn is running.
   const startedTurns = new Set<string>()
+  const compactReasons = new Map<string, string>()
+  for (const item of items) {
+    if (item.kind === 'compaction' && item.error) compactReasons.set(item.turnId, item.error)
+    if (item.kind !== 'error' || compactReasons.has(item.turnId)) continue
+    const detail = compactFailureDetail(item.message)
+    if (detail) compactReasons.set(item.turnId, detail)
+  }
+  // A bot's automatic compact is a quiet turn, like a check-in or tidy, so `dropped` hides its
+  // seam unless quiet turns are shown. The reason stays on the item: an error row would show anyway.
+  function visibleCompaction(item: CompactionItem) {
+    if (dropped(item)) return undefined
+    if (bot?.tidying && item.status === 'running' && !outcomes[item.turnId]) return undefined
+    const reason = item.error ?? compactReasons.get(item.turnId)
+    const state = compactionState(item.status, outcomes[item.turnId], reason)
+    return {
+      kind: 'compaction' as const,
+      id: item.id,
+      state,
+      ...(state === 'failed' && reason ? { reason } : {}),
+    }
+  }
+  const failedCompactTurns = new Set<string>()
+  for (const item of items)
+    if (item.kind === 'compaction' && visibleCompaction(item)?.state === 'failed')
+      failedCompactTurns.add(item.turnId)
   const lastSent = items.findLast((item) => item.turnId !== pendingTurnId)
   const steering = sessionActive && lastSent !== undefined && !outcomes[lastSent.turnId]
   // Anything after a held turn that isn't a leftover background-stopped line has resumed it.
@@ -890,14 +934,14 @@ export function threadRows(
           last.markers.push(item)
         else rows.push({ kind: 'markers', id: item.id, markers: [item] })
         break
-      case 'compaction':
-        // A compaction that failed, or was cut off with its turn, didn't happen.
-        if (bot?.tidying && item.status === 'running') break
-        if (item.status === 'completed' || (item.status === 'running' && !outcomes[item.turnId]))
-          rows.push({ kind: 'compaction', id: item.id, running: item.status === 'running' })
+      case 'compaction': {
+        const row = visibleCompaction(item)
+        if (row) rows.push(row)
         break
+      }
       case 'error':
         if (item.message === RESTART_LIMIT_NOTE) heldTurns.add(item.turnId)
+        else if (failedCompactTurns.has(item.turnId) && compactFailureDetail(item.message)) break
         else rows.push({ kind: 'error', id: item.id, message: item.message, turnId: item.turnId })
         break
       case 'pull_request':
