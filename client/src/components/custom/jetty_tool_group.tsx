@@ -217,6 +217,8 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
   }, [batch.calls, config])
   const [initialCalls] = useState(() => new Set(batch.calls.map((call) => call.id)))
   const threadAction = tool === 'create_thread' || tool === 'archive_thread'
+  const rowsOnly =
+    threadAction || (config.list && (config.noun === 'model' || config.noun === 'thread'))
   const unsettled = batch.calls.some((call) => !workEnded(call.status))
   const autoOpen = threadAction && (!batch.sealed || unsettled)
   const active =
@@ -268,7 +270,7 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
         )
       }
       details={
-        threadAction ? (
+        rowsOnly ? (
           batch.calls.map((call, index) =>
             workEnded(call.status) &&
             (call.status !== 'complete' || parsed[index] === undefined) ? (

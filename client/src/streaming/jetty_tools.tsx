@@ -150,9 +150,6 @@ function ListingExample({
                         />
                       ))}
                 </CappedResults>
-                <Disclosure title='Tool details'>
-                  <RawResult name={name} output={results} />
-                </Disclosure>
               </div>
             ) : state === 'failed' ? (
               <RawResult
