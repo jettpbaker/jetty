@@ -6,7 +6,7 @@ import './bot_colors.css'
 
 export type { BotColor, BotShape }
 
-export type BotState = 'idle' | 'working' | 'waiting' | 'done'
+export type BotState = 'idle' | 'waiting' | 'done'
 
 type Point = [number, number]
 export type Body = {

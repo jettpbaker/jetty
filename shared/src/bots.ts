@@ -8,8 +8,8 @@ export const BOT_EFFORTS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xh
 // A done or dropped task stays on its bot's list this long, then drops off (it stays stored).
 export const CLOSED_TASK_SHOWN_MS = 24 * 60 * 60_000
 
-// The sketchpad's BotState ids a face shows, plus the error face. Working is a thread's (ThreadFace).
-export type BotFace = 'idle' | 'working' | 'waiting' | 'done' | 'error'
+// The sketchpad's BotState ids a face shows, plus the error face.
+export type BotFace = 'idle' | 'waiting' | 'done' | 'error'
 
 // A bot's own face moves only for what needs Jett. Working, typing and tidying rest idle: most of
 // its turns are ones Jett never sees.

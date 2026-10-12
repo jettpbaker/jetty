@@ -22,13 +22,12 @@ import {
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 
-import { ThreadFace } from './bot_avatar'
 import { BotSettingsSheet } from './bot_settings_sheet'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { sidebarThread } from './sidebar_thread_groups'
 import { Section, useCollapsedSections } from './thread_overview'
-import { quietStatus, statusPresentation } from './thread_status'
+import { quietStatus, StatusGlyph, statusPresentation } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
 export function BotOverview({
@@ -58,7 +57,7 @@ export function BotOverview({
         )}
         {threads.length > 0 && (
           <Section label='Threads' count={threads.length} {...sectionProps('threads')}>
-            <BotThreadList bot={bot} threads={threads} />
+            <BotThreadList threads={threads} />
           </Section>
         )}
       </div>
@@ -150,7 +149,7 @@ function TaskRow({ task }: { task: BotTask }) {
   )
 }
 
-function BotThreadList({ bot, threads }: { bot: Bot; threads: readonly ThreadMeta[] }) {
+function BotThreadList({ threads }: { threads: readonly ThreadMeta[] }) {
   const projects = useProjects()
   const navigate = useNavigate()
   const prefetch = useThreadRowPrefetch()
@@ -181,10 +180,9 @@ function BotThreadList({ bot, threads }: { bot: Bot; threads: readonly ThreadMet
                 {row.title}
               </OverflowTitle>
             }
-            glyph={null}
+            glyph={<StatusGlyph status={row.status} className='size-3.25' />}
             metaClassName='gap-1'
           >
-            <ThreadFace bot={bot} threadId={thread.id} status={row.status} size={14} />
             <span className='min-w-0 flex-1 truncate'>{row.project}</span>
             <span
               className='mr-px shrink-0 font-mono'

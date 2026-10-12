@@ -1,9 +1,7 @@
 import type { Bot, BotColor } from '@jetty/shared/wire'
 
-import { botFace, type BotFace } from '@jetty/shared/bots'
+import { botFace } from '@jetty/shared/bots'
 import { useEffect, useState, type CSSProperties } from 'react'
-
-import type { ThreadStatus } from './thread_status'
 
 import { ErrorBot } from './bot_error_states'
 import { JettyBot } from './jetty_bot'
@@ -56,40 +54,6 @@ export function BotAvatar({
       size={size}
       unread={unread ?? bot.unread}
       className={className}
-    />
-  )
-}
-
-const threadFaces: Record<ThreadStatus, BotFace> = {
-  working: 'working',
-  monitoring: 'working',
-  'needs-attention': 'waiting',
-  error: 'error',
-  idle: 'idle',
-  ready: 'idle',
-}
-
-// A bot's face showing the state of one of its threads. Finishing plays done once.
-export function ThreadFace({
-  bot,
-  threadId,
-  status,
-  size,
-}: {
-  bot: Pick<Bot, 'shape' | 'color'>
-  threadId: string
-  status: ThreadStatus
-  size: number
-}) {
-  const resting = threadFaces[status]
-  const done = useDoneOnce(threadId, resting === 'idle')
-  if (resting === 'error') return <ErrorBot shape={bot.shape} color={bot.color} size={size} />
-  return (
-    <JettyBot
-      shape={bot.shape}
-      color={bot.color}
-      state={resting === 'idle' && done ? 'done' : resting}
-      size={size}
     />
   )
 }

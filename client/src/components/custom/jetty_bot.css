@@ -22,7 +22,7 @@
   stroke-linecap: round;
 }
 
-/* Pastels for what it juggles and done's twinkles, a touch deeper on light backgrounds. */
+/* Pastels for done's twinkles, a touch deeper on light backgrounds. */
 .jb {
   --jb-mint: oklch(0.86 0.1 165);
   --jb-aqua: oklch(0.84 0.09 205);

@@ -75,12 +75,11 @@ const eye = (x: number): Eye => ({ x: spring(x), y: spring(0), w: spring(7.6), h
 // Eye poses relative to the face anchor: [x, y, width, height]. Every eye is a pill; a pill flattened
 // to nothing gives way to a happy arc.
 type Pose = [number, number, number, number]
-type Expression = 'open' | 'focus' | 'wide' | 'happy' | 'wink'
+type Expression = 'open' | 'wide' | 'happy' | 'wink'
 const openL: Pose = [-10, 0, 7.6, 18.2],
   openR: Pose = [10, 0, 7.6, 18.2]
 const poses: Record<Expression, { L: Pose; R: Pose }> = {
   open: { L: openL, R: openR },
-  focus: { L: [-10, 1.5, 7.8, 13.6], R: [10, 1.5, 7.8, 13.6] },
   wide: { L: [-10.5, -1, 9.6, 16.4], R: [10.5, -1, 9.6, 16.4] },
   happy: { L: [-10, 1, 8, 0.2], R: [10, 1, 8, 0.2] },
   wink: { L: [-10, 2.5, 8, 0.2], R: openR },
@@ -105,37 +104,6 @@ const twinkles: [number, number, number][] = [
   [7, 66, 0.75],
   [52, 1, 0.8],
 ]
-
-// Working: it juggles a ball, a star, and a square over its head in the classic cascade, the
-// figure-eight where each crosses side to side, caught on the outside and thrown from the inside like
-// a real juggler's. They spin as they fly, and its eyes follow the top one. The hands are invisible
-// spots beside the face, and throws peak a little above the box so the arcs clear its head. Beats in
-// seconds.
-const JUGGLE = { beat: 0.38, apex: -5, spread: 36, reach: 4.5, flight: 2.3 }
-const juggledColors = ['var(--jb-pink)', 'var(--jb-butter)', 'var(--jb-mint)']
-const mod = (n: number, m: number) => ((n % m) + m) % m
-
-/** Where thing i is at beat time s, in the 100 box. Throws alternate hands every beat, and each thing
- * is thrown every third beat, from the other hand. */
-function juggled(s: number, i: number, faceY: number): [number, number] {
-  const { apex, spread, reach, flight } = JUGGLE
-  const hy = faceY - 2,
-    p = mod(s - i, 6),
-    q = p % 3
-  const dir = (i + (p >= 3 ? 1 : 0)) % 2 === 0 ? 1 : -1,
-    to = 50 + spread * dir
-  if (q < flight) {
-    const u = q / flight,
-      x0 = 50 - spread * dir + reach * dir,
-      x1 = to + reach * dir
-    return [x0 + (x1 - x0) * u, hy - (hy - apex) * 4 * u * (1 - u)]
-  }
-  // Caught on the outside, it scoops down and in to be thrown again.
-  const v = (q - flight) / (3 - flight),
-    x0 = to + reach * dir,
-    x1 = to - reach * dir
-  return [x0 + (x1 - x0) * v, hy + 3.5 * Math.sin(Math.PI * v)]
-}
 
 /* One ticker for every bot on the page. */
 
@@ -187,7 +155,6 @@ type Parts = {
   /** The unread dot, in the badge's spot */
   mark: SVGGElement
   twinkles: SVGGElement
-  juggled: SVGGElement[]
 }
 
 type Fidget = { kind: 'tilt' | 'look'; until: number; dir: number }
@@ -206,7 +173,6 @@ class Rig {
   rot = spring(0)
   badge = spring(0)
   mark = spring(0)
-  juggleIn = spring(0)
   bx = spring(77)
   by = spring(25)
   state: BotState = 'idle'
@@ -282,10 +248,6 @@ class Rig {
           this.blinkAt = this.now
         })
     }
-    if (state === 'working') {
-      this.y.v += 80
-      this.sy.v -= 1.8
-    }
   }
 
   hop(force: number) {
@@ -312,8 +274,6 @@ class Rig {
   expression(age: number): Expression {
     if (this.now - this.pokedAt < 0.7) return 'happy'
     switch (this.state) {
-      case 'working':
-        return 'focus'
       case 'waiting':
         return 'wide'
       case 'done':
@@ -379,7 +339,6 @@ class Rig {
     if (this.fidget && t > this.fidget.until) this.fidget = null
 
     // Gaze
-    const working = state === 'working'
     let gaze: [number, number] = [0, 0]
     if (state === 'idle') {
       if (t > this.nextGlance) {
@@ -390,13 +349,6 @@ class Rig {
       if (this.fidget?.kind === 'tilt') gaze = [4.5 * this.fidget.dir, -2.5]
       if (this.fidget?.kind === 'look')
         gaze = [(this.fidget.until - t > 0.75 ? -5.5 : 5.5) * this.fidget.dir, 0.5]
-    }
-    // Juggling, it looks up at whichever is highest.
-    if (working) {
-      const top = [0, 1, 2]
-        .map((i) => juggled(t / JUGGLE.beat, i, +this.parts.face.dataset.y!))
-        .sort((a, b) => a[1] - b[1])[0]
-      gaze = reduced ? [0, -2] : [Math.max(-6.5, Math.min(6.5, (top![0] - 50) * 0.22)), -3.5]
     }
     const ask = t - this.askAt
     const glancing = state === 'waiting' && ask > ASK.glance[0] && ask < ASK.glance[1]
@@ -437,7 +389,6 @@ class Rig {
     const settled =
       state === 'idle' || (state === 'done' && (reduced || this.replay || age > UNREAD_AFTER_DONE))
     this.mark.t = this.unread && settled ? 1 : 0
-    this.juggleIn.t = working ? 1 : 0
 
     // Integrate at a fixed 120Hz so motion is the same at any frame rate
     this.acc += dt
@@ -462,10 +413,9 @@ class Rig {
       step(this.mark, 20, 0.42, h, reduced)
       step(this.bx, 15, 0.3, h, reduced)
       step(this.by, 15, 0.3, h, reduced)
-      step(this.juggleIn, 18, 0.5, h, reduced)
     }
 
-    // Additive loops: breath, sway, and the working rhythm. Non-syncing periods keep them organic.
+    // Additive loops: breath and sway. Non-syncing periods keep them organic.
     let y = this.y.x,
       sy = this.sy.x,
       rot = this.rot.x
@@ -480,17 +430,11 @@ class Rig {
         rot += keyed(wiggle.rot, w)
         y += keyed(wiggle.y, w)
       }
-      // Juggling: it sways toward each throw and dips a little as it goes.
-      if (working) {
-        const beat = Math.sin((t / JUGGLE.beat) * Math.PI)
-        rot += 2.2 * beat
-        y -= 0.6 * Math.abs(beat)
-      }
     }
 
     // Blink, applied only to open pill eyes
     let lid = 1
-    const blinking = expression === 'open' || expression === 'focus' || expression === 'wide'
+    const blinking = expression === 'open' || expression === 'wide'
     if (!reduced && blinking && t > this.nextBlink) {
       this.blinkAt = t
       this.nextBlink = t + (Math.random() < 0.18 ? 0.26 : rand(2.4, 6))
@@ -569,20 +513,6 @@ class Rig {
     const m = Math.max(0, this.mark.x)
     parts.mark.setAttribute('transform', `${spot} scale(${m.toFixed(3)})`)
     parts.mark.style.display = m < 0.01 ? 'none' : ''
-
-    // Juggled things pop in wherever they are in the pattern, and spin as they fly.
-    const juggle = Math.max(0, this.juggleIn.x),
-      beats = this.reduced ? 1.2 : this.now / JUGGLE.beat
-    for (const [i, thing] of parts.juggled.entries()) {
-      thing.style.display = juggle > 0.02 ? '' : 'none'
-      if (juggle <= 0.02) continue
-      const [jx, jy] = juggled(beats, i, +base.y!),
-        spin = beats * 60 * (i % 2 ? -1 : 1)
-      thing.setAttribute(
-        'transform',
-        `translate(${jx.toFixed(2)} ${jy.toFixed(2)}) rotate(${spin.toFixed(1)}) scale(${juggle.toFixed(3)})`
-      )
-    }
   }
 }
 
@@ -612,15 +542,6 @@ function BodyClip({ body }: { body: Body }) {
 }
 
 const STAR = 'M0 -1 Q0.16 -0.16 1 0 Q0.16 0.16 0 1 Q-0.16 0.16 -1 0 Q-0.16 -0.16 0 -1 Z'
-
-const BIG_STAR = 'M0 -10 Q2.4 -2.4 10 0 Q2.4 2.4 0 10 Q-2.4 2.4 -10 0 Q-2.4 -2.4 0 -10 Z'
-
-function Juggled({ i }: { i: number }) {
-  const style = { fill: juggledColors[i] }
-  if (i === 1) return <path d={BIG_STAR} style={style} />
-  if (i === 2) return <rect x='-6.4' y='-6.4' width='12.8' height='12.8' rx='3' style={style} />
-  return <circle r='8.4' style={style} />
-}
 
 export type JettyBotProps = {
   shape?: BotShape
@@ -677,7 +598,6 @@ export function JettyBot({
       badge: q<SVGGElement>('badge'),
       mark: q<SVGGElement>('mark'),
       twinkles: q<SVGGElement>('twinkles'),
-      juggled: [...q<SVGGElement>('juggled').children] as SVGGElement[],
     }
     // One rig per avatar for its whole life. It starts idle and the effect below moves it on, so a
     // remount (StrictMode, a new shape) re-attaches without losing a moment that is mid-flight.
@@ -742,13 +662,6 @@ export function JettyBot({
         <g clipPath={`url(#${id}-face)`}>
           <Face face={face} />
         </g>
-      </g>
-      <g data-jb='juggled'>
-        {[0, 1, 2].map((i) => (
-          <g key={i} style={{ display: 'none' }}>
-            <Juggled i={i} />
-          </g>
-        ))}
       </g>
       <g data-jb='twinkles'>
         {twinkles.map(([x, yy, scale], i) => (
