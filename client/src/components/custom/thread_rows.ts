@@ -530,6 +530,17 @@ function sameOptions(a: ThreadRowsOptions, b: ThreadRowsOptions) {
 
 // A thread's rows as it changes. A delta into the last turn builds only that turn's rows again,
 // after the earlier ones as they were; anything else builds them all.
+function handback(item: ThreadItem) {
+  return item.kind === 'tool_call' && item.toolName === 'SubagentHandback'
+}
+
+function handbackMessage(item: ThreadItem | undefined) {
+  if (item?.kind !== 'tool_call' || !item.input || typeof item.input !== 'object') return undefined
+  return 'message' in item.input && typeof item.input.message === 'string'
+    ? item.input.message
+    : undefined
+}
+
 export function createThreadRows() {
   let last:
     | {
@@ -583,14 +594,21 @@ export function threadRows(
   // A subagent's requests for input also surface on the main timeline, attributed to it.
   const items = allItems.filter(
     (item) =>
-      item.agentId === agentId ||
-      (!agentId && (item.kind === 'approval' || item.kind === 'question'))
+      (item.agentId === agentId ||
+        (!agentId && (item.kind === 'approval' || item.kind === 'question'))) &&
+      !handback(item)
   )
-  // The report a subagent handed back closes its transcript as its reply.
+  // The report a subagent handed back closes its transcript as its reply. One stored before Jetty
+  // kept it as the result is still only on its SubagentHandback call.
   const report = agentId
     ? allItems.find((item) => item.kind === 'subagent' && item.id === agentId)
     : undefined
-  if (report?.kind === 'subagent' && report.result) {
+  const result =
+    report?.kind === 'subagent'
+      ? (report.result ??
+        handbackMessage(allItems.findLast((item) => item.agentId === agentId && handback(item))))
+      : undefined
+  if (report?.kind === 'subagent' && result) {
     const last = items.at(-1)
     items.push({
       kind: 'assistant_message',
@@ -598,7 +616,7 @@ export function threadRows(
       turnId: last?.turnId ?? report.turnId,
       createdAt: report.completedAt ?? last?.createdAt ?? report.createdAt,
       completedAt: report.completedAt,
-      text: report.result,
+      text: result,
       agentId,
     })
   }
