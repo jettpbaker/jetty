@@ -138,7 +138,7 @@ export const AppSidebar = memo(function AppSidebar() {
   const list = useSidebarList()
   const mainList = list && {
     ...list,
-    threads: query ? list.threads : list.threads.filter((thread) => !thread.botId),
+    threads: query.trim() ? list.threads : list.threads.filter((thread) => !thread.botId),
   }
   const groups = mainList && sidebarGroups(mainList, { ...view, query }, now)
   const botThreads = botThreadsByBot(list?.threads ?? [])
@@ -564,7 +564,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   </motion.div>
                 )
               })}
-              {groups && !groups.length && (
+              {query.trim() && groups && !groups.length && (
                 <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
               )}
             </div>
