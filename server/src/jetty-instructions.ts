@@ -90,7 +90,7 @@ export function restartNote(
     id: newId(),
     text: undelivered
       ? `Jetty restarted before your last message reached you, so here it is${relayed ? `, from thread "${relayed.title}" (${relayed.threadId})` : ''}. ${stopped}\n\n${undelivered.text}${undelivered.fromCreator ? `\n\n${CHILD_REPORT_INSTRUCTION}` : ''}`
-      : `Jetty restarted while you were working and cut off your last turn. ${stopped} Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on. What you were asked to do still stands, including any request to commit, push or open a pull request.`,
+      : `Jetty restarted while you were working and cut off your last turn. ${stopped} Any approval or question you were waiting on was cancelled. Threads you created carry on and will still report back. Your last command may or may not have finished, so check the current state before redoing anything, then carry on.`,
     from: { threadId, title: 'Jetty' },
     kind: 'continuation',
     createdAt: Date.now(),
