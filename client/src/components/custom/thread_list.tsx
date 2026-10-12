@@ -58,6 +58,8 @@ import { flushSync } from 'react-dom'
 const pinSlack = 96
 const rowGap = 12
 const chatInset = 24
+// A subagent's transcript sits right under the prompt row above it.
+const agentInset = 4
 // Keeps a jumped-to message below the conversation's top blur.
 const jumpClearance = 96
 // A first open lays out this many window heights of rows exactly; the rest start rough.
@@ -429,7 +431,7 @@ export function ThreadList({
     estimateSize,
     overscan: 10,
     gap: rowGap,
-    paddingStart: chatInset,
+    paddingStart: agentId ? agentInset : chatInset,
     paddingEnd: chatInset,
     getItemKey,
     initialMeasurementsCache: saved?.sizes,

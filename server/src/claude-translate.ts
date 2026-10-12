@@ -6,7 +6,14 @@ import { newId } from '@jetty/shared/wire'
 import { SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
 
-const HIDDEN_TOOLS: ReadonlySet<string> = new Set([SEND_IMAGES_TOOL, SEND_VIDEO_TOOL, 'Workflow'])
+// A subagent hands its final report back by calling this tool; the report becomes its result.
+const HANDBACK_TOOL = 'SubagentHandback'
+const HIDDEN_TOOLS: ReadonlySet<string> = new Set([
+  SEND_IMAGES_TOOL,
+  SEND_VIDEO_TOOL,
+  'Workflow',
+  HANDBACK_TOOL,
+])
 // `Task` is the Agent tool's name in older Claude Code releases.
 const AGENT_TOOLS: ReadonlySet<string> = new Set(['Agent', 'Task'])
 
@@ -386,6 +393,12 @@ export function toolCallItemId(
   return itemId
 }
 
+function handback(ctx: TranslateCtx, input: unknown): ThreadEvent[] {
+  const message = record(input).message
+  if (!ctx.agentId || typeof message !== 'string' || !message) return []
+  return [{ type: 'item.updated', itemId: ctx.agentId, patch: { result: message } }]
+}
+
 function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unknown): ThreadItem {
   if (AGENT_TOOLS.has(name) && toolUseId) {
     agentCtx(ctx, toolUseId)
@@ -494,7 +507,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         const tool = ctx.toolBlocks.get(index)
         if (tool) {
           ctx.toolBlocks.delete(index)
-          if (!HIDDEN_TOOLS.has(tool.name)) {
+          if (!HIDDEN_TOOLS.has(tool.name) || tool.name === HANDBACK_TOOL) {
             let input: unknown = {}
             if (tool.json) {
               try {
@@ -503,7 +516,9 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
                 input = tool.json
               }
             }
-            if (tool.name === 'mcp__jetty__message_user') {
+            if (tool.name === HANDBACK_TOOL) {
+              out.push(...handback(ctx, input))
+            } else if (tool.name === 'mcp__jetty__message_user') {
               const itemId = ctx.toolUseToItemId.get(tool.id)
               if (itemId) out.push({ type: 'item.updated', itemId, patch: { input } })
             } else {
@@ -622,6 +637,8 @@ function translateAssistantContent(msg: SdkLikeMessage, ctx: TranslateCtx): Thre
         },
         { type: 'item.completed', itemId: id }
       )
+    } else if (b.type === 'tool_use' && b.name === HANDBACK_TOOL) {
+      out.push(...handback(ctx, b.input))
     } else if (b.type === 'tool_use' && !HIDDEN_TOOLS.has(b.name ?? 'tool')) {
       out.push({
         type: 'item.started',

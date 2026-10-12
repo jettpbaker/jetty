@@ -217,6 +217,8 @@ export const ThreadItem = Schema.Union([
     status: SubagentStatus,
     tokens: Schema.optional(Schema.Natural),
     durationMs: Schema.optional(Schema.Natural),
+    // The final report it handed back.
+    result: Schema.optional(Schema.String),
   }),
   Schema.Struct({
     ...itemBase,

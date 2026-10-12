@@ -586,6 +586,22 @@ export function threadRows(
       item.agentId === agentId ||
       (!agentId && (item.kind === 'approval' || item.kind === 'question'))
   )
+  // The report a subagent handed back closes its transcript as its reply.
+  const report = agentId
+    ? allItems.find((item) => item.kind === 'subagent' && item.id === agentId)
+    : undefined
+  if (report?.kind === 'subagent' && report.result) {
+    const last = items.at(-1)
+    items.push({
+      kind: 'assistant_message',
+      id: `${agentId}:result`,
+      turnId: last?.turnId ?? report.turnId,
+      createdAt: report.completedAt ?? last?.createdAt ?? report.createdAt,
+      completedAt: report.completedAt,
+      text: report.result,
+      agentId,
+    })
+  }
   const agentTitles = new Map(
     agentId ? [] : threadSubagents(allItems).map((agent) => [agent.id, agent.title])
   )

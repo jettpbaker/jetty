@@ -39,7 +39,7 @@ export function SubagentView({
   return (
     <div className='flex h-full min-h-0 flex-col'>
       {/* The transcript below reserves a scrollbar gutter on both edges; this one keeps in line. */}
-      <div className='scrollbar-subtle shrink-0 overflow-hidden px-6 pt-3 text-13 text-muted-foreground [scrollbar-gutter:stable_both-edges]'>
+      <div className='scrollbar-subtle shrink-0 overflow-hidden px-6 pt-4 text-13 text-muted-foreground [scrollbar-gutter:stable_both-edges]'>
         <p className='flex flex-wrap gap-x-1.5'>
           {facts.map((fact, index) => (
             <span key={fact.key} className={fact.mono ? 'font-mono' : undefined}>
@@ -49,11 +49,13 @@ export function SubagentView({
           ))}
         </p>
         {agent.prompt && (
-          <Disclosure title='Prompt' flush>
-            <Markdown className='py-1 text-13 leading-relaxed text-foreground'>
-              {agent.prompt}
-            </Markdown>
-          </Disclosure>
+          <div className='mt-2.5'>
+            <Disclosure title='Prompt' flush>
+              <Markdown className='py-1 text-13 leading-relaxed text-foreground'>
+                {agent.prompt}
+              </Markdown>
+            </Disclosure>
+          </div>
         )}
       </div>
       <ThreadList
