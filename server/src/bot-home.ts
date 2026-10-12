@@ -1,4 +1,4 @@
-import type { Bot, Project } from '@jetty/shared/wire'
+import type { Bot, BotTask, Project } from '@jetty/shared/wire'
 
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
@@ -42,13 +42,28 @@ async function createInstructions(home: string) {
   }
 }
 
+export async function writeBotTasks(home: string, tasks: readonly BotTask[]) {
+  const open = tasks.filter((task) => task.status === 'todo' || task.status === 'in_progress')
+  const entries = open.map(
+    (task) => `- ${task.id} [${task.status}]: ${task.title}${task.note ? `\n  ${task.note}` : ''}`
+  )
+  await writeChanged(
+    join(home, 'open-tasks.md'),
+    `# Open tasks\n\nManaged by Jetty. Use add_task and update_task to change this list.\n\n${entries.join('\n') || '(none)'}\n`
+  )
+}
+
 export async function createBotHome(home: string) {
   await commitSharedPreferences(home)
   for (const folder of ['pages', 'log', 'files'])
     await mkdir(join(home, folder), { recursive: true })
   for (const file of ['brief.md', 'index.md']) await writeFile(join(home, file), '', { flag: 'a' })
   await createInstructions(home)
-  await writeFile(join(home, 'CLAUDE.md'), '@instructions.md\n@brief.md\n@index.md\n')
+  await writeBotTasks(home, [])
+  await writeFile(
+    join(home, 'CLAUDE.md'),
+    '@instructions.md\n@brief.md\n@index.md\n@open-tasks.md\n'
+  )
   await git(home, ['init', '-q', '-b', 'main'])
   await commitBotHome(home, 'Initial bot home')
 }
@@ -154,6 +169,7 @@ export async function botInstructions(
   home: string,
   migrate?: (text: string) => Promise<void>
 ) {
+  await writeBotTasks(home, bot.tasks)
   await commitSharedPreferences(home)
   const preferences = await readFile(join(home, '..', 'shared', 'preferences.md'), 'utf8')
   const user = await botUserName()
@@ -218,6 +234,7 @@ export async function botInstructions(
       '@instructions.md',
       '@brief.md',
       '@index.md',
+      '@open-tasks.md',
       '',
     ].join('\n')
   )

@@ -1073,10 +1073,12 @@ export function createClaudeAdapter(
                                         () => requested
                                       )
                                       const protectedPaths = await Promise.all(
-                                        ['instructions.md', 'CLAUDE.md'].map(async (file) => {
-                                          const path = join(projectPath, file)
-                                          return [path, await realpath(path).catch(() => path)]
-                                        })
+                                        ['instructions.md', 'CLAUDE.md', 'open-tasks.md'].map(
+                                          async (file) => {
+                                            const path = join(projectPath, file)
+                                            return [path, await realpath(path).catch(() => path)]
+                                          }
+                                        )
                                       )
                                       if (protectedPaths.flat().includes(target))
                                         return {
@@ -1084,7 +1086,7 @@ export function createClaudeAdapter(
                                             hookEventName: 'PreToolUse' as const,
                                             permissionDecision: 'deny' as const,
                                             permissionDecisionReason:
-                                              'Use add_instruction to add a standing instruction. instructions.md is append-only for you, and CLAUDE.md is managed by Jetty.',
+                                              'Use add_instruction to add a standing instruction and update_task to change a task. instructions.md is append-only for you; CLAUDE.md and open-tasks.md are managed by Jetty.',
                                           },
                                         }
                                     }

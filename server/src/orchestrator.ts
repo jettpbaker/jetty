@@ -33,7 +33,7 @@ import type { Worktrees } from './worktrees'
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
 import { fileSize } from './attachments'
 import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
-import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
+import { botUserName, commitBotHome, commitSharedPreferences, writeBotTasks } from './bot-home'
 import { botTiming } from './bot-lifecycle'
 import {
   CHILD_REPORT_INSTRUCTION,
@@ -638,6 +638,20 @@ export function createOrchestrator({
           hub.withChromePublication(effect).pipe(Effect.uninterruptible)
         )
       )
+    }
+
+    function refreshBotTasks(botId: string) {
+      return Effect.gen(function* () {
+        const bot = yield* store.getBot(botId)
+        const home = yield* store.getProject(botId)
+        if (bot && home) {
+          yield* Effect.tryPromise({
+            try: () => writeBotTasks(home.path, bot.tasks),
+            catch: (error) => new StoreError('internal', String(error)),
+          })
+          hub.pushChrome({ type: 'bot.upserted', bot })
+        }
+      })
     }
 
     function visibleBotMessage(threadId: string, turnId: string, text: string) {
@@ -1418,24 +1432,28 @@ export function createOrchestrator({
         botId: string,
         input: Pick<BotTask, 'title'> & Partial<Pick<BotTask, 'status' | 'note'>>
       ) {
-        return Effect.gen(function* () {
-          const task = yield* store.addBotTask(botId, input)
-          const bot = yield* store.getBot(botId)
-          if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
-          return task
-        })
+        return locked(
+          botId,
+          Effect.gen(function* () {
+            const task = yield* store.addBotTask(botId, input)
+            yield* refreshBotTasks(botId)
+            return task
+          })
+        )
       },
       updateBotTask(
         botId: string,
         id: string,
         input: Partial<Pick<BotTask, 'title' | 'status' | 'note'>>
       ) {
-        return Effect.gen(function* () {
-          const task = yield* store.updateBotTask(botId, id, input)
-          const bot = yield* store.getBot(botId)
-          if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
-          return task
-        })
+        return locked(
+          botId,
+          Effect.gen(function* () {
+            const task = yield* store.updateBotTask(botId, id, input)
+            yield* refreshBotTasks(botId)
+            return task
+          })
+        )
       },
       botMessage(threadId: string, text: string) {
         return Effect.gen(function* () {

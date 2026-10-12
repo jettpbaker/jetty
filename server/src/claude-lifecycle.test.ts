@@ -446,6 +446,7 @@ describe('scoped Claude sessions', () => {
         '@instructions.md',
         '@brief.md',
         '@index.md',
+        '@open-tasks.md',
         '',
       ].join('\n')
     )
