@@ -920,12 +920,7 @@ export function threadRows(
   if (bot) {
     const previousBlocks = new Map<string, string>()
     for (const [segment, block] of blocks) {
-      if (
-        lastSentMessages.get(block.row.turnId) !== segment ||
-        !block.steps.every(
-          (item) => item.kind === 'reasoning' || (item.kind === 'assistant_message' && item.private)
-        )
-      ) {
+      if (lastSentMessages.get(block.row.turnId) !== segment) {
         previousBlocks.set(block.row.turnId, segment)
         continue
       }
