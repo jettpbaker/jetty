@@ -68,7 +68,11 @@ hue map: https://claude.ai/artifact/MJgn4bx6145bvS7dFRKvaB. Values are oklch, da
 - Ready for review follows the PR, as Capy's does: a thread whose PR is ready shows the ready
   check, not only one whose agent called `mark_ready_for_review`. It came up weighing one-line
   sidebar rows, which drop the PR mark; the status glyph would then carry some of that. Settle
-  what "ready" means for drafts, failing checks and threads with several PRs first.
+  what "ready" means for drafts, failing checks and threads with several PRs first. Also settle
+  what clears it: today ready clears once the thread is seen (`review_seen_at`), but a PR-driven
+  ready would naturally last until the PR changes (merged, closed, checks fail). Capy 0.2.2 kept
+  `ready_for_review` as a server status its client never clears; 0.4.6 dropped it for unread,
+  which opening the thread clears.
 
 ## sketchpad designs not ported yet (needs Jett's call)
 
