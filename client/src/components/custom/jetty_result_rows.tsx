@@ -28,11 +28,14 @@ export function Disclosure({
   title,
   label,
   autoOpen = false,
+  flush,
   children,
 }: {
   title: ReactNode
   label?: string
   autoOpen?: boolean
+  // Lines its title up with the text around it instead of the work history's inset.
+  flush?: boolean
   children: ReactNode
 }) {
   const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
@@ -52,6 +55,7 @@ export function Disclosure({
       <CollapsibleTrigger
         render={<Button variant='ghost-text' />}
         className='activity-header'
+        data-flush={flush || undefined}
         aria-label={label}
       >
         <span>{title}</span>
