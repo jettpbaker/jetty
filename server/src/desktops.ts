@@ -2,6 +2,8 @@ import type { ThreadMeta } from '@jetty/shared/wire'
 
 import { newId } from '@jetty/shared/wire'
 import { Effect } from 'effect'
+import { HttpServerRequest, HttpServerResponse } from 'effect/http'
+import { Socket } from 'effect/socket'
 import { accessSync, constants } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -19,6 +21,21 @@ const GEOMETRY = '1936x1200'
 const START_TIMEOUT = 60_000
 const STOP_TIMEOUT = 30_000
 
+// Only Jetty's own pages may frame the viewer.
+const frameHeaders = {
+  'Content-Security-Policy': "frame-ancestors 'self'",
+  'X-Frame-Options': 'SAMEORIGIN',
+}
+
+// Hop-by-hop, or describing an encoding fetch has already undone.
+const droppedHeaders = [
+  'connection',
+  'content-encoding',
+  'content-length',
+  'keep-alive',
+  'transfer-encoding',
+]
+
 function parseSession(line: string): Session | undefined {
   try {
     const value = JSON.parse(line) as Partial<Record<keyof Session, unknown>>
@@ -31,6 +48,11 @@ function parseSession(line: string): Session | undefined {
   } catch {
     return undefined
   }
+}
+
+// A close code the browser may receive: the streamer's own, or "going away" for an abnormal end.
+function closeCode(code: number) {
+  return code === 1000 || (code >= 3000 && code <= 4999) ? code : 1001
 }
 
 const installPath =
@@ -121,8 +143,9 @@ export function createDesktops(
     }
   }
 
-  function streamerUrl(desktop: LiveDesktop) {
+  function streamerUrl(desktop: LiveDesktop, path = '/') {
     const url = new URL(`http://127.0.0.1:${desktop.port}`)
+    url.pathname = path
     url.searchParams.set('token', desktop.token)
     return url
   }
@@ -176,11 +199,104 @@ export function createDesktops(
     })
   }
 
+  async function find(id: string) {
+    return (await run(store.listDesktops())).find(({ record }) => record.id === id)
+  }
+
+  // Forgets a desktop whose streamer stopped answering.
+  async function check(id: string) {
+    const found = await find(id)
+    if (!found) return
+    await serialized(found.threadId, async () => {
+      if (!(await alive(found.record))) await end(found.threadId, found.record)
+    })
+  }
+
   // A restart keeps the desktops still streaming; a start the restart cut short is cleaned up.
   async function reconcile() {
     for (const { threadId, record } of await run(store.listDesktops()))
       if (!(await alive(record))) await end(threadId, record)
   }
 
-  return { ensure, stop, reconcile }
+  // The streamer's socket opens first, so a stopped desktop fails the browser's upgrade. Frames
+  // then go straight through in both directions as they arrive, held only until the browser's
+  // side is open.
+  function relay(request: HttpServerRequest.HttpServerRequest, desktop: LiveDesktop, url: URL) {
+    return Effect.gen(function* () {
+      const origin = url.origin
+      url.protocol = 'ws:'
+      const upstream = new WebSocket(url, { headers: { Origin: origin } })
+      upstream.binaryType = 'arraybuffer'
+      const early: (string | ArrayBuffer)[] = []
+      upstream.onmessage = (event: MessageEvent<string | ArrayBuffer>) => early.push(event.data)
+      const opened = yield* Effect.callback<boolean>((resume) => {
+        upstream.onopen = () => resume(Effect.succeed(true))
+        upstream.onclose = () => resume(Effect.succeed(false))
+        return Effect.sync(() => upstream.close())
+      })
+      if (!opened) {
+        void check(desktop.id)
+        return HttpServerResponse.text('Desktop unavailable', { status: 502 })
+      }
+      const socket = yield* request.upgrade
+      const { write } = yield* socket.writer
+      const forward = (data: string | ArrayBuffer) =>
+        Effect.runSync(write(typeof data === 'string' ? data : new Uint8Array(data)))
+      for (const data of early) forward(data)
+      upstream.onmessage = (event: MessageEvent<string | ArrayBuffer>) => forward(event.data)
+      upstream.onclose = (event) => {
+        Effect.runSync(write(new Socket.CloseEvent(closeCode(event.code))))
+        void check(desktop.id)
+      }
+      if (upstream.readyState !== WebSocket.OPEN) yield* write(new Socket.CloseEvent(1001))
+      yield* Effect.gen(function* () {
+        const { pull } = yield* socket.reader
+        while (true) for (const frame of yield* pull) upstream.send(frame)
+      }).pipe(
+        Effect.ignore,
+        Effect.ensuring(
+          Effect.sync(() => {
+            upstream.onclose = null
+            upstream.close()
+          })
+        )
+      )
+      return HttpServerResponse.empty()
+    }).pipe(Effect.scoped)
+  }
+
+  // /desktop/<id>/… on Jetty's origin, to the streamer the registry has for that id. The caller
+  // checks the request is Jetty's own. The streamer refuses foreign origins, so its requests come
+  // from its own loopback origin, with its token, which never leaves this server.
+  function proxy(request: HttpServerRequest.HttpServerRequest, url: URL) {
+    return Effect.gen(function* () {
+      const [, id = '', path = '/'] = url.pathname.match(/^\/desktop\/([\w-]+)(\/.*)$/) ?? []
+      const found = yield* Effect.promise(() => find(id))
+      if (found?.record.state !== 'live')
+        return HttpServerResponse.text('Not found', { status: 404 })
+      const desktop = found.record
+      const target = streamerUrl(desktop, path)
+      for (const [key, value] of url.searchParams)
+        if (key !== 'secret' && key !== 'token') target.searchParams.append(key, value)
+      if (request.headers.upgrade?.toLowerCase() === 'websocket')
+        return yield* relay(request, desktop, target)
+      if (request.method !== 'GET' && request.method !== 'HEAD')
+        return HttpServerResponse.text('Method not allowed', { status: 405 })
+      const response = yield* Effect.tryPromise(() =>
+        fetch(target, { method: request.method, headers: { Origin: target.origin } })
+      ).pipe(Effect.option)
+      if (response._tag === 'None') {
+        void check(desktop.id)
+        return HttpServerResponse.text('Desktop unavailable', { status: 502 })
+      }
+      const headers = new Headers(response.value.headers)
+      for (const name of droppedHeaders) headers.delete(name)
+      for (const [name, value] of Object.entries(frameHeaders)) headers.set(name, value)
+      return HttpServerResponse.fromWeb(
+        new Response(response.value.body, { status: response.value.status, headers })
+      )
+    })
+  }
+
+  return { ensure, stop, reconcile, proxy }
 }

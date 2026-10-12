@@ -361,6 +361,9 @@ function createServer(opts: ServerOptions = {}) {
     const port = opts.port ?? Number(process.env.PORT ?? 8787)
     const hostname = opts.hostname ?? process.env.HOST ?? '127.0.0.1'
     const wsSecret = randomBytes(32).toString('hex')
+    const secretMatches = (supplied: string | null) =>
+      supplied?.length === wsSecret.length &&
+      timingSafeEqual(Buffer.from(supplied), Buffer.from(wsSecret))
     const envAgent = process.env.JETTY_AGENT
     const agentKind =
       opts.agent ??
@@ -651,17 +654,23 @@ function createServer(opts: ServerOptions = {}) {
         if (!originAllowed(request.headers.origin)) {
           return HttpServerResponse.text('Forbidden origin', { status: 403 })
         }
-        const supplied = url.searchParams.get('secret')
-        if (
-          !supplied ||
-          supplied.length !== wsSecret.length ||
-          !timingSafeEqual(Buffer.from(supplied), Buffer.from(wsSecret))
-        )
+        if (!secretMatches(url.searchParams.get('secret')))
           return HttpServerResponse.text('Forbidden', { status: 403 })
         if (request.headers.upgrade?.toLowerCase() !== 'websocket') {
           return HttpServerResponse.text('WebSocket upgrade failed', { status: 400 })
         }
         return yield* websocket
+      }
+      // A desktop's viewer page and socket, as strict as /ws. The page loads as a frame
+      // navigation, which carries no Origin, so its fetch metadata stands in.
+      if (url.pathname.startsWith('/desktop/')) {
+        const { origin } = request.headers
+        const ownPage = origin
+          ? originAllowed(origin)
+          : request.headers['sec-fetch-site'] === 'same-origin'
+        if (!ownPage || !secretMatches(url.searchParams.get('secret')))
+          return HttpServerResponse.text('Forbidden', { status: 403 })
+        return yield* desktops.proxy(request, url)
       }
       if (url.pathname === '/perf') {
         if (!originAllowed(request.headers.origin))
