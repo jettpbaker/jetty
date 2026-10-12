@@ -1,15 +1,26 @@
-import { use } from 'react'
-
-// Code a view loads on demand, started early so the view opens on it. React.lazy and use()
-// suspend on a promise they haven't seen even once it has settled, flashing the fallback (which
-// React then holds for 300 ms), so a loaded value is read directly.
+// Code a view loads on demand, started early so the view opens on it.
 export function preloadable<T>(load: () => Promise<T>) {
-  let loaded: T | undefined
+  let loaded: { value: T } | undefined
+  let failed: { error: unknown } | undefined
   let loading: Promise<T> | undefined
   function preload() {
-    return (loading ??= load().then((value) => (loaded = value)))
+    return (loading ??= load().then(
+      (value) => {
+        loaded = { value }
+        return value
+      },
+      (error: unknown) => {
+        failed = { error }
+        throw error
+      }
+    ))
   }
-  return { preload, useLoaded: () => loaded ?? use(preload()) }
+  function useLoaded() {
+    if (failed) throw failed.error
+    if (!loaded) throw preload()
+    return loaded.value
+  }
+  return { preload, useLoaded }
 }
 
 // Runs once the browser is idle, after the current frame has painted, and returns a cancel.
