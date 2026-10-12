@@ -104,8 +104,10 @@ export function grokArgs(input: TurnInput) {
     '--no-plan',
     '--permission-mode',
     input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto',
+    // Grok's workspace sandbox can't write a linked worktree's git data in the repo's .git, so a
+    // worker could never commit. Auto runs unsandboxed, like Claude threads.
     '--sandbox',
-    input.permissionMode === 'full_access' ? 'off' : 'workspace',
+    'off',
     'agent',
     '--no-leader',
     'stdio',

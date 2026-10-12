@@ -264,13 +264,13 @@ test('process crashes reject the turn and release admission', async () => {
   ).not.toThrow()
 })
 
-test('permission modes disable plans and use separate sandbox profiles', () => {
+test('permission modes disable plans and run unsandboxed', () => {
   expect(grokArgs({ threadId: 't', turnId: 't', text: '' })).toEqual([
     '--no-plan',
     '--permission-mode',
     'auto',
     '--sandbox',
-    'workspace',
+    'off',
     'agent',
     '--no-leader',
     'stdio',
