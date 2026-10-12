@@ -90,6 +90,11 @@ Everything below is for one combined review of the chat, not separate ports.
 - Monitors out of the composer (Jett, 12 Oct, to look into): drop the "Waiting on …" row under
   the composer, show a monitor starting (and ending) in the turn's activity history ("Worked
   for 11s"), and rely on the right sidebar to list the ones still running.
+- Background command lines (Jett, 13 Oct, to work out a better way): a backgrounded command's
+  "Running `<command>`" line sits after everything its turn did (`BackgroundSeam`, placed in
+  `thread_rows.ts`), so during a live turn two long `cd … && export …` commands pin to the bottom
+  of the chat under the work block, read as stray chips, and stay under the final reply once the
+  turn ends. Goes with the monitors item above.
 - Message footers: the whole footer reveals on hover; `revealWholeFooter` in
   `message_footer.tsx` flips it to time and model always visible.
 - The final answer carries what the user needs. Interim text and the final answer are both just
