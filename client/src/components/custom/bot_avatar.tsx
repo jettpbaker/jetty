@@ -37,7 +37,7 @@ export function BotAvatar({
   unread,
   className,
 }: {
-  bot: Pick<Bot, 'id' | 'shape' | 'color' | 'activity' | 'needsYou' | 'failed' | 'unread'>
+  bot: Pick<Bot, 'id' | 'shape' | 'color' | 'needsYou' | 'failed' | 'unread'>
   size: number
   unread?: boolean
   className?: string
