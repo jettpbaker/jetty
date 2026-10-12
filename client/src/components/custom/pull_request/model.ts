@@ -1,3 +1,4 @@
+import { formatDuration } from '@/lib/time'
 import { failedCheckConclusions } from '@jetty/shared/pull-request'
 import { createContext } from 'react'
 
@@ -78,7 +79,7 @@ export function duration(c: PrCheck) {
     : seconds < 60
       ? `${seconds}s`
       : seconds < 3600
-        ? `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+        ? formatDuration(seconds)
         : `${Math.floor(seconds / 3600)}h ${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}m`
 }
 export function filePatch(f: PrFile, patch = f.patch) {

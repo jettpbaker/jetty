@@ -22,8 +22,10 @@ export function formatDuration(seconds: number) {
   const total = Math.floor(seconds)
   if (total < 60) return `${total}s`
   const minutes = Math.floor(total / 60)
-  if (minutes < 60) return `${minutes}m ${total % 60}s`
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  if (minutes < 60) return total % 60 ? `${minutes}m ${total % 60}s` : `${minutes}m`
+  return minutes % 60
+    ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+    : `${Math.floor(minutes / 60)}h`
 }
 
 const clock = new Intl.DateTimeFormat(undefined, {

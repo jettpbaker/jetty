@@ -126,7 +126,7 @@ export function BackgroundSeam({ item }: { item: BackgroundItem }) {
       </span>
       {ended && (
         <span className='shrink-0 font-mono text-faint-foreground'>
-          {formatDuration((item.endedAt! - item.createdAt) / 1000).replace(/ 0s$/, '')}
+          {formatDuration((item.endedAt! - item.createdAt) / 1000)}
         </span>
       )}
     </ChatSeam>
