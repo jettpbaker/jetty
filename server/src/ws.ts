@@ -10,6 +10,7 @@ import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { WireError } from '@jetty/shared/wire'
 import { newId } from '@jetty/shared/wire'
 import { Cause, Effect, Fiber, Schema, Stream } from 'effect'
+import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -18,7 +19,7 @@ import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
-import { botUserName, createBotHome } from './bot-home'
+import { botUserName, commitBotHome, createBotHome } from './bot-home'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
@@ -124,6 +125,17 @@ export function createRpcHandlers(
           orch.startTurnEffect({ threadId: id, text: queued.text, queued }),
           admissionScope
         )
+      })
+    }
+
+    function botHome(botId: string) {
+      return Effect.gen(function* () {
+        if (!(yield* store.isBot(botId)))
+          return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+        const thread = yield* store.requireThread(botId)
+        const project = yield* store.getProject(thread.projectId)
+        if (!project) return yield* Effect.fail(new StoreError('not_found', 'Bot home not found'))
+        return project.path
       })
     }
 
@@ -775,6 +787,26 @@ export function createRpcHandlers(
             bot: yield* orch.updateBot(params, params.model === undefined ? undefined : model),
           }
         }).pipe(Effect.mapError(wireError)),
+      'bot.getInstructions': ({ botId }) =>
+        Effect.gen(function* () {
+          const home = yield* botHome(botId)
+          const instructions = yield* fromPromise(() =>
+            readFile(join(home, 'instructions.md'), 'utf8').catch((error) => {
+              if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+              return '# Your instructions\n\n'
+            })
+          )
+          return { instructions }
+        }).pipe(Effect.mapError(wireError)),
+      'bot.saveInstructions': ({ botId, instructions }) =>
+        mutation(
+          Effect.gen(function* () {
+            const home = yield* botHome(botId)
+            yield* fromPromise(() => writeFile(join(home, 'instructions.md'), instructions))
+            yield* fromPromise(() => commitBotHome(home, 'Edit bot instructions'))
+            return null
+          })
+        ),
       'bot.send': (params) =>
         Effect.gen(function* () {
           yield* store.noteUserMessage()

@@ -1116,6 +1116,14 @@ export const methods = {
     params: Schema.Struct({ botId: Schema.String, rules: Schema.Array(BotAllowRule) }),
     result: Schema.Null,
   },
+  'bot.getInstructions': {
+    params: Schema.Struct({ botId: BotId }),
+    result: Schema.Struct({ instructions: Schema.String }),
+  },
+  'bot.saveInstructions': {
+    params: Schema.Struct({ botId: BotId, instructions: Schema.String }),
+    result: Schema.Null,
+  },
   'bot.markSeen': {
     params: Schema.Struct({ botId: Schema.String }),
     result: Schema.Null,
