@@ -6,9 +6,7 @@ import './bot_colors.css'
 
 export type { BotColor, BotShape }
 
-// Tidying is the one wait you can see while it compacts its memory: you wrote mid-compaction and it
-// couldn't stop.
-export type BotState = 'idle' | 'thinking' | 'working' | 'waiting' | 'done' | 'tidying'
+export type BotState = 'idle' | 'working' | 'waiting' | 'done'
 
 type Point = [number, number]
 export type Body = {

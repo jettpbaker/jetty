@@ -69,12 +69,6 @@ const wiggle = {
 // Eyes ask: look at you, blink twice, glance to the side, look back. Times from the start of the ask.
 const ASK = { blinks: [0.45, 0.71], glance: [1, 2.1] } as const
 
-/** A bouncing dot's lift for dot i (0 to 2), 0 to 1, as in a typing indicator. */
-function dotLift(age: number, i: number) {
-  const p = ((age - 0.3) / 1.1 - i * 0.15) % 1
-  return p > 0 && p < 0.42 ? Math.sin((p / 0.42) * Math.PI) : 0
-}
-
 type Eye = { x: Spring; y: Spring; w: Spring; h: Spring }
 const eye = (x: number): Eye => ({ x: spring(x), y: spring(0), w: spring(7.6), h: spring(18.2) })
 
@@ -143,82 +137,6 @@ function juggled(s: number, i: number, faceY: number): [number, number] {
   return [x0 + (x1 - x0) * v, hy + 3.5 * Math.sin(Math.PI * v)]
 }
 
-// Typing: it looks down and taps away in quick bounces, then pauses to look up and think. beat is
-// one tap. A speech bubble with bouncing dots, tucked into its upper right, says it's a reply.
-const TAP = { cycle: 3.4, typing: 2.6, beat: 0.18 }
-// The bubble is a pill (two semicircles about (10, -14) and (20, -14), radius 10) with a short tail
-// off its lower-left curve. It's drawn from the tail tip at the origin, so it pops out of the body.
-const BUBBLE =
-  'M10 -24 H20 A10 10 0 0 1 20 -4 H6.6 Q4 -2.4 0 0 Q1.4 -3.6 2.34 -7.57 A10 10 0 0 1 10 -24 Z'
-const BUBBLE_AT = { x: 65, y: 34, scale: 1.35 }
-
-// Tidying up, for a wait that can run to minutes: a little pile of notes on its head. A new one drops on
-// askew, it taps the pile square with two hops, then the top two press into one. Times in seconds into
-// each cycle. Rest centres sink 3 into the head, so the pile sits on it.
-const TIDY = {
-  cycle: 4.6,
-  w: 38,
-  h: 8,
-  gap: 2,
-  fall: 0.55,
-  taps: [0.95, 1.35],
-  // How askew the new note is, squared up a step as each tap lands; the one under it is knocked a little.
-  mess: [
-    [0, 1],
-    [1.1, 1],
-    [1.2, 0.45, 'out'],
-    [1.5, 0.45],
-    [1.6, 0, 'out'],
-  ] as Key[],
-  knock: [
-    [0, 0],
-    [0.55, 0],
-    [0.62, 1, 'out'],
-    [1.1, 1],
-    [1.2, 0.45, 'out'],
-    [1.5, 0.45],
-    [1.6, 0, 'out'],
-  ] as Key[],
-  merge: [
-    [2, 0],
-    [2.5, 1],
-  ] as Key[],
-  press: [
-    [2, 0],
-    [2.3, -0.05],
-    [2.6, 0],
-  ] as Key[],
-}
-
-/** Note i's [x, y, rotation, opacity, colour] in the body's box, on a head whose top is at `top`. The new
- * note ends each cycle covering the one under it, which takes its colour as the next one starts. */
-function note(
-  age: number,
-  i: number,
-  top: number,
-  reduced: boolean
-): [number, number, number, number, number] {
-  const c = reduced ? 0 : Math.floor(age / TIDY.cycle),
-    p = reduced ? 1.7 : age % TIDY.cycle,
-    dir = c % 2 ? -1 : 1
-  const rest = (n: number) => top + 3 - TIDY.h / 2 - n * (TIDY.h + TIDY.gap)
-  if (i === 0) return [50, rest(0), 0, 1, 0]
-  if (i === 1) {
-    const knock = keyed(TIDY.knock, p)
-    return [50 - 3 * dir * knock, rest(1), -5 * dir * knock, 1, 1 + (c % 4)]
-  }
-  const fall = eases.in(clamp01(p / TIDY.fall)),
-    mess = keyed(TIDY.mess, p)
-  const y = rest(2) - 46 * (1 - fall) + (rest(1) - rest(2)) * keyed(TIDY.merge, p)
-  // It tumbles a little on the way down and lands at 16°.
-  const rot = p < TIDY.fall ? 28 - 12 * fall : 16 * mess
-  return [50 + 8 * dir * mess, y, rot * dir, clamp01(p / 0.12), 1 + ((c + 1) % 4)]
-}
-
-/** Whether a looping moment `at` seconds into each cycle came due since the last frame. */
-const crossed = (from: number, to: number, cycle: number, at: number) =>
-  Math.floor((to - at) / cycle) > Math.floor((from - at) / cycle)
-
 /* One ticker for every bot on the page. */
 
 const rigs = new Set<Rig>()
@@ -268,13 +186,8 @@ type Parts = {
   badge: SVGGElement
   /** The unread dot, in the badge's spot */
   mark: SVGGElement
-  bubble: SVGGElement
-  bubbleDots: SVGCircleElement[]
   twinkles: SVGGElement
   juggled: SVGGElement[]
-  /** The tidying-up pile of notes, riding the body, and each note in it */
-  notes: SVGGElement
-  sheets: SVGRectElement[]
 }
 
 type Fidget = { kind: 'tilt' | 'look'; until: number; dir: number }
@@ -294,13 +207,6 @@ class Rig {
   badge = spring(0)
   mark = spring(0)
   juggleIn = spring(0)
-  typeIn = spring(0)
-  // The tidying-up notes, and since when, so they play on as they leave.
-  notesIn = spring(0)
-  notesSince = 0
-  // The body's top in the box, where the notes sit.
-  top = 11
-  lastAge = 0
   bx = spring(77)
   by = spring(25)
   state: BotState = 'idle'
@@ -338,7 +244,6 @@ class Rig {
     this.parts = parts
     this.replay = options.replay
     this.follow = options.follow
-    this.top = parts.root.querySelector<SVGGraphicsElement>('.jb-body')?.getBBox().y || 11
   }
 
   get reduced() {
@@ -353,10 +258,8 @@ class Rig {
     if (state === this.state) return
     this.state = state
     this.since = this.now
-    this.lastAge = 0
     this.queue = []
     this.fidget = null
-    if (state === 'tidying') this.notesSince = this.now
     this.enter()
   }
 
@@ -379,7 +282,6 @@ class Rig {
           this.blinkAt = this.now
         })
     }
-    if (state === 'thinking') this.sy.v -= 2.6
     if (state === 'working') {
       this.y.v += 80
       this.sy.v -= 1.8
@@ -410,8 +312,6 @@ class Rig {
   expression(age: number): Expression {
     if (this.now - this.pokedAt < 0.7) return 'happy'
     switch (this.state) {
-      case 'thinking':
-        return 'focus'
       case 'working':
         return 'focus'
       case 'waiting':
@@ -458,14 +358,6 @@ class Rig {
     this.arcR.t = expression === 'happy' ? 1 : 0
     this.winkSize.t = expression === 'wink' ? 1.4 : 1
 
-    // Tidying up: a note lands, then two taps square the pile, once a cycle.
-    if (state === 'tidying' && !reduced) {
-      const at = (when: number) => crossed(this.lastAge, age, TIDY.cycle, when)
-      if (at(TIDY.fall)) this.sy.v -= 1.4
-      for (const tap of TIDY.taps) if (at(tap)) this.hop(55)
-    }
-    this.lastAge = age
-
     // Idle fidgets: now and then a hop, a curious tilt, a wiggle, or a look around.
     if (!reduced && state === 'idle' && t > this.nextFidget) {
       const dir = Math.random() < 0.5 ? -1 : 1
@@ -499,11 +391,6 @@ class Rig {
       if (this.fidget?.kind === 'look')
         gaze = [(this.fidget.until - t > 0.75 ? -5.5 : 5.5) * this.fidget.dir, 0.5]
     }
-    const tapping = state === 'thinking',
-      pausing = tapping && age % TAP.cycle > TAP.typing
-    // Typing: its eyes dart side to side as it taps, then glance up while it thinks.
-    if (tapping)
-      gaze = pausing ? [3, -3.5] : [reduced ? 0 : Math.sin(age * Math.PI * 10) * 1.6, 3.2]
     // Juggling, it looks up at whichever is highest.
     if (working) {
       const top = [0, 1, 2]
@@ -516,10 +403,6 @@ class Rig {
     const asking = state === 'waiting' && ask > -0.1 && ask < ASK.glance[1] + 0.3
     if (state === 'waiting') gaze = glancing ? [6, 1.5] : [0, -1.5]
     if (state === 'done') gaze = expression === 'wink' ? [1.5, -1] : [0, -1]
-    // Tidying, it watches the new note drop, then keeps an eye on the pile.
-    const tidy = age % TIDY.cycle,
-      side = Math.floor(age / TIDY.cycle) % 2 ? -1 : 1
-    if (state === 'tidying') gaze = !reduced && tidy < TIDY.fall + 0.1 ? [3 * side, -4.5] : [0, -4]
     if (
       this.follow &&
       pointer.active &&
@@ -539,22 +422,17 @@ class Rig {
     this.gy.t = gaze[1]
 
     // Body
-    this.y.t = state === 'thinking' || state === 'waiting' ? -1 : 0
-    this.rot.t = pausing
-      ? 5
-      : this.fidget?.kind === 'tilt'
+    this.y.t = state === 'waiting' ? -1 : 0
+    this.rot.t =
+      this.fidget?.kind === 'tilt'
         ? 9 * this.fidget.dir
         : glancing
           ? 5
           : expression === 'wink'
             ? 7
             : 0
-    // The tidying-up press steers the spring, so leaving mid-press settles instead of snapping.
-    this.sy.t = state === 'tidying' && !reduced ? 1 + keyed(TIDY.press, tidy) : 1
-    this.notesIn.t = state === 'tidying' ? 1 : 0
-    this.typeIn.t = tapping ? 1 : 0
     this.badge.t = state === 'waiting' ? 1 : 0
-    // Unread waits for the turn to end: never while typing or working, and Needs you's badge outranks it.
+    // Unread waits for the turn to end: never while working, and Needs you's badge outranks it.
     // After done, it pops in once the hops have landed.
     const settled =
       state === 'idle' || (state === 'done' && (reduced || this.replay || age > UNREAD_AFTER_DONE))
@@ -585,11 +463,9 @@ class Rig {
       step(this.bx, 15, 0.3, h, reduced)
       step(this.by, 15, 0.3, h, reduced)
       step(this.juggleIn, 18, 0.5, h, reduced)
-      step(this.typeIn, 20, 0.5, h, reduced)
-      step(this.notesIn, 18, 0.6, h, reduced)
     }
 
-    // Additive loops: breath, sway, and the typing and working rhythms. Non-syncing periods keep them organic.
+    // Additive loops: breath, sway, and the working rhythm. Non-syncing periods keep them organic.
     let y = this.y.x,
       sy = this.sy.x,
       rot = this.rot.x
@@ -603,12 +479,6 @@ class Rig {
       if (state === 'waiting' && w < WIGGLE_END) {
         rot += keyed(wiggle.rot, w)
         y += keyed(wiggle.y, w)
-      }
-      // Typing: quick little bounces, one per tap, until it stops to think.
-      if (tapping && !pausing) {
-        const tap = Math.abs(Math.sin((age / TAP.beat) * Math.PI))
-        y -= 1.3 * tap
-        sy += 0.02 * tap
       }
       // Juggling: it sways toward each throw and dips a little as it goes.
       if (working) {
@@ -630,10 +500,10 @@ class Rig {
       lid = since < 0.06 ? 1 - (since / 0.06) * 0.88 : 0.12 + ((since - 0.06) / 0.11) * 0.88
 
     this.lastY = y
-    this.draw(age, y, sy, rot, lid)
+    this.draw(y, sy, rot, lid)
   }
 
-  draw(age: number, y: number, sy: number, rot: number, lid: number) {
+  draw(y: number, sy: number, rot: number, lid: number) {
     const { parts } = this
     // Squash and tilt pivot on the bottom of the body, as if it sits on the ground.
     const sx = 1 + (1 - sy) * 0.6
@@ -671,16 +541,6 @@ class Rig {
         clamp01((i === 0 ? this.arcL : this.arcR).x).toFixed(3)
       )
     }
-
-    // Typing bubble: pops out on a spring from its tail, and its dots bounce like a typing indicator.
-    const bubble = Math.max(0, this.typeIn.x)
-    parts.bubble.style.display = bubble > 0.02 ? '' : 'none'
-    parts.bubble.setAttribute(
-      'transform',
-      `translate(${BUBBLE_AT.x} ${BUBBLE_AT.y}) scale(${(bubble * BUBBLE_AT.scale).toFixed(3)})`
-    )
-    for (const [i, dot] of parts.bubbleDots.entries())
-      dot.setAttribute('cy', (-14 - (this.reduced ? 0 : dotLift(age, i)) * 2).toFixed(2))
 
     // The badge is tucked into the body's upper right and rides its tilt, squash, and hops. It chases
     // that spot on a spring instead of sticking to it, so it lags, overshoots, and stretches as it goes.
@@ -722,30 +582,6 @@ class Rig {
         'transform',
         `translate(${jx.toFixed(2)} ${jy.toFixed(2)}) rotate(${spin.toFixed(1)}) scale(${juggle.toFixed(3)})`
       )
-    }
-
-    // The tidying-up notes play on from when they began, so they wind down where they are as they leave.
-    const notes = Math.max(0, this.notesIn.x)
-    parts.notes.style.display = notes > 0.02 ? '' : 'none'
-    if (notes > 0.02) {
-      parts.notes.setAttribute(
-        'transform',
-        `translate(50 ${this.top.toFixed(2)}) scale(${notes.toFixed(3)}) translate(-50 ${(-this.top).toFixed(2)})`
-      )
-      for (const [i, sheet] of parts.sheets.entries()) {
-        const [nx, ny, turn, opacity, colour] = note(
-          this.now - this.notesSince,
-          i,
-          this.top,
-          this.reduced
-        )
-        sheet.setAttribute(
-          'transform',
-          `translate(${nx.toFixed(2)} ${ny.toFixed(2)}) rotate(${turn.toFixed(2)})`
-        )
-        sheet.setAttribute('opacity', opacity.toFixed(3))
-        sheet.style.fill = pastelColors[colour]!
-      }
     }
   }
 }
@@ -840,12 +676,8 @@ export function JettyBot({
       arcs: ['L', 'R'].map((part) => q<SVGPathElement>(`arc-${part}`)),
       badge: q<SVGGElement>('badge'),
       mark: q<SVGGElement>('mark'),
-      bubble: q<SVGGElement>('bubble'),
-      bubbleDots: [...q<SVGGElement>('bubble').querySelectorAll('circle')],
       twinkles: q<SVGGElement>('twinkles'),
       juggled: [...q<SVGGElement>('juggled').children] as SVGGElement[],
-      notes: q<SVGGElement>('notes'),
-      sheets: [...q<SVGGElement>('notes').children] as SVGRectElement[],
     }
     // One rig per avatar for its whole life. It starts idle and the effect below moves it on, so a
     // remount (StrictMode, a new shape) re-attaches without losing a moment that is mid-flight.
@@ -909,18 +741,6 @@ export function JettyBot({
         {/* Eyes are clipped to the body, so a glance toward the edge reads as the body turning. */}
         <g clipPath={`url(#${id}-face)`}>
           <Face face={face} />
-        </g>
-        <g data-jb='notes' style={{ display: 'none' }}>
-          {[0, 1, 2].map((i) => (
-            <rect key={i} x={-TIDY.w / 2} y={-TIDY.h / 2} width={TIDY.w} height={TIDY.h} rx='3' />
-          ))}
-        </g>
-        <g data-jb='bubble' style={{ display: 'none' }}>
-          <path className='jb-bubble-ring' d={BUBBLE} />
-          <path className='jb-bubble' d={BUBBLE} />
-          {[8, 15, 22].map((x) => (
-            <circle key={x} className='jb-bubble-dot' cx={x} cy='-14' r='2.4' />
-          ))}
         </g>
       </g>
       <g data-jb='juggled'>

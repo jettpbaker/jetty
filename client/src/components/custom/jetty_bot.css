@@ -43,21 +43,6 @@
   }
 }
 
-/* Typing bubble: a soft solid bubble with dots cut in the page colour. Like the badge, a ring in
-   the colour of whatever the bot sits on keeps it crisp where it overlaps the body. */
-.jb-bubble-ring {
-  fill: none;
-  stroke: var(--jb-ring, var(--background));
-  stroke-width: 4;
-  stroke-linejoin: round;
-}
-.jb-bubble {
-  fill: color-mix(in oklch, var(--foreground) 85%, var(--background));
-}
-.jb-bubble-dot {
-  fill: var(--background);
-}
-
 /* Stacked faces: each cuts a ring out of the one behind it. */
 .jb-outline {
   fill: var(--jb-ring, var(--background));
