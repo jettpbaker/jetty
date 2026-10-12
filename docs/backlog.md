@@ -327,6 +327,12 @@ Everything below is for one combined review of the chat, not separate ports.
   (mergeability flips, thread resolution). If that bites, a 10-minute full
   refresh floor for linked PRs is a two-line addition (an open PR view already
   refreshes fully every 30s).
+- Discuss with Jett the best balance of GitHub polling to keep PR state hyper in sync (12 Oct).
+  Today a PR chip asks again every two minutes while open and every thirty once closed, four
+  times slower when the rate limit runs low (`chipRefreshInterval`, `server/src/pull-requests.ts`).
+  It matters more once the sidebar shows PR readiness inline and the PR page groups by it. Worth
+  weighing: shorter windows while something is about to change (checks running, review
+  requested), refreshing on focus, and push instead of poll (webhooks).
 - For Jett to look at when home (night-shift decisions of 2026-10-06):
   - The thread row's Archive/More buttons, now a named AGENTS.md exception: look closer
     at whether they should become real ghost `icon-xs` buttons after all.
