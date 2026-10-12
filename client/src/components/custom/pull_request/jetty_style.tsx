@@ -1610,9 +1610,7 @@ function FileCard({
               <div className='flex h-10 w-16 items-center justify-center rounded-sm border border-border bg-muted'>
                 <FileBendIcon className='size-5 text-muted-foreground' />
               </div>
-              <p className='font-mono text-xs text-muted-foreground'>
-                Binary file · preview unavailable
-              </p>
+              <p className='text-xs text-muted-foreground'>Binary file · preview unavailable</p>
             </div>
           ) : file.generated && hideGenerated && !showGenerated ? (
             <div className='flex items-center gap-2 px-4 py-4 text-xs text-muted-foreground'>

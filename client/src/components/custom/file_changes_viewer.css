@@ -22,7 +22,8 @@
 .file-collapse-chevron {
   opacity: var(--file-chevron-opacity, 0);
 }
-.file-collapse-button:is(:hover, :focus-visible) {
+.file-collapse-button:is(:hover, :focus-visible),
+.proposed-binary-file:hover {
   --file-icon-opacity: 0;
   --file-chevron-opacity: 1;
 }

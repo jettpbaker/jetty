@@ -309,6 +309,8 @@ export function ApprovalStrip({
 }) {
   const changesId = useId()
   const { changes } = item
+  const binaryProposal =
+    changes !== undefined && changes.files.length > 0 && changes.files.every((file) => file.binary)
   // The diff loads and highlights while the request is read, so it expands coloured.
   const patch = changes?.patch
   useEffect(() => {
@@ -364,7 +366,12 @@ export function ApprovalStrip({
                 </TooltipContent>
               </Tooltip>
             )}
-            {!ctl.expanded && item.counts && <DiffCounts files={[item.counts]} />}
+            {!ctl.expanded &&
+              (binaryProposal ? (
+                <span className='shrink-0 text-xs text-muted-foreground'>Binary</span>
+              ) : (
+                item.counts && <DiffCounts files={[item.counts]} />
+              ))}
             {ctl.expanded && (
               <Button
                 variant='ghost'

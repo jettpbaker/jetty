@@ -24,7 +24,13 @@ export type Approval = {
   always?: { patterns: readonly string[]; scope?: string }
 }
 
-export type ProposedFile = { path: string; added: number; removed: number }
+export type ProposedFile = {
+  path: string
+  added: number
+  removed: number
+  // A git diff with no hunks. A rename still has a header, so it stays a text diff.
+  binary: boolean
+}
 
 // `patch` is one git-style patch covering every file; `numbered` is false when some edit is a
 // fragment, whose line numbers mean nothing.
@@ -123,6 +129,24 @@ function editHunk(before: string, after: string, at: { old: number; new: number 
   }
 }
 
+// No hunk, and not a rename: the same hunkless files the changes view calls binary.
+function hunklessDiff(diff: string) {
+  return !/^@@ /m.test(diff) && !/^similarity index /m.test(diff) && !/^rename from /m.test(diff)
+}
+
+function renameHeaders(diff: string) {
+  const lines: string[] = []
+  for (const line of diff.split('\n')) {
+    if (
+      line.startsWith('similarity index ') ||
+      line.startsWith('rename from ') ||
+      line.startsWith('rename to ')
+    )
+      lines.push(line)
+  }
+  return lines
+}
+
 function patchHunks(diff: string) {
   const start = diff.search(/^@@ /m)
   if (start < 0) return { text: '', added: 0, removed: 0 }
@@ -150,12 +174,19 @@ export function proposedChanges(
   for (const [absolute, edits] of byPath) {
     const path = projectRelative(absolute, projectPath)
     const at = { old: 1, new: 1 }
+    const headers: string[] = []
+    let binary = true
     const hunks = edits.map((edit) => {
-      if (edit.diff !== undefined) return patchHunks(edit.diff)
+      if (edit.diff !== undefined) {
+        if (!hunklessDiff(edit.diff)) binary = false
+        headers.push(...renameHeaders(edit.diff))
+        return patchHunks(edit.diff)
+      }
+      binary = false
       if (edit.before !== undefined && edit.after !== undefined) numbered = false
       return editHunk(edit.before ?? '', edit.after ?? '', at)
     })
-    const file = { path, added: 0, removed: 0 }
+    const file = { path, added: 0, removed: 0, binary }
     for (const hunk of hunks) {
       file.added += hunk.added
       file.removed += hunk.removed
@@ -163,12 +194,14 @@ export function proposedChanges(
     files.push(file)
     const created = edits.every((edit) => edit.diff === undefined && edit.before === undefined)
     const deleted = edits.every((edit) => edit.diff === undefined && edit.after === undefined)
-    patch += [
-      `diff --git a/${path} b/${path}`,
+    const parts = [`diff --git a/${path} b/${path}`]
+    if (headers.length) parts.push(headers.join('\n'))
+    parts.push(
       `--- ${created ? '/dev/null' : `a/${path}`}`,
       `+++ ${deleted ? '/dev/null' : `b/${path}`}`,
-      hunks.map((hunk) => hunk.text).join(''),
-    ].join('\n')
+      hunks.map((hunk) => hunk.text).join('')
+    )
+    patch += parts.join('\n')
   }
   return { files, patch, numbered }
 }
@@ -221,15 +254,18 @@ function computeApprovalView(
 function changesView({ files }: ProposedChanges) {
   let added = 0
   let removed = 0
+  let binary = files.length > 0
   for (const file of files) {
     added += file.added
     removed += file.removed
+    if (!file.binary) binary = false
   }
   return {
     action: 'Edit',
     run: false,
     target: files.length === 1 ? files[0]!.path : `${files.length} files`,
-    counts: { additions: added, deletions: removed },
+    // A binary-only proposal has no lines to count. A mix keeps the text files' totals.
+    counts: binary ? undefined : { additions: added, deletions: removed },
   }
 }
 

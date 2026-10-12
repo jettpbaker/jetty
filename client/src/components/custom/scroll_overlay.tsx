@@ -43,14 +43,14 @@ export function ScrollOverlay({
     const resize = new ResizeObserver(update)
     resize.observe(scroller)
     resize.observe(rail)
-    let content: Element | null = null
+    // A proposed diff can mix binary rows with a code view, so every child can change the scroll.
+    let observed: Element[] = []
     function observeContent() {
       if (!scroller) return
-      if (content !== scroller.firstElementChild) {
-        if (content) resize.unobserve(content)
-        content = scroller.firstElementChild
-        if (content) resize.observe(content)
-      }
+      const next = [...scroller.children]
+      for (const child of observed) if (!next.includes(child)) resize.unobserve(child)
+      for (const child of next) if (!observed.includes(child)) resize.observe(child)
+      observed = next
       update()
     }
     const mutation = new MutationObserver(observeContent)

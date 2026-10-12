@@ -131,7 +131,7 @@ export function DiffFileCard({
         <div className='ml-auto flex shrink-0 items-center gap-3'>
           {beforeCounts}
           {file.binary ? (
-            <span className='font-mono text-xs text-muted-foreground'>Binary</span>
+            <span className='text-xs text-muted-foreground'>Binary</span>
           ) : (
             <DiffCounts files={[file]} />
           )}

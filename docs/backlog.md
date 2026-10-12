@@ -323,9 +323,6 @@ Everything below is for one combined review of the chat, not separate ports.
   Failed, Stopped — no "Interrupted".
 - Bump `@anthropic-ai/claude-agent-sdk` now and then (Claude runs on the
   installed CLI; the SDK is just the protocol client).
-- Binary files in the PR diff read `-0 +0` beside "Diff not shown". The header
-  lives in the diff library's shadow DOM, so it needs a CSS poke or a library
-  option.
 - Linked-PR change detection misses changes that don't bump `updatedAt`
   (mergeability flips, thread resolution). If that bites, a 10-minute full
   refresh floor for linked PRs is a two-line addition (an open PR view already
