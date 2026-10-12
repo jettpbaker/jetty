@@ -152,6 +152,7 @@ function ReviewerResults({
 
   return (
     <Command
+      label='Search people'
       shouldFilter={false}
       value={activeOption}
       onValueChange={setActiveOption}

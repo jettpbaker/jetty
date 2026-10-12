@@ -90,6 +90,7 @@ export function ThreadFiles({
   return (
     <div className='search-picker flex h-full min-h-0 flex-col pt-3 pr-1.5 pl-3'>
       <Command
+        label='Search files'
         shouldFilter={false}
         className={cn('bg-transparent', searching ? 'min-h-0 flex-1' : 'h-auto shrink-0')}
       >

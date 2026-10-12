@@ -121,6 +121,7 @@ export function OptionPicker({
       >
         <PopoverTitle className='sr-only'>{label}</PopoverTitle>
         <Command
+          label={placeholder}
           shouldFilter={false}
           value={activeOption}
           onValueChange={setActiveOption}

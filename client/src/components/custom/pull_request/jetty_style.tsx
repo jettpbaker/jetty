@@ -567,7 +567,7 @@ function ChecksPill({ pr }: { pr: PrPull }) {
         className='search-picker w-[440px] max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
       >
         <PopoverTitle className='sr-only'>Checks</PopoverTitle>
-        <Command shouldFilter={false}>
+        <Command label='Search checks' shouldFilter={false}>
           <CommandInput
             placeholder='Search checks'
             aria-label='Search checks'
@@ -1357,7 +1357,13 @@ function CommitPicker({
           initialFocus={searchable ? undefined : list}
         >
           <PopoverTitle className='sr-only'>Commits</PopoverTitle>
-          <Command ref={list} tabIndex={-1} shouldFilter={false} className='outline-none'>
+          <Command
+            ref={list}
+            label='Search commits'
+            tabIndex={-1}
+            shouldFilter={false}
+            className='outline-none'
+          >
             {searchable && (
               <>
                 <CommandInput
