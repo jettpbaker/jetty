@@ -273,6 +273,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'markers':
       return 4 + 24 * row.markers.length
     case 'exchange':
+    case 'tidying':
     case 'compaction':
     case 'restart':
     case 'backgroundStopped':

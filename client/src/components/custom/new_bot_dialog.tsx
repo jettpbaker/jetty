@@ -327,6 +327,15 @@ export function FacePicker({
   )
 }
 
+// What picking `next` changes on `bot`.
+export function botLoadoutChanges(bot: Loadout, next: Loadout) {
+  return {
+    ...(next.model !== bot.model && { model: next.model }),
+    ...(next.effort && next.effort !== bot.effort && { effort: next.effort }),
+    ...(next.fast !== bot.fast && { fast: next.fast }),
+  }
+}
+
 // Bots run Claude for now, at any effort but max.
 export function BotLoadoutPicker({
   value,

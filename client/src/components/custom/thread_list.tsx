@@ -4,7 +4,7 @@ import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { AddToPrompt } from '@/components/custom/add_to_prompt'
 import { ExchangeLine, type Room } from '@/components/custom/bot_conversation'
-import { ThreadMarkers, WakeMarker } from '@/components/custom/bot_markers'
+import { ThreadMarkers, TidyingLine, WakeMarker } from '@/components/custom/bot_markers'
 import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { ProjectFileRoot } from '@/components/custom/file_link'
@@ -144,6 +144,8 @@ function rowStamp(row: ThreadRow) {
       return row.entries.length
     case 'markers':
       return row.markers.length
+    case 'tidying':
+      return ''
     case 'subagentDone':
       return row.agent.status
     case 'error':
@@ -219,6 +221,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'wake') return <WakeMarker reports={row.reports} wake={row.wake} />
   if (row.kind === 'markers') return <ThreadMarkers botId={threadId} markers={row.markers} />
+  if (row.kind === 'tidying') return <TidyingLine />
   if (row.kind === 'exchange' && onOpenRoom)
     return <ExchangeLine chatBotId={threadId} entries={row.entries} onOpen={onOpenRoom} />
   if (row.kind === 'assistant' || row.kind === 'plan')

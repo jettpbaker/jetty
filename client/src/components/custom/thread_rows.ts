@@ -45,6 +45,8 @@ export type ThreadRow =
     }
   // Bot chats only. Messages with other bots, gathered into one line.
   | { kind: 'exchange'; id: string; entries: ExchangeEntry[] }
+  // Bot chats only. A tidy of the bot's notes holds Jett's message, and the chat hides it.
+  | { kind: 'tidying'; id: string }
   // Bot chats only. Threads the bot started or messaged.
   | { kind: 'markers'; id: string; markers: MarkerItem[] }
   | { kind: 'subagentDone'; id: string; agent: SubagentItem }
@@ -438,7 +440,13 @@ type ThreadRowsOptions = {
 
 // A bot's chat is its thread with a few rows of its own. A turn another bot started folds into an
 // exchange line, and a check-in or tidy shows only with `showQuiet` or when the bot messaged.
-export type BotRows = { others: ReadonlySet<string>; showQuiet: boolean }
+export type BotRows = {
+  others: ReadonlySet<string>
+  showQuiet: boolean
+  // The bot is tidying its notes behind a message of Jett's and the chat doesn't show the tidy:
+  // a line stands in for its seam.
+  tidying: boolean
+}
 
 type BotTurn = {
   // Who opened the turn: Jett's own message, another bot, or anyone else (a worker's report, a
@@ -487,8 +495,9 @@ function botTurns(items: readonly ThreadItem[], { others }: BotRows) {
 type LastTurn = { start: number; row: number }
 
 // Where the last turn starts in the items and the rows, when its rows can be built on their own:
-// it opens with a message of the user's, which closes the answer before it, and nothing reaches
-// into it from earlier turns (subagents and their finish lines, the task list).
+// it opens with a message of the user's (in a bot's chat, or a wake), which closes the answer and
+// every exchange line before it, and nothing reaches into it from earlier turns (subagents and
+// their finish lines, the task list).
 function lastTurn(
   items: readonly ThreadItem[],
   rows: readonly ThreadRow[],
@@ -508,7 +517,9 @@ function lastTurn(
   }
   const first = items[start]!
   if (first.kind !== 'user_message') return undefined
-  const row = rows.findLastIndex((row) => row.kind === 'user' && row.id === first.id)
+  const row = rows.findLastIndex(
+    (row) => (row.kind === 'user' || row.kind === 'wake') && row.id === first.id
+  )
   return row === -1 ? undefined : { start, row }
 }
 
@@ -549,12 +560,7 @@ export function createThreadRows() {
       items,
       options,
       rows,
-      // A bot's exchange line gathers across turns, so its last turn isn't built alone.
-      turn: options.bot
-        ? undefined
-        : rows === incremental
-          ? turn
-          : lastTurn(items, rows, options.agentId),
+      turn: rows === incremental ? turn : lastTurn(items, rows, options.agentId),
     }
     return rows
   }
@@ -667,7 +673,7 @@ export function threadRows(
   }
   // Replies stay with the work until the turn ends, then its last reply becomes the answer.
   // A steering message or compaction starts another block, and in a bot's chat so does a thread
-  // marker or a message it sent.
+  // marker or a message it sent (a message to another bot joins the exchange line instead).
   const segments: string[] = []
   const lastReplies = new Map<string, string>()
   // A block's time runs from where its segment began, so a live one counts before its first step.
@@ -678,7 +684,8 @@ export function threadRows(
     const segment =
       item.kind === 'user_message' ||
       (item.kind === 'compaction' && item.status !== 'failed') ||
-      (turns && (item.kind === 'thread_marker' || sentMessage(item)))
+      (turns &&
+        ((item.kind === 'thread_marker' && !exchangeEntry(item, bot!.others)) || sentMessage(item)))
         ? item.id
         : previous === undefined || before!.turnId !== item.turnId
           ? item.turnId
@@ -750,7 +757,8 @@ export function threadRows(
     if (hidden(item)) continue
     const entry = bot && exchangeEntry(item, bot.others)
     if (entry) {
-      const last = rows.at(-1)
+      // The work between two messages doesn't break the line.
+      const last = rows.findLast((row) => row.kind !== 'work')
       if (last?.kind === 'exchange') last.entries.push(entry)
       else rows.push({ kind: 'exchange', id: item.id, entries: [entry] })
       continue
@@ -817,6 +825,7 @@ export function threadRows(
         break
       case 'compaction':
         // A compaction that failed, or was cut off with its turn, didn't happen.
+        if (bot?.tidying && item.status === 'running') break
         if (item.status === 'completed' || (item.status === 'running' && !outcomes[item.turnId]))
           rows.push({ kind: 'compaction', id: item.id, running: item.status === 'running' })
         break
@@ -840,7 +849,12 @@ export function threadRows(
   }
   flushFinished(Infinity)
   // A compaction's seam is the live line until the agent does something after it.
-  if (liveSegment && tail && items.find((item) => item.id === liveSegment)?.kind !== 'compaction')
+  if (
+    liveSegment &&
+    tail &&
+    !bot?.tidying &&
+    items.find((item) => item.id === liveSegment)?.kind !== 'compaction'
+  )
     openBlock(liveSegment, tail.turnId)
   finishTurn(false)
   // The main agent's todo calls read as one line each; a subagent's stay ordinary tool calls.
@@ -881,6 +895,7 @@ export function threadRows(
   // A first message waits on the worktree's setup before the agent starts.
   if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
   stitchRuns(rows)
+  if (bot?.tidying) rows.push({ kind: 'tidying', id: 'tidying' })
   return reuseRows(allItems[0], groupPullRequestRows(rows))
 }
 

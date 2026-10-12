@@ -4,6 +4,7 @@ import { BotAvatar } from '@/components/custom/bot_avatar'
 import { CrossSmallIcon } from '@/components/custom/central_icons'
 import {
   BotLoadoutPicker,
+  botLoadoutChanges,
   BotNameInput,
   FacePicker,
   FullAccessLabel,
@@ -85,11 +86,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
               <BotLoadoutPicker
                 value={bot}
                 onChange={(next) => {
-                  const changes = {
-                    ...(next.model !== bot.model && { model: next.model }),
-                    ...(next.effort && next.effort !== bot.effort && { effort: next.effort }),
-                    ...(next.fast !== bot.fast && { fast: next.fast }),
-                  }
+                  const changes = botLoadoutChanges(bot, next)
                   if (Object.keys(changes).length) update(bot.id, changes)
                 }}
                 onOpenSettings={() => {

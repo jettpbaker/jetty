@@ -182,3 +182,12 @@ export function WakeMarker({
     </div>
   )
 }
+
+// Under Jett's message while the bot tidies its notes first; it goes when the tidy ends.
+export function TidyingLine() {
+  return (
+    <div className={rowClass}>
+      <div className={lineClass}>Tidying its notes</div>
+    </div>
+  )
+}
