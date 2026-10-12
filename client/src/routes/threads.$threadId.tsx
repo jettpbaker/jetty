@@ -1,3 +1,4 @@
+import { BotTabStrip } from '@/components/custom/bot_tab_strip'
 import { EditSmall1Icon } from '@/components/custom/central_icons'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
@@ -65,7 +66,12 @@ function Thread() {
     )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      {composerOnly && <PageSidebarTrigger standalone />}
+      {composerOnly &&
+        (meta?.botId ? (
+          <BotTabStrip botId={meta.botId} threadId={threadId} />
+        ) : (
+          <PageSidebarTrigger standalone />
+        ))}
       {composerOnly ? (
         <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
       ) : (
