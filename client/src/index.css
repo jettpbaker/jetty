@@ -342,16 +342,13 @@
 }
 
 /* Keep the line constant through viewBox scaling and parent slot sizes. */
-:is(svg[data-icon-pack='central'], svg[data-icon-pack='huge'], svg.lucide) {
+:is(svg[data-icon-pack='central'], svg.lucide) {
   overflow: visible;
 }
-:is(svg[data-icon-pack='central'], svg[data-icon-pack='huge'], svg.lucide)
+:is(svg[data-icon-pack='central'], svg.lucide)
   :is(path, circle, rect, line, polyline, polygon, ellipse) {
   vector-effect: non-scaling-stroke;
   stroke-width: 2px;
-}
-svg[data-icon-pack='huge'] :is(path, circle, rect, line, polyline, polygon, ellipse) {
-  stroke-width: 1.333px;
 }
 svg[data-icon-pack='central'] [stroke-width='0.75'] {
   stroke-width: 0.75px;

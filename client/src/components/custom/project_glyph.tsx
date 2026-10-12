@@ -3,15 +3,9 @@ import type { ProjectIcon } from '@jetty/shared/wire'
 import { Folder1Icon } from '@/components/custom/central_icons'
 import { emojiUrl } from '@/lib/fluent_emoji'
 import { cn } from '@/lib/utils'
-import { Suspense, use, useState } from 'react'
+import { useState } from 'react'
 
 type GlyphProps = { className?: string; 'data-icon'?: 'inline-start' }
-
-let iconSet: Promise<typeof import('./project_icon_set')> | undefined
-
-function loadProjectIconSet() {
-  return (iconSet ??= import('./project_icon_set'))
-}
 
 function DefaultGlyph(props: GlyphProps) {
   return <Folder1Icon aria-hidden='true' {...props} />
@@ -33,23 +27,7 @@ function EmojiGlyph({ emoji, className, ...props }: GlyphProps & { emoji: string
   )
 }
 
-function IconGlyph({ name, className, ...props }: GlyphProps & { name: string }) {
-  const Icon = use(loadProjectIconSet()).projectIconsByName.get(name)
-  if (!Icon) return <DefaultGlyph className={className} {...props} />
-  return <Icon aria-hidden='true' className={cn('shrink-0', className)} {...props} />
-}
-
 export function ProjectGlyph({ icon, ...props }: GlyphProps & { icon?: ProjectIcon }) {
-  if (icon?.type === 'emoji') return <EmojiGlyph key={icon.emoji} emoji={icon.emoji} {...props} />
-  if (icon?.type === 'icon')
-    return (
-      <Suspense
-        fallback={
-          <span aria-hidden='true' className={cn('inline-block shrink-0', props.className)} />
-        }
-      >
-        <IconGlyph name={icon.name} {...props} />
-      </Suspense>
-    )
+  if (icon) return <EmojiGlyph key={icon.emoji} emoji={icon.emoji} {...props} />
   return <DefaultGlyph {...props} />
 }

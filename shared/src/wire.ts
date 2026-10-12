@@ -166,13 +166,11 @@ export type AgentBehaviourKey = Schema.Schema.Type<typeof AgentBehaviourKey>
 export const AgentBehaviours = Schema.Record(AgentBehaviourKey, Schema.Boolean)
 export type AgentBehaviours = Schema.Schema.Type<typeof AgentBehaviours>
 
-export const ProjectIcon = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal('emoji'),
-    emoji: Schema.String.check(Schema.isMinLength(1)),
-  }),
-  Schema.Struct({ type: Schema.Literal('icon'), name: Schema.String.check(Schema.isMinLength(1)) }),
-])
+// Projects used to pick from an icon set too; stored ones fail this and read as no icon.
+export const ProjectIcon = Schema.Struct({
+  type: Schema.Literal('emoji'),
+  emoji: Schema.String.check(Schema.isMinLength(1)),
+})
 export type ProjectIcon = Schema.Schema.Type<typeof ProjectIcon>
 
 export const Project = Schema.Struct({

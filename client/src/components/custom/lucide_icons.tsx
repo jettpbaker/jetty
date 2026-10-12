@@ -1,7 +1,1 @@
-export {
-  CircleSlashIcon,
-  CircleCheckIcon,
-  CircleDotIcon,
-  GitBranchIcon,
-  GitMergeIcon,
-} from 'lucide-react'
+export { CircleCheckIcon, CircleDotIcon, CircleSlashIcon } from 'lucide-react'

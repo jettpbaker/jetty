@@ -19,7 +19,7 @@
               "@phosphor-icons/*",
               "@primer/octicons-react"
             ],
-            "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+            "message": "Icons come from central_icons.tsx (Central) or lucide_icons.tsx (GitHub issue states). See AGENTS.md (icons)."
           }
         ]
       }
@@ -109,7 +109,7 @@
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+                "message": "Icons come from central_icons.tsx (Central) or lucide_icons.tsx (GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
@@ -131,7 +131,7 @@
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+                "message": "Icons come from central_icons.tsx (Central) or lucide_icons.tsx (GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
@@ -164,7 +164,7 @@
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+                "message": "Icons come from central_icons.tsx (Central) or lucide_icons.tsx (GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
@@ -192,28 +192,7 @@
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["client/src/components/custom/huge_icons.tsx"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "lucide-react",
-                  "@central-icons-react/*",
-                  "@phosphor-icons/*",
-                  "@primer/octicons-react"
-                ],
-                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+                "message": "Icons come from central_icons.tsx (Central) or lucide_icons.tsx (GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
@@ -234,7 +213,7 @@
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+                "message": "Icons come from central_icons.tsx (Central) or lucide_icons.tsx (GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
