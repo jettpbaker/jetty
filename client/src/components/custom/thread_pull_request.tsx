@@ -37,9 +37,22 @@ const mergeVerdicts: Record<string, string> = {
   BLOCKED: 'Blocked',
 }
 
+// Where an open PR sits, first fit: blocked, then checks running, then mergeable, else in review.
+// Mergeable is the server's mergeReady (pull-request-watch.ts).
+export type PullRequestReadinessGroup = 'needs-you' | 'running' | 'ready' | 'in-review'
+
+export function pullRequestReadinessGroup(pr: PullRequestReadiness): PullRequestReadinessGroup {
+  if (pr.checks === 'failure' || pr.reviewDecision === 'CHANGES_REQUESTED') return 'needs-you'
+  if (pr.mergeable === 'CONFLICTING') return 'needs-you'
+  if (pr.checks === 'pending') return 'running'
+  if (pr.mergeStateStatus === 'CLEAN' || pr.mergeStateStatus === 'HAS_HOOKS') return 'ready'
+  return 'in-review'
+}
+
 // An open PR's colour: red when something blocks it, yellow while checks run, green otherwise.
 // The reason names the blockers first, then what it waits on; with neither, GitHub's merge verdict.
 function pullRequestReadiness(pr: PullRequestReadiness) {
+  const group = pullRequestReadinessGroup(pr)
   const failing = pr.checks === 'failure'
   const changes = pr.reviewDecision === 'CHANGES_REQUESTED'
   const conflict = pr.mergeable === 'CONFLICTING'
@@ -57,9 +70,9 @@ function pullRequestReadiness(pr: PullRequestReadiness) {
   ].filter(Boolean)
   return {
     color:
-      failing || changes || conflict
+      group === 'needs-you'
         ? 'text-status-error'
-        : running
+        : group === 'running'
           ? 'text-pr-running'
           : 'text-pr-open',
     reason: reasons.join(' · ') || mergeVerdicts[pr.mergeStateStatus ?? ''] || 'Open',

@@ -29,6 +29,7 @@ import { IconBranchSimple } from '@central-icons-react/round-outlined-radius-3-s
 import { IconBrokenChainLink1 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBrokenChainLink1'
 import { IconBubbleDots } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBubbleDots'
 import { IconBubbles } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBubbles'
+import { IconBug } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBug'
 import { IconCalendarClock } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCalendarClock'
 import { IconChainLink4 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChainLink4'
 import { IconChanges } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconChanges'
@@ -91,6 +92,7 @@ import { IconPaintBrush } from '@central-icons-react/round-outlined-radius-3-str
 import { IconPaperclip2 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPaperclip2'
 import { IconPause } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPause'
 import { IconPencil2 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPencil2'
+import { IconPeople } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPeople'
 import { IconPin } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPin'
 import { IconPlay } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlay'
 import { IconPlayground } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlayground'
@@ -162,6 +164,7 @@ export const BranchSimpleIcon = centralIcon(IconBranchSimple)
 export const BrokenChainLink1Icon = centralIcon(IconBrokenChainLink1)
 export const BubbleDotsIcon = centralIcon(IconBubbleDots)
 export const BubblesIcon = centralIcon(IconBubbles)
+export const BugIcon = centralIcon(IconBug)
 export const CalendarClockIcon = centralIcon(IconCalendarClock)
 export const ChainLink4Icon = centralIcon(IconChainLink4)
 export const ChangesIcon = centralIcon(IconChanges)
@@ -224,6 +227,7 @@ export const PaintBrushIcon = centralIcon(IconPaintBrush)
 export const Paperclip2Icon = centralIcon(IconPaperclip2)
 export const PauseIcon = centralIcon(IconPause, IconPauseFilled)
 export const Pencil2Icon = centralIcon(IconPencil2)
+export const PeopleIcon = centralIcon(IconPeople)
 export const PinIcon = centralIcon(IconPin, IconPinFilled)
 export const PlayIcon = centralIcon(IconPlay, IconPlayFilled)
 export const PlaygroundIcon = centralIcon(IconPlayground)

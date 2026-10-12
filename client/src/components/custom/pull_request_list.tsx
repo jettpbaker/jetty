@@ -25,6 +25,8 @@ import {
   MergedIcon,
   RequestClosedIcon,
   DraftIcon,
+  BugIcon,
+  PeopleIcon,
   PullRequestIcon,
 } from './central_icons'
 import { ListFilterMenu, ListGroupMenu } from './grouped_list_controls'
@@ -40,7 +42,11 @@ import {
   pullRequestGroupLabel,
   pullRequestGroupOrder,
   pullRequestIdentifier,
+  pullRequestListGroup,
+  pullRequestReadinessLabel,
+  pullRequestReadinessOrder,
   type PullRequestGroup,
+  type PullRequestListGroup,
 } from './pull_request_list_model'
 import { linkPresentation } from './thread_pull_request'
 
@@ -68,6 +74,27 @@ const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNo
     icon: <RequestClosedIcon className='size-3 text-destructive' />,
   },
 }
+
+const readinessPresentation: Record<PullRequestListGroup, { color: string; icon: ReactNode }> = {
+  ready: groupPresentation.open,
+  'needs-you': {
+    color: 'var(--status-error)',
+    icon: <BugIcon className='size-3 text-status-error' />,
+  },
+  'in-review': {
+    color: 'var(--muted-foreground)',
+    icon: <PeopleIcon className='size-3 text-muted-foreground' />,
+  },
+  running: {
+    color: 'var(--pr-running)',
+    icon: <PullRequestIcon className='size-3 text-pr-running' />,
+  },
+  draft: groupPresentation.draft,
+  merged: groupPresentation.merged,
+  closed: groupPresentation.closed,
+}
+
+type GroupBy = 'readiness' | 'state' | 'repo'
 
 const compactLines = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 0 })
 
@@ -119,10 +146,10 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     (value): value is PullRequestGroup[] =>
       Array.isArray(value) && value.every((state) => pullRequestGroupOrder.includes(state))
   )
-  const [groupBy, setGroupBy] = useStoredState<'state' | 'repo'>(
+  const [groupBy, setGroupBy] = useStoredState<GroupBy>(
     'jetty.pullRequests.groupBy',
-    'state',
-    (value): value is 'state' | 'repo' => value === 'state' || value === 'repo'
+    'readiness',
+    (value): value is GroupBy => value === 'readiness' || value === 'state' || value === 'repo'
   )
   const rows = pulls
     .filter((pull) => included.includes(pull.state))
@@ -135,16 +162,27 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           color: 'var(--muted-foreground)',
           rows: rows.filter((pull) => pull.repo === repo),
         }))
-      : pullRequestGroupOrder
-          .map((group) => ({
-            id: group,
-            label: pullRequestGroupLabel[group],
-            ...groupPresentation[group],
-            labelColor: groupPresentation[group].color,
-            rows: rows.filter((pull) => pull.state === group),
-            defaultCollapsed: group === 'closed' || group === 'merged',
-          }))
-          .filter((group) => group.rows.length)
+      : groupBy === 'readiness'
+        ? pullRequestReadinessOrder
+            .map((group) => ({
+              id: group,
+              label: pullRequestReadinessLabel[group],
+              ...readinessPresentation[group],
+              labelColor: readinessPresentation[group].color,
+              rows: rows.filter((pull) => pullRequestListGroup(pull) === group),
+              defaultCollapsed: group === 'closed' || group === 'merged',
+            }))
+            .filter((group) => group.rows.length)
+        : pullRequestGroupOrder
+            .map((group) => ({
+              id: group,
+              label: pullRequestGroupLabel[group],
+              ...groupPresentation[group],
+              labelColor: groupPresentation[group].color,
+              rows: rows.filter((pull) => pull.state === group),
+              defaultCollapsed: group === 'closed' || group === 'merged',
+            }))
+            .filter((group) => group.rows.length)
   const columns: GroupedColumn<PullRequestListItem>[] = [
     {
       id: 'state',
@@ -287,6 +325,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           />
           <ListGroupMenu
             choices={[
+              { value: 'readiness', label: 'Readiness' },
               { value: 'state', label: 'Status' },
               { value: 'repo', label: 'Repository' },
             ]}
@@ -352,7 +391,11 @@ const listColor = {
 }
 
 function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
-  const { icon: Icon, color, label } = linkPresentation(pull)
+  const look = linkPresentation(pull)
+  const group = pullRequestListGroup(pull)
+  const { label } = look
+  const Icon = group === 'needs-you' ? BugIcon : group === 'in-review' ? PeopleIcon : look.icon
+  const color = group === 'in-review' ? 'text-muted-foreground' : look.color
   return (
     <Tooltip>
       <TooltipTrigger
