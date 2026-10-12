@@ -49,8 +49,10 @@ async function tidyQuery(
   const root = await realpath(home)
   const pages = join(root, 'pages')
   const index = join(root, 'index.md')
+  const instructions = join(root, 'instructions.md')
+  const user = await botUserName()
   let prompt = await readFile(new URL('./bot-prompt/tidy.md', import.meta.url), 'utf8')
-  for (const [key, value] of Object.entries({ name: bot.name, home, bots: join(home, '..') }))
+  for (const [key, value] of Object.entries({ name: bot.name, home, bots: join(home, '..'), user }))
     prompt = prompt.replaceAll(`{${key}}`, value)
   const canUseTool: NonNullable<Options['canUseTool']> = async (tool, input) => {
     const writing = tool === 'Edit' || tool === 'Write'
@@ -70,13 +72,13 @@ async function tidyQuery(
         : resolve(root, path)
     const target = await canonical(requested)
     const writable =
-      (requested === index || within(pages, requested)) &&
-      (target === index || within(pages, target))
+      (requested === index || requested === instructions || within(pages, requested)) &&
+      (target === index || target === instructions || within(pages, target))
     if (writing ? writable : within(bots, target)) return { behavior: 'allow', updatedInput: input }
     return {
       behavior: 'deny',
       message: writing
-        ? 'Only index.md and pages/ may be edited; brief, log/ and files/ are the bot’s.'
+        ? 'Only index.md, instructions.md and pages/ may be edited; brief, log/ and files/ are the bot’s.'
         : 'Read only under the bots folder.',
     }
   }
@@ -136,17 +138,28 @@ async function tidyQuery(
 
 export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLifecycle) {
   let completed = false
+  let hasInstructionsFile = false
   return Effect.gen(function* () {
     yield* Effect.tryPromise(() => commitBotHome(home)).pipe(Effect.uninterruptible)
+    hasInstructionsFile = Boolean(
+      yield* Effect.tryPromise(() => botHomeGit(home, ['ls-files', '--', 'instructions.md']))
+    )
     const head = yield* Effect.tryPromise(() => botHomeGit(home, ['rev-parse', 'HEAD']))
     const pages = yield* Effect.tryPromise(() =>
       readdir(join(home, 'pages'), { withFileTypes: true })
     )
     const hasPages = pages.some((page) => page.isFile() && page.name.endsWith('.md'))
-    if (head === record.tidiedHead || !hasPages) {
+    const instructions = yield* Effect.tryPromise(() =>
+      readFile(join(home, 'instructions.md'), 'utf8').catch((error) => {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        return ''
+      })
+    )
+    const hasInstructions = instructions.split('\n').some((line) => line.startsWith('- '))
+    if (head === record.tidiedHead || (!hasPages && !hasInstructions)) {
       yield* store.updateBotLifecycle(bot.id, { tidiedAt: Date.now() })
       yield* Effect.logInfo(
-        `tidy pass for ${bot.id} skipped: ${hasPages ? 'home unchanged' : 'no pages'}`
+        `tidy pass for ${bot.id} skipped: ${hasPages || hasInstructions ? 'home unchanged' : 'no pages or instructions'}`
       )
       completed = true
       return
@@ -163,10 +176,21 @@ export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLif
     })
     yield* Effect.gen(function* () {
       const changed = yield* Effect.tryPromise(() =>
-        botHomeGit(home, ['status', '--porcelain', '--', 'pages', 'index.md'])
+        botHomeGit(home, ['status', '--porcelain', '--', 'pages', 'index.md', 'instructions.md'])
       )
       if (changed) {
-        yield* Effect.tryPromise(() => botHomeGit(home, ['add', '--', 'pages', 'index.md']))
+        const instructionChanges = yield* Effect.tryPromise(() =>
+          botHomeGit(home, ['status', '--porcelain', '--', 'instructions.md'])
+        )
+        yield* Effect.tryPromise(() =>
+          botHomeGit(home, [
+            'add',
+            '--',
+            'pages',
+            'index.md',
+            ...(instructionChanges ? ['instructions.md'] : []),
+          ])
+        )
         yield* Effect.tryPromise(() =>
           botHomeGit(home, [
             '-c',
@@ -189,7 +213,7 @@ export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLif
         )
         const user = yield* Effect.tryPromise(botUserName)
         const truncated = patch.length > 30_000
-        const text = `Jetty's daily tidy pass went over your wiki and changed it. Its changelog and diff are below. Check the changes against what you know and undo anything wrong; if they're right, end your turn without messaging ${user}.\n\n${changelog}\n\n\`\`\`diff\n${patch.slice(0, 30_000)}\n\`\`\`${truncated ? `\n\n(The diff is cut off here. See all of it with \`git -C ${home} show ${sha}\`.)` : ''}`
+        const text = `Jetty's daily tidy pass went over your wiki and changed it. Its changelog and diff are below. Check the changes against what you know and undo anything wrong in the pages or index; for a wrong instruction, use add_instruction to replace it. If they're right, end your turn without messaging ${user}.\n\n${changelog}\n\n\`\`\`diff\n${patch.slice(0, 30_000)}\n\`\`\`${truncated ? `\n\n(The diff is cut off here. See all of it with \`git -C ${home} show ${sha}\`.)` : ''}`
         yield* store.enqueue(bot.id, {
           id: newId(),
           createdAt: Date.now(),
@@ -213,13 +237,22 @@ export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLif
       Effect.gen(function* () {
         if (completed) return
         yield* Effect.tryPromise(() =>
-          botHomeGit(home, ['checkout', 'HEAD', '--', 'pages', 'index.md'])
+          botHomeGit(home, [
+            'checkout',
+            'HEAD',
+            '--',
+            'pages',
+            'index.md',
+            ...(hasInstructionsFile ? ['instructions.md'] : []),
+          ])
         ).pipe(
           Effect.catch((error) =>
             Effect.logWarning(`tidy pass for ${bot.id} restore failed: ${error}`)
           )
         )
-        yield* Effect.tryPromise(() => botHomeGit(home, ['clean', '-fdq', '--', 'pages'])).pipe(
+        yield* Effect.tryPromise(() =>
+          botHomeGit(home, ['clean', '-fdq', '--', 'pages', 'instructions.md'])
+        ).pipe(
           Effect.catch((error) =>
             Effect.logWarning(`tidy pass for ${bot.id} cleanup failed: ${error}`)
           )

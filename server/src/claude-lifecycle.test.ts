@@ -441,9 +441,13 @@ describe('scoped Claude sessions', () => {
     const hash = await render()
     const names = ['jetty.md', ...BOT_PROMPT_FILES, 'preferences.md']
     expect(readFileSync(join(f.botHome, 'CLAUDE.md'), 'utf8')).toBe(
-      [...names.map((name) => `@.jetty/instructions/${name}`), '@brief.md', '@index.md', ''].join(
-        '\n'
-      )
+      [
+        ...names.map((name) => `@.jetty/instructions/${name}`),
+        '@instructions.md',
+        '@brief.md',
+        '@index.md',
+        '',
+      ].join('\n')
     )
     expect(readdirSync(folder).sort()).toEqual([...names].sort())
     expect(readFileSync(join(f.botHome, '.gitignore'), 'utf8')).toBe('files/cache\n.jetty/\n')

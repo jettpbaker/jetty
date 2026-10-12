@@ -678,7 +678,8 @@ export function threadRows(
     return (
       isAnsweredQuestionTool(item) ||
       (item.kind === 'tool_call' && item.status !== 'succeeded' && deniedTools.has(item.id)) ||
-      (item.kind === 'tool_call' && item.toolName === 'ToolSearch') ||
+      (item.kind === 'tool_call' &&
+        ['ToolSearch', 'mcp__jetty__add_instruction'].includes(item.toolName)) ||
       (turns !== undefined &&
         item.kind === 'tool_call' &&
         item.toolName === messageUserTool &&

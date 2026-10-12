@@ -25,6 +25,8 @@ import {
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { Effect, FileSystem, Path, Scope } from 'effect'
+import { appendFile, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { z } from 'zod'
 
 import type { Attachments } from './attachments'
@@ -965,6 +967,47 @@ export function createMcpHandler(
             }
           )
         }
+        server.registerTool(
+          'add_instruction',
+          {
+            ...toolMeta,
+            description:
+              "Add one standing instruction to your instructions.md, which loads every session. One rule per call, written as something you can follow, with a short reason. Lines can't be edited or removed; to change one, add one that replaces it and say which.",
+            inputSchema: {
+              instruction: z
+                .string()
+                .trim()
+                .min(1)
+                .max(1000)
+                .regex(/^[^\r\n]+$/),
+              reason: z
+                .string()
+                .trim()
+                .min(1)
+                .max(200)
+                .regex(/^[^\r\n]+$/),
+            },
+          },
+          ({ instruction, reason }) =>
+            invoke(
+              Effect.gen(function* () {
+                const thread = yield* store.requireThread(bot.id)
+                const home = yield* store.getProject(thread.projectId)
+                if (!home)
+                  return yield* Effect.fail(new StoreError('not_found', 'Bot home not found'))
+                const date = new Date().toISOString().slice(0, 10)
+                yield* Effect.tryPromise(async () => {
+                  const path = join(home.path, 'instructions.md')
+                  const current = await readFile(path, 'utf8')
+                  await appendFile(
+                    path,
+                    `${current && !current.endsWith('\n') ? '\n' : ''}- ${instruction} (${date}, ${reason})\n`
+                  )
+                })
+                return 'Instruction added.'
+              })
+            )
+        )
         server.registerTool(
           'add_project',
           {

@@ -3,6 +3,7 @@ export const BOT_PROMPT_FILES = [
   'talking.md',
   'job.md',
   'wiki.md',
+  'instructions.md',
   'shared-preferences.md',
   'tasks.md',
   'proactivity.md',

@@ -30,7 +30,8 @@ import {
   Semaphore,
   Stream,
 } from 'effect'
-import { join } from 'node:path'
+import { realpath } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
 
 import type { ClaudeCapture } from './claude-capture'
 import type { Store } from './store'
@@ -1054,6 +1055,38 @@ export function createClaudeAdapter(
                               hooks: [
                                 async (hookInput) => {
                                   if (hookInput.hook_event_name !== 'PreToolUse') return {}
+                                  if (
+                                    ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(
+                                      hookInput.tool_name
+                                    )
+                                  ) {
+                                    const input = hookInput.tool_input as {
+                                      file_path?: unknown
+                                      notebook_path?: unknown
+                                    }
+                                    const path = input?.file_path ?? input?.notebook_path
+                                    if (typeof path === 'string') {
+                                      const requested = resolve(projectPath, path)
+                                      const target = await realpath(requested).catch(
+                                        () => requested
+                                      )
+                                      const protectedPaths = await Promise.all(
+                                        ['instructions.md', 'CLAUDE.md'].map(async (file) => {
+                                          const path = join(projectPath, file)
+                                          return [path, await realpath(path).catch(() => path)]
+                                        })
+                                      )
+                                      if (protectedPaths.flat().includes(target))
+                                        return {
+                                          hookSpecificOutput: {
+                                            hookEventName: 'PreToolUse' as const,
+                                            permissionDecision: 'deny' as const,
+                                            permissionDecisionReason:
+                                              'Use add_instruction to add a standing instruction. instructions.md is append-only for you, and CLAUDE.md is managed by Jetty.',
+                                          },
+                                        }
+                                    }
+                                  }
                                   if (hookInput.tool_name === 'mcp__jetty__add_project')
                                     return {
                                       hookSpecificOutput: {
@@ -1200,7 +1233,18 @@ export function createClaudeAdapter(
                   .getAgentBehaviours()
                   .pipe(Effect.mapError((error) => new AgentError(error.message)))
                 return yield* Effect.tryPromise({
-                  try: () => botInstructions(bot, projects, behaviours, projectPath),
+                  try: () =>
+                    botInstructions(bot, projects, behaviours, projectPath, async (text) => {
+                      await run(
+                        store.enqueueOnce(bot.id, {
+                          id: `${bot.id}-instructions-migration`,
+                          text,
+                          createdAt: Date.now(),
+                          hop: 0,
+                          from: { threadId: bot.id, title: 'Jetty' },
+                        })
+                      )
+                    }),
                   catch: (error) => new AgentError(String(error)),
                 })
               })

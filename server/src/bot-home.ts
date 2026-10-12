@@ -39,7 +39,8 @@ export async function createBotHome(home: string) {
   for (const folder of ['pages', 'log', 'files'])
     await mkdir(join(home, folder), { recursive: true })
   for (const file of ['brief.md', 'index.md']) await writeFile(join(home, file), '', { flag: 'a' })
-  await writeFile(join(home, 'CLAUDE.md'), '@brief.md\n@index.md\n')
+  await writeFile(join(home, 'instructions.md'), '# Your instructions\n\n', { flag: 'wx' })
+  await writeFile(join(home, 'CLAUDE.md'), '@instructions.md\n@brief.md\n@index.md\n')
   await git(home, ['init', '-q', '-b', 'main'])
   await commitBotHome(home, 'Initial bot home')
 }
@@ -142,11 +143,20 @@ export async function botInstructions(
   bot: Bot,
   projects: readonly Project[],
   behaviours: Parameters<typeof jettyInstructions>[0],
-  home: string
+  home: string,
+  migrate?: (text: string) => Promise<void>
 ) {
   await commitSharedPreferences(home)
   const preferences = await readFile(join(home, '..', 'shared', 'preferences.md'), 'utf8')
   const user = await botUserName()
+  if ((await readExisting(join(home, 'instructions.md'))) === undefined) {
+    const pages = await readdir(join(home, 'pages'), { withFileTypes: true })
+    if (migrate && pages.some((page) => page.isFile() && page.name.endsWith('.md')))
+      await migrate(
+        `Jetty update: you now have standing instructions in instructions.md (see "Your instructions" in your prompt). Look through your index and pages for how ${user} wants things done and for lessons you wrote for yourself, add each with add_instruction (reason: "moved from pages/<file>"), and take them out of the pages. Facts stay in pages. Don't message ${user} about this.`
+      )
+    await writeFile(join(home, 'instructions.md'), '# Your instructions\n\n', { flag: 'wx' })
+  }
   const named = projects.map((project) => `${project.title} (${displayPath(project.path)})`)
   const selected = projects.find((project) => project.id === bot.projectId)
   const others = projects
@@ -197,6 +207,7 @@ export async function botInstructions(
     join(home, 'CLAUDE.md'),
     [
       ...files.map((file) => `@.jetty/instructions/${file.name}`),
+      '@instructions.md',
       '@brief.md',
       '@index.md',
       '',

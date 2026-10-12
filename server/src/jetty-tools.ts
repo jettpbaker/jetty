@@ -11,6 +11,7 @@ export const SELF_TOOLS = [
   'desktop_session',
   'ask_parent',
   'message_user',
+  'add_instruction',
   'add_task',
   'update_task',
   'list_tasks',
