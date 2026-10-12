@@ -1,17 +1,17 @@
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ComponentType, SVGProps } from 'react'
 
-import { ArchiveIcon } from '@/components/custom/central_icons'
+import {
+  ArchiveIcon,
+  CircleCheckIcon,
+  CircleXIcon,
+  ClockIcon,
+  Progress50Icon,
+  QuestionmarkCircleIcon,
+} from '@/components/custom/central_icons'
 import { cn } from '@/lib/utils'
 
-import {
-  ErrorStatusIcon,
-  NeedsInputIcon,
-  SuccessStatusIcon,
-  WaitingStatusIcon,
-} from './circle_status_icon'
 import { IdleIcon } from './idle_icon'
-import { InProgressIcon } from './in_progress_icon'
 
 // One status vocabulary for threads, child threads and workflow agents.
 export type Status =
@@ -50,17 +50,33 @@ export const statusPresentation: Record<
   Status,
   { icon: ComponentType<SVGProps<SVGSVGElement>>; label: string; color: string }
 > = {
-  monitoring: { icon: WaitingStatusIcon, label: 'Waiting', color: 'text-muted-foreground' },
-  idle: { icon: IdleIcon, label: 'Idle', color: 'text-muted-foreground' },
-  working: { icon: InProgressIcon, label: 'Working', color: 'text-status-working' },
-  'needs-attention': { icon: NeedsInputIcon, label: 'Needs input', color: 'text-status-attention' },
-  error: { icon: ErrorStatusIcon, label: 'Error', color: 'text-status-error' },
-  ready: { icon: SuccessStatusIcon, label: 'Ready for review', color: 'text-status-success' },
-  done: { icon: SuccessStatusIcon, label: 'Finished', color: 'text-status-success' },
+  monitoring: { icon: ClockIcon, label: 'Waiting', color: 'text-status-idle' },
+  idle: { icon: IdleIcon, label: 'Idle', color: 'text-status-idle' },
+  working: { icon: Progress50Icon, label: 'Working', color: 'text-status-working' },
+  'needs-attention': {
+    icon: FilledQuestionmarkCircleIcon,
+    label: 'Needs input',
+    color: 'text-status-attention',
+  },
+  error: { icon: FilledCircleXIcon, label: 'Error', color: 'text-status-error' },
+  ready: { icon: FilledCircleCheckIcon, label: 'Ready for review', color: 'text-status-success' },
+  done: { icon: FilledCircleCheckIcon, label: 'Finished', color: 'text-status-success' },
   // Stopped and queued aren't running and wait on no one, so they draw the idle ring under their own names.
-  stopped: { icon: IdleIcon, label: 'Stopped', color: 'text-muted-foreground' },
+  stopped: { icon: IdleIcon, label: 'Stopped', color: 'text-status-idle' },
   archived: { icon: ArchiveIcon, label: 'Archived', color: 'text-muted-foreground' },
-  queued: { icon: IdleIcon, label: 'Queued', color: 'text-muted-foreground' },
+  queued: { icon: IdleIcon, label: 'Queued', color: 'text-status-idle' },
+}
+
+function FilledQuestionmarkCircleIcon(props: SVGProps<SVGSVGElement>) {
+  return <QuestionmarkCircleIcon filled {...props} />
+}
+
+function FilledCircleXIcon(props: SVGProps<SVGSVGElement>) {
+  return <CircleXIcon filled {...props} />
+}
+
+function FilledCircleCheckIcon(props: SVGProps<SVGSVGElement>) {
+  return <CircleCheckIcon filled {...props} />
 }
 
 export function StatusGlyph({ status, className }: { status: Status; className?: string }) {

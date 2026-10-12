@@ -1,5 +1,6 @@
 import type { ProjectIcon } from '@jetty/shared/wire'
 
+import { cn } from '@/lib/utils'
 import { useBot } from '@/state'
 
 import { JettyBot } from './jetty_bot'
@@ -43,6 +44,7 @@ export function ThreadRow({
   onOpenPullRequest: () => void
 }) {
   const bot = useBot(botId)
+  const quiet = status !== 'error' && status !== 'ready' && status !== 'needs-attention'
   return (
     <div className='thread-row keybind-target' data-selected={selected || undefined}>
       <ThreadHoverCard threadId={id}>
@@ -72,7 +74,10 @@ export function ThreadRow({
                     <span className='shrink-0 text-faint-foreground'>/</span>
                   </>
                 )}
-                <OverflowTitle focusable={false} className='font-normal leading-normal'>
+                <OverflowTitle
+                  focusable={false}
+                  className={cn('font-normal leading-normal', quiet && 'text-muted-foreground')}
+                >
                   {title}
                 </OverflowTitle>
               </span>

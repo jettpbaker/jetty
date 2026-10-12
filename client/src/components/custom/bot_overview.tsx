@@ -5,6 +5,7 @@ import {
   CirclePlaceholderOnIcon,
   Checkmark1MediumIcon,
   CirclePlaceholderOffIcon,
+  Progress50Icon,
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
@@ -16,7 +17,6 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { ThreadFace } from './bot_avatar'
 import { BotSettingsSheet } from './bot_settings_sheet'
-import { InProgressIcon } from './in_progress_icon'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { sidebarThread } from './sidebar_thread_groups'
@@ -83,7 +83,7 @@ function TaskGlyph({ status }: { status: BotTask['status'] }) {
   const className = 'size-3.5 shrink-0 text-muted-foreground'
   switch (status) {
     case 'in_progress':
-      return <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
+      return <Progress50Icon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
     case 'done':
       return <Checkmark1MediumIcon className={className} />
     // Lucide's, as for an issue closed as not planned.

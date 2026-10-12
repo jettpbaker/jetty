@@ -48,28 +48,8 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   It came up picking icons: what a dropped task meant wasn't clear. Rethink whether bots need
   their own list beside their threads and the agent's todo list, and what each state means to Jett.
 
-## status colours (agreed with Jett 12 Oct, coming back to it soon)
+## PR-driven ready for review (follow-up from 12 Oct)
 
-Worked out against Capy 0.2.2, its last build before the dot grid. Before/after, contrast and a
-hue map: https://claude.ai/artifact/MJgn4bx6145bvS7dFRKvaB. Values are oklch, dark / light / OLED.
-
-- Working stops following the accent: five of the ten presets land on a status colour (Orange on
-  needs input, Mint on ready, Coral near error, Cloud and Slate on idle's grey). It becomes a fixed
-  lemon, `0.89 0.177 105` / `0.6 0.142 90` / `0.85 0.209 105`. No yellow holds 3:1 on a light
-  sidebar and still looks yellow, so light takes the 3:1 dark gold, warmed to h 90 because
-  lemon's own hue goes olive. Jett ruled out outlines and rings for it.
-- Needs input moves from the muddy amber (h 63) toward Capy's orange, staying 25° clear of error:
-  `0.735 0.18 48` / `0.6 0.18 45` / `0.695 0.216 48`.
-- Error and ready catch up to that orange's share of the available P3 chroma, reds taking half
-  the boost like the OLED rule. Error `0.655 0.219 23` / `0.6 0.226 23` / `0.655 0.27 23`; ready
-  `0.698 0.182 158.4` / `0.515 0.155 158.4` / `0.698 0.224 158.4` (light drops a touch so diffstat
-  text keeps 4.5:1 on the page). These are `--pr-closed` and `--status-success`, so PR states,
-  diffstat and ticks move with them.
-- Idle dims to a new `--status-idle`, the dimmest grey that holds 3:1 on the selected row:
-  `0.55` / `0.60` / `0.53`. It's an exception to the icon rules' "one muted", so AGENTS.md needs a
-  line. Waiting stays `--muted-foreground`; check it doesn't now read brighter than it should.
-- Probably `--pr-running` becomes the lemon too, so "in progress" is one yellow for threads and PR
-  checks. Show Jett the `index.css` token diff before changing anything.
 - Ready for review follows the PR, as Capy's does: a thread whose PR is ready shows the ready
   check, not only one whose agent called `mark_ready_for_review`. It came up weighing one-line
   sidebar rows, which drop the PR mark; the status glyph would then carry some of that. Settle

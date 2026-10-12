@@ -6,7 +6,7 @@ import { formatElapsed } from '@/lib/time'
 import { useStopBackgroundTasks } from '@/state/turns'
 import { useState } from 'react'
 
-import { WaitingStatusIcon } from './circle_status_icon'
+import { ClockIcon } from './central_icons'
 
 export function MonitoringLine({
   threadId,
@@ -33,8 +33,8 @@ export function MonitoringLine({
           />
         )}
         <span className='pointer-events-none flex shrink-0 items-center gap-1.5'>
-          <span className='text-muted-foreground'>
-            <WaitingStatusIcon className='size-3' />
+          <span className='text-status-idle'>
+            <ClockIcon className='size-3' />
           </span>
           <span className='text-foreground'>Waiting on</span>
         </span>

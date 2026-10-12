@@ -11,14 +11,12 @@ import {
   Checkmark1MediumIcon,
   CommitsIcon,
   MergedIcon,
+  CircleCheckIcon as CentralCircleCheckIcon,
+  CircleXIcon,
+  Progress50Icon,
 } from '@/components/custom/central_icons'
 import { charmedSprite } from '@/components/custom/charmed_icons'
-import {
-  ErrorStatusIcon,
-  SkippedStatusIcon,
-  SuccessStatusIcon,
-} from '@/components/custom/circle_status_icon'
-import { InProgressIcon } from '@/components/custom/in_progress_icon'
+import { IdleIcon } from '@/components/custom/idle_icon'
 
 import '../option_picker.css'
 import { Loading } from '@/components/custom/loading'
@@ -462,20 +460,18 @@ function ChecksSummary({ pr }: { pr: PrPull }) {
   const summary = c.failed
     ? {
         tone: 'text-status-error',
-        glyph: <ErrorStatusIcon className='size-3.5' />,
+        glyph: <CircleXIcon filled className='size-3.5' />,
         text: `${c.failed} failing`,
       }
     : c.running
       ? {
           tone: 'text-status-working',
-          // The ring draws inside a 16px box, so it needs 15px to match the 14px discs; the class also
-          // keeps the trigger button from shrinking an unsized icon to 12px.
-          glyph: <InProgressIcon className='size-3.75' />,
+          glyph: <Progress50Icon className='size-3.5' />,
           text: `${c.running} running`,
         }
       : {
           tone: 'text-status-success',
-          glyph: <SuccessStatusIcon className='size-3.5' />,
+          glyph: <CentralCircleCheckIcon filled className='size-3.5' />,
           text: 'All checks passed',
         }
   return (
@@ -491,12 +487,12 @@ function ChecksSummary({ pr }: { pr: PrPull }) {
 // One check's glyph and colour.
 function checkTone(check: PrCheck) {
   return running(check)
-    ? { tone: 'text-status-working', glyph: <InProgressIcon /> }
+    ? { tone: 'text-status-working', glyph: <Progress50Icon /> }
     : failed(check)
-      ? { tone: 'text-status-error', glyph: <ErrorStatusIcon /> }
+      ? { tone: 'text-status-error', glyph: <CircleXIcon filled /> }
       : check.conclusion === 'success'
-        ? { tone: 'text-status-success', glyph: <SuccessStatusIcon /> }
-        : { tone: 'text-muted-foreground', glyph: <SkippedStatusIcon /> }
+        ? { tone: 'text-status-success', glyph: <CentralCircleCheckIcon filled /> }
+        : { tone: 'text-status-idle', glyph: <IdleIcon /> }
 }
 
 // The checks list, in the app's search-picker style (as the reviewer and branch pickers).
@@ -616,7 +612,7 @@ function ChecksPill({ pr }: { pr: PrPull }) {
                       onSelect={() => setShowSkipped(true)}
                       className='text-muted-foreground'
                     >
-                      <SkippedStatusIcon />
+                      <IdleIcon className='text-status-idle' />
                       {countLabel(skipped.length, 'skipped check')}
                       <span
                         data-slot='command-shortcut'
@@ -1010,7 +1006,7 @@ function Activity({ pr }: { pr: PrPull }) {
         !review.body.trim() && !threads.length ? (
           <div className='flex items-center gap-2 text-xs text-muted-foreground'>
             {review.state === 'APPROVED' ? (
-              <SuccessStatusIcon className='size-3.5 shrink-0 text-status-success' />
+              <CentralCircleCheckIcon filled className='size-3.5 shrink-0 text-status-success' />
             ) : (
               <VerdictGlyph state={review.state} className='size-3.5' />
             )}
@@ -1131,7 +1127,8 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
           </span>
           {thread.outdated && <span className='shrink-0 text-muted-foreground'>Outdated</span>}
           {thread.resolved ? (
-            <SuccessStatusIcon
+            <CentralCircleCheckIcon
+              filled
               className='size-3.5 shrink-0 text-status-success'
               aria-label='Resolved'
             />
@@ -1272,7 +1269,7 @@ function InlineThreads({ threads, author }: { threads: PrThread[]; author?: PrUs
             render={<Button variant='ghost-text' />}
             className='group/resolved flex h-auto w-full justify-start gap-2 rounded-none border-0 p-3 text-xs font-normal focus-visible:ring-inset'
           >
-            <SuccessStatusIcon className='size-3.5 shrink-0 text-status-success' />
+            <CentralCircleCheckIcon filled className='size-3.5 shrink-0 text-status-success' />
             {count} resolved comments from {authors.join(', ')}
             <ChevronDownSmallIcon className='ml-auto size-3.5 transition-transform duration-140 ease-(--motion-disclosure-ease) group-data-panel-open/resolved:rotate-180 group-data-panel-open/resolved:duration-180 motion-reduce:transition-none' />
           </CollapsibleTrigger>
@@ -1799,7 +1796,7 @@ function MergeButton({
           className={cn('col-start-1 row-start-1 flex items-center gap-1', merging && 'invisible')}
         >
           {pending ? (
-            <InProgressIcon className='size-3.5 text-status-working' />
+            <Progress50Icon className='size-3.5 text-status-working' />
           ) : (
             <MergedIcon className='size-3.5' />
           )}

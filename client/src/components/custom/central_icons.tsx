@@ -1,9 +1,12 @@
 import type { EffortLevel } from '@jetty/shared/events'
 
+import { IconCircleCheck as IconCircleCheckFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconCircleCheck'
+import { IconCircleX as IconCircleXFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconCircleX'
 import { IconLightningBolt as IconLightningBoltFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconLightningBolt'
 import { IconPause as IconPauseFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconPause'
 import { IconPin as IconPinFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconPin'
 import { IconPlay as IconPlayFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconPlay'
+import { IconQuestionmarkCircle as IconQuestionmarkCircleFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconQuestionmarkCircle'
 import { IconSidebarSimpleLeftWide as IconSidebarSimpleLeftWideFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconSidebarSimpleLeftWide'
 import { IconStop as IconStopFilled } from '@central-icons-react/round-filled-radius-3-stroke-2/IconStop'
 import { IconAddImage } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconAddImage'
@@ -40,6 +43,7 @@ import { IconCircleInfo } from '@central-icons-react/round-outlined-radius-3-str
 import { IconCirclePlaceholderOff } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCirclePlaceholderOff'
 import { IconCirclePlaceholderOn } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCirclePlaceholderOn'
 import { IconCircleX } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCircleX'
+import { IconClock } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconClock'
 import { IconCloseQuote1 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCloseQuote1'
 import { IconCode } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCode'
 import { IconCommits } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCommits'
@@ -92,7 +96,9 @@ import { IconPlugins } from '@central-icons-react/round-outlined-radius-3-stroke
 import { IconPlusLarge } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlusLarge'
 import { IconPlusMedium } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPlusMedium'
 import { IconProcessor } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconProcessor'
+import { IconProgress50 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconProgress50'
 import { IconPullRequest } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconPullRequest'
+import { IconQuestionmarkCircle } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconQuestionmarkCircle'
 import { IconRequestClosed } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconRequestClosed'
 import { IconScriptAi } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconScriptAi'
 import { IconSettingsGear1 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconSettingsGear1'
@@ -161,11 +167,12 @@ export const ChevronDownSmallIcon = centralIcon(IconChevronDownSmall)
 export const ChevronLeftSmallIcon = centralIcon(IconChevronLeftSmall)
 export const ChevronRightSmallIcon = centralIcon(IconChevronRightSmall)
 export const ChevronTopSmallIcon = centralIcon(IconChevronTopSmall)
-export const CircleCheckIcon = centralIcon(IconCircleCheck)
+export const CircleCheckIcon = centralIcon(IconCircleCheck, IconCircleCheckFilled)
+export const ClockIcon = centralIcon(IconClock)
 export const CircleInfoIcon = centralIcon(IconCircleInfo)
 export const CirclePlaceholderOffIcon = centralIcon(IconCirclePlaceholderOff)
 export const CirclePlaceholderOnIcon = centralIcon(IconCirclePlaceholderOn)
-export const CircleXIcon = centralIcon(IconCircleX)
+export const CircleXIcon = centralIcon(IconCircleX, IconCircleXFilled)
 export const CloseQuote1Icon = centralIcon(IconCloseQuote1)
 export const CodeIcon = centralIcon(IconCode)
 export const CommitsIcon = centralIcon(IconCommits)
@@ -218,7 +225,12 @@ export const PluginsIcon = centralIcon(IconPlugins)
 export const PlusLargeIcon = centralIcon(IconPlusLarge)
 export const PlusMediumIcon = centralIcon(IconPlusMedium)
 export const ProcessorIcon = centralIcon(IconProcessor)
+export const Progress50Icon = centralIcon(IconProgress50)
 export const PullRequestIcon = centralIcon(IconPullRequest)
+export const QuestionmarkCircleIcon = centralIcon(
+  IconQuestionmarkCircle,
+  IconQuestionmarkCircleFilled
+)
 export const RequestClosedIcon = centralIcon(IconRequestClosed)
 export const ScriptAiIcon = centralIcon(IconScriptAi)
 export const SettingsGear1Icon = centralIcon(IconSettingsGear1)

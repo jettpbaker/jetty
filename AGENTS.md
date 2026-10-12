@@ -76,14 +76,17 @@
 - Every icon line is 1.25px at every size (CSS non-scaling stroke); Central's thin detail
   strokes keep their own weight. Icons draw at their slot size.
 - Fill (`filled`) only solid metaphors: stop, fast-mode flash, video play/pause,
-  the pinned pin, and the sidebar and details pane toggles. Checks passed/failed reuse the status discs; selected answers
-  stay stroked. GitHub is the official filled svgl mark. Provider logos, the
-  in-progress glyph, status discs and context ring stay custom.
-- Keycaps: a shortcut the app registers shows as the `KeybindChip` of its entry in `keybinds.tsx`; a one-off key that isn't an app shortcut (↵ in a dialog's footer) is a `Kbd`. Both fill with translucent foreground (`bg-foreground/8`) so they sit on any surface. Never give a keycap an opaque fill.
+  the pinned pin, the sidebar and details pane toggles, and status glyphs: Central's filled
+  QuestionmarkCircle (needs input), CircleCheck (ready, finished and passed) and CircleX (error
+  and failed). Working uses Central's outlined Progress50; waiting uses its outlined Clock.
+  Idle, queued, stopped and skipped use our custom idle ring. Selected answers stay stroked.
+  GitHub is the official filled svgl mark. Provider logos and the context ring stay custom.
+- Keycaps: a shortcut the app registers shows as the `KeybindChip` of its entry in `keybinds.tsx`; a one-off key that isn't an app shortcut (↵ in a dialog's footer) is a `Kbd`. Both use regular weight and fill with translucent foreground (`bg-foreground/8`) so they sit on any surface. Never give a keycap an opaque fill.
 - Glyphs go bare inside Buttons — the parent cascade sizes them (16px baseline).
   `size-glyph` (18px) is for tab status glyphs only. No arbitrary `size-[Npx]`.
 - One muted: `text-muted-foreground`. No `/50`, `/60`, or `opacity-*` tints on
-  icons.
+  icons. The exception is `text-status-idle` for idle, queued, stopped and waiting glyphs
+  (including skipped checks).
 - Icon buttons are `Button variant='ghost' size='icon*'` — they idle muted
   automatically (compound variant) and hover with bg fill + text→foreground.
   Text buttons that shouldn't fill use `variant='ghost-text'`: text shift only,
@@ -96,7 +99,7 @@
 - The tab close button and the thread row's Archive/More buttons
   (`thread_row_actions.tsx`) are deliberately their own thing (tiny, no bg
   hover, sized glyphs) — leave them.
-- Status colors are semantic: amber = awaiting approval, destructive = error,
+- Status colors are semantic: orange = needs input, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.
 - Link colour in text: accent means a click takes you to one specific thing (a

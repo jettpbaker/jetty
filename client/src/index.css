@@ -70,7 +70,7 @@
   --card-foreground: var(--foreground);
   --popover: oklch(1 var(--tint) var(--tint-h));
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.5 0.18 282.178);
+  --primary: oklch(0.5 0.28 282.178);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.935 var(--tint) var(--tint-h));
   --secondary-foreground: var(--foreground);
@@ -93,10 +93,11 @@
   --status-working: var(--primary);
   /* Light status colours hold 3:1 as glyphs on the selected sidebar row, the darkest light surface;
      green, which is also diffstat and label text, holds 4.5:1 on the page. */
-  --status-attention: oklch(0.6 0.145 61);
+  --status-attention: oklch(0.6 0.18 45);
   --status-error: var(--pr-closed);
   --status-error-glyph: var(--pr-closed);
-  --status-success: oklch(0.53 0.12 158.358);
+  --status-success: oklch(0.515 0.155 158.4);
+  --status-idle: oklch(0.6 0 0);
   --tick-complete: var(--status-success);
   --status-complete-wash: color-mix(in oklch, var(--status-success) 18%, transparent);
   --status-error-wash: color-mix(in oklch, var(--status-error) 16%, transparent);
@@ -104,15 +105,16 @@
   --pr-running: oklch(0.59 0.125 83);
   --pr-draft: oklch(0.56 0.003 286.325);
   --pr-merged: oklch(0.552 0.148 276.827);
-  --pr-closed: oklch(0.6 0.2 23.018);
+  --pr-closed: oklch(0.6 0.226 23);
 }
 
 .dark {
   --border-raised: oklch(1 0 0 / 10%);
   --diff-surface: oklch(0.225 0 0);
-  --status-attention: oklch(0.765 0.145 63);
-  --status-success: oklch(0.698 0.125 158.358);
-  --pr-closed: oklch(0.655 0.201 23.018);
+  --status-attention: oklch(0.735 0.18 48);
+  --status-success: oklch(0.698 0.182 158.4);
+  --status-idle: oklch(0.55 0 0);
+  --pr-closed: oklch(0.655 0.219 23);
   --pr-running: oklch(0.88 0.17 97);
   --pr-draft: oklch(0.697 0.003 286.325);
   --pr-merged: oklch(0.7 0.15 277);
@@ -151,14 +153,14 @@
 /* OLED is dark taken one step deeper: the chrome is true black and every surface above it drops by
    the same perceived step (CIE L*), so each layer keeps dark's contrast with the one below. */
 .oled {
-  /* Precomputed with oledToken in wallpaper-accent.ts. */
-  --status-attention: oklch(0.725 0.189 63);
-  --status-success: oklch(0.698 0.184 158.358);
-  --pr-closed: oklch(0.655 0.248 23.018);
+  --status-attention: oklch(0.695 0.216 48);
+  --status-success: oklch(0.698 0.224 158.4);
+  --status-idle: oklch(0.53 0 0);
+  --pr-closed: oklch(0.655 0.27 23);
   --pr-running: oklch(0.84 0.2 97);
   --pr-merged: oklch(0.66 0.197 277);
   --destructive: oklch(0.704 0.236 22.216);
-  --primary: oklch(0.732 0.155 282.178);
+  --primary: oklch(0.732 0.156 282.178);
   --sidebar: oklch(0 0 0);
   --background: oklch(0.163 var(--tint) var(--tint-h));
   --diff-surface: oklch(0.201 0 0);
@@ -175,6 +177,7 @@
 @theme inline {
   --color-faint-foreground: var(--faint-foreground);
   --color-status-attention: var(--status-attention);
+  --color-status-idle: var(--status-idle);
   --color-status-working: var(--status-working);
   --color-status-error: var(--status-error);
   --color-status-error-glyph: var(--status-error-glyph);

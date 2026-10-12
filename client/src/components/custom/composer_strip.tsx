@@ -8,6 +8,8 @@ import {
   ChevronTopSmallIcon,
   CirclePlaceholderOnIcon,
   Checkmark1MediumIcon,
+  Progress50Icon,
+  QuestionmarkCircleIcon,
 } from '@/components/custom/central_icons'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
@@ -27,10 +29,8 @@ import { Suspense, useEffect, useId, useState, type ComponentProps, type ReactNo
 import type { Approval, Question, Source } from './composer_strip_model'
 import type { Todo } from './todo_model'
 
-import { NeedsInputIcon } from './circle_status_icon'
 import { DiffCounts } from './diff/file_card'
 import { loadDiffWorkerPool } from './diff_worker_pool'
-import { InProgressIcon } from './in_progress_icon'
 import { SourceLabel } from './source_label'
 
 export function Code({ children, className }: { children: ReactNode; className?: string }) {
@@ -52,7 +52,13 @@ function RequestSource({ source, className }: { source: Source; className?: stri
 }
 
 function Attention() {
-  return <NeedsInputIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-attention' />
+  return (
+    <QuestionmarkCircleIcon
+      filled
+      aria-hidden='true'
+      className='size-3.5 shrink-0 text-status-attention'
+    />
+  )
 }
 
 function fieldValue(event: KeyboardEvent) {
@@ -610,7 +616,7 @@ function TodoIcon({ status }: { status: Todo['status'] }) {
   if (status === 'done')
     return <Checkmark1MediumIcon className='size-3.5 shrink-0 text-muted-foreground' />
   if (status === 'active')
-    return <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
+    return <Progress50Icon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
   return <CirclePlaceholderOnIcon className='size-3.5 shrink-0 text-muted-foreground' />
 }
 
