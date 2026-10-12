@@ -198,7 +198,7 @@ export function createGrokTranslator(turnId: string, workflows = new Set<string>
       const done = update.status === 'completed' || update.status === 'failed'
       tool.done = done
       events.push({
-        type: 'item.completed',
+        type: done ? 'item.completed' : 'item.updated',
         itemId: tool.id,
         patch: {
           ...(update.kind === undefined && update.rawInput === undefined
