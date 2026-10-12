@@ -47,6 +47,10 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   `shared/src/wire.ts`), and done or dropped tasks fall off after a while (`shared/src/bots.ts`).
   It came up picking icons: what a dropped task meant wasn't clear. Rethink whether bots need
   their own list beside their threads and the agent's todo list, and what each state means to Jett.
+- Rethink Stopped as a thread state (Jett, 12 Oct). It shows where a thread was stopped or
+  interrupted (`thread_status.tsx`: the `stop_thread` result, child reports, workflow parts);
+  maybe a stopped thread should just read as idle. Its glyph is Central's CirclePlaceholderOff for
+  now.
 
 ## status colours (agreed with Jett 12 Oct, coming back to it soon)
 
