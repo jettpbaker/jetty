@@ -512,18 +512,18 @@ function EnvironmentLine({ worktree, checkout }: { worktree: boolean; checkout?:
   )
 }
 
-// Rows sit 3px inside their hover fill and 8px in from its sides, the Button's 1px border included,
-// so the text keeps a 6px rhythm under the label and between rows.
+// Rows are 24px, the xs control height: they sit 4px inside their hover fill and 8px in from its
+// sides, the Button's 1px border included, so the text keeps an 8px rhythm between rows.
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className='flex flex-col pt-1.5'>
       <span className='text-muted-foreground'>{label}</span>
-      <div className='-mx-2 mt-0.75 -mb-0.75 flex flex-col'>{children}</div>
+      <div className='-mx-2 mt-1 -mb-1 flex flex-col'>{children}</div>
     </div>
   )
 }
 
-const rowClass = 'flex min-w-0 items-center gap-2 border border-transparent px-1.75 py-0.5'
+const rowClass = 'flex min-w-0 items-center gap-2 border border-transparent px-1.75 py-0.75'
 
 function Row({ onPress, children }: { onPress: () => void; children: ReactNode }) {
   return (
