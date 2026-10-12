@@ -965,7 +965,9 @@ export function threadRows(
     row.status = workStatus(row.activities, outcome, segment === liveSegment)
     if (outcome === 'server_restarted') row.restarted = true
     const answerEnd =
-      next?.turnId === row.turnId && next.kind !== 'compaction' ? next.completedAt : undefined
+      next?.turnId === row.turnId && (next.kind === 'assistant_message' || next.kind === 'plan')
+        ? next.completedAt
+        : undefined
     const start = segmentStarts.get(segment)!
     if (row.status === 'running') row.startedAt = start
     else if (row.status !== 'waiting' && steps.length > 0)
