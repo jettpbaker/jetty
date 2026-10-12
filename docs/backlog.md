@@ -2,29 +2,16 @@
 
 Deferred on purpose. Delete items as they land; delete this file when it's empty.
 
-## high priority (tonight, with Jett)
+## overnight (12 Oct)
 
-- Bots grow their own CLAUDE.md. Today Jetty rewrites a bot's CLAUDE.md every session
-  (imports of its generated instructions, brief.md, index.md, shared preferences), and the
-  prompt sends "how Jett wants it done" to wiki pages, which don't load, so standing rules end
-  up squeezed into index lines. A four-month-old bot shouldn't run on the same instructions as
-  a fresh one. Agreed shape (9 Oct):
-  - CLAUDE.md splits into Jetty's managed block (the imports, still rewritten every session,
-    so prompt fixes reach old bots) and the bot's own section below it, loaded every session
-    and never touched by Jetty: standing rules from Jett, how he likes things done, what it's
-    learned about its area.
-  - Append only: an `add_instruction` tool appends a dated line with a short reason; direct
-    edits to CLAUDE.md are denied, so a bot can't quietly rewrite its rules after one bad
-    experience.
-  - Nothing in the chat when a bot adds one: it's the bot's own bookkeeping (Jett, "drifts
-    from the philosophy").
-  - Pruning only by the daily tidy pass (merge duplicates, mark superseded, its diff reviewed
-    like today) or by Jett from the bot's settings sheet. Git keeps every version.
-  - A soft cap around 40 lines, kept by the tidy pass.
-  - Migration: on its first session after the update, a bot moves standing rules out of its
-    index and pages into its section.
-  - Test with real bots: a rule Jett gives, a lesson it learns itself, a tidy that merges two
-    lines, and an old bot migrating.
+- Thread switching feels slower to click since `28d43bad` (Jett, 12 Oct). That commit only fixed
+  keys: from `e7e2dae9` to it, the transcript and the composer shared the thread id as their
+  React key, so old transcripts stayed mounted and stacked up. Measure click-to-paint on a thread
+  switch (`perf/`) before `e7e2dae9`, at `e7e2dae9` and at main, and find what the time goes on.
+  Other changes from 12 Oct worth ruling out: the chat's top fade (`faa8183c`, a scroll timeline
+  on the scroller) and the bot tab strip.
+- The Pull requests page showed "Couldn't refresh" in Jett's real Jetty (12 Oct, 22:41). Find out
+  why. The linked-PR sweep went to every 10s that day.
 
 ## bot chat, from Jett's first full office day with bots (10 Oct)
 
