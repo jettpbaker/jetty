@@ -38,7 +38,7 @@ function BotChatRoute() {
       aria-label={`Chat with ${bot.name}`}
     >
       <BotDetailsLayout bot={bot}>
-        <BotTabStrip key={bot.id} botId={bot.id} />
+        <BotTabStrip key={`${bot.id}:tabs`} botId={bot.id} />
         <BotChat key={bot.id} bot={bot} overlayHost={section} />
       </BotDetailsLayout>
     </section>

@@ -79,7 +79,9 @@ function Thread() {
             <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
           ) : thread || !overlay.empty ? (
             <ThreadList
-              key={threadId}
+              // The composer beside it is keyed by the thread too; a shared key leaves the last
+              // thread's transcript behind.
+              key={`${threadId}:list`}
               threadId={threadId}
               items={overlay.items}
               status={thread?.status ?? 'idle'}
