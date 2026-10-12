@@ -1,11 +1,11 @@
 import {
-  ArchiveArrowUpIcon,
-  MoreVerticalIcon,
-  Edit03Icon,
+  ArrowOutOfBoxIcon,
+  DotGrid1x3VerticalIcon,
+  Pencil2Icon,
   PinIcon,
-  Delete02Icon,
-  Archive02Icon,
-} from '@/components/custom/huge_icons'
+  TrashCanSimpleIcon,
+  ArchiveIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -83,11 +83,7 @@ export function ThreadRowActions({
           aria-label={`${archived ? 'Unarchive' : 'Archive'} ${title}`}
           onClick={onArchive}
         >
-          {archived ? (
-            <ArchiveArrowUpIcon className='size-3' />
-          ) : (
-            <Archive02Icon className='size-3' />
-          )}
+          {archived ? <ArrowOutOfBoxIcon className='size-3' /> : <ArchiveIcon className='size-3' />}
         </Button>
         <DropdownMenu
           open={overlay === 'menu'}
@@ -103,12 +99,12 @@ export function ThreadRowActions({
               />
             }
           >
-            <MoreVerticalIcon className='size-3.5' aria-hidden='true' />
+            <DotGrid1x3VerticalIcon className='size-3.5' aria-hidden='true' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={editTitle}>
-                <Edit03Icon />
+                <Pencil2Icon />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onPin}>
@@ -120,7 +116,7 @@ export function ThreadRowActions({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem variant='destructive' onClick={onDelete}>
-                <Delete02Icon />
+                <TrashCanSimpleIcon />
                 Delete
               </DropdownMenuItem>
             </DropdownMenuGroup>

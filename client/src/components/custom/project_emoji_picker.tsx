@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-import { hugeIconMasks } from '@/components/custom/huge_icons'
+import { centralMasks } from '@/components/custom/central_icons'
 import { unifiedEmojiUrl } from '@/lib/fluent_emoji'
 import EmojiPicker, { EmojiStyle } from 'emoji-picker-react'
 import { missingEmoji } from 'virtual:fluent-emoji'
@@ -11,7 +11,7 @@ export default function ProjectEmojiPicker({ onSelect }: { onSelect: (emoji: str
   return (
     <div
       className='project-emoji-picker'
-      style={{ '--search-glyph': hugeIconMasks.search01 } as CSSProperties}
+      style={{ '--search-glyph': centralMasks.magnifyingGlass2 } as CSSProperties}
     >
       <EmojiPicker
         width='100%'

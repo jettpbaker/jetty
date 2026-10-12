@@ -1,4 +1,4 @@
-import { Refresh01Icon, UserAdd01Icon } from '@/components/custom/huge_icons'
+import { ArrowRotateClockwiseIcon, UserAddIcon } from '@/components/custom/central_icons'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,7 +50,7 @@ export function ReviewerPicker({
           cloneElement(trigger as ReactElement<{ disabled?: boolean }>, { disabled: true })
         ) : (
           <Button variant='ghost' size='icon' className='h-7' aria-label='Request review' disabled>
-            <UserAdd01Icon />
+            <UserAddIcon />
           </Button>
         )}
       </DisabledTooltip>
@@ -64,7 +64,7 @@ export function ReviewerPicker({
         onFocus={() => prefetch(repo)}
         render={trigger ?? <Button variant='ghost' size='icon' className='h-7' />}
       >
-        {trigger ? undefined : <UserAdd01Icon />}
+        {trigger ? undefined : <UserAddIcon />}
       </PopoverTrigger>
       <PopoverContent
         align='start'
@@ -198,7 +198,7 @@ function ReviewerResults({
                     className='ml-auto flex shrink-0 items-center gap-1.5 text-muted-foreground'
                   >
                     {word}
-                    <Refresh01Icon aria-label='Re-request review' />
+                    <ArrowRotateClockwiseIcon aria-label='Re-request review' />
                   </span>
                 </CommandItem>
               ))}

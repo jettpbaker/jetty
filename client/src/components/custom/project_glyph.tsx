@@ -1,6 +1,6 @@
 import type { ProjectIcon } from '@jetty/shared/wire'
 
-import { Folder01Icon } from '@/components/custom/huge_icons'
+import { Folder1Icon } from '@/components/custom/central_icons'
 import { emojiUrl } from '@/lib/fluent_emoji'
 import { cn } from '@/lib/utils'
 import { Suspense, use, useState } from 'react'
@@ -14,7 +14,7 @@ function loadProjectIconSet() {
 }
 
 function DefaultGlyph(props: GlyphProps) {
-  return <Folder01Icon aria-hidden='true' {...props} />
+  return <Folder1Icon aria-hidden='true' {...props} />
 }
 
 function EmojiGlyph({ emoji, className, ...props }: GlyphProps & { emoji: string }) {

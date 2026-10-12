@@ -2,10 +2,10 @@ import type { QuestionSpec, ThreadItem } from '@jetty/shared/items'
 import type { Bot } from '@jetty/shared/wire'
 
 import { botAccentClass } from '@/components/custom/bot_avatar'
+import { Checkmark1SmallIcon } from '@/components/custom/central_icons'
 import { Pager } from '@/components/custom/composer_strip'
 import { approvalView } from '@/components/custom/composer_strip_model'
 import { DisabledTooltip } from '@/components/custom/disabled_tooltip'
-import { Tick02Icon } from '@/components/custom/huge_icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Kbd } from '@/components/ui/kbd'
@@ -53,7 +53,7 @@ function BotApprovalCard({
       <div className={cn(cardClass, 'py-2 text-muted-foreground')}>
         <div className='flex min-w-0 items-center gap-2 text-sm'>
           {(item.decision === 'always' || item.decision === 'allow') && (
-            <Tick02Icon className='size-3.5 shrink-0' />
+            <Checkmark1SmallIcon className='size-3.5 shrink-0' />
           )}
           <span className='shrink-0'>
             {item.decision === 'always'
@@ -188,7 +188,7 @@ function BotQuestionCard({
                       className='flex items-start gap-2 border-t border-border px-[11px] py-2 first:border-t-0'
                     >
                       <span className='flex h-5 w-4 shrink-0 items-center'>
-                        <Tick02Icon className='size-3.5' />
+                        <Checkmark1SmallIcon className='size-3.5' />
                       </span>
                       <OptionText option={option} />
                     </div>
@@ -254,7 +254,7 @@ function BotQuestionCard({
             >
               <span className='flex h-5 w-4 shrink-0 items-center justify-center'>
                 {progress.picks[progress.step]?.includes(option.label) ? (
-                  <Tick02Icon className='size-3.5' />
+                  <Checkmark1SmallIcon className='size-3.5' />
                 ) : (
                   <span className='flex size-4 items-center justify-center rounded-sm border border-border font-mono text-xs leading-none text-muted-foreground'>
                     {String.fromCharCode(65 + index)}

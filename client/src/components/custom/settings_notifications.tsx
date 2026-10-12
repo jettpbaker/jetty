@@ -1,4 +1,4 @@
-import { Notification01Icon } from './huge_icons'
+import { Bell2Icon } from './central_icons'
 import {
   ComingSoon,
   DisabledSwitch,
@@ -38,7 +38,7 @@ export function SettingsNotifications() {
       <SettingsCard>
         <SettingsRow
           id='browser-notifications'
-          icon={Notification01Icon}
+          icon={Bell2Icon}
           title='Browser notifications'
           description="Jetty can't send them yet. Everything below waits on this."
         >

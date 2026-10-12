@@ -27,8 +27,8 @@ import { BOT_NAME_MAX } from '@jetty/shared/wire'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 
+import { Folder1Icon, FolderAddLeftIcon, CircleInfoIcon, FoldersIcon } from './central_icons'
 import { ComposerLoadout } from './composer_loadout'
-import { Folder01Icon, FolderAddIcon, InformationCircleIcon, LayersIcon } from './huge_icons'
 import { JettyBot } from './jetty_bot'
 import { botColors, colorIds, deepBotColors, shapeIds } from './jetty_bot_shapes'
 import { OptionPicker } from './option_picker'
@@ -206,7 +206,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
                   className='gap-1.5 rounded-sm'
                   onClick={() => setAdding(true)}
                 >
-                  <FolderAddIcon />
+                  <FolderAddLeftIcon />
                   Add project
                 </Button>
               ) : (
@@ -214,18 +214,18 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
                   name='Project'
                   label='Project'
                   placeholder='Search projects'
-                  icon={<Folder01Icon />}
+                  icon={<Folder1Icon />}
                   value={project}
                   align='end'
                   options={[
                     ...projects.map((each) => ({ value: each.id, label: each.title })),
-                    { value: ALL, label: 'All projects', icon: <LayersIcon /> },
+                    { value: ALL, label: 'All projects', icon: <FoldersIcon /> },
                   ]}
                   onValueChange={setProject}
                   actions={[
                     {
                       label: 'Add project…',
-                      icon: <FolderAddIcon />,
+                      icon: <FolderAddLeftIcon />,
                       onSelect: () => setAdding(true),
                     },
                   ]}
@@ -386,7 +386,7 @@ export function FullAccessLabel() {
           aria-label='About full access'
           className='relative -mt-0.5 flex rounded-full text-muted-foreground before:absolute before:-inset-1.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
         >
-          <InformationCircleIcon className='size-2.5' />
+          <CircleInfoIcon className='size-2.5' />
         </TooltipTrigger>
         <TooltipContent className='max-w-56'>
           Never stops to ask. Off, it stops before anything risky.

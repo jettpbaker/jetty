@@ -1,6 +1,7 @@
 import type { Attachments } from '@/hooks/use-attachments'
 import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
+import { StopIcon, ArrowUpIcon, PlayIcon } from '@/components/custom/central_icons'
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerAttachments } from '@/components/custom/composer_attach'
 import { ComposerShadow, useWallpaperUnderComposer } from '@/components/custom/composer_shadow'
@@ -10,7 +11,6 @@ import {
   useComposerSlash,
   type SlashScope,
 } from '@/components/custom/composer_slash'
-import { StopIcon, ArrowUp02Icon, PlayIcon } from '@/components/custom/huge_icons'
 import { keyTarget } from '@/components/custom/keybinds'
 import {
   InputGroup,
@@ -266,7 +266,7 @@ export function Composer({
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={onChooseModel}
                       >
-                        <ArrowUp02Icon />
+                        <ArrowUpIcon />
                       </InputGroupButton>
                     </TooltipTrigger>
                     <TooltipContent>{sendHint}</TooltipContent>
@@ -286,7 +286,7 @@ export function Composer({
                         disabled={!canSend}
                         className={canSend ? undefined : 'pointer-events-none'}
                       >
-                        <ArrowUp02Icon />
+                        <ArrowUpIcon />
                       </InputGroupButton>
                     </TooltipTrigger>
                     <TooltipContent>{sendHint ?? sendLabel}</TooltipContent>

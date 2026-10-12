@@ -1,7 +1,7 @@
 import type { ContextUsage } from '@jetty/shared/events'
 import type { ProviderUsage } from '@jetty/shared/wire'
 
-import { ArrowRight01Icon } from '@/components/custom/huge_icons'
+import { ChevronRightSmallIcon } from '@/components/custom/central_icons'
 import { Mono, RingLimits } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -169,7 +169,7 @@ function ContextDetails({ context }: { context: ContextUsage | null }) {
             }
           >
             Context
-            <ArrowRight01Icon className='text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-hover/details:text-foreground group-aria-expanded/details:rotate-90 motion-reduce:transition-none' />
+            <ChevronRightSmallIcon className='text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-hover/details:text-foreground group-aria-expanded/details:rotate-90 motion-reduce:transition-none' />
           </CollapsibleTrigger>
         ) : (
           <span className='font-medium'>Context</span>

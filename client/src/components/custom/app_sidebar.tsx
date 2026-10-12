@@ -1,14 +1,15 @@
 import {
-  ArrowRight01Icon,
-  ChartHistogramIcon,
-  Settings01Icon,
-  Archive02Icon,
-  PencilEdit02Icon,
+  ChevronRightSmallIcon,
+  AnalyticsIcon,
+  SettingsGear1Icon,
+  ArchiveIcon,
+  EditSmall1Icon,
   PinIcon,
-  PlusSignIcon,
-  VolumeMute02Icon,
-} from '@/components/custom/huge_icons'
-import { GitPullRequestIcon, CircleDotIcon } from '@/components/custom/lucide_icons'
+  PlusSmallIcon,
+  VolumeOffIcon,
+  PullRequestIcon,
+} from '@/components/custom/central_icons'
+import { CircleDotIcon } from '@/components/custom/lucide_icons'
 import { pullRequestListSearch } from '@/components/custom/pull_request_list_model'
 import { Button } from '@/components/ui/button'
 import {
@@ -331,7 +332,7 @@ export const AppSidebar = memo(function AppSidebar() {
                 className={`${navigationButtonClass} keybind-target`}
                 {...pressProps(newThread)}
               >
-                <PencilEdit02Icon className='size-3' />
+                <EditSmall1Icon className='size-3' />
                 New thread
                 <HoverKeybind binding={keybinds.newThread} className='ml-auto' />
               </Button>
@@ -359,7 +360,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   void navigate({ to: '/pull-requests', search: pullRequestListSearch() })
                 })}
               >
-                <GitPullRequestIcon className='size-3' />
+                <PullRequestIcon className='size-3' />
                 Pull requests
               </Button>
             </SidebarMenuItem>
@@ -376,7 +377,7 @@ export const AppSidebar = memo(function AppSidebar() {
             aria-label='New bot'
             onClick={() => setNewBotOpen(true)}
           >
-            <PlusSignIcon />
+            <PlusSmallIcon />
           </Button>
         </div>
         {bots.length ? (
@@ -399,7 +400,7 @@ export const AppSidebar = memo(function AppSidebar() {
             className='flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
           >
             <span className='flex size-6 shrink-0 items-center justify-center'>
-              <PlusSignIcon />
+              <PlusSmallIcon />
             </span>
             Create a bot
           </button>
@@ -441,18 +442,18 @@ export const AppSidebar = memo(function AppSidebar() {
                       {item.archived && (
                         // Linear-style: the icon turns into the disclosure caret on hover or focus.
                         <span className='grid size-3 shrink-0 *:col-start-1 *:row-start-1'>
-                          <Archive02Icon
+                          <ArchiveIcon
                             className='size-3 group-hover/button:invisible group-focus-visible/button:invisible'
                             aria-hidden='true'
                           />
-                          <ArrowRight01Icon
+                          <ChevronRightSmallIcon
                             className='invisible size-3 group-hover/button:visible group-focus-visible/button:visible group-aria-expanded/button:rotate-90'
                             aria-hidden='true'
                           />
                         </span>
                       )}
                       {item.quiet && (
-                        <VolumeMute02Icon className='size-3 shrink-0' aria-hidden='true' />
+                        <VolumeOffIcon className='size-3 shrink-0' aria-hidden='true' />
                       )}
                       {ordinary && grouping === 'project' && (
                         <ProjectGlyph icon={item.projectIcon} className='size-3' />
@@ -548,7 +549,7 @@ export const AppSidebar = memo(function AppSidebar() {
             {...pressProps(() => void navigate({ to: '/settings' }))}
           >
             <KeybindIcon binding={keybinds.settings}>
-              <Settings01Icon />
+              <SettingsGear1Icon />
             </KeybindIcon>
           </Button>
         </KeybindTooltip>
@@ -566,7 +567,7 @@ export const AppSidebar = memo(function AppSidebar() {
               />
             }
           >
-            <ChartHistogramIcon />
+            <AnalyticsIcon />
           </TooltipTrigger>
           <TooltipContent>Usage</TooltipContent>
         </Tooltip>

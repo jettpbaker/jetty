@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { useRef } from 'react'
 
 import { FileChip, isImageAttachment } from './attachment_files'
-import { Alert02Icon, Cancel01Icon } from './huge_icons'
+import { ExclamationCircleIcon, CrossSmallIcon } from './central_icons'
 import { mediaUrl } from './media_layout'
 import { useOpenMedia } from './media_lightbox'
 
@@ -97,7 +97,7 @@ export function StagedAttachments({
             <Edge />
             {item.error && (
               <span className='absolute inset-0 flex items-center justify-center text-destructive'>
-                <Alert02Icon />
+                <ExclamationCircleIcon />
               </span>
             )}
             <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgb(0_0_0/0.6),transparent_55%)] opacity-0 transition-opacity group-focus-within/image:opacity-100 group-hover/image:opacity-100 [@media(hover:none)]:opacity-100' />
@@ -108,7 +108,7 @@ export function StagedAttachments({
               className='absolute top-0 right-0 text-white opacity-0 group-focus-within/image:opacity-100 group-hover/image:opacity-100 not-disabled:hover:text-white [@media(hover:none)]:opacity-100'
               onClick={() => onRemove(item.url)}
             >
-              <Cancel01Icon />
+              <CrossSmallIcon />
             </Button>
           </span>
         ) : (

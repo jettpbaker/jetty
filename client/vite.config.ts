@@ -92,6 +92,42 @@ function fluentEmoji(): Plugin {
   }
 }
 
+// Central glyphs as SVG strings, for places a component can't render: CSS masks inside Pierre's shadow
+// roots and the file tree's sprite sheet. Rendered from the package as the app builds, because the repo
+// is public and Central's licence forbids committing its paths.
+function centralSvgs(): Plugin {
+  const require = createRequire(import.meta.url)
+  const virtualId = 'virtual:central-svgs'
+  const names = [
+    'ArrowDown',
+    'ArrowTopBottom',
+    'ArrowUp',
+    'BubbleDots',
+    'ChevronDownSmall',
+    'MagnifyingGlass2',
+  ]
+  function render() {
+    const { createElement } = require('react')
+    const { renderToStaticMarkup } = require('react-dom/server')
+    const svgs: Record<string, string> = {}
+    for (const name of names) {
+      const icon = require(`@central-icons-react/round-outlined-radius-3-stroke-2/Icon${name}`)
+      svgs[name] = renderToStaticMarkup(
+        createElement(icon[`Icon${name}`], { mode: 'raw', size: 24 })
+      )
+    }
+    return svgs
+  }
+  return {
+    name: 'central-svgs',
+    resolveId: (id) => (id === virtualId ? `\0${virtualId}` : undefined),
+    load: (id) =>
+      id === `\0${virtualId}`
+        ? `export const centralSvgs = ${JSON.stringify(render())}`
+        : undefined,
+  }
+}
+
 export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
@@ -101,6 +137,7 @@ export default defineConfig({
     react({ compiler: { target: '19' } }),
     tailwindcss(),
     fluentEmoji(),
+    centralSvgs(),
     websocketSecret(),
   ],
   // The code highlighter worker loads its grammars on demand.

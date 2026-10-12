@@ -1,4 +1,4 @@
-import { UndoIcon } from '@/components/custom/huge_icons'
+import { ArrowRotateCounterClockwiseIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -300,7 +300,7 @@ export function WallpaperEditor({
             onClick={() => setCrop({ ...defaultCrop, aspect: panelAspect() })}
             disabled={saving}
           >
-            <UndoIcon />
+            <ArrowRotateCounterClockwiseIcon />
             Reset
           </Button>
           <Button

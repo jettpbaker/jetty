@@ -9,17 +9,17 @@ import { StagedAttachments, ThumbRow } from '@/components/custom/bot_attachments
 import { botAccentClass, botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, ExchangeLine, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
+import {
+  ArrowShareLeftIcon,
+  ArrowUpIcon,
+  SquareBehindSquare1Icon,
+  ArrowRotateClockwiseIcon,
+  StopIcon,
+  Checkmark1SmallIcon,
+} from '@/components/custom/central_icons'
 import { ComposerAttach } from '@/components/custom/composer_attach'
 import { SlashMenu, SlashMirror, useComposerSlash } from '@/components/custom/composer_slash'
 import { BotMentions, inlineLinkClass } from '@/components/custom/entity_link'
-import {
-  ArrowTurnBackwardIcon,
-  ArrowUp02Icon,
-  Copy01Icon,
-  Refresh01Icon,
-  StopIcon,
-  Tick02Icon,
-} from '@/components/custom/huge_icons'
 import { JettyBot } from '@/components/custom/jetty_bot'
 import { Markdown } from '@/components/custom/markdown'
 import { RepliedTo, ReplyTab } from '@/components/custom/reply_quote'
@@ -815,7 +815,7 @@ function MessageActions({
                 }}
                 transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
               >
-                <Tick02Icon />
+                <Checkmark1SmallIcon />
               </motion.span>
             ) : (
               <motion.span
@@ -834,7 +834,7 @@ function MessageActions({
                 }}
                 transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
               >
-                <Copy01Icon />
+                <SquareBehindSquare1Icon />
               </motion.span>
             )}
           </AnimatePresence>
@@ -847,7 +847,7 @@ function MessageActions({
         className='active:scale-[0.97] active:transition-transform active:duration-150'
         onClick={onReply}
       >
-        <ArrowTurnBackwardIcon />
+        <ArrowShareLeftIcon />
       </Button>
     </div>
   )
@@ -1076,7 +1076,7 @@ function ErrorRow({ id, error, bot, gap }: { id: string; error: ErrorItem; bot: 
         onClick={retry}
         className='ml-1 gap-1.5'
       >
-        <Refresh01Icon />
+        <ArrowRotateClockwiseIcon />
         Retry
       </Button>
     </div>
@@ -1263,7 +1263,7 @@ function BotComposer({
         className='col-start-3 rounded-full'
         style={{ gridRow: buttonsRow }}
       >
-        {stop ? <StopIcon filled /> : <ArrowUp02Icon />}
+        {stop ? <StopIcon filled /> : <ArrowUpIcon />}
       </Button>
       {attachments.error && (
         <p

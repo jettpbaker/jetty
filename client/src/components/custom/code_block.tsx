@@ -1,9 +1,10 @@
+import { LinebreakIcon } from '@/components/custom/central_icons'
 import { cachedHtml, highlightHtml } from '@/components/custom/code_highlight'
 import { plainHtml } from '@/components/custom/code_html'
 import { CopyButton } from '@/components/custom/copy_button'
 
 import './code_block.css'
-import { TextWrapIcon } from '@/components/custom/huge_icons'
+
 import { fadeStyle } from '@/components/custom/smooth_stream'
 import { Button } from '@/components/ui/button'
 import { getMotionTokens } from '@/lib/motion'
@@ -159,7 +160,7 @@ function WorkerCodeBlock({
       aria-pressed={wrapped}
       onClick={() => setWrapped((value) => !value)}
     >
-      <TextWrapIcon />
+      <LinebreakIcon />
     </Button>
   )
   const numbered = false

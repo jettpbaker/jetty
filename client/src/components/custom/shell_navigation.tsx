@@ -1,6 +1,10 @@
 import type { RouterHistory } from '@tanstack/react-router'
 
-import { ArrowLeft01Icon, ArrowRight01Icon, SidebarLeftIcon } from '@/components/custom/huge_icons'
+import {
+  ChevronLeftSmallIcon,
+  ChevronRightSmallIcon,
+  SidebarSimpleLeftWideIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { pressProps } from '@/lib/press'
@@ -67,7 +71,7 @@ export function ShellNavigation() {
           aria-label={(isMobile ? openMobile : open) ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           <KeybindIcon binding={keybinds.sidebar}>
-            <SidebarLeftIcon />
+            <SidebarSimpleLeftWideIcon />
           </KeybindIcon>
         </SidebarTrigger>
       </KeybindTooltip>
@@ -80,7 +84,7 @@ export function ShellNavigation() {
           disabled={!canGoBack}
           {...pressProps(back)}
         >
-          <ArrowLeft01Icon />
+          <ChevronLeftSmallIcon />
         </Button>
         <Button
           variant='ghost'
@@ -90,7 +94,7 @@ export function ShellNavigation() {
           disabled={!canGoForward}
           {...pressProps(forward)}
         >
-          <ArrowRight01Icon />
+          <ChevronRightSmallIcon />
         </Button>
       </div>
     </nav>

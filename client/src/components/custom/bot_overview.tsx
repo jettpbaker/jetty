@@ -1,7 +1,11 @@
 import type { Bot, BotTask, ThreadMeta } from '@jetty/shared/wire'
 
-import { ArrowRight01Icon, CircleIcon, Tick02Icon } from '@/components/custom/huge_icons'
-import { CircleSlashIcon } from '@/components/custom/lucide_icons'
+import {
+  ChevronRightSmallIcon,
+  CirclePlaceholderOnIcon,
+  Checkmark1SmallIcon,
+  CirclePlaceholderOffIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { describeLoadout } from '@/lib/loadout'
@@ -62,7 +66,7 @@ function ModelRow({ bot }: { bot: Bot }) {
           {catalogModelName(models, bot.provider, bot.model)}
         </span>
         {loadout && <span className='text-muted-foreground'>{loadout}</span>}
-        <ArrowRight01Icon className='ml-auto size-3' />
+        <ChevronRightSmallIcon className='ml-auto size-3' />
       </Button>
     </BotSettingsSheet>
   )
@@ -81,12 +85,12 @@ function TaskGlyph({ status }: { status: BotTask['status'] }) {
     case 'in_progress':
       return <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
     case 'done':
-      return <Tick02Icon className={className} />
+      return <Checkmark1SmallIcon className={className} />
     // Lucide's, as for an issue closed as not planned.
     case 'dropped':
-      return <CircleSlashIcon aria-hidden='true' className={className} />
+      return <CirclePlaceholderOffIcon aria-hidden='true' className={className} />
     case 'todo':
-      return <CircleIcon className={className} />
+      return <CirclePlaceholderOnIcon className={className} />
   }
 }
 

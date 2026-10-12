@@ -1,13 +1,13 @@
 import type { Attachment } from '@jetty/shared/items'
 
 import {
-  ArrowShrink02Icon,
-  ArrowExpand01Icon,
+  Minimize45Icon,
+  Expand45Icon,
   PauseIcon,
   PlayIcon,
-  VolumeHighIcon,
-  VolumeMute02Icon,
-} from '@/components/custom/huge_icons'
+  VolumeFullIcon,
+  VolumeOffIcon,
+} from '@/components/custom/central_icons'
 import { MediaActions } from '@/components/custom/media_actions'
 import {
   fittedStyle,
@@ -185,7 +185,7 @@ export function VideoPlayer({
             aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
           >
-            {fullscreen ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
+            {fullscreen ? <Minimize45Icon /> : <Expand45Icon />}
           </Button>
         </div>
       }
@@ -268,7 +268,7 @@ function Volume({ media, muted }: { media: RefObject<HTMLVideoElement | null>; m
           }
         }}
       >
-        {silent ? <VolumeMute02Icon /> : <VolumeHighIcon />}
+        {silent ? <VolumeOffIcon /> : <VolumeFullIcon />}
       </Button>
       <div className='w-0 overflow-hidden transition-[width] duration-150 group-has-[:focus-visible]/volume:w-18 group-hover/volume:w-18 motion-reduce:transition-none'>
         <MediaSlider

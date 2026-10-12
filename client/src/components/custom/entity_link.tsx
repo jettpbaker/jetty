@@ -1,12 +1,7 @@
 import type { GitHubIssue } from '@jetty/shared/wire'
 
-import {
-  CircleCheckIcon,
-  CircleDotIcon,
-  CircleSlashIcon,
-  GitBranchIcon,
-  GitCommitHorizontalIcon,
-} from '@/components/custom/lucide_icons'
+import { BranchSimpleIcon, CommitsIcon } from '@/components/custom/central_icons'
+import { CircleCheckIcon, CircleDotIcon, CircleSlashIcon } from '@/components/custom/lucide_icons'
 import { useNow } from '@/hooks/use-now'
 import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -275,7 +270,7 @@ function PullPreview({
         <span className='truncate'>{entity}</span>
       </div>
       <div className='flex min-w-0 items-center gap-1 text-muted-foreground'>
-        <GitBranchIcon aria-hidden='true' className='size-3 shrink-0' />
+        <BranchSimpleIcon aria-hidden='true' className='size-3 shrink-0' />
         <span className='truncate font-mono'>{pull.head.ref}</span>
         <span className='ml-auto shrink-0 pl-2 font-mono'>
           <span className='text-status-success'>+{pull.additions}</span>{' '}
@@ -536,12 +531,7 @@ function CommitLink({ entity, permalink }: { entity: string; permalink?: string 
   const short = sha.slice(0, 7)
   return (
     <GitHubAnchor href={permalink ?? entityUrl('commit', entity)} title={`${repo}@${short}`}>
-      <Lead
-        icon={GitCommitHorizontalIcon}
-        color='text-muted-foreground'
-        label='Commit'
-        size={pullGlyph}
-      >
+      <Lead icon={CommitsIcon} color='text-muted-foreground' label='Commit' size={pullGlyph}>
         <span className='font-mono'>{home.has(repo) ? short : `${repo}@${short}`}</span>
       </Lead>
     </GitHubAnchor>

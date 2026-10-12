@@ -1,19 +1,19 @@
 import type { PullRequestLink, PullRequestListItem } from '@jetty/shared/wire'
 
 import {
-  GitMergeIcon,
-  GitPullRequestClosedIcon,
-  GitPullRequestDraftIcon,
-  GitPullRequestIcon,
-} from '@/components/custom/lucide_icons'
+  MergedIcon,
+  RequestClosedIcon,
+  DraftIcon,
+  PullRequestIcon,
+} from '@/components/custom/central_icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 export const prPresentation = {
-  draft: { icon: GitPullRequestDraftIcon, label: 'Draft', color: 'text-pr-draft' },
-  open: { icon: GitPullRequestIcon, label: 'Open', color: 'text-pr-open' },
-  merged: { icon: GitMergeIcon, label: 'Merged', color: 'text-pr-merged' },
-  closed: { icon: GitPullRequestClosedIcon, label: 'Closed', color: 'text-pr-closed' },
+  draft: { icon: DraftIcon, label: 'Draft', color: 'text-pr-draft' },
+  open: { icon: PullRequestIcon, label: 'Open', color: 'text-pr-open' },
+  merged: { icon: MergedIcon, label: 'Merged', color: 'text-pr-merged' },
+  closed: { icon: RequestClosedIcon, label: 'Closed', color: 'text-pr-closed' },
 }
 
 type PullRequestReadiness = Pick<

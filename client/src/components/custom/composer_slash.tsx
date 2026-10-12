@@ -1,19 +1,19 @@
 import type { Bot, PermissionMode, ProviderModel, Skill } from '@jetty/shared/wire'
 
 import {
-  AiFileIcon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  BookOpenIcon,
-  BrainIcon,
-  ChartHistogramIcon,
-  FlashIcon,
-  GaugeIcon,
-  PencilEdit02Icon,
+  ScriptAiIcon,
+  ChevronLeftSmallIcon,
+  ChevronRightSmallIcon,
+  MagicBookIcon,
+  AtomIcon,
+  AnalyticsIcon,
+  LightningBoltIcon,
+  EffortIcon,
+  EditSmall1Icon,
   ShieldCheckIcon,
-  ShieldOffIcon,
-  Tick02Icon,
-} from '@/components/custom/huge_icons'
+  ShieldBreakIcon,
+  Checkmark1SmallIcon,
+} from '@/components/custom/central_icons'
 import { inComposition } from '@/lib/composition'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
@@ -274,7 +274,7 @@ export function useComposerSlash(
           '',
           effort === loadout?.effort,
           () => loadout && setLoadout({ ...loadout, effort }),
-          <GaugeIcon />
+          <EffortIcon level={effort} />
         )
       )
     return (['auto', 'full_access'] as const).map((mode) =>
@@ -284,7 +284,7 @@ export function useComposerSlash(
         accessDescriptions[mode],
         mode === accessMode,
         () => setAccessMode(mode),
-        mode === 'auto' ? <ShieldCheckIcon /> : <ShieldOffIcon />
+        mode === 'auto' ? <ShieldCheckIcon /> : <ShieldBreakIcon />
       )
     )
   }
@@ -324,12 +324,12 @@ export function useComposerSlash(
     const efforts = model?.efforts.length ?? 0
     const choosable = model?.autoMode !== false
     return [
-      command('model', 'Model', '', <BrainIcon />, true, picker('model')),
+      command('model', 'Model', '', <AtomIcon />, true, picker('model')),
       command(
         'effort',
         'Effort',
         efforts ? '' : loadout ? `${name} has no effort levels` : unset,
-        <GaugeIcon />,
+        <EffortIcon level={loadout?.effort ?? 'medium'} />,
         true,
         picker('effort'),
         !efforts
@@ -338,7 +338,7 @@ export function useComposerSlash(
         'fast',
         'Fast',
         model?.fast ? '' : loadout ? `${name} has no fast mode` : unset,
-        <FlashIcon filled={loadout?.fast} />,
+        <LightningBoltIcon filled={loadout?.fast} />,
         false,
         () => {
           consume(range)
@@ -377,7 +377,7 @@ export function useComposerSlash(
               'usage',
               'Usage',
               provider ? '' : unset,
-              <ChartHistogramIcon />,
+              <AnalyticsIcon />,
               false,
               () => {
                 consume(range)
@@ -387,7 +387,7 @@ export function useComposerSlash(
             ),
           ]
         : []),
-      command('new', 'New thread', '', <PencilEdit02Icon />, false, () => {
+      command('new', 'New thread', '', <EditSmall1Icon />, false, () => {
         consume(range)
         bumpDraft()
         void navigate({ to: '/' })
@@ -405,7 +405,7 @@ export function useComposerSlash(
           name: skill.name,
           description: runsSkills ? skill.description : 'Codex can’t run Claude skills',
           group: 'Skills',
-          icon: <AiFileIcon />,
+          icon: <ScriptAiIcon />,
           disabled: !runsSkills,
           score: 0,
           run: () => insert(range, skill.name),
@@ -461,7 +461,7 @@ export function useComposerSlash(
               name: 'Skills',
               description: '',
               group: 'Skills',
-              icon: <BookOpenIcon />,
+              icon: <MagicBookIcon />,
               score: 0,
               opens: true,
               run: () => go(range, { section: 'Skills' }),
@@ -648,7 +648,7 @@ export function SlashMirror({ slash, className }: { slash: Slash; className?: st
             {mark.bot ? (
               <JettyBot shape={mark.bot.shape} color={mark.bot.color} size={14} />
             ) : (
-              <AiFileIcon />
+              <ScriptAiIcon />
             )}
             {chipLead}
           </span>
@@ -740,7 +740,7 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
   if (entry.kind === 'back')
     return (
       <div {...props} className={`${row} h-menu-item-compact text-muted-foreground`}>
-        <ArrowLeft01Icon />
+        <ChevronLeftSmallIcon />
         Backspace to go back
       </div>
     )
@@ -750,8 +750,10 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
       {entry.icon}
       <span className='shrink-0'>{entry.name}</span>
       <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
-      {entry.kind === 'option' && entry.selected && <Tick02Icon className='text-current' />}
-      {entry.opens && <ArrowRight01Icon className='text-muted-foreground' />}
+      {entry.kind === 'option' && entry.selected && (
+        <Checkmark1SmallIcon className='text-current' />
+      )}
+      {entry.opens && <ChevronRightSmallIcon className='text-muted-foreground' />}
     </div>
   )
 }

@@ -1,5 +1,10 @@
-import { Tick02Icon, HistoryIcon, PauseIcon, Refresh01Icon } from '@/components/custom/huge_icons'
-import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
+import {
+  Checkmark1SmallIcon,
+  ConciseIcon,
+  PauseIcon,
+  ArrowRotateClockwiseIcon,
+  PullRequestIcon,
+} from '@/components/custom/central_icons'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,7 +99,7 @@ export function TranscriptMarker({
 export function CompactionSeam({ running }: { running: boolean }) {
   return (
     <ChatSeam>
-      <SeamIcon icon={HistoryIcon} />
+      <SeamIcon icon={ConciseIcon} />
       {running ? <span className='shimmer'>Compacting</span> : 'Compacted'}
     </ChatSeam>
   )
@@ -103,7 +108,7 @@ export function CompactionSeam({ running }: { running: boolean }) {
 export function RestartSeam({ label = 'Jetty restarted' }: { label?: string }) {
   return (
     <ChatSeam>
-      <SeamIcon icon={Refresh01Icon} />
+      <SeamIcon icon={ArrowRotateClockwiseIcon} />
       <span className='truncate'>{label}</span>
     </ChatSeam>
   )
@@ -115,7 +120,7 @@ export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resu
   const done = resumed || continuing
   return (
     <ChatSeam>
-      <SeamIcon icon={done ? Tick02Icon : PauseIcon} />
+      <SeamIcon icon={done ? Checkmark1SmallIcon : PauseIcon} />
       <span className='truncate'>
         {done ? 'Resumed' : 'Paused'} after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000}{' '}
         minutes
@@ -207,10 +212,10 @@ function pullRequestSeamLook(activity: readonly PullRequestActivity[]) {
   if (types.has('closed'))
     return { icon: prPresentation.closed.icon, tone: prPresentation.closed.color }
   if (types.has('checks_failed') || types.has('changes_requested') || types.has('conflict'))
-    return { icon: GitPullRequestIcon, tone: 'text-status-error' }
+    return { icon: PullRequestIcon, tone: 'text-status-error' }
   if (types.has('ready') || types.has('approved') || types.has('checks_passed'))
-    return { icon: GitPullRequestIcon, tone: 'text-pr-open' }
-  return { icon: GitPullRequestIcon }
+    return { icon: PullRequestIcon, tone: 'text-pr-open' }
+  return { icon: PullRequestIcon }
 }
 
 function news(entry: PullRequestActivity, activity: readonly PullRequestActivity[]) {

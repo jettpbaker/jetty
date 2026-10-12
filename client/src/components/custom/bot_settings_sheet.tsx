@@ -1,7 +1,7 @@
 import type { Bot, BotAllowRule } from '@jetty/shared/wire'
 
 import { BotAvatar } from '@/components/custom/bot_avatar'
-import { Cancel01Icon } from '@/components/custom/huge_icons'
+import { CrossSmallIcon } from '@/components/custom/central_icons'
 import {
   BotLoadoutPicker,
   BotNameInput,
@@ -58,7 +58,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
             {bot.name} settings
           </SheetTitle>
           <SheetClose render={<Button variant='ghost' size='icon-sm' className='-mr-1.5' />}>
-            <Cancel01Icon />
+            <CrossSmallIcon />
             <span className='sr-only'>Close</span>
           </SheetClose>
         </SheetHeader>
@@ -149,7 +149,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
                     )
                   }
                 >
-                  <Cancel01Icon />
+                  <CrossSmallIcon />
                 </Button>
               </div>
             ))}

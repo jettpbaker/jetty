@@ -1,5 +1,4 @@
-import { Search01Icon } from '@/components/custom/huge_icons'
-import { Settings2Icon } from '@/components/custom/lucide_icons'
+import { MagnifyingGlass2Icon, SettingsSliderHorIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -50,7 +49,7 @@ export function SidebarThreadControls({
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
       <GhostInput
-        icon={<Search01Icon className='size-3' />}
+        icon={<MagnifyingGlass2Icon className='size-3' />}
         aria-label='Search threads'
         placeholder='Search threads'
         className='text-xs text-muted-foreground'
@@ -71,7 +70,7 @@ export function SidebarThreadControls({
             />
           }
         >
-          <Settings2Icon className='size-3.5' aria-hidden='true' />
+          <SettingsSliderHorIcon className='size-3.5' aria-hidden='true' />
         </DropdownMenuTrigger>
         <DropdownMenuContent side='right' align='start' className='w-44'>
           <DropdownMenuRadioGroup value={grouping} onValueChange={onGroupingChange}>

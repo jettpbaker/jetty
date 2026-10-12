@@ -1,31 +1,28 @@
+import {
+  ArrowShareLeftIcon,
+  PlusSmallIcon,
+  ChevronDownSmallIcon,
+  ChevronLeftSmallIcon,
+  ChevronRightSmallIcon,
+  ArrowUpRightIcon,
+  SquareBehindSquare1Icon,
+  FileBendIcon,
+  DotGrid1x3VerticalIcon,
+  Checkmark1SmallIcon,
+  CommitsIcon,
+  MergedIcon,
+} from '@/components/custom/central_icons'
 import { charmedSprite } from '@/components/custom/charmed_icons'
 import {
   ErrorStatusIcon,
   SkippedStatusIcon,
   SuccessStatusIcon,
 } from '@/components/custom/circle_status_icon'
-import { ArrowTurnBackwardIcon, PlusSignIcon } from '@/components/custom/huge_icons'
-import {
-  ArrowDown01Icon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  ArrowUpRight01Icon,
-  Copy01Icon,
-  File01Icon,
-  MoreVerticalIcon,
-  Tick02Icon,
-} from '@/components/custom/huge_icons'
 import { InProgressIcon } from '@/components/custom/in_progress_icon'
 
 import '../option_picker.css'
 import { Loading } from '@/components/custom/loading'
-import {
-  CircleCheckIcon,
-  CircleDotIcon,
-  CircleSlashIcon,
-  GitCommitHorizontalIcon,
-  GitMergeIcon,
-} from '@/components/custom/lucide_icons'
+import { CircleCheckIcon, CircleDotIcon, CircleSlashIcon } from '@/components/custom/lucide_icons'
 import { markdownText } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
@@ -319,7 +316,7 @@ function QuoteReply({ body }: { body: string }) {
           />
         }
       >
-        <ArrowTurnBackwardIcon />
+        <ArrowShareLeftIcon />
       </TooltipTrigger>
       <TooltipContent>Quote reply</TooltipContent>
     </Tooltip>
@@ -348,7 +345,7 @@ function ResolveThread({
           />
         }
       >
-        <Tick02Icon />
+        <Checkmark1SmallIcon />
       </TooltipTrigger>
       <TooltipContent>
         {resolved ? 'Unresolve conversation' : 'Resolve conversation'}
@@ -625,7 +622,7 @@ function ChecksPill({ pr }: { pr: PrPull }) {
                         data-slot='command-shortcut'
                         className='ml-auto flex shrink-0 text-muted-foreground'
                       >
-                        <ArrowDown01Icon className='size-3.5' />
+                        <ChevronDownSmallIcon className='size-3.5' />
                       </span>
                     </CommandItem>
                   )}
@@ -732,7 +729,7 @@ function Issues({ pr }: { pr: PrPull }) {
     return (
       <div className='px-0.75'>
         <Action className='gap-2'>
-          <PlusSignIcon className='size-4' />
+          <PlusSmallIcon className='size-4' />
           Link issue
         </Action>
       </div>
@@ -812,7 +809,7 @@ function Properties({ pr }: { pr: PrPull }) {
         {cloneElement(picker, {
           trigger: (
             <Button variant='ghost-text' size='sm' className='h-7 gap-2 px-0 font-normal'>
-              <PlusSignIcon className='size-4' />
+              <PlusSmallIcon className='size-4' />
               Add reviewers
             </Button>
           ),
@@ -927,7 +924,7 @@ function CommitsLine({
           <ul className='space-y-1 pt-1 pl-5.5'>
             {commits.map((commit) => (
               <li key={commit.sha} className='flex min-w-0 items-center gap-2'>
-                <GitCommitHorizontalIcon className='size-3.5 shrink-0' />
+                <CommitsIcon className='size-3.5 shrink-0' />
                 <span className='shrink-0 font-mono'>{commit.sha.slice(0, 7)}</span>
                 <span className='truncate text-foreground'>{commit.message.split('\n')[0]}</span>
               </li>
@@ -944,7 +941,7 @@ function CommitRun({ commits }: { commits: PrCommit[] }) {
   const latest = commits.at(-1)!
   return (
     <CommitsLine
-      icon={<GitCommitHorizontalIcon className='size-3.5 shrink-0' />}
+      icon={<CommitsIcon className='size-3.5 shrink-0' />}
       text={authors.size === 1 ? `${latest.author} added` : 'Added'}
       commits={commits}
       at={latest.date}
@@ -1054,7 +1051,7 @@ function Activity({ pr }: { pr: PrPull }) {
             at: pr.mergedAt,
             content: (
               <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                <GitMergeIcon className='size-3.5 text-pr-merged' />
+                <MergedIcon className='size-3.5 text-pr-merged' />
                 <span>
                   Merged by {personName(pr.mergedBy ?? pr.author)} <Ago at={pr.mergedAt} />
                 </span>
@@ -1124,7 +1121,7 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
         className='flex w-full flex-col gap-1.5 px-3 py-2.5 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
       >
         <span className='flex w-full items-center gap-2 text-xs'>
-          <ArrowDown01Icon
+          <ChevronDownSmallIcon
             className={`size-3 shrink-0 text-muted-foreground ${expanded ? '' : '-rotate-90'}`}
           />
           <span
@@ -1277,7 +1274,7 @@ function InlineThreads({ threads, author }: { threads: PrThread[]; author?: PrUs
           >
             <SuccessStatusIcon className='size-3.5 shrink-0 text-status-success' />
             {count} resolved comments from {authors.join(', ')}
-            <ArrowDown01Icon className='ml-auto size-3.5 transition-transform duration-140 ease-(--motion-disclosure-ease) group-data-panel-open/resolved:rotate-180 group-data-panel-open/resolved:duration-180 motion-reduce:transition-none' />
+            <ChevronDownSmallIcon className='ml-auto size-3.5 transition-transform duration-140 ease-(--motion-disclosure-ease) group-data-panel-open/resolved:rotate-180 group-data-panel-open/resolved:duration-180 motion-reduce:transition-none' />
           </CollapsibleTrigger>
           <CollapsibleContent className='data-starting-style:opacity-0 motion-reduce:transition-opacity motion-reduce:data-starting-style:h-(--collapsible-panel-height) motion-reduce:data-ending-style:h-(--collapsible-panel-height)'>
             <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
@@ -1337,7 +1334,7 @@ function CommitPicker({
         <PopoverTrigger
           render={<DiffToolbarButton className={cn('min-w-0', value && 'text-foreground')} />}
         >
-          {value && value.parents > 1 ? <GitMergeIcon /> : <GitCommitHorizontalIcon />}
+          {value && value.parents > 1 ? <MergedIcon /> : <CommitsIcon />}
           {value ? (
             <>
               <span className='font-mono text-muted-foreground'>{value.sha.slice(0, 7)}</span>
@@ -1378,7 +1375,7 @@ function CommitPicker({
                       onChange(null)
                     }}
                   >
-                    <GitCommitHorizontalIcon />
+                    <CommitsIcon />
                     <span className='flex-1'>All commits</span>
                     <span className='text-muted-foreground tabular-nums'>{commits.length}</span>
                   </CommandItem>
@@ -1397,7 +1394,7 @@ function CommitPicker({
                       }}
                     >
                       <span className='commit-picker-node relative flex shrink-0 items-center text-muted-foreground group-data-selected/command-item:text-current'>
-                        {commit.parents > 1 ? <GitMergeIcon /> : <GitCommitHorizontalIcon />}
+                        {commit.parents > 1 ? <MergedIcon /> : <CommitsIcon />}
                       </span>
                       <span className='min-w-0 flex-1 truncate'>{subject(commit)}</span>
                       <span className='font-mono text-muted-foreground'>
@@ -1421,7 +1418,7 @@ function CommitPicker({
               disabled={index === 0}
               {...pressProps(() => onChange(commits[index - 1]!.sha))}
             >
-              <ArrowLeft01Icon />
+              <ChevronLeftSmallIcon />
             </Button>
           </Hint>
           <Hint text='Next commit'>
@@ -1432,7 +1429,7 @@ function CommitPicker({
               disabled={index === commits.length - 1}
               {...pressProps(() => onChange(commits[index + 1]!.sha))}
             >
-              <ArrowRight01Icon />
+              <ChevronRightSmallIcon />
             </Button>
           </Hint>
         </>
@@ -1454,7 +1451,7 @@ function FileMenu({ file, pr, at }: { file: PrFile; pr: PrPull; at?: string }) {
         render={<Button variant='ghost-text' size='sm' className='h-7 px-0 font-normal' />}
         aria-label={`Actions for ${file.path}`}
       >
-        <MoreVerticalIcon className='size-3.5' />
+        <DotGrid1x3VerticalIcon className='size-3.5' />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-max'>
         <DropdownMenuItem
@@ -1465,12 +1462,12 @@ function FileMenu({ file, pr, at }: { file: PrFile; pr: PrPull; at?: string }) {
             )
           }
         >
-          <Copy01Icon />
+          <SquareBehindSquare1Icon />
           Copy path
         </DropdownMenuItem>
 
         <DropdownMenuItem disabled>
-          <File01Icon />
+          <FileBendIcon />
           View file
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -1483,7 +1480,7 @@ function FileMenu({ file, pr, at }: { file: PrFile; pr: PrPull; at?: string }) {
             />
           }
         >
-          <ArrowUpRight01Icon />
+          <ArrowUpRightIcon />
           Open in GitHub
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -1600,7 +1597,7 @@ function FileCard({
           {file.binary ? (
             <div className='flex flex-col items-center gap-4 py-12'>
               <div className='flex h-10 w-16 items-center justify-center rounded-sm border border-border bg-muted'>
-                <File01Icon className='size-5 text-muted-foreground' />
+                <FileBendIcon className='size-5 text-muted-foreground' />
               </div>
               <p className='font-mono text-xs text-muted-foreground'>
                 Binary file · preview unavailable
@@ -1804,7 +1801,7 @@ function MergeButton({
           {pending ? (
             <InProgressIcon className='size-3.5 text-status-working' />
           ) : (
-            <GitMergeIcon className='size-3.5' />
+            <MergedIcon className='size-3.5' />
           )}
           {current.label}
         </span>
@@ -1820,7 +1817,7 @@ function MergeButton({
   const primary = reason ? (
     <Hint text={reason}>
       <Button disabled size='sm' className={cn('rounded-sm', edge, mergeTone)}>
-        <GitMergeIcon className='size-3.5' />
+        <MergedIcon className='size-3.5' />
         {current.label}
       </Button>
     </Hint>
@@ -1849,7 +1846,7 @@ function MergeButton({
           }
           aria-label='Select merge method'
         >
-          <ArrowDown01Icon />
+          <ChevronDownSmallIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-max min-w-56'>
           <DropdownMenuRadioGroup
@@ -2196,7 +2193,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                                   className='inline-flex items-center gap-1 font-mono text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
                                 >
                                   {repoName(pr)} #{pr.number}
-                                  <ArrowUpRight01Icon className='size-3.5' />
+                                  <ArrowUpRightIcon className='size-3.5' />
                                 </a>
                               </Hint>
                             </div>

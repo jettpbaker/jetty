@@ -18,9 +18,8 @@ import { useState, useLayoutEffect, type ReactElement, type RefObject, type Reac
 
 import type { DiffFile } from './model'
 
+import { FilesIcon, SidebarSimpleLeftWideIcon, SettingsSliderHorIcon } from '../central_icons'
 import { ChangedFilesTree } from '../changed_files_tree'
-import { Files01Icon, SidebarLeftIcon } from '../huge_icons'
-import { Settings2Icon } from '../lucide_icons'
 import { DiffFileFilter } from './file_filter'
 
 export function DiffToolbarButton({ className, ...props }: React.ComponentProps<typeof Button>) {
@@ -107,7 +106,7 @@ export function DiffToolbar({
         aria-controls={paneId}
         {...pressProps(() => onPaneChange(!pane))}
       >
-        <SidebarLeftIcon />
+        <SidebarSimpleLeftWideIcon />
         Files
         <span className='text-muted-foreground tabular-nums'>
           {files.length === total ? total : `${files.length} of ${total}`}
@@ -165,7 +164,7 @@ export function DiffDisplayOptions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={trigger}>
-        <Settings2Icon aria-hidden='true' />
+        <SettingsSliderHorIcon aria-hidden='true' />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-44'>
         <DropdownMenuRadioGroup
@@ -238,7 +237,7 @@ function FilesMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger render={<DiffToolbarButton className='@min-[720px]:hidden' />}>
-        <Files01Icon />
+        <FilesIcon />
         Files
         <span className='text-muted-foreground tabular-nums'>
           {files.length === total ? total : `${files.length} of ${total}`}

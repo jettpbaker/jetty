@@ -1,4 +1,4 @@
-import { Attachment01Icon } from '@/components/custom/huge_icons'
+import { Paperclip3Icon } from '@/components/custom/central_icons'
 import { canDropAttachments, dropAttachments } from '@/hooks/use-attachments'
 import { useEffect, useState } from 'react'
 
@@ -83,7 +83,7 @@ export function FileDropOverlay() {
   if (!dragging) return null
   return (
     <div className='pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background/80 text-sm supports-backdrop-filter:backdrop-blur-xs'>
-      <Attachment01Icon size={24} className='text-muted-foreground' />
+      <Paperclip3Icon size={24} className='text-muted-foreground' />
       Drop files to attach
     </div>
   )

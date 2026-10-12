@@ -1,4 +1,4 @@
-import { Copy01Icon, Tick02Icon } from '@/components/custom/huge_icons'
+import { SquareBehindSquare1Icon, Checkmark1SmallIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -31,7 +31,7 @@ export function CopyButton({
         )
       }
     >
-      {copied ? <Tick02Icon /> : <Copy01Icon />}
+      {copied ? <Checkmark1SmallIcon /> : <SquareBehindSquare1Icon />}
     </Button>
   )
 }

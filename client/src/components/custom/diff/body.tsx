@@ -4,8 +4,8 @@ import { useResolvedTheme } from '@/lib/theme'
 import { FileDiff } from '@pierre/diffs/react'
 import { useContext, type ReactNode } from 'react'
 
+import { centralMasks } from '../central_icons'
 import { useDiffWorkerPoolLoading } from '../diff_worker_pool'
-import { hugeIconMasks } from '../huge_icons'
 import { codeSurfaceCSS, nameExpanders, syntaxTheme } from '../syntax_theme'
 import { DiffStyleContext, DiffWrapContext } from './model'
 
@@ -58,9 +58,9 @@ const foldCSS = `
 [data-separator="line-info"] { margin: 0; height: 32px; background: transparent; }
 [data-separator="line-info"] [data-separator-wrapper] { height: 32px; margin: 0; border-radius: 0; ${hairline} }
 ${shown} [data-separator-wrapper] { display: flex; align-items: center; gap: 4px; width: 100cqi; padding: 0 0 0 8px; }
-[data-expand-down], [data-expand-down] + [data-separator-content] { --fold-arrow: ${hugeIconMasks.arrowUp03}; }
-[data-expand-up], [data-expand-up] + [data-separator-content] { --fold-arrow: ${hugeIconMasks.arrowDown03}; }
-[data-expand-both], [data-expand-both] + [data-separator-content] { --fold-arrow: ${hugeIconMasks.arrowUpDown}; }
+[data-expand-down], [data-expand-down] + [data-separator-content] { --fold-arrow: ${centralMasks.arrowUp}; }
+[data-expand-up], [data-expand-up] + [data-separator-content] { --fold-arrow: ${centralMasks.arrowDown}; }
+[data-expand-both], [data-expand-both] + [data-separator-content] { --fold-arrow: ${centralMasks.arrowTopBottom}; }
 ${shown} [data-expand-button] { position: absolute; inset: 0; width: auto; height: auto; background: transparent; border-radius: 0; cursor: pointer; }
 ${shown} [data-expand-button] svg { display: none; }
 ${shown} [data-separator-content] { ${chip} }

@@ -1,4 +1,4 @@
-import { FolderGit2Icon, LaptopIcon } from '@/components/custom/huge_icons'
+import { WorktreeIcon, MacbookIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,8 +13,8 @@ import { DisabledTooltip } from './disabled_tooltip'
 type Environment = 'local' | 'worktree'
 
 export const environments = {
-  worktree: { label: 'Worktree', Icon: FolderGit2Icon },
-  local: { label: 'Current checkout', Icon: LaptopIcon },
+  worktree: { label: 'Worktree', Icon: WorktreeIcon },
+  local: { label: 'Current checkout', Icon: MacbookIcon },
 } as const
 
 export function ComposerEnvironment({
@@ -46,12 +46,12 @@ export function ComposerEnvironment({
         >
           <DisabledTooltip reason={worktreeDisabled} side='right'>
             <DropdownMenuRadioItem value='worktree' disabled={worktreeDisabled !== undefined}>
-              <FolderGit2Icon />
+              <WorktreeIcon />
               Worktree
             </DropdownMenuRadioItem>
           </DisabledTooltip>
           <DropdownMenuRadioItem value='local'>
-            <LaptopIcon />
+            <MacbookIcon />
             Current checkout
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

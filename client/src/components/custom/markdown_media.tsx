@@ -1,7 +1,7 @@
 import type { Attachment } from '@jetty/shared/items'
 
+import { Images1Icon } from '@/components/custom/central_icons'
 import { ImageThumbnail } from '@/components/custom/gallery_message'
-import { ImageNotFound01Icon } from '@/components/custom/huge_icons'
 import {
   fittedStyle,
   INLINE_IMAGE_MAX_HEIGHT,
@@ -242,7 +242,7 @@ export function MarkdownMedia({
         rel='noreferrer'
         className='inline-flex w-fit items-center gap-2 rounded-lg bg-muted px-3 py-2 align-middle text-xs whitespace-nowrap text-muted-foreground no-underline transition-colors hover:text-foreground'
       >
-        <ImageNotFound01Icon className='size-4 shrink-0' />
+        <Images1Icon className='size-4 shrink-0' />
         {github ? "Couldn't load attachment · Open on GitHub" : "Couldn't load image · Open link"}
       </a>
     )

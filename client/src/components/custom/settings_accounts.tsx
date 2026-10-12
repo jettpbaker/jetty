@@ -18,8 +18,13 @@ import { Effect } from 'effect'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
+import {
+  ChevronDownSmallIcon,
+  ArrowUpRightIcon,
+  SquareBehindSquare1Icon,
+  ArrowRotateClockwiseIcon,
+} from './central_icons'
 import { GithubIcon } from './github_icon'
-import { ArrowDown01Icon, ArrowUpRight01Icon, Copy01Icon, Refresh01Icon } from './huge_icons'
 import { ProviderGlyph } from './provider_glyph'
 import { ComingSoon, Mono, SettingsPage, SettingsSection, cardClass } from './settings_layout'
 
@@ -161,24 +166,24 @@ function AccountMenu({
         <span className={status === 'checking' || status === 'off' ? 'text-muted-foreground' : ''}>
           {statusLabels[status]}
         </span>
-        <ArrowDown01Icon />
+        <ChevronDownSmallIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='end'
         className='w-60 rounded-md [&_[data-slot=dropdown-menu-item]]:h-7 [&_[data-slot=dropdown-menu-item]]:text-13 [&_[data-slot=dropdown-menu-item]_svg]:size-4'
       >
         <DropdownMenuItem onClick={onCheck}>
-          <Refresh01Icon />
+          <ArrowRotateClockwiseIcon />
           Check connection
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => void copyCommand(login)}>
-          <Copy01Icon />
+          <SquareBehindSquare1Icon />
           Copy
           <code className='font-mono text-xs text-muted-foreground'>{login}</code>
         </DropdownMenuItem>
         {status !== 'connected' && (
           <DropdownMenuItem onClick={() => window.open(install, '_blank', 'noreferrer')}>
-            <ArrowUpRight01Icon />
+            <ArrowUpRightIcon />
             Install
           </DropdownMenuItem>
         )}

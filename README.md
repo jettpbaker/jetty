@@ -99,3 +99,10 @@ and the session, model-selection and xAI extension handling in
 [T3 Code](https://github.com/pingdotgg/t3code). The opt-in real-provider smoke test is
 `JETTY_GROK_LIVE_TEST=1 bun test server/src/grok-live.test.ts` (`JETTY_GROK_MODEL`
 picks its model); ordinary tests use a local protocol fixture.
+
+## icons
+
+Jetty's icons are [Central Icons](https://centralicons.com), a paid set. They install
+from npm with the client and are never committed, so building Jetty needs your own
+Central licence: put its key in `CENTRAL_LICENSE_KEY` (see `.env.example`) before
+installing.

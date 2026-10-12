@@ -2,11 +2,11 @@ import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 import type { ReactNode } from 'react'
 
 import {
-  ArrowUpRight01Icon,
-  Cancel01Icon,
-  Refresh01Icon,
-  UndoIcon,
-} from '@/components/custom/huge_icons'
+  ArrowUpRightIcon,
+  CrossSmallIcon,
+  ArrowRotateClockwiseIcon,
+  ArrowRotateCounterClockwiseIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
@@ -169,7 +169,7 @@ function UsageRow({
       >
         {reset && (
           <>
-            <UndoIcon aria-hidden='true' className='size-3' />
+            <ArrowRotateCounterClockwiseIcon aria-hidden='true' className='size-3' />
             <span className='sr-only'>Resets in</span>
             {reset}
           </>
@@ -281,7 +281,7 @@ export function UsagePage({
                 />
               }
             >
-              {refreshing ? <Spinner /> : <Refresh01Icon />}
+              {refreshing ? <Spinner /> : <ArrowRotateClockwiseIcon />}
             </TooltipTrigger>
             <TooltipContent>Refresh usage</TooltipContent>
           </Tooltip>
@@ -365,7 +365,7 @@ export function UsageBanner({
               />
             }
           >
-            <ArrowUpRight01Icon />
+            <ArrowUpRightIcon />
           </TooltipTrigger>
           <TooltipContent>Open Usage</TooltipContent>
         </Tooltip>
@@ -376,7 +376,7 @@ export function UsageBanner({
           aria-label='Dismiss usage'
           onClick={onDismiss}
         >
-          <Cancel01Icon />
+          <CrossSmallIcon />
         </Button>
       </div>
       {usage ? (

@@ -1,4 +1,4 @@
-import { ArrowRight01Icon, Tick02Icon } from '@/components/custom/huge_icons'
+import { ChevronRightSmallIcon, Checkmark1SmallIcon } from '@/components/custom/central_icons'
 import { cn } from '@/lib/utils'
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 import * as React from 'react'
@@ -144,7 +144,7 @@ function DropdownMenuSubTrigger({
       {...props}
     >
       {children}
-      <ArrowRight01Icon className='ml-auto text-muted-foreground' />
+      <ChevronRightSmallIcon className='ml-auto text-muted-foreground' />
     </MenuPrimitive.SubmenuTrigger>
   )
 }
@@ -198,7 +198,7 @@ function DropdownMenuCheckboxItem({
         data-slot='dropdown-menu-checkbox-item-indicator'
       >
         <MenuPrimitive.CheckboxItemIndicator>
-          <Tick02Icon />
+          <Checkmark1SmallIcon />
         </MenuPrimitive.CheckboxItemIndicator>
       </span>
       {children}
@@ -235,7 +235,7 @@ function DropdownMenuRadioItem({
         data-slot='dropdown-menu-radio-item-indicator'
       >
         <MenuPrimitive.RadioItemIndicator>
-          <Tick02Icon />
+          <Checkmark1SmallIcon />
         </MenuPrimitive.RadioItemIndicator>
       </span>
       {children}

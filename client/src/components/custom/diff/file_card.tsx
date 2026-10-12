@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
 
-import { ArrowDown01Icon, ArrowRight01Icon } from '../huge_icons'
+import { ChevronDownSmallIcon, ChevronRightSmallIcon } from '../central_icons'
 import { FileGlyph, Filename } from './file_name'
 import '../charmed_icons.css'
 import './file_card.css'
@@ -122,9 +122,9 @@ export function DiffFileCard({
             <FileGlyph file={file} />
           </span>
           {collapsed ? (
-            <ArrowRight01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
+            <ChevronRightSmallIcon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
           ) : (
-            <ArrowDown01Icon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
+            <ChevronDownSmallIcon className='absolute opacity-0 group-hover/collapse:opacity-100 group-focus-visible/collapse:opacity-100' />
           )}
         </Button>
         <Filename file={file} rename />

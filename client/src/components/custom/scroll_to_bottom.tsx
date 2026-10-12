@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 
-import { ArrowDown02Icon } from './huge_icons'
+import { ArrowDownIcon } from './central_icons'
 import { RollingNumber } from './rolling_number'
 
 // How far above the latest message, in screens, the reader has to be before the arrow shows.
@@ -59,7 +59,7 @@ export function ScrollToBottom({
           'data-[shown=false]:scale-90'
         )}
       >
-        <ArrowDown02Icon data-icon='inline-start' />
+        <ArrowDownIcon data-icon='inline-start' />
         {messages ? (
           <span aria-hidden className='inline-flex items-baseline gap-1'>
             <RollingNumber value={messages} className='font-mono' bidirectional />

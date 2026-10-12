@@ -26,16 +26,16 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { environments } from './composer_environment'
 import {
-  Delete02Icon,
-  FolderGit2Icon,
-  MoreVerticalIcon,
-  PencilEdit02Icon,
-  PlusSignIcon,
-  ShapesIcon,
-  Tick02Icon,
-} from './huge_icons'
+  TrashCanSimpleIcon,
+  WorktreeIcon,
+  DotGrid1x3VerticalIcon,
+  EditSmall1Icon,
+  PlusSmallIcon,
+  PlaygroundIcon,
+  Checkmark1SmallIcon,
+} from './central_icons'
+import { environments } from './composer_environment'
 import { ProjectFolderDialog } from './project_folder_dialog'
 import { ProjectIconPicker } from './project_icon_picker'
 import {
@@ -182,7 +182,7 @@ function ProjectRow({
           </Button>
         ) : (
           <>
-            <Tick02Icon className='size-3.5 shrink-0 text-status-success' />
+            <Checkmark1SmallIcon className='size-3.5 shrink-0 text-status-success' />
             {ok.setupCommand ? (
               <code
                 className='truncate font-mono text-xs text-muted-foreground'
@@ -200,20 +200,20 @@ function ProjectRow({
         <DropdownMenuTrigger
           render={<Button variant='ghost' size='icon' aria-label={`More for ${project.title}`} />}
         >
-          <MoreVerticalIcon />
+          <DotGrid1x3VerticalIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
           <DropdownMenuItem onClick={() => setRenaming(true)}>
-            <PencilEdit02Icon />
+            <EditSmall1Icon />
             Rename
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setChoosingIcon(true)}>
-            <ShapesIcon />
+            <PlaygroundIcon />
             Change icon
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant='destructive' onClick={onRemove}>
-            <Delete02Icon />
+            <TrashCanSimpleIcon />
             Remove
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -252,7 +252,7 @@ export function SettingsProjects() {
         title={projects.length === 1 ? '1 project' : `${projects.length} projects`}
         action={
           <SettingsButton ref={addButton} onClick={() => setAdding(true)}>
-            <PlusSignIcon />
+            <PlusSmallIcon />
             Add project
           </SettingsButton>
         }
@@ -299,7 +299,7 @@ export function SettingsProjects() {
         <SettingsLinkRow
           id='worktrees-link'
           page='worktrees'
-          icon={FolderGit2Icon}
+          icon={WorktreeIcon}
           title='Worktrees'
           description='Where they live, the branch prefix, and which ignored files come along'
         />

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { createFileTreeIconResolver, getBuiltInSpriteSheet } from '@pierre/trees'
 import { useCallback, useMemo, useState } from 'react'
 
-import { ArrowDown01Icon, ArrowRight01Icon } from './huge_icons'
+import { ChevronDownSmallIcon, ChevronRightSmallIcon } from './central_icons'
 import { codeSurfaceCSS, nameExpanders, syntaxTheme } from './syntax_theme'
 import './file_changes_viewer.css'
 
@@ -235,7 +235,7 @@ function FileCollapseButton({
   collapsed: boolean
   onToggle: () => void
 }) {
-  const Chevron = collapsed ? ArrowDown01Icon : ArrowRight01Icon
+  const Chevron = collapsed ? ChevronDownSmallIcon : ChevronRightSmallIcon
   return (
     <Button
       variant='ghost-text'

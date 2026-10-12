@@ -12,10 +12,13 @@ import { cn } from '@/lib/utils'
 import { Link } from '@tanstack/react-router'
 import { type ComponentProps, type ReactElement, type ReactNode } from 'react'
 
-import type { Icon } from './huge_icons'
-
+import {
+  type Icon,
+  ChevronDownSmallIcon,
+  ChevronLeftSmallIcon,
+  ChevronRightSmallIcon,
+} from './central_icons'
 import { DisabledTooltip } from './disabled_tooltip'
-import { ArrowDown01Icon, ArrowLeft01Icon, ArrowRight01Icon } from './huge_icons'
 import { settingsPage } from './settings_nav'
 
 export const comingSoon = 'Coming soon'
@@ -66,7 +69,7 @@ export function SettingsPage({
             params={{ page: back.id }}
             className='-ml-1 flex h-7 items-center gap-1 self-start rounded-sm text-13 text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring'
           >
-            <ArrowLeft01Icon />
+            <ChevronLeftSmallIcon />
             {back.title}
           </Link>
         )}
@@ -246,7 +249,7 @@ export function SettingsLinkRow({
     >
       {icon && <RowIcon icon={icon} />}
       <RowText title={title} description={description} />
-      <ArrowRight01Icon className='shrink-0 text-muted-foreground transition-colors group-hover/link:text-foreground' />
+      <ChevronRightSmallIcon className='shrink-0 text-muted-foreground transition-colors group-hover/link:text-foreground' />
     </Link>
   )
 }
@@ -292,7 +295,7 @@ export function SettingsSelect<T extends string>({
     >
       {current?.icon}
       {current?.label}
-      <ArrowDown01Icon />
+      <ChevronDownSmallIcon />
     </DropdownMenuTrigger>
   )
   return (

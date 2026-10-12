@@ -1,4 +1,4 @@
-import { CropIcon, Delete02Icon, Upload04Icon } from '@/components/custom/huge_icons'
+import { CropIcon, TrashCanSimpleIcon, AddImageIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -258,14 +258,14 @@ export function SettingsAppearance() {
                   disabled={uploading}
                   onClick={() => void chooseImage()}
                 >
-                  <Upload04Icon />
+                  <AddImageIcon />
                 </IconAction>
                 <IconAction
                   label='Remove image'
                   disabled={uploading}
                   onClick={() => void removeWallpaper()}
                 >
-                  <Delete02Icon />
+                  <TrashCanSimpleIcon />
                 </IconAction>
                 <Tooltip>
                   <TooltipTrigger
@@ -311,14 +311,14 @@ export function SettingsAppearance() {
                   disabled={uploading}
                   onClick={() => void chooseVideo()}
                 >
-                  <Upload04Icon />
+                  <AddImageIcon />
                 </IconAction>
                 <IconAction
                   label='Remove video'
                   disabled={uploading}
                   onClick={() => void removeVideo()}
                 >
-                  <Delete02Icon />
+                  <TrashCanSimpleIcon />
                 </IconAction>
                 <video
                   src={`${appearance.video}#t=1`}

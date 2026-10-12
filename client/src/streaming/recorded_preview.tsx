@@ -1,4 +1,4 @@
-import { PauseIcon, PlayIcon } from '@/components/custom/huge_icons'
+import { PauseIcon, PlayIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'

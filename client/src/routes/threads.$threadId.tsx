@@ -1,4 +1,4 @@
-import { PencilEdit02Icon } from '@/components/custom/huge_icons'
+import { EditSmall1Icon } from '@/components/custom/central_icons'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
@@ -145,7 +145,7 @@ function ThreadNotFound() {
             void navigate({ to: '/' })
           })}
         >
-          <PencilEdit02Icon />
+          <EditSmall1Icon />
           New thread
         </Button>
       </div>

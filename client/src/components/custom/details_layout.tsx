@@ -1,8 +1,8 @@
 import {
-  ArrowExpand01Icon,
-  ArrowShrink02Icon,
-  SidebarLeftIcon,
-} from '@/components/custom/huge_icons'
+  Expand45Icon,
+  Minimize45Icon,
+  SidebarSimpleLeftWideIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { pressProps } from '@/lib/press'
@@ -228,7 +228,7 @@ export function DetailsLayout({
             aria-keyshortcuts='Meta+Alt+B'
             {...pressProps(toggle)}
           >
-            <SidebarLeftIcon className='rotate-180' />
+            <SidebarSimpleLeftWideIcon className='rotate-180' />
           </Button>
         </KeybindTooltip>
       </div>
@@ -305,7 +305,7 @@ export function DetailsPane({
               title={expandLabel}
               {...pressProps(() => onExpandedChange(!expanded))}
             >
-              {expanded ? <ArrowShrink02Icon /> : <ArrowExpand01Icon />}
+              {expanded ? <Minimize45Icon /> : <Expand45Icon />}
             </Button>
           </div>
         )}

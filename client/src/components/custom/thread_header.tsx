@@ -1,4 +1,4 @@
-import { ArchiveArrowUpIcon } from '@/components/custom/huge_icons'
+import { ArrowOutOfBoxIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import { useBot } from '@/state'
@@ -41,7 +41,7 @@ export function ThreadHeader({
       )}
       {onUnarchive && (
         <Button variant='ghost-text' size='sm' {...pressProps(onUnarchive)}>
-          <ArchiveArrowUpIcon />
+          <ArrowOutOfBoxIcon />
           Unarchive
         </Button>
       )}

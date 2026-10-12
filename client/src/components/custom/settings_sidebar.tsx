@@ -4,7 +4,12 @@ import { cn } from '@/lib/utils'
 import { useLocation, useNavigate, useParams, useRouter } from '@tanstack/react-router'
 import { useRef, useState, type ReactNode } from 'react'
 
-import { ArrowLeft01Icon, Cancel01Icon, Search01Icon, type Icon } from './huge_icons'
+import {
+  ChevronLeftSmallIcon,
+  CrossSmallIcon,
+  MagnifyingGlass2Icon,
+  type Icon,
+} from './central_icons'
 import { searchSettings, settingsGroups, settingsPage } from './settings_nav'
 
 // Where "Back to app" returns: the last page outside Settings.
@@ -71,11 +76,11 @@ export function SettingsSidebar() {
           className={cn(itemClass, 'gap-1.5 hover:bg-transparent')}
           {...pressProps(() => router.history.push(appLocation))}
         >
-          <ArrowLeft01Icon />
+          <ChevronLeftSmallIcon />
           Back to app
         </button>
         <label className='flex h-7.5 shrink-0 items-center gap-2 rounded-sm bg-foreground/6 px-2 text-muted-foreground focus-within:shadow-[0_0_0_1px_color-mix(in_oklch,var(--primary)_70%,transparent),0_0_0_4px_color-mix(in_oklch,var(--primary)_18%,transparent)]'>
-          <Search01Icon />
+          <MagnifyingGlass2Icon />
           <input
             ref={input}
             value={query}
@@ -103,7 +108,7 @@ export function SettingsSidebar() {
                 input.current?.focus()
               }}
             >
-              <Cancel01Icon />
+              <CrossSmallIcon />
             </button>
           )}
         </label>

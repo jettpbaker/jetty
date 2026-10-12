@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { isImageMimeType } from '@jetty/shared/wire'
 import { createContext, use } from 'react'
 
-import { Alert02Icon, Cancel01Icon, File01Icon, FileTextIcon } from './huge_icons'
+import { ExclamationCircleIcon, CrossSmallIcon, FileTypeIcon } from './central_icons'
 import { mediaUrl } from './media_layout'
 
 // The images an agent sees inline; anything else, an SVG included, is a file it gets as a path.
@@ -67,11 +67,6 @@ export function bytes(size: number) {
   return `${Math.round(size / 1024)} KB`
 }
 
-function FileGlyph({ mimeType, className }: { mimeType: string; className?: string }) {
-  const Glyph = mimeType === 'application/pdf' ? FileTextIcon : File01Icon
-  return <Glyph className={className} />
-}
-
 // A sent file as one quiet line, opened on click.
 export function FileLine({ attachment }: { attachment: Attachment }) {
   const open = useOpenAttachmentFile()
@@ -82,7 +77,11 @@ export function FileLine({ attachment }: { attachment: Attachment }) {
       onClick={() => open(attachment)}
       className='flex max-w-75 items-center gap-1.5 rounded-full border border-border py-1 pr-2.5 pl-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring'
     >
-      <FileGlyph mimeType={attachment.mimeType} className='shrink-0 text-muted-foreground' />
+      <FileTypeIcon
+        mimeType={attachment.mimeType}
+        name={attachment.name}
+        className='shrink-0 text-muted-foreground'
+      />
       <span className='min-w-0 truncate'>{attachment.name}</span>
       <span className='shrink-0 font-mono text-muted-foreground'>
         {bytes(attachment.sizeBytes)}
@@ -126,9 +125,9 @@ export function FileChip({
       )}
     >
       {error ? (
-        <Alert02Icon className='shrink-0' />
+        <ExclamationCircleIcon className='shrink-0' />
       ) : (
-        <FileGlyph mimeType={mimeType} className='shrink-0 text-muted-foreground' />
+        <FileTypeIcon mimeType={mimeType} name={name} className='shrink-0 text-muted-foreground' />
       )}
       <span className='min-w-0 truncate'>{name}</span>
       <Button
@@ -138,7 +137,7 @@ export function FileChip({
         className='shrink-0 opacity-0 group-focus-within/file:opacity-100 group-hover/file:opacity-100 [@media(hover:none)]:opacity-100'
         onClick={onRemove}
       >
-        <Cancel01Icon />
+        <CrossSmallIcon />
       </Button>
     </span>
   )

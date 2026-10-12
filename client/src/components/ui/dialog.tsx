@@ -1,4 +1,4 @@
-import { Cancel01Icon } from '@/components/custom/huge_icons'
+import { CrossSmallIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
@@ -58,7 +58,7 @@ function DialogContent({
             data-slot='dialog-close'
             render={<Button variant='ghost' className='absolute top-4 right-4' size='icon-sm' />}
           >
-            <Cancel01Icon />
+            <CrossSmallIcon />
             <span className='sr-only'>Close</span>
           </DialogPrimitive.Close>
         )}

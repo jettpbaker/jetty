@@ -26,18 +26,18 @@ import {
 } from '@jetty/shared/wire'
 import { useState } from 'react'
 
+import {
+  ArchiveIcon,
+  ChevronDownSmallIcon,
+  Minimize45Icon,
+  MagicBookIcon,
+  CalendarClockIcon,
+  NewspaperIcon,
+  TextSizeIcon,
+  PullRequestIcon,
+} from './central_icons'
 import { loadoutParts, ModelMenuItems } from './composer_loadout'
 import { DisabledTooltip } from './disabled_tooltip'
-import {
-  Archive02Icon,
-  ArrowDown01Icon,
-  ArrowShrink02Icon,
-  BookOpenIcon,
-  Clock01Icon,
-  NewspaperIcon,
-  TextFontIcon,
-} from './huge_icons'
-import { GitPullRequestIcon } from './lucide_icons'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import {
@@ -160,7 +160,7 @@ function JobModelSelect({
         ) : (
           'Choose a model'
         )}
-        <ArrowDown01Icon />
+        <ChevronDownSmallIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-max min-w-56'>
         <ModelMenuItems catalog={catalog} models={models} value={value} onChange={onChange} />
@@ -185,7 +185,7 @@ export function SettingsIntelligence() {
         <SettingsCard>
           <SettingsRow
             id='thread-titles'
-            icon={TextFontIcon}
+            icon={TextSizeIcon}
             title='Thread titles'
             description='Names new threads, and the branches they work on'
           >
@@ -201,13 +201,13 @@ export function SettingsIntelligence() {
           <SettingsLinkRow
             id='guided-reviews'
             page='guided-reviews'
-            icon={BookOpenIcon}
+            icon={MagicBookIcon}
             title='Guided reviews'
             description='Walks you through a pull request in chapters, from its Guide tab'
           />
           <SettingsRow
             id='tidying'
-            icon={ArrowShrink02Icon}
+            icon={Minimize45Icon}
             title='Bot tidying'
             description='Bots compact their chats and file their notes'
           >
@@ -240,13 +240,13 @@ export function SettingsIntelligence() {
           <SettingsLinkRow
             id='pr-activity'
             page='pr-activity'
-            icon={<GitPullRequestIcon />}
+            icon={<PullRequestIcon />}
             title='Wake on PR activity'
             description='Agents pick up reviews, failing checks and conflicts on PRs they opened'
           />
           <SettingsRow
             id='archive'
-            icon={Archive02Icon}
+            icon={ArchiveIcon}
             title='Archive finished threads'
             description='Agents and bots archive threads they started once the work is merged'
           >
@@ -260,7 +260,7 @@ export function SettingsIntelligence() {
             id='check-ins'
             page='bots'
             hash='rhythm'
-            icon={Clock01Icon}
+            icon={CalendarClockIcon}
             title='Bot check-ins'
             description="Quiet bots look over their area, only while you're around"
           />

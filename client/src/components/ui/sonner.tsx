@@ -1,9 +1,9 @@
 import {
-  Alert02Icon,
-  CheckmarkCircle02Icon,
-  InformationCircleIcon,
-  CancelCircleIcon,
-} from '@/components/custom/huge_icons'
+  ExclamationCircleIcon,
+  CircleCheckIcon,
+  CircleInfoIcon,
+  CircleXIcon,
+} from '@/components/custom/central_icons'
 import { Spinner } from '@/components/ui/spinner'
 import { useResolvedTheme } from '@/lib/theme'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
@@ -16,10 +16,10 @@ function Toaster({ ...props }: ToasterProps) {
       theme={theme}
       className='toaster group'
       icons={{
-        success: <CheckmarkCircle02Icon className='size-4' />,
-        info: <InformationCircleIcon className='size-4' />,
-        warning: <Alert02Icon className='size-4' />,
-        error: <CancelCircleIcon className='size-4' />,
+        success: <CircleCheckIcon className='size-4' />,
+        info: <CircleInfoIcon className='size-4' />,
+        warning: <ExclamationCircleIcon className='size-4' />,
+        error: <CircleXIcon className='size-4' />,
         loading: <Spinner />,
       }}
       style={

@@ -1,13 +1,12 @@
 import type { SessionStatus } from '@jetty/shared/events'
 import type { ComponentType, SVGProps } from 'react'
 
-import { Archive02Icon, CircleSlashIcon } from '@/components/custom/huge_icons'
+import { ArchiveIcon } from '@/components/custom/central_icons'
 import { cn } from '@/lib/utils'
 
 import {
   ErrorStatusIcon,
   NeedsInputIcon,
-  QueuedStatusIcon,
   SuccessStatusIcon,
   WaitingStatusIcon,
 } from './circle_status_icon'
@@ -58,9 +57,10 @@ export const statusPresentation: Record<
   error: { icon: ErrorStatusIcon, label: 'Error', color: 'text-status-error' },
   ready: { icon: SuccessStatusIcon, label: 'Ready for review', color: 'text-status-success' },
   done: { icon: SuccessStatusIcon, label: 'Finished', color: 'text-status-success' },
-  stopped: { icon: CircleSlashIcon, label: 'Stopped', color: 'text-muted-foreground' },
-  archived: { icon: Archive02Icon, label: 'Archived', color: 'text-muted-foreground' },
-  queued: { icon: QueuedStatusIcon, label: 'Queued', color: 'text-muted-foreground' },
+  // Stopped and queued aren't running and wait on no one, so they draw the idle ring under their own names.
+  stopped: { icon: IdleIcon, label: 'Stopped', color: 'text-muted-foreground' },
+  archived: { icon: ArchiveIcon, label: 'Archived', color: 'text-muted-foreground' },
+  queued: { icon: IdleIcon, label: 'Queued', color: 'text-muted-foreground' },
 }
 
 export function StatusGlyph({ status, className }: { status: Status; className?: string }) {

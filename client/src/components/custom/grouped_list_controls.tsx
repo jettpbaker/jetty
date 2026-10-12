@@ -11,8 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-import { ListFilterIcon } from './huge_icons'
-import { Settings2Icon } from './lucide_icons'
+import { Filter2Icon, SettingsSliderHorIcon } from './central_icons'
 
 type Choice<T extends string> = { value: T; label: string }
 
@@ -40,7 +39,7 @@ export function ListFilterMenu<T extends string>({
             />
           }
         >
-          <ListFilterIcon />
+          <Filter2Icon />
           {active && <span className='absolute top-1 right-1 size-1 rounded-full bg-primary' />}
         </TooltipTrigger>
         <TooltipContent>Filter</TooltipContent>
@@ -83,7 +82,7 @@ export function ListGroupMenu<T extends string>({
             />
           }
         >
-          <Settings2Icon />
+          <SettingsSliderHorIcon />
         </TooltipTrigger>
         <TooltipContent>Group by</TooltipContent>
       </Tooltip>

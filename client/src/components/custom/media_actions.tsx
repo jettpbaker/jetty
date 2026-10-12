@@ -1,11 +1,11 @@
 import type { ComponentProps } from 'react'
 
 import {
-  ArrowExpand01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  Download04Icon,
-} from '@/components/custom/huge_icons'
+  Expand45Icon,
+  SquareBehindSquare1Icon,
+  TrashCanSimpleIcon,
+  ImportIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -67,7 +67,7 @@ export function MediaActions({
     >
       {onExpand && (
         <MediaAction label={video ? 'Expand video' : 'View image'} onClick={onExpand}>
-          <ArrowExpand01Icon />
+          <Expand45Icon />
         </MediaAction>
       )}
       <MediaAction
@@ -84,18 +84,18 @@ export function MediaActions({
           />
         }
       >
-        <Download04Icon />
+        <ImportIcon />
       </MediaAction>
       {!video && (
         <MediaAction label='Copy image' onClick={() => void copyImage(src)}>
-          <Copy01Icon />
+          <SquareBehindSquare1Icon />
         </MediaAction>
       )}
       {onDelete && (
         <>
           <span aria-hidden className='mx-0.5 h-4 w-px bg-white/15' />
           <MediaAction label='Delete attachment' onClick={onDelete}>
-            <Delete02Icon />
+            <TrashCanSimpleIcon />
           </MediaAction>
         </>
       )}

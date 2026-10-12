@@ -1,4 +1,4 @@
-import { ArrowUpLeft01Icon, Folder01Icon, FolderOpenIcon } from '@/components/custom/huge_icons'
+import { ArrowUpLeftIcon, Folder1Icon, FolderOpenIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
@@ -101,13 +101,13 @@ function FolderPicker({
         >
           {picker.canGoUp && (
             <div {...picker.row(UP)} className={row}>
-              <ArrowUpLeft01Icon className='text-muted-foreground' />
+              <ArrowUpLeftIcon className='text-muted-foreground' />
               ..
             </div>
           )}
           {picker.entries.map((entry) => (
             <div key={entry.fullPath} {...picker.row(entry.fullPath)} className={row}>
-              <Folder01Icon className='text-muted-foreground' />
+              <Folder1Icon className='text-muted-foreground' />
               <span className='truncate'>{entry.name}</span>
               {(entry.added || entry.isGitRepo) && (
                 <span className={tag}>{entry.added ? 'Added' : 'Git repo'}</span>

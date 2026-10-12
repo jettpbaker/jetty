@@ -1,12 +1,12 @@
 import type { FileTreeVisibleRow, GitStatus } from '@pierre/trees'
 
+import { centralMasks, centralSymbols } from '@/components/custom/central_icons'
 import { charmedFolderNames, charmedFolderSymbols } from '@/components/custom/charmed_folders'
 import {
   charmedExtensions,
   charmedFileNames,
   charmedSprite,
 } from '@/components/custom/charmed_icons'
-import { hugeIconMasks } from '@/components/custom/huge_icons'
 import { FileTree, useFileTree } from '@pierre/trees/react'
 import { useEffect, useRef } from 'react'
 
@@ -14,9 +14,8 @@ import './changed_files_tree.css'
 import '@/components/custom/charmed_icons.css'
 
 const treeRowHeight = 26
-// Hugeicons ArrowDown01. trees.software rotates the chevron slot -90deg when collapsed, so one glyph covers both states.
-const treeCaretSprite =
-  '<symbol id="jetty-caret-down" viewBox="1.333333 1.333333 21.333333 21.333333"><path fill="none" stroke="currentColor" stroke-width="1.333" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9"/></symbol><symbol id="jetty-empty" viewBox="0 0 6 6"></symbol>'
+// trees.software rotates the chevron slot -90deg when collapsed, so one glyph covers both states.
+const treeCaretSprite = `${centralSymbols.caretDown}<symbol id="jetty-empty" viewBox="0 0 6 6"></symbol>`
 const treeRemap = {
   'file-tree-icon-chevron': {
     name: 'jetty-caret-down',
@@ -85,7 +84,7 @@ const namesUnsafeCSS = [
 const badgeUnsafeCSS = [
   '[data-item-type="file"] > [data-item-section="decoration"] { flex: 1 0 auto; }',
   '[data-item-type="file"] > [data-item-section="decoration"] > span { gap: 3px; height: 18px; padding-inline: 5px 6px; border-radius: 6px; background: var(--accent); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }',
-  `[data-item-type="file"] > [data-item-section="decoration"] > span::before { content: ""; flex: none; width: 12px; height: 12px; background: currentColor; mask: ${hugeIconMasks.bubbleChat} center / 12px no-repeat; }`,
+  `[data-item-type="file"] > [data-item-section="decoration"] > span::before { content: ""; flex: none; width: 12px; height: 12px; background: currentColor; mask: ${centralMasks.bubbleDots} center / 12px no-repeat; }`,
 ].join('\n')
 const countsUnsafeCSS =
   '[data-item-type="file"] > [data-item-section="decoration"] > span { gap: 6px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }'

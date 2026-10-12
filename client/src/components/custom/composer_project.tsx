@@ -1,4 +1,4 @@
-import { FolderGit2Icon, Settings01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
+import { WorktreeIcon, SettingsGear1Icon, PlusSmallIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import { useCreateProject, useProjects } from '@/state'
@@ -34,7 +34,7 @@ export function ComposerProject({
           className='gap-1.5 rounded-sm'
           onClick={() => setAdding(true)}
         >
-          <PlusSignIcon />
+          <PlusSmallIcon />
           Add project
         </Button>
       ) : (
@@ -45,11 +45,11 @@ export function ComposerProject({
           actions={[
             {
               label: 'Manage projects',
-              icon: <Settings01Icon />,
+              icon: <SettingsGear1Icon />,
               onSelect: () =>
                 void navigate({ to: '/settings/$page', params: { page: 'projects' } }),
             },
-            { label: 'New project', icon: <PlusSignIcon />, onSelect: () => setAdding(true) },
+            { label: 'New project', icon: <PlusSmallIcon />, onSelect: () => setAdding(true) },
           ]}
           icon={<ProjectGlyph data-icon='inline-start' className='size-3' />}
           value={projectId ?? ''}
@@ -70,7 +70,7 @@ export function ComposerProject({
           onMouseDown={(event) => event.preventDefault()}
           {...pressProps(onSetUpWorktrees)}
         >
-          <FolderGit2Icon />
+          <WorktreeIcon />
           Set up worktrees
         </Button>
       )}

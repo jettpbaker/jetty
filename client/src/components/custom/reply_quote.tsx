@@ -1,4 +1,4 @@
-import { ArrowTurnBackwardIcon, Cancel01Icon } from '@/components/custom/huge_icons'
+import { ArrowShareLeftIcon, CrossSmallIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -30,7 +30,7 @@ export function ReplyTab({
         className
       )}
     >
-      <ArrowTurnBackwardIcon className='size-3 shrink-0' />
+      <ArrowShareLeftIcon className='size-3 shrink-0' />
       <span className='min-w-0 flex-1 truncate'>{plainQuote(text)}</span>
       <Button
         variant='ghost'
@@ -39,7 +39,7 @@ export function ReplyTab({
         className='rounded-[10px]'
         onClick={onClear}
       >
-        <Cancel01Icon />
+        <CrossSmallIcon />
       </Button>
     </div>
   )
@@ -64,7 +64,7 @@ export function RepliedTo({
         className
       )}
     >
-      <ArrowTurnBackwardIcon className='size-3 shrink-0' />
+      <ArrowShareLeftIcon className='size-3 shrink-0' />
       <span className='min-w-0 truncate'>{plainQuote(text)}</span>
     </button>
   )

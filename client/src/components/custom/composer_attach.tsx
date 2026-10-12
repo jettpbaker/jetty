@@ -1,6 +1,6 @@
 import type { ComposerAttachment } from '@/hooks/use-attachments'
 
-import { Cancel01Icon, Attachment01Icon, PlusSignIcon } from '@/components/custom/huge_icons'
+import { CrossSmallIcon, Paperclip3Icon, PlusLargeIcon } from '@/components/custom/central_icons'
 import { CircleDotIcon } from '@/components/custom/lucide_icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,13 +32,13 @@ export function ComposerAttach({
           disabled={disabledReason !== undefined}
           render={<Button variant='ghost' size='icon' className={className} />}
         >
-          <PlusSignIcon />
+          <PlusLargeIcon />
         </DropdownMenuTrigger>
       </DisabledTooltip>
       <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => void pickFiles({ multiple: true }).then(onAttach)}>
-            <Attachment01Icon />
+            <Paperclip3Icon />
             Attach files
           </DropdownMenuItem>
           <DisabledTooltip reason='Coming soon' side='right'>
@@ -85,7 +85,7 @@ export function ComposerAttachments({
               className='absolute top-0 right-0 text-white opacity-0 group-focus-within/image:opacity-100 group-hover/image:opacity-100 not-disabled:hover:text-white [@media(hover:none)]:opacity-100'
               onClick={() => onRemove(image.url)}
             >
-              <Cancel01Icon />
+              <CrossSmallIcon />
             </Button>
           </div>
         )

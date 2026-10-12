@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@central-icons-react/round-filled-radius-3-stroke-2": "^1.2.10",
+    "@central-icons-react/round-outlined-radius-3-stroke-2": "^1.2.10",
     "@chenglou/pretext": "^0.0.9",
     "@dnd-kit/dom": "^0.5.0",
     "@dnd-kit/react": "^0.5.0",

@@ -4,6 +4,7 @@ import type { FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 import { Button } from '@/components/ui/button'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 
+import { EditSmall1Icon } from './central_icons'
 import { ChangesScopePicker } from './changes_scope'
 import { charmedSprite } from './charmed_icons'
 import { DiffBody } from './diff/body'
@@ -20,7 +21,6 @@ import {
   type FileChange,
   type LoadDiffFile,
 } from './file_diff_model'
-import { PencilEdit02Icon } from './huge_icons'
 
 const filePrefetchConcurrency = 4
 
@@ -237,7 +237,7 @@ export function FileChangesViewer({
                         title='Edit file'
                         onClick={() => onEditFile(file.path)}
                       >
-                        <PencilEdit02Icon />
+                        <EditSmall1Icon />
                       </Button>
                     )
                   }

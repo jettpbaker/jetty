@@ -1,29 +1,29 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
+import {
+  Paperclip3Icon,
+  ArrowUpIcon,
+  ChecklistIcon,
+  CodeIcon,
+  TrashCanSimpleIcon,
+  AddImageIcon,
+  ListBulletsIcon,
+  ChainLink4Icon,
+  BoldIcon,
+  ItalicIcon,
+  StrikeThroughIcon,
+  H1Icon,
+  H2Icon,
+  H3Icon,
+  NumberedListIcon,
+  CloseQuote1Icon,
+  DividerIcon,
+  ArrowUpRightIcon,
+  EditSmall1Icon,
+} from '@/components/custom/central_icons'
 import { CodeWell } from '@/components/custom/code_block'
 import { highlightTokens, loadLanguages } from '@/components/custom/code_highlight'
 import { CopyButton } from '@/components/custom/copy_button'
-import {
-  Attachment01Icon,
-  ArrowUp02Icon,
-  CheckListIcon,
-  CodeIcon,
-  Delete02Icon,
-  Image01Icon,
-  LeftToRightListBulletIcon,
-  Link01Icon,
-  TextBoldIcon,
-  TextItalicIcon,
-  TextStrikethroughIcon,
-  Heading01Icon,
-  Heading02Icon,
-  Heading03Icon,
-  LeftToRightListNumberIcon,
-  QuoteDownIcon,
-  MinusSignIcon,
-  ArrowUpRight01Icon,
-  PencilEdit02Icon,
-} from '@/components/custom/huge_icons'
 import { MediaActions } from '@/components/custom/media_actions'
 import {
   fittedStyle,
@@ -805,7 +805,7 @@ export function DeferredMarkdownEditor({
                 ?.click()
             }}
           >
-            <Attachment01Icon />
+            <Paperclip3Icon />
           </Button>,
           props.attachSlot
         )}
@@ -887,7 +887,7 @@ function ComposerActions({
         aria-label='Attach image or video'
         onClick={pickFiles}
       >
-        <Attachment01Icon />
+        <Paperclip3Icon />
       </Button>
       <InputGroupButton
         variant='default'
@@ -896,7 +896,7 @@ function ComposerActions({
         disabled={empty ?? true}
         onClick={submit}
       >
-        <ArrowUp02Icon />
+        <ArrowUpIcon />
       </InputGroupButton>
     </div>
   )
@@ -1275,35 +1275,35 @@ export function MarkdownEditor({
     ...([1, 2, 3] as const).map((level) => ({
       label: `Heading ${level}`,
       group: 'text',
-      icon: [Heading01Icon, Heading02Icon, Heading03Icon][level - 1]!,
+      icon: [H1Icon, H2Icon, H3Icon][level - 1]!,
       shortcut: `⌘⌥${level}`,
       run: () => editor.commands.toggleHeading({ level }),
     })),
     {
       label: 'Bulleted list',
       group: 'lists',
-      icon: LeftToRightListBulletIcon,
+      icon: ListBulletsIcon,
       shortcut: '⌘⇧8',
       run: () => editor.commands.toggleBulletList(),
     },
     {
       label: 'Numbered list',
       group: 'lists',
-      icon: LeftToRightListNumberIcon,
+      icon: NumberedListIcon,
       shortcut: '⌘⇧7',
       run: () => editor.commands.toggleOrderedList(),
     },
     {
       label: 'Checklist',
       group: 'lists',
-      icon: CheckListIcon,
+      icon: ChecklistIcon,
       shortcut: '⌘⇧9',
       run: () => editor.commands.toggleTaskList(),
     },
     {
       label: 'Image or video',
       group: 'media',
-      icon: Image01Icon,
+      icon: AddImageIcon,
       shortcut: '',
       run: () => {
         appendNext.current = false
@@ -1320,14 +1320,14 @@ export function MarkdownEditor({
     {
       label: 'Quote',
       group: 'blocks',
-      icon: QuoteDownIcon,
+      icon: CloseQuote1Icon,
       shortcut: '⌘⇧B',
       run: () => editor.commands.toggleBlockquote(),
     },
     {
       label: 'Divider',
       group: 'blocks',
-      icon: MinusSignIcon,
+      icon: DividerIcon,
       shortcut: '',
       run: () => editor.commands.setHorizontalRule(),
     },
@@ -1404,7 +1404,7 @@ export function MarkdownEditor({
                     />
                   }
                 >
-                  <ArrowUpRight01Icon />
+                  <ArrowUpRightIcon />
                 </Button>
                 <Button
                   variant='ghost'
@@ -1417,7 +1417,7 @@ export function MarkdownEditor({
                     editor.chain().focus().extendMarkRange('link').unsetLink().run()
                   }}
                 >
-                  <Delete02Icon />
+                  <TrashCanSimpleIcon />
                 </Button>
               </>
             )}
@@ -1445,7 +1445,7 @@ export function MarkdownEditor({
               aria-label='Edit link'
               onClick={() => openLink(marks.href ?? '')}
             >
-              <PencilEdit02Icon />
+              <EditSmall1Icon />
             </Button>
             <Button
               variant='ghost'
@@ -1455,7 +1455,7 @@ export function MarkdownEditor({
               aria-label='Remove link'
               onClick={() => editor.chain().extendMarkRange('link').unsetLink().run()}
             >
-              <Delete02Icon />
+              <TrashCanSimpleIcon />
             </Button>
           </div>
         ) : (
@@ -1470,19 +1470,19 @@ export function MarkdownEditor({
               {
                 label: 'Bold',
                 mark: 'bold',
-                icon: TextBoldIcon,
+                icon: BoldIcon,
                 run: () => editor.chain().toggleBold().run(),
               },
               {
                 label: 'Italic',
                 mark: 'italic',
-                icon: TextItalicIcon,
+                icon: ItalicIcon,
                 run: () => editor.chain().toggleItalic().run(),
               },
               {
                 label: 'Strikethrough',
                 mark: 'strike',
-                icon: TextStrikethroughIcon,
+                icon: StrikeThroughIcon,
                 run: () => editor.chain().toggleStrike().run(),
               },
               {
@@ -1494,7 +1494,7 @@ export function MarkdownEditor({
               {
                 label: 'Link',
                 mark: 'link',
-                icon: Link01Icon,
+                icon: ChainLink4Icon,
                 run: () => linkKey.current(),
               },
             ].map(({ label, mark, icon: Icon, run }) => (
@@ -1599,7 +1599,7 @@ export function MarkdownEditor({
             title='Attach image or video'
             onClick={pickFiles}
           >
-            <Attachment01Icon />
+            <Paperclip3Icon />
           </Button>,
           attachSlot
         )}

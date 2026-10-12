@@ -1,11 +1,7 @@
 import type { ProviderId, ProviderModel } from '@jetty/shared/wire'
 import type { KeyboardEvent, RefObject, SyntheticEvent } from 'react'
 
-import {
-  ArrowUpRight01Icon,
-  DragDropVerticalIcon,
-  PlusSignIcon,
-} from '@/components/custom/huge_icons'
+import { ArrowUpRightIcon, DotGrid2x3Icon, PlusSmallIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -92,7 +88,7 @@ function DragHandle({
       onClick={stopSelect}
       onPointerUp={stopSelect}
     >
-      <DragDropVerticalIcon className='size-4! text-muted-foreground' />
+      <DotGrid2x3Icon className='size-4! text-muted-foreground' />
     </span>
   )
 }
@@ -132,7 +128,7 @@ function SettingsArrow({ onOpenSettings }: { onOpenSettings: () => void }) {
       }}
       onPointerUp={stopSelect}
     >
-      <ArrowUpRight01Icon className='size-3.5' />
+      <ArrowUpRightIcon className='size-3.5' />
     </button>
   )
 }
@@ -199,7 +195,7 @@ const emptyRowClass =
 function EmptyRowLabel() {
   return (
     <span className='flex items-center gap-1.5'>
-      <PlusSignIcon className='size-3 shrink-0' />
+      <PlusSmallIcon className='size-3 shrink-0' />
       Add configuration
     </span>
   )

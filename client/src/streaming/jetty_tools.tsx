@@ -1,6 +1,6 @@
 import { ActivityChevron } from '@/components/custom/activity_disclosure'
 import { botColorStyle, botTextClass } from '@/components/custom/bot_avatar'
-import { Refresh01Icon } from '@/components/custom/huge_icons'
+import { ArrowRotateClockwiseIcon, PullRequestIcon } from '@/components/custom/central_icons'
 import { JettyBot } from '@/components/custom/jetty_bot'
 import {
   CappedResults,
@@ -10,7 +10,6 @@ import {
   ModelRow,
   ThreadRow,
 } from '@/components/custom/jetty_result_rows'
-import { GitPullRequestIcon } from '@/components/custom/lucide_icons'
 import { ProjectGlyph } from '@/components/custom/project_glyph'
 import { ProviderGlyph } from '@/components/custom/provider_glyph'
 import { RollingNumber } from '@/components/custom/rolling_number'
@@ -95,7 +94,7 @@ function ListingExample({
       <div className='mb-3 flex items-center justify-between gap-4'>
         <h2 className='text-sm font-medium capitalize'>{kind}</h2>
         <Button variant='ghost' size='sm' {...pressProps(play)}>
-          <Refresh01Icon data-icon='inline-start' /> Replay
+          <ArrowRotateClockwiseIcon data-icon='inline-start' /> Replay
         </Button>
       </div>
       <ToggleGroup
@@ -259,7 +258,7 @@ function OtherTools({ onSelect }: { onSelect: (result: ThreadResult) => void }) 
             <ToggleGroupItem value='3'>Batch of 3</ToggleGroupItem>
           </ToggleGroup>
           <Button variant='ghost' size='sm' {...pressProps(replay)}>
-            <Refresh01Icon data-icon='inline-start' /> Replay
+            <ArrowRotateClockwiseIcon data-icon='inline-start' /> Replay
           </Button>
         </div>
       </div>
@@ -356,7 +355,7 @@ function OtherTools({ onSelect }: { onSelect: (result: ThreadResult) => void }) 
                   key={title}
                   title={
                     <span className='inline-flex items-center gap-1.5 text-pr-open'>
-                      <GitPullRequestIcon className='size-3.25' />
+                      <PullRequestIcon className='size-3.25' />
                       <span className='font-mono'>#{42 + index}</span>
                       {title}
                     </span>

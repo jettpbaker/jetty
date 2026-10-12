@@ -12,7 +12,7 @@ import {
   type ComponentProps,
 } from 'react'
 
-import { ArrowRight01Icon } from './huge_icons'
+import { ChevronRightSmallIcon } from './central_icons'
 import './grouped_table.css'
 
 export type GroupedColumn<T> = {
@@ -174,7 +174,7 @@ export function GroupedTable<T>({
                   }))
                 }}
               >
-                <ArrowRight01Icon
+                <ChevronRightSmallIcon
                   className='grouped-table-chevron size-3 text-muted-foreground'
                   data-open={!closed}
                 />

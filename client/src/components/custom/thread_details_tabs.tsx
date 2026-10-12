@@ -1,16 +1,16 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
 import {
-  BubbleChatIcon,
-  File01Icon,
-  Files01Icon,
-  HierarchySquare01Icon,
-  LeftToRightListBulletIcon,
-  Link01Icon,
-  PlusSignIcon,
-  Cancel01Icon,
-} from '@/components/custom/huge_icons'
-import { DiffIcon } from '@/components/custom/lucide_icons'
+  BubbleDotsIcon,
+  FileBendIcon,
+  FilesIcon,
+  BubblesIcon,
+  ListBulletsIcon,
+  ChainLink4Icon,
+  PlusSmallIcon,
+  CrossSmallIcon,
+  ChangesIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -48,11 +48,11 @@ import { pullRequestFacts } from './pull_request_model'
 import { linkPresentation } from './thread_pull_request'
 
 const tabs = {
-  chat: { label: 'Chat', Icon: BubbleChatIcon },
-  overview: { label: 'Overview', Icon: LeftToRightListBulletIcon },
-  changes: { label: 'Changes', Icon: DiffIcon },
-  files: { label: 'Files', Icon: Files01Icon },
-  threads: { label: 'Threads', Icon: HierarchySquare01Icon },
+  chat: { label: 'Chat', Icon: BubbleDotsIcon },
+  overview: { label: 'Overview', Icon: ListBulletsIcon },
+  changes: { label: 'Changes', Icon: ChangesIcon },
+  files: { label: 'Files', Icon: FilesIcon },
+  threads: { label: 'Threads', Icon: BubblesIcon },
 }
 type TabId = keyof typeof tabs
 // Selects a tab, reopening it first if the user had closed it.
@@ -278,7 +278,7 @@ export function ThreadDetailsTabs({
             <TabLabel
               label={fileName!}
               mono
-              icon={<File01Icon className='details-tab-kind size-3' />}
+              icon={<FileBendIcon className='details-tab-kind size-3' />}
               canClose={canClose}
               onClose={closeFile}
             />
@@ -295,7 +295,7 @@ export function ThreadDetailsTabs({
             render={<Button variant='ghost' size='icon-sm' className='shrink-0 rounded-sm' />}
             aria-label='Open tab'
           >
-            <PlusSignIcon />
+            <PlusSmallIcon />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align='start'
@@ -343,7 +343,7 @@ export function ThreadDetailsTabs({
               )
             })}
             <DropdownMenuItem onClick={() => setLinking(true)}>
-              <Link01Icon />
+              <ChainLink4Icon />
               Link pull request
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -394,7 +394,7 @@ export function BotDetailsTabs({
           <TabLabel
             label={file.name}
             mono
-            icon={<File01Icon className='details-tab-kind size-3' />}
+            icon={<FileBendIcon className='details-tab-kind size-3' />}
             canClose
             onClose={file.onClose}
           />
@@ -568,7 +568,7 @@ function TabLabel({
               onClose()
             }}
           >
-            <Cancel01Icon className='size-3' />
+            <CrossSmallIcon className='size-3' />
           </span>
         )}
       </span>

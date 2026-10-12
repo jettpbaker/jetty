@@ -1,14 +1,14 @@
 import type { Attachment } from '@jetty/shared/items'
 
 import {
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  Tick02Icon,
-  Copy01Icon,
-  ZoomOutAreaIcon,
-  ZoomInAreaIcon,
-  Cancel01Icon,
-} from '@/components/custom/huge_icons'
+  ChevronLeftSmallIcon,
+  ChevronRightSmallIcon,
+  Checkmark1SmallIcon,
+  SquareBehindSquare1Icon,
+  ZoomOutIcon,
+  ZoomInIcon,
+  CrossSmallIcon,
+} from '@/components/custom/central_icons'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -474,7 +474,7 @@ function StepButton({
       className={`fixed top-1/2 -translate-y-1/2 ${side === 'left' ? 'left-3' : 'right-3'}`}
       {...pressProps(onPress)}
     >
-      {side === 'left' ? <ArrowLeft01Icon /> : <ArrowRight01Icon />}
+      {side === 'left' ? <ChevronLeftSmallIcon /> : <ChevronRightSmallIcon />}
     </Button>
   )
 }
@@ -522,20 +522,20 @@ function Toolbar({
         disabled={!zoom.zoomed}
         onPress={() => zoom.zoomTo(zoom.scale.get() / 1.5)}
       >
-        <ZoomOutAreaIcon />
+        <ZoomOutIcon />
       </ToolbarButton>
       <ToolbarButton
         label='Zoom in'
         shortcut='+'
         onPress={() => zoom.zoomTo(zoom.scale.get() * 1.5)}
       >
-        <ZoomInAreaIcon />
+        <ZoomInIcon />
       </ToolbarButton>
       <ToolbarButton label={copied ? 'Copied' : 'Copy image'} onPress={copyImage}>
-        {copied ? <Tick02Icon /> : <Copy01Icon />}
+        {copied ? <Checkmark1SmallIcon /> : <SquareBehindSquare1Icon />}
       </ToolbarButton>
       <ToolbarButton label='Close' shortcut='Esc' onPress={onClose}>
-        <Cancel01Icon />
+        <CrossSmallIcon />
       </ToolbarButton>
     </div>
   )

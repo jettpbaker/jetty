@@ -13,12 +13,13 @@
         "patterns": [
           {
             "group": [
+              "@central-icons-react/*",
               "lucide-react",
               "@hugeicons/*",
               "@phosphor-icons/*",
               "@primer/octicons-react"
             ],
-            "message": "Icons come from lucide_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
+            "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
           }
         ]
       }
@@ -102,12 +103,13 @@
             "patterns": [
               {
                 "group": [
+                  "@central-icons-react/*",
                   "lucide-react",
                   "@hugeicons/*",
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from lucide_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
+                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
@@ -123,12 +125,13 @@
             "patterns": [
               {
                 "group": [
+                  "@central-icons-react/*",
                   "lucide-react",
                   "@hugeicons/*",
                   "@phosphor-icons/*",
                   "@primer/octicons-react"
                 ],
-                "message": "Icons come from lucide_icons.tsx (Lucide) or huge_icons.tsx (Hugeicons). See AGENTS.md (icons)."
+                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
@@ -152,6 +155,16 @@
                 "group": ["@jetty/shared/*"],
                 "allowTypeImports": true,
                 "message": "The perf module takes only types from shared."
+              },
+              {
+                "group": [
+                  "lucide-react",
+                  "@hugeicons/*",
+                  "@central-icons-react/*",
+                  "@phosphor-icons/*",
+                  "@primer/octicons-react"
+                ],
+                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
               }
             ]
           }
@@ -166,12 +179,66 @@
       }
     },
     {
-      "files": [
-        "client/src/components/custom/lucide_icons.tsx",
-        "client/src/components/custom/huge_icons.tsx"
-      ],
+      "files": ["client/src/components/custom/central_icons.tsx"],
       "rules": {
-        "no-restricted-imports": "off"
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "lucide-react",
+                  "@hugeicons/*",
+                  "@phosphor-icons/*",
+                  "@primer/octicons-react"
+                ],
+                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["client/src/components/custom/huge_icons.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "lucide-react",
+                  "@central-icons-react/*",
+                  "@phosphor-icons/*",
+                  "@primer/octicons-react"
+                ],
+                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["client/src/components/custom/lucide_icons.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@hugeicons/*",
+                  "@central-icons-react/*",
+                  "@phosphor-icons/*",
+                  "@primer/octicons-react"
+                ],
+                "message": "Icons come from central_icons.tsx (Central), huge_icons.tsx (project icons), or lucide_icons.tsx (project icons and GitHub issue states). See AGENTS.md (icons)."
+              }
+            ]
+          }
+        ]
       }
     }
   ]

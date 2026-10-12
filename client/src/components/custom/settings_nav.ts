@@ -1,18 +1,17 @@
-import type { Icon } from './huge_icons'
-
 import {
-  DashboardSquare01Icon,
-  Folder01Icon,
-  FolderGit2Icon,
-  InformationCircleIcon,
+  type Icon,
+  ProcessorIcon,
+  Folder1Icon,
+  WorktreeIcon,
+  CircleInfoIcon,
   KeyboardIcon,
-  Notification01Icon,
-  PaintBrush01Icon,
-  Plug01Icon,
-  Robot01Icon,
-  SlidersHorizontalIcon,
-  SparklesIcon,
-} from './huge_icons'
+  Bell2Icon,
+  PaintBrushIcon,
+  PluginsIcon,
+  AiBotHeadIcon,
+  SettingsSliderHorIcon,
+  SparklesThreeIcon,
+} from './central_icons'
 
 export type SettingsPage = {
   id: string
@@ -26,34 +25,44 @@ export const settingsGroups: { label: string; pages: SettingsPage[] }[] = [
   {
     label: 'General',
     pages: [
-      { id: 'preferences', title: 'Preferences', icon: SlidersHorizontalIcon },
-      { id: 'appearance', title: 'Appearance', icon: PaintBrush01Icon },
+      { id: 'preferences', title: 'Preferences', icon: SettingsSliderHorIcon },
+      { id: 'appearance', title: 'Appearance', icon: PaintBrushIcon },
       { id: 'keyboard', title: 'Keyboard', icon: KeyboardIcon },
-      { id: 'notifications', title: 'Notifications', icon: Notification01Icon },
+      { id: 'notifications', title: 'Notifications', icon: Bell2Icon },
     ],
   },
   {
     label: 'Agents',
     pages: [
-      { id: 'connected-accounts', title: 'Connected accounts', icon: Plug01Icon },
-      { id: 'models', title: 'Models', icon: DashboardSquare01Icon },
-      { id: 'intelligence', title: 'Intelligence', icon: SparklesIcon },
-      { id: 'bots', title: 'Bots', icon: Robot01Icon },
+      { id: 'connected-accounts', title: 'Connected accounts', icon: PluginsIcon },
+      { id: 'models', title: 'Models', icon: ProcessorIcon },
+      { id: 'intelligence', title: 'Intelligence', icon: SparklesThreeIcon },
+      { id: 'bots', title: 'Bots', icon: AiBotHeadIcon },
     ],
   },
   {
     label: 'Workspace',
     pages: [
-      { id: 'projects', title: 'Projects', icon: Folder01Icon },
-      { id: 'worktrees', title: 'Worktrees', icon: FolderGit2Icon },
+      { id: 'projects', title: 'Projects', icon: Folder1Icon },
+      { id: 'worktrees', title: 'Worktrees', icon: WorktreeIcon },
     ],
   },
-  { label: 'Jetty', pages: [{ id: 'about', title: 'About', icon: InformationCircleIcon }] },
+  { label: 'Jetty', pages: [{ id: 'about', title: 'About', icon: CircleInfoIcon }] },
 ]
 
 const subPages: SettingsPage[] = [
-  { id: 'guided-reviews', title: 'Guided reviews', icon: SparklesIcon, parent: 'intelligence' },
-  { id: 'pr-activity', title: 'Wake on PR activity', icon: SparklesIcon, parent: 'intelligence' },
+  {
+    id: 'guided-reviews',
+    title: 'Guided reviews',
+    icon: SparklesThreeIcon,
+    parent: 'intelligence',
+  },
+  {
+    id: 'pr-activity',
+    title: 'Wake on PR activity',
+    icon: SparklesThreeIcon,
+    parent: 'intelligence',
+  },
 ]
 
 export const settingsPages = [...settingsGroups.flatMap((group) => group.pages), ...subPages]

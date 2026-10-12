@@ -37,8 +37,13 @@ import { isSortable, useSortable } from '@dnd-kit/react/sortable'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 
+import {
+  ChevronDownSmallIcon,
+  LightningBoltIcon,
+  PlusSmallIcon,
+  ArrowRotateClockwiseIcon,
+} from './central_icons'
 import { moveOnKeys, subTriggerClass } from './composer_loadout'
-import { ArrowDown01Icon, FlashIcon, PlusSignIcon, Refresh01Icon } from './huge_icons'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import { SettingsPage, SettingsSection, cardClass, selectTriggerClass } from './settings_layout'
@@ -155,9 +160,9 @@ function SlotRow({
                 />
               }
             >
-              {slot.fast && <FlashIcon filled />}
+              {slot.fast && <LightningBoltIcon filled />}
               {slot.effort && effortLabels[slot.effort]}
-              <ArrowDown01Icon />
+              <ChevronDownSmallIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end' className='min-w-44'>
               {model.efforts.length > 0 && (
@@ -190,7 +195,7 @@ function SlotRow({
                       onChange({ ...slot, fast }, `Slot ${index + 1}: Fast ${fast ? 'on' : 'off'}.`)
                     }
                   >
-                    <FlashIcon filled={slot.fast} />
+                    <LightningBoltIcon filled={slot.fast} />
                     Fast
                     <Switch
                       render={<span />}
@@ -231,7 +236,7 @@ function SlotRow({
               aria-hidden='true'
               className='flex size-7 shrink-0 items-center justify-center rounded-[7px] border border-dashed border-border [&_svg]:size-3.5'
             >
-              <PlusSignIcon />
+              <PlusSmallIcon />
             </span>
             Add a model
           </DropdownMenuTrigger>
@@ -399,7 +404,7 @@ export function SettingsModels() {
               aria-busy={refreshing}
               onClick={() => refresh(true)}
             >
-              {refreshing ? <Spinner /> : <Refresh01Icon />}
+              {refreshing ? <Spinner /> : <ArrowRotateClockwiseIcon />}
               Refresh
             </Button>
           </div>

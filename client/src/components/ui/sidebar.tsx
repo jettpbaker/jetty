@@ -1,6 +1,6 @@
 'use client'
 
-import { SidebarLeftIcon } from '@/components/custom/huge_icons'
+import { SidebarSimpleLeftWideIcon } from '@/components/custom/central_icons'
 import { keybinds, appShortcut } from '@/components/custom/keybinds'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -258,7 +258,7 @@ function SidebarTrigger({ className, children, ...props }: React.ComponentProps<
       // The mobile sidebar is a sheet, an overlay, so it opens on click (JET-3).
       {...mergeProps(props, isMobile ? { onClick: toggleSidebar } : pressProps(toggleSidebar))}
     >
-      {children ?? <SidebarLeftIcon />}
+      {children ?? <SidebarSimpleLeftWideIcon />}
       <span className='sr-only'>Toggle Sidebar</span>
     </Button>
   )

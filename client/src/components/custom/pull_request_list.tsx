@@ -20,6 +20,13 @@ import {
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, type ReactNode } from 'react'
 
+import {
+  ArrowRotateClockwiseIcon,
+  MergedIcon,
+  RequestClosedIcon,
+  DraftIcon,
+  PullRequestIcon,
+} from './central_icons'
 import { ListFilterMenu, ListGroupMenu } from './grouped_list_controls'
 import {
   GroupedTable,
@@ -27,13 +34,6 @@ import {
   type GroupedColumn,
   type TableGroup,
 } from './grouped_table'
-import { Refresh01Icon } from './huge_icons'
-import {
-  GitMergeIcon,
-  GitPullRequestClosedIcon,
-  GitPullRequestDraftIcon,
-  GitPullRequestIcon,
-} from './lucide_icons'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { PersonAvatar } from './person_avatar'
 import {
@@ -56,16 +56,16 @@ const unavailableTitle = {
 const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNode }> = {
   open: {
     color: 'var(--pr-open)',
-    icon: <GitPullRequestIcon className='size-3 text-pr-open' />,
+    icon: <PullRequestIcon className='size-3 text-pr-open' />,
   },
   draft: {
     color: 'var(--muted-foreground)',
-    icon: <GitPullRequestDraftIcon className='size-3 text-muted-foreground' />,
+    icon: <DraftIcon className='size-3 text-muted-foreground' />,
   },
-  merged: { color: 'var(--pr-merged)', icon: <GitMergeIcon className='size-3 text-pr-merged' /> },
+  merged: { color: 'var(--pr-merged)', icon: <MergedIcon className='size-3 text-pr-merged' /> },
   closed: {
     color: 'var(--destructive)',
-    icon: <GitPullRequestClosedIcon className='size-3 text-destructive' />,
+    icon: <RequestClosedIcon className='size-3 text-destructive' />,
   },
 }
 
@@ -266,7 +266,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 />
               }
             >
-              {refreshing ? <Spinner /> : <Refresh01Icon />}
+              {refreshing ? <Spinner /> : <ArrowRotateClockwiseIcon />}
             </TooltipTrigger>
             <TooltipContent>
               {failure ? (list.error ?? unavailableTitle[list.status]) : 'Refresh'}

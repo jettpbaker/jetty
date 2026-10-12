@@ -1,7 +1,7 @@
 import type { BranchList } from '@/state/worktrees'
 import type { Branch } from '@jetty/shared/wire'
 
-import { GitBranchIcon } from '@/components/custom/lucide_icons'
+import { BranchSimpleIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -94,7 +94,7 @@ export function ComposerBranch({
           )}
           disabled
         >
-          <GitBranchIcon />
+          <BranchSimpleIcon />
           {branch || (disabledReason && 'Branch')}
         </Button>
       </DisabledTooltip>
@@ -106,7 +106,7 @@ export function ComposerBranch({
       placeholder='Search branches'
       align='end'
       className='w-64'
-      icon={<GitBranchIcon />}
+      icon={<BranchSimpleIcon />}
       value={branch ?? ''}
       valueLabel={fromOrigin ? branch?.replace(/^origin\//, '') : branch}
       mono

@@ -1,10 +1,10 @@
 import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
 import {
-  ShieldQuestionMarkIcon,
+  ShieldKeyholeIcon,
   ShieldCheckIcon,
-  ShieldOffIcon,
-} from '@/components/custom/huge_icons'
+  ShieldBreakIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -22,7 +22,7 @@ import { KeybindTooltip, keybinds, appShortcut } from './keybinds'
 export const accessModes: Record<PermissionMode, { label: string; Icon: typeof ShieldCheckIcon }> =
   {
     auto: { label: 'Auto', Icon: ShieldCheckIcon },
-    full_access: { label: 'Full access', Icon: ShieldOffIcon },
+    full_access: { label: 'Full access', Icon: ShieldBreakIcon },
   }
 
 function isMode(value: unknown): value is PermissionMode {
@@ -57,7 +57,7 @@ export function ComposerAccessMode({
           aria-label='Access mode: Asks first'
           className='pointer-events-none'
         >
-          <ShieldQuestionMarkIcon />
+          <ShieldKeyholeIcon />
         </Button>
       </DisabledTooltip>
     )

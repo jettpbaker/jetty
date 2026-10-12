@@ -30,12 +30,12 @@ import { useMemo, useLayoutEffect, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import {
-  MoreVerticalIcon,
-  Refresh01Icon,
-  LinkSquare02Icon,
-  Copy01Icon,
-  Unlink01Icon,
-} from './huge_icons'
+  DotGrid1x3VerticalIcon,
+  ArrowRotateClockwiseIcon,
+  SquareArrowTopRightIcon,
+  SquareBehindSquare1Icon,
+  BrokenChainLink1Icon,
+} from './central_icons'
 import { MediaLightboxProvider } from './media_lightbox'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { adaptPullRequest } from './pull_request/adapter'
@@ -66,7 +66,7 @@ function UnlinkItem({ threadId, link }: { threadId: string; link: PullRequestAdd
         })
       }}
     >
-      <Unlink01Icon />
+      <BrokenChainLink1Icon />
       Unlink from thread
     </DropdownMenuItem>
   )
@@ -83,16 +83,16 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant='ghost' size='icon' aria-label='More' />}>
-        <MoreVerticalIcon />
+        <DotGrid1x3VerticalIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuGroup>
           <DropdownMenuItem disabled={refreshing} onClick={() => refresh(link)}>
-            <Refresh01Icon />
+            <ArrowRotateClockwiseIcon />
             Refresh
           </DropdownMenuItem>
           <DropdownMenuItem render={externalLink(link.url)}>
-            <LinkSquare02Icon />
+            <SquareArrowTopRightIcon />
             Open in GitHub
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -103,7 +103,7 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
               )
             }
           >
-            <Copy01Icon />
+            <SquareBehindSquare1Icon />
             Copy link
           </DropdownMenuItem>
           {linkedThreadId && <UnlinkItem threadId={linkedThreadId} link={link} />}
@@ -132,7 +132,7 @@ function RefreshFailed({ link, error }: { link: PullRequestAddress; error: strin
             />
           }
         >
-          {refreshing ? <Spinner /> : <Refresh01Icon />}
+          {refreshing ? <Spinner /> : <ArrowRotateClockwiseIcon />}
         </TooltipTrigger>
         <TooltipContent>{error}</TooltipContent>
       </Tooltip>

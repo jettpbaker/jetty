@@ -1,4 +1,4 @@
-import { Search01Icon, Tick02Icon } from '@/components/custom/huge_icons'
+import { MagnifyingGlass2Icon, Checkmark1SmallIcon } from '@/components/custom/central_icons'
 import {
   Dialog,
   DialogContent,
@@ -72,7 +72,7 @@ function CommandInput({
           {...props}
         />
         <InputGroupAddon>
-          <Search01Icon className='size-4 shrink-0 text-muted-foreground' />
+          <MagnifyingGlass2Icon className='size-4 shrink-0 text-muted-foreground' />
         </InputGroupAddon>
       </InputGroup>
     </div>
@@ -151,7 +151,7 @@ function CommandItem({
       {...props}
     >
       {children}
-      <Tick02Icon className='ml-auto text-current opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100' />
+      <Checkmark1SmallIcon className='ml-auto text-current opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100' />
     </CommandPrimitive.Item>
   )
 }

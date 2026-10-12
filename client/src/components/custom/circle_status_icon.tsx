@@ -72,15 +72,6 @@ export function WaitingStatusIcon(props: StatusIconProps) {
   return <CircleStatusIcon symbol='waiting' {...props} />
 }
 
-// Outlined where the filled glyphs ask for attention: the run is over and nothing waits on you.
-export function QueuedStatusIcon(props: StatusIconProps) {
-  return (
-    <svg width={16} height={16} viewBox='0 0 14 14' fill='none' {...props}>
-      <circle cx='7' cy='7' r='3.5' stroke='currentColor' />
-    </svg>
-  )
-}
-
 // The idle ring at the discs' size, for counts that sit beside them.
 export function SkippedStatusIcon(props: StatusIconProps) {
   return (

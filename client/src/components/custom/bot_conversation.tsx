@@ -1,7 +1,7 @@
 import type { Bot, BotConversationMessage } from '@jetty/shared/wire'
 
 import { BotAvatar, botColorStyle, botTextClass } from '@/components/custom/bot_avatar'
-import { ArrowDataTransferHorizontalIcon, Cancel01Icon } from '@/components/custom/huge_icons'
+import { ArrowsLeftRightIcon, CrossSmallIcon } from '@/components/custom/central_icons'
 import { JettyBot } from '@/components/custom/jetty_bot'
 import { Markdown } from '@/components/custom/markdown'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -244,7 +244,7 @@ export function BotConversation({
             <div className='flex h-7 items-center gap-1.5 rounded-[14px] bg-muted pr-[11px] pl-[7px] text-xs font-medium'>
               <BotAvatar bot={bot} size={16} unread={false} />
               {bot.name}
-              <ArrowDataTransferHorizontalIcon className='size-3 -scale-x-100 text-muted-foreground' />
+              <ArrowsLeftRightIcon className='size-3 -scale-x-100 text-muted-foreground' />
               <BotAvatar bot={other} size={16} unread={false} />
               {other.name}
             </div>
@@ -287,7 +287,7 @@ export function BotConversation({
               />
             }
           >
-            <Cancel01Icon />
+            <CrossSmallIcon />
             Close chat
           </DialogClose>
         </DialogPrimitive.Popup>

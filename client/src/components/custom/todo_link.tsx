@@ -1,4 +1,4 @@
-import { CheckListIcon } from '@/components/custom/huge_icons'
+import { ChecklistIcon } from '@/components/custom/central_icons'
 import { cn } from '@/lib/utils'
 import { useRequestSectionReveal } from '@/state'
 import { Fragment } from 'react'
@@ -18,7 +18,7 @@ export function TodoLink({ threadId, update }: { threadId: string; update: TodoU
         className={cn(inlineLinkClass, 'flex min-w-0 items-center gap-1.5')}
         onClick={() => reveal(threadId, 'todos')}
       >
-        <CheckListIcon className='size-3.5 shrink-0 text-muted-foreground' />
+        <ChecklistIcon className='size-3.5 shrink-0 text-muted-foreground' />
         {created !== undefined ? (
           <span className='truncate'>
             Created {created} todo{created === 1 ? '' : 's'}

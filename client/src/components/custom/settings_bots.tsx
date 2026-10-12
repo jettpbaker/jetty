@@ -10,9 +10,9 @@ import { useState } from 'react'
 
 import { BotAvatar } from './bot_avatar'
 import { BotSettingsSheet } from './bot_settings_sheet'
+import { ChevronRightSmallIcon, Folder1Icon, PlusSmallIcon } from './central_icons'
 import { accessModes } from './composer_access_mode'
 import { copyFilePath } from './file_link'
-import { ArrowRight01Icon, Folder01Icon, PlusSignIcon } from './huge_icons'
 import { NewBotDialog } from './new_bot_dialog'
 import {
   PathText,
@@ -59,10 +59,10 @@ function BotRow({ bot }: { bot: Bot }) {
           </span>
         </span>
         <span className='flex w-30 shrink-0 items-center gap-1.5 text-13 text-muted-foreground [&_svg]:size-3.5'>
-          <Folder01Icon />
+          <Folder1Icon />
           <span className='truncate'>{project}</span>
         </span>
-        <ArrowRight01Icon className='text-muted-foreground group-hover/bot:text-foreground' />
+        <ChevronRightSmallIcon className='text-muted-foreground group-hover/bot:text-foreground' />
       </button>
     </BotSettingsSheet>
   )
@@ -83,7 +83,7 @@ export function SettingsBots() {
         title='Your bots'
         action={
           <SettingsButton onClick={() => setCreating(true)}>
-            <PlusSignIcon />
+            <PlusSmallIcon />
             New bot
           </SettingsButton>
         }

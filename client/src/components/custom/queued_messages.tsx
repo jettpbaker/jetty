@@ -2,12 +2,12 @@ import type { Attachment, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
 import {
-  ArrowTurnBackwardIcon,
-  ArrowUp02Icon,
-  Cancel01Icon,
-  Edit03Icon,
+  ArrowShareLeftIcon,
+  ArrowUpIcon,
+  CrossSmallIcon,
+  Pencil2Icon,
   PauseIcon,
-} from '@/components/custom/huge_icons'
+} from '@/components/custom/central_icons'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { MediaLightboxProvider, useOpenMedia } from '@/components/custom/media_lightbox'
 import { RepliedTo } from '@/components/custom/reply_quote'
@@ -264,7 +264,7 @@ function QueuedRow({
       />
       <div className='flex min-w-0 items-center gap-4'>
         <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <ArrowTurnBackwardIcon className='size-3 shrink-0 translate-y-px text-muted-foreground' />
+          <ArrowShareLeftIcon className='size-3 shrink-0 translate-y-px text-muted-foreground' />
           <div className='min-w-0 flex-1'>
             <QueuedText entry={entry} muted={editing} />
           </div>
@@ -275,21 +275,21 @@ function QueuedRow({
             disabled={editing}
             onClick={() => chatComposer(threadId)?.edit(entry)}
           >
-            <Edit03Icon />
+            <Pencil2Icon />
           </IconAction>
           <IconAction
             label={running ? 'Steer with queued message' : 'Send queued message now'}
             disabled={editing}
             onClick={() => act(() => actions.sendNow(threadId, entry))}
           >
-            <ArrowUp02Icon />
+            <ArrowUpIcon />
           </IconAction>
           <IconAction
             label='Remove from the queue'
             disabled={editing}
             onClick={() => act(() => actions.remove(threadId, entry.id))}
           >
-            <Cancel01Icon />
+            <CrossSmallIcon />
           </IconAction>
         </div>
       </div>

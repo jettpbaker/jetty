@@ -15,6 +15,8 @@
       "name": "@jetty/client",
       "dependencies": {
         "@base-ui/react": "^1.8.0",
+        "@central-icons-react/round-filled-radius-3-stroke-2": "^1.2.10",
+        "@central-icons-react/round-outlined-radius-3-stroke-2": "^1.2.10",
         "@chenglou/pretext": "^0.0.9",
         "@dnd-kit/dom": "^0.5.0",
         "@dnd-kit/react": "^0.5.0",
@@ -215,6 +217,10 @@
     "@base-ui/react": ["@base-ui/react@1.8.0", "", { "dependencies": { "@babel/runtime": "^7.29.7", "@base-ui/utils": "0.4.0", "@floating-ui/react-dom": "^2.1.9", "@floating-ui/utils": "^0.2.12", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@date-fns/tz": "^1.2.0", "@types/react": "^17 || ^18 || ^19", "date-fns": "^4.0.0", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@date-fns/tz", "@types/react", "date-fns"] }, "sha512-P0/1sxo6SBVZOklKMIedvTWqw2s2IQzi9x5bIVsXu980cuSOD4NeuRSs+/L7LZQfDkZP/uRZyGPyfFl/B1oH+Q=="],
 
     "@base-ui/utils": ["@base-ui/utils@0.4.0", "", { "dependencies": { "@babel/runtime": "^7.29.7", "@floating-ui/utils": "^0.2.12", "reselect": "^5.2.0", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-bO9fz25kKtPf+aZVyfQrC0PDmJdmVni31W2hCS5/Owb+inwdIL3XU26pCPRPlt4LSxZrBgLwubXQXQlKaFEZzw=="],
+
+    "@central-icons-react/round-filled-radius-3-stroke-2": ["@central-icons-react/round-filled-radius-3-stroke-2@1.2.10", "", { "peerDependencies": { "react": ">=16.6.0 <20" } }, "sha512-5DPu1sc7RfndZRojMILigezOYtg8B08m5hnRw88v02O0ZYB+8o0KAypYeyzNQvJnTNJ4dKaY68rc5M6RrvReFQ=="],
+
+    "@central-icons-react/round-outlined-radius-3-stroke-2": ["@central-icons-react/round-outlined-radius-3-stroke-2@1.2.10", "", { "peerDependencies": { "react": ">=16.6.0 <20" } }, "sha512-vqf3Ts9AM1QH6SjaLJPPO84DEUc+dbwNQfTImdxlBn1oE1HtBl7JjswepknMH/u0BSMXLp9xGF7a71NYCf8nzg=="],
 
     "@chenglou/pretext": ["@chenglou/pretext@0.0.9", "", {}, "sha512-vInlpC//3vjRfWTs78k2BBIq/0bUdpjIp8TIn9fXe0NvnChhTQZfjioVzERQQbkQvCVpPpw7PDOrTWMHpq27VA=="],
 

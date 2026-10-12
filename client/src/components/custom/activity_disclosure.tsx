@@ -1,14 +1,14 @@
 import { Button } from '@/components/ui/button'
 import { useId, useState, type ReactNode } from 'react'
 
-import './work.css'
 import { ActivityContent } from './activity_content'
-import { ArrowRight01Icon } from './huge_icons'
+import './work.css'
+import { ChevronRightSmallIcon } from './central_icons'
 
 export type ActivityView = 'preview' | 'full'
 
 export function ActivityChevron() {
-  return <ArrowRight01Icon className='activity-chevron text-muted-foreground' aria-hidden />
+  return <ChevronRightSmallIcon className='activity-chevron text-muted-foreground' aria-hidden />
 }
 
 export function ActivityDisclosure({

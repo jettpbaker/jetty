@@ -1,14 +1,14 @@
 import type { Draft, QuestionProgress } from '@/state'
 
 import {
-  ArrowDown01Icon,
-  Cancel01Icon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  ArrowUp01Icon,
-  CircleIcon,
-  Tick02Icon,
-} from '@/components/custom/huge_icons'
+  ChevronDownSmallIcon,
+  CrossSmallIcon,
+  ChevronLeftSmallIcon,
+  ChevronRightSmallIcon,
+  ChevronTopSmallIcon,
+  CirclePlaceholderOnIcon,
+  Checkmark1SmallIcon,
+} from '@/components/custom/central_icons'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import {
@@ -117,7 +117,7 @@ export function Pager({
         disabled={index === 0}
         {...activate(onPrev)}
       >
-        <ArrowLeft01Icon />
+        <ChevronLeftSmallIcon />
       </Button>
       <span className={cn('text-center font-mono tabular-nums', !compact && 'min-w-6')}>
         {index + 1}/{total}
@@ -129,7 +129,7 @@ export function Pager({
         disabled={nextDisabled ?? index === total - 1}
         {...activate(onNext)}
       >
-        <ArrowRight01Icon />
+        <ChevronRightSmallIcon />
       </Button>
     </span>
   )
@@ -245,7 +245,7 @@ function ApprovalActions({
               />
             }
           >
-            <ArrowDown01Icon />
+            <ChevronDownSmallIcon />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
             <DropdownMenuGroup>
@@ -369,7 +369,7 @@ export function ApprovalStrip({
                 {...pressProps(() => ctl.setExpanded(false))}
                 className='-my-1'
               >
-                <ArrowUp01Icon />
+                <ChevronTopSmallIcon />
               </Button>
             )}
           </span>
@@ -561,7 +561,7 @@ export function QuestionStrip({
             aria-label='Dismiss question'
             onClick={ctl.dismiss}
           >
-            <Cancel01Icon />
+            <CrossSmallIcon />
           </Button>
         </div>
       </div>
@@ -594,7 +594,7 @@ export function QuestionStrip({
                   )}
                 </span>
                 <span className='flex h-5 w-4 shrink-0 items-center justify-center'>
-                  {selected && <Tick02Icon className='size-3.5 text-muted-foreground' />}
+                  {selected && <Checkmark1SmallIcon className='size-3.5 text-muted-foreground' />}
                 </span>
               </button>
             )
@@ -607,10 +607,11 @@ export function QuestionStrip({
 }
 
 function TodoIcon({ status }: { status: Todo['status'] }) {
-  if (status === 'done') return <Tick02Icon className='size-3.5 shrink-0 text-muted-foreground' />
+  if (status === 'done')
+    return <Checkmark1SmallIcon className='size-3.5 shrink-0 text-muted-foreground' />
   if (status === 'active')
     return <InProgressIcon aria-hidden='true' className='size-3.5 shrink-0 text-status-working' />
-  return <CircleIcon className='size-3.5 shrink-0 text-muted-foreground' />
+  return <CirclePlaceholderOnIcon className='size-3.5 shrink-0 text-muted-foreground' />
 }
 
 export function TodoList({ list }: { list: readonly Todo[] }) {
