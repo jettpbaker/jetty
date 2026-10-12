@@ -30,7 +30,7 @@ import {
 import { toast } from 'sonner'
 
 import { OpenAttachment } from './attachment_files'
-import { ChildThreadList, useChildThreads } from './child_threads'
+import { useChildThreads } from './child_threads'
 import {
   DetailsChatPanel,
   DetailsLayout,
@@ -277,7 +277,6 @@ export function ThreadDetailsLayout({
             ref={tabs}
             chat={full}
             threadId={threadId}
-            threadCount={childThreads.length}
             pullRequests={pullRequests}
             desktops={desktops}
             subagents={subagents}
@@ -333,11 +332,6 @@ export function ThreadDetailsLayout({
               onOpen={editFile}
             />
           )}
-        </DetailsTabPanel>
-        <DetailsTabPanel value='threads' tab={tab}>
-          <div className='scrollbar-subtle h-full overflow-auto'>
-            <ChildThreadList threads={childThreads} />
-          </div>
         </DetailsTabPanel>
         {pullRequestLinks.map((link) => {
           const id = pullRequestTabId(link)

@@ -27,7 +27,6 @@ import { IconBell2 } from '@central-icons-react/round-outlined-radius-3-stroke-2
 import { IconBold } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBold'
 import { IconBranchSimple } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBranchSimple'
 import { IconBrokenChainLink1 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBrokenChainLink1'
-import { IconBubbleDots } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBubbleDots'
 import { IconBubbles } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBubbles'
 import { IconBug } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconBug'
 import { IconCalendarClock } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCalendarClock'
@@ -160,7 +159,6 @@ export const Bell2Icon = centralIcon(IconBell2)
 export const BoldIcon = centralIcon(IconBold)
 export const BranchSimpleIcon = centralIcon(IconBranchSimple)
 export const BrokenChainLink1Icon = centralIcon(IconBrokenChainLink1)
-export const BubbleDotsIcon = centralIcon(IconBubbleDots)
 export const BubblesIcon = centralIcon(IconBubbles)
 export const BugIcon = centralIcon(IconBug)
 export const CalendarClockIcon = centralIcon(IconCalendarClock)

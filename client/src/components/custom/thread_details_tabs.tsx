@@ -1,10 +1,9 @@
 import type { PullRequestLink } from '@jetty/shared/wire'
 
 import {
-  BubbleDotsIcon,
+  BubblesIcon,
   FileBendIcon,
   FilesIcon,
-  BubblesIcon,
   ListBulletsIcon,
   ChainLink4Icon,
   PlusMediumIcon,
@@ -64,16 +63,15 @@ import { desktopLabels } from './thread_desktop'
 import { linkPresentation } from './thread_pull_request'
 
 const tabs = {
-  chat: { label: 'Chat', Icon: BubbleDotsIcon },
+  chat: { label: 'Chat', Icon: BubblesIcon },
   overview: { label: 'Overview', Icon: ListBulletsIcon },
   changes: { label: 'Changes', Icon: ChangesIcon },
   files: { label: 'Files', Icon: FilesIcon },
-  threads: { label: 'Threads', Icon: BubblesIcon },
 }
 type TabId = keyof typeof tabs
 // Selects a tab, reopening it first if the user had closed it.
 export type DetailsTabsHandle = { show: (id: TabId) => void }
-const sortableIds: TabId[] = ['overview', 'changes', 'files', 'threads']
+const sortableIds: TabId[] = ['overview', 'changes', 'files']
 // Files opens from the + menu or ⌘P, so it starts closed.
 const closedAtFirst: TabId[] = ['files']
 const storageKey = 'jetty.details-tabs'
@@ -140,7 +138,6 @@ export function ThreadDetailsTabs({
   ref,
   chat = false,
   threadId,
-  threadCount,
   pullRequests,
   desktops,
   subagents,
@@ -153,7 +150,6 @@ export function ThreadDetailsTabs({
   ref?: Ref<DetailsTabsHandle>
   chat?: boolean
   threadId: string
-  threadCount: number
   pullRequests: PullRequestTabs
   desktops: DesktopTabs
   subagents: SubagentTabs
@@ -169,7 +165,7 @@ export function ThreadDetailsTabs({
   const [linking, setLinking] = useState(false)
   const closedSet = new Set(closed)
   const chatOpen = chat && !closedSet.has('chat')
-  const available = order.filter((id) => id !== 'threads' || threadCount > 0)
+  const available = order
   const openSortable = available.filter((id) => !closedSet.has(id))
   const shownSortable =
     openSortable.length > 0 ||
@@ -300,7 +296,6 @@ export function ThreadDetailsTabs({
             key={id}
             id={id}
             index={index}
-            count={id === 'threads' ? threadCount : undefined}
             disabledReason={
               id === 'changes' ? changesDisabled : id === 'files' ? filesDisabled : undefined
             }
@@ -671,7 +666,6 @@ function OpenedPullTab({
 function SortableTab({
   id,
   index,
-  count,
   disabledReason,
   canClose,
   onMove,
@@ -679,7 +673,6 @@ function SortableTab({
 }: {
   id: TabId
   index: number
-  count?: number
   disabledReason?: string
   canClose: boolean
   onMove: (from: number, to: number) => void
@@ -709,7 +702,7 @@ function SortableTab({
           onMove(index, index + (event.key === 'ArrowLeft' ? -1 : 1))
         }}
       >
-        <StaticTabLabel id={id} count={count} canClose={canClose} onClose={onClose} />
+        <StaticTabLabel id={id} canClose={canClose} onClose={onClose} />
       </TabsTrigger>
     </DisabledTooltip>
   )
@@ -717,12 +710,10 @@ function SortableTab({
 
 function StaticTabLabel({
   id,
-  count,
   canClose,
   onClose,
 }: {
   id: TabId
-  count?: number
   canClose: boolean
   onClose: (id: TabId) => void
 }) {
@@ -731,7 +722,6 @@ function StaticTabLabel({
     <TabLabel
       label={label}
       icon={<Icon className='details-tab-kind size-3' />}
-      count={count}
       canClose={canClose}
       onClose={() => onClose(id)}
     />
@@ -743,14 +733,12 @@ export function TabLabel({
   label,
   mono = false,
   icon,
-  count,
   canClose,
   onClose,
 }: {
   label: string
   mono?: boolean
   icon: ReactNode
-  count?: number
   canClose: boolean
   onClose: () => void
 }) {
@@ -785,7 +773,6 @@ export function TabLabel({
         )}
       </span>
       <span className={cn('min-w-0 truncate', mono && 'font-mono')}>{label}</span>
-      {count !== undefined && <span className='font-mono text-muted-foreground'>{count}</span>}
     </>
   )
 }
