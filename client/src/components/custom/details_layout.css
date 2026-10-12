@@ -65,6 +65,7 @@
 }
 .details-tab-icon {
   display: inline-grid;
+  flex-shrink: 0;
   place-items: center;
 }
 .details-tab-icon > * {

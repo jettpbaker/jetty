@@ -330,7 +330,7 @@ export function ThreadDetailsTabs({
           <TabsTrigger
             key={agent.id}
             value={subagentTabId(agent.id)}
-            className='details-header-tab h-auto max-w-48 rounded-sm px-1 py-1 text-xs'
+            className='details-header-tab h-auto max-w-48 min-w-0 flex-none rounded-sm px-1 py-1 text-xs'
             title={agent.title}
           >
             <TabLabel
@@ -734,7 +734,7 @@ function TabLabel({
           </span>
         )}
       </span>
-      {mono ? <span className='font-mono'>{label}</span> : label}
+      <span className={cn('min-w-0 truncate', mono && 'font-mono')}>{label}</span>
       {count !== undefined && <span className='font-mono text-muted-foreground'>{count}</span>}
     </>
   )
