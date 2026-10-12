@@ -18,6 +18,7 @@ import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/cu
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import { createThreadRows, type BotRows, type ThreadRow } from '@/components/custom/thread_rows'
 import {
+  BackgroundSeam,
   CompactionSeam,
   PullRequestSeam,
   PullRequestGroupSeam,
@@ -171,6 +172,8 @@ function rowStamp(row: ThreadRow) {
     case 'restart':
     case 'backgroundStopped':
       return ''
+    case 'background':
+      return row.item.endedAt !== undefined
     case 'restartLimit':
       return row.resumed
     case 'work':
@@ -278,6 +281,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'pullRequest') return <PullRequestSeam item={row.item} />
   if (row.kind === 'pullRequestGroup') return <PullRequestGroupSeam items={row.items} />
   if (row.kind === 'restart') return <RestartSeam />
+  if (row.kind === 'background') return <BackgroundSeam item={row.item} />
   if (row.kind === 'backgroundStopped')
     return <RestartSeam label='Background work stopped when Jetty restarted' />
   if (row.kind === 'restartLimit')

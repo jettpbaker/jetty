@@ -277,6 +277,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'compaction':
     case 'restart':
     case 'backgroundStopped':
+    case 'background':
     case 'restartLimit':
     case 'pullRequest':
     case 'pullRequestGroup':

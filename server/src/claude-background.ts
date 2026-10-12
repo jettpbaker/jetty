@@ -18,6 +18,7 @@ export function createBackgroundTasks() {
   function tasks(): BackgroundTask[] {
     return entries.map(({ id, description, startedAt }) => ({
       id,
+      kind: shells.has(id) ? 'command' : 'monitor',
       label: shells.get(id) ?? description,
       startedAt,
     }))

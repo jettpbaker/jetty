@@ -1,6 +1,8 @@
 import {
   Checkmark1MediumIcon,
+  ClockIcon,
   ConciseIcon,
+  ConsoleSimpleIcon,
   PauseIcon,
   ArrowRotateClockwiseIcon,
   PullRequestIcon,
@@ -13,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
   useContinueThread,
@@ -24,7 +27,7 @@ import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jet
 import { Link, useNavigate } from '@tanstack/react-router'
 import { use } from 'react'
 
-import type { PullRequestItem } from './thread_rows'
+import type { BackgroundItem, PullRequestItem } from './thread_rows'
 
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
@@ -101,6 +104,29 @@ export function CompactionSeam({ running }: { running: boolean }) {
     <ChatSeam>
       <SeamIcon icon={ConciseIcon} />
       {running ? <span className='shimmer'>Compacting</span> : 'Compacted'}
+    </ChatSeam>
+  )
+}
+
+// A monitor or background command, which changes tense once it stops running.
+export function BackgroundSeam({ item }: { item: BackgroundItem }) {
+  const monitor = item.task === 'monitor'
+  const ended = item.endedAt !== undefined
+  return (
+    <ChatSeam className='text-xs'>
+      <SeamIcon
+        icon={monitor ? ClockIcon : ConsoleSimpleIcon}
+        tone={monitor ? 'text-status-idle' : undefined}
+      />
+      <span className='shrink-0'>
+        {monitor ? (ended ? 'Watched' : 'Watching') : ended ? 'Ran' : 'Running'}
+      </span>
+      <span className='min-w-0 truncate font-mono'>{item.label}</span>
+      {ended && (
+        <span className='shrink-0 font-mono text-faint-foreground'>
+          {formatDuration((item.endedAt! - item.createdAt) / 1000)}
+        </span>
+      )}
     </ChatSeam>
   )
 }

@@ -340,6 +340,7 @@ export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 
 export const BackgroundTask = Schema.Struct({
   id: Schema.String,
+  kind: Schema.Literals(['monitor', 'command']),
   label: Schema.String,
   startedAt: Schema.Int,
 })

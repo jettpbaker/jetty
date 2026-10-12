@@ -48,6 +48,7 @@ import { IconCloseQuote1 } from '@central-icons-react/round-outlined-radius-3-st
 import { IconCode } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCode'
 import { IconCommits } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCommits'
 import { IconConcise } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconConcise'
+import { IconConsoleSimple } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconConsoleSimple'
 import { IconCrop } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCrop'
 import { IconCrossSmall } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconCrossSmall'
 import { IconDivider } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconDivider'
@@ -179,6 +180,7 @@ export const CircleXIcon = centralIcon(IconCircleX, IconCircleXFilled)
 export const CloseQuote1Icon = centralIcon(IconCloseQuote1)
 export const CodeIcon = centralIcon(IconCode)
 export const CommitsIcon = centralIcon(IconCommits)
+export const ConsoleSimpleIcon = centralIcon(IconConsoleSimple)
 export const ConciseIcon = centralIcon(IconConcise)
 export const CropIcon = centralIcon(IconCrop)
 export const CrossSmallIcon = centralIcon(IconCrossSmall)

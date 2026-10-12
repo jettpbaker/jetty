@@ -20,6 +20,7 @@ import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
 import { CharmedFileIcon } from './diff/file_name'
 import { PullRequestRow } from './pull_request_row'
+import { RunningTaskRow } from './running_task_row'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
 import { threadSubagents } from './thread_rows'
 import { currentTodos } from './todo_model'
@@ -36,8 +37,10 @@ function threadWorkflows(items: readonly ThreadItem[]) {
 
 export function useHasOverview(threadId: string, childThreads: readonly ChildThread[]) {
   const { items, lastTurn } = useOverviewItems(threadId)
-  const pullRequests = useThreadMeta(threadId)?.pullRequests
+  const meta = useThreadMeta(threadId)
+  const pullRequests = meta?.pullRequests
   const hasItems =
+    (meta?.backgroundTasks?.length ?? 0) > 0 ||
     items.some((item) => item.kind === 'subagent' || item.kind === 'workflow') ||
     currentTodos(items, lastTurn).length > 0
   return hasItems || childThreads.length > 0 || (pullRequests?.length ?? 0) > 0
@@ -137,7 +140,9 @@ export function ThreadOverview({
   }, [revealing, clearReveal, setCollapsed])
 
   const done = todos.filter((todo) => todo.status === 'done').length
+  const running = meta?.backgroundTasks ?? []
   const empty =
+    running.length === 0 &&
     todos.length === 0 &&
     subagentItems.length === 0 &&
     workflows.length === 0 &&
@@ -155,6 +160,15 @@ export function ThreadOverview({
   return (
     <div ref={scroller} className='scrollbar-subtle h-full overflow-auto'>
       <div className='flex flex-col gap-3 p-2 text-sm'>
+        {running.length > 0 && (
+          <Section label='Running' count={running.length} {...sectionProps('running')}>
+            <div className='flex flex-col'>
+              {running.map((task) => (
+                <RunningTaskRow key={task.id} threadId={threadId} task={task} />
+              ))}
+            </div>
+          </Section>
+        )}
         {todos.length > 0 && (
           <Section label='Todos' count={`${done}/${todos.length}`} {...sectionProps('todos')}>
             <div className='px-2.5 py-1.5'>

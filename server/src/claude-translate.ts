@@ -27,6 +27,10 @@ export type TranslateCtx = {
   // the SDK's workflow task id → the agents its last snapshot reported
   workflows: Map<string, readonly WorkflowAgent[]>
   workflowTools: Map<string, string>
+  // Bash tool_use id → its command, until a background task starts from it
+  commands: Map<string, string>
+  // the SDK's task id → the background item a running monitor or command has
+  background: Map<string, string>
   currentAssistantId: string | null
   currentReasoningId: string | null
   toolUseToItemId: Map<string, string>
@@ -54,6 +58,8 @@ export function createTranslateCtx(
     tasks: shared?.tasks ?? new Map(),
     workflows: shared?.workflows ?? new Map(),
     workflowTools: shared?.workflowTools ?? new Map(),
+    commands: shared?.commands ?? new Map(),
+    background: shared?.background ?? new Map(),
     currentAssistantId: null,
     currentReasoningId: null,
     toolUseToItemId: new Map(),
@@ -101,6 +107,8 @@ export type SdkLikeMessage = {
   workflow_progress?: unknown
   tool_use_result?: unknown
   tasks?: { task_id: string; task_type: string; ambient?: boolean }[]
+  is_backgrounded?: boolean
+  ambient?: boolean
 }
 
 type StreamEvent = {
@@ -245,6 +253,53 @@ export function subagentOf(ctx: TranslateCtx, taskId: string | undefined) {
   return taskId ? ctx.tasks.get(taskId) : undefined
 }
 
+const MONITOR_TASKS: ReadonlySet<string> = new Set(['monitor_mcp', 'monitor_ws'])
+
+function endBackground(ctx: TranslateCtx, taskId: string): ThreadEvent[] {
+  const itemId = ctx.background.get(taskId)
+  if (!itemId) return []
+  ctx.background.delete(taskId)
+  return [{ type: 'item.completed', itemId, patch: { endedAt: Date.now() } }]
+}
+
+export function endAllBackground(ctx: TranslateCtx) {
+  return [...ctx.background.keys()].flatMap((taskId) => endBackground(ctx, taskId))
+}
+
+// A monitor or background command is one item: task_started opens it; the task leaving the live
+// set (or settling) closes it. Returns undefined for messages about anything else.
+function backgroundEvents(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] | undefined {
+  if (msg.subtype === 'background_tasks_changed') {
+    const live = new Set(msg.tasks?.map((task) => task.task_id))
+    return [...ctx.background.keys()].flatMap((taskId) =>
+      live.has(taskId) ? [] : endBackground(ctx, taskId)
+    )
+  }
+  if (!msg.task_id) return undefined
+  if (msg.subtype === 'task_notification' && ctx.background.has(msg.task_id))
+    return endBackground(ctx, msg.task_id)
+  if (msg.subtype !== 'task_started' || msg.ambient) return undefined
+  const monitor = MONITOR_TASKS.has(msg.task_type ?? '')
+  if (!monitor && !(msg.task_type === 'local_bash' && msg.is_backgrounded)) return undefined
+  const label = monitor ? msg.description : msg.tool_use_id && ctx.commands.get(msg.tool_use_id)
+  if (!label) return undefined
+  const id = newId()
+  ctx.background.set(msg.task_id, id)
+  return [
+    {
+      type: 'item.started',
+      item: {
+        id,
+        ...itemBase(ctx),
+        kind: 'background',
+        taskId: msg.task_id,
+        task: monitor ? 'monitor' : 'command',
+        label,
+      },
+    },
+  ]
+}
+
 function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
   // Claude reports 'compacting' as a compaction starts and again while it runs, then a
   // compact_boundary when it's done, or a status whose compact_result is 'failed'.
@@ -276,6 +331,8 @@ function translateSystem(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] 
     ctx.sessionId = msg.session_id
     return []
   }
+  const background = backgroundEvents(msg, ctx)
+  if (background) return background
   if (msg.subtype === 'task_started' && msg.task_type === 'local_workflow' && msg.task_id) {
     ctx.workflows.set(msg.task_id, [])
     if (msg.tool_use_id) ctx.workflowTools.set(msg.tool_use_id, msg.task_id)
@@ -415,6 +472,8 @@ function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unk
       status: 'running',
     }
   }
+  const command = name === 'Bash' && record(input).command
+  if (toolUseId && typeof command === 'string' && command) ctx.commands.set(toolUseId, command)
   const itemId = (toolUseId && toolCallItemId(ctx, toolUseId, name)) || newId()
   return {
     id: itemId,

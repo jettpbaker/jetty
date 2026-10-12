@@ -30,6 +30,7 @@ type MarkerItem = Extract<ThreadItem, { kind: 'thread_marker' }>
 type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
+export type BackgroundItem = Extract<ThreadItem, { kind: 'background' }>
 export type PullRequestItem = Extract<ThreadItem, { kind: 'pull_request' }>
 
 export type ThreadRow =
@@ -84,6 +85,7 @@ export type ThreadRow =
   | { kind: 'pullRequestGroup'; id: string; items: PullRequestItem[] }
   | { kind: 'restart'; id: string }
   | { kind: 'backgroundStopped'; id: string }
+  | { kind: 'background'; id: string; item: BackgroundItem }
   // the crash-loop guard held the turn; resumed once anything follows it
   | { kind: 'restartLimit'; id: string; resumed: boolean }
   | { kind: 'error'; id: string; message: string; turnId: string }
@@ -773,8 +775,11 @@ export function threadRows(
   // Anything after a held turn that isn't a leftover background-stopped line has resumed it.
   const lastFollowUp = items.findLastIndex((item) => item.kind !== 'background_stopped')
   // The guard also holds a turn that finished before the restart stopped its background work.
+  // A monitor or background command's line follows the turn that started it.
+  const started: BackgroundItem[] = []
   function finishTurn(resumed: boolean) {
     if (!currentTurnId) return
+    for (const item of started.splice(0)) rows.push({ kind: 'background', id: item.id, item })
     const id = `${currentTurnId}:restart`
     if (heldTurns.has(currentTurnId)) rows.push({ kind: 'restartLimit', id, resumed })
     else if (outcomes[currentTurnId] === 'server_restarted') rows.push({ kind: 'restart', id })
@@ -865,6 +870,9 @@ export function threadRows(
         break
       case 'pull_request':
         rows.push({ kind: 'pullRequest', id: item.id, item })
+        break
+      case 'background':
+        started.push(item)
         break
       case 'background_stopped':
         rows.push({ kind: 'backgroundStopped', id: item.id })

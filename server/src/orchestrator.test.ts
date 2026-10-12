@@ -1040,7 +1040,7 @@ test("a child's question reaches its parent when its turn ends, while its backgr
       const f = yield* makeChildFixture()
       yield* runSubagent(f.turn, 'background')
       f.hub.setBackgroundTasks(f.child.id, [
-        { id: 'monitor', label: 'Watching the build', startedAt: Date.now() },
+        { id: 'monitor', kind: 'monitor', label: 'Watching the build', startedAt: Date.now() },
       ])
       yield* f.store.setQueuePaused(f.child.id, true)
       yield* f.store.enqueue(f.child.id, {

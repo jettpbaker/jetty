@@ -30,7 +30,7 @@ test('membership follows the level signal; shells are labelled by their command'
     send({ type: 'system', subtype: 'task_started', task_id: 'shell', tool_use_id: 'tool' })
   ).toBe(true)
   const startedAt = tracker.tasks()[0]!.startedAt
-  expect(tracker.tasks()[0]).toEqual({ id: 'shell', label: 'sleep 20', startedAt })
+  expect(tracker.tasks()[0]).toEqual({ id: 'shell', kind: 'command', label: 'sleep 20', startedAt })
   expect(send({ type: 'system', subtype: 'task_notification', task_id: 'shell' })).toBe(false)
   expect(tracker.tasks()).toHaveLength(2)
   send({
@@ -38,5 +38,5 @@ test('membership follows the level signal; shells are labelled by their command'
     subtype: 'background_tasks_changed',
     tasks: [{ task_id: 'shell', task_type: 'local_bash', description: 'Wait' }],
   })
-  expect(tracker.tasks()).toEqual([{ id: 'shell', label: 'sleep 20', startedAt }])
+  expect(tracker.tasks()).toEqual([{ id: 'shell', kind: 'command', label: 'sleep 20', startedAt }])
 })

@@ -54,7 +54,6 @@ import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { MonitoringLine } from './monitoring_line'
 import { ThreadFooter } from './thread_footer'
 
 const noItems: readonly ThreadItem[] = []
@@ -648,9 +647,6 @@ export function ThreadComposer({
           threadId ? (
             // Holds the environment/branch footer's height so the composer sits where it did on the new thread.
             <div className='flex w-full flex-col'>
-              {meta?.backgroundTasks?.length ? (
-                <MonitoringLine key={threadId} threadId={threadId} tasks={meta.backgroundTasks} />
-              ) : null}
               <ThreadFooter
                 threadId={threadId}
                 environment={meta?.environment}

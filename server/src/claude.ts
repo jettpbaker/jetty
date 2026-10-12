@@ -53,6 +53,7 @@ import { botInstructions, botUserName } from './bot-home'
 import { createBackgroundTasks, type BackgroundTasks } from './claude-background'
 import { claudeBin } from './claude-bin'
 import {
+  endAllBackground,
   createTranslateCtx,
   subagentOf,
   toolCallItemId,
@@ -426,6 +427,8 @@ export function createClaudeAdapter(
             patch: { status: 'stopped', stopReason: 'crash' },
           }).pipe(Effect.ignore)
         session.runningWorkflows.clear()
+        for (const event of endAllBackground(session.ctx))
+          yield* emitCaptured(session, event).pipe(Effect.ignore)
         // Shutdown leaves the persisted "still running" flag. The next boot says the work stopped.
         if (session.backgroundTasks.tasks().length) {
           session.backgroundTasks.clear()

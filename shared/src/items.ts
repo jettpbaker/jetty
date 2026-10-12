@@ -241,6 +241,15 @@ export const ThreadItem = Schema.Union([
   Schema.Struct({ ...itemBase, kind: Schema.Literal('error'), message: Schema.String }),
   // Background tasks or Monitor watches were still running when Jetty last shut down or crashed.
   Schema.Struct({ ...itemBase, kind: Schema.Literal('background_stopped') }),
+  // A monitor or background command the agent started; endedAt is set when it stops running.
+  Schema.Struct({
+    ...itemBase,
+    kind: Schema.Literal('background'),
+    taskId: Schema.String,
+    task: Schema.Literals(['monitor', 'command']),
+    label: Schema.String,
+    endedAt: Schema.optional(Schema.Int),
+  }),
   // Bot chats: the bot started a thread, or sent one a message. Its status is the thread's own.
   Schema.Struct({
     ...itemBase,
