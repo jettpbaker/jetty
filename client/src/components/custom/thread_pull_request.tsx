@@ -106,13 +106,16 @@ export function rankPullRequests<T extends ThreadPullRequest>(pullRequests: read
 }
 
 // A thread's PRs as its row and hover card show them: a count per glyph and colour, even for one,
-// so readiness splits the open count. The tooltip lists each PR's readiness.
+// so readiness splits the open count. Compact (one-line rows) keeps the two most urgent glyphs and
+// counts only from two. The tooltip lists each PR's readiness.
 export function PullRequestMark({
   pullRequests,
   tooltip = true,
+  compact = false,
 }: {
   pullRequests: readonly ThreadPullRequest[]
   tooltip?: boolean
+  compact?: boolean
 }) {
   const looks = rankPullRequests(pullRequests)
   const groups: ((typeof looks)[number] & { count: number })[] = []
@@ -124,10 +127,10 @@ export function PullRequestMark({
 
   const mark = (
     <>
-      {groups.map(({ icon: Icon, color, count }) => (
+      {(compact ? groups.slice(0, 2) : groups).map(({ icon: Icon, color, count }) => (
         <span key={color} className={cn('flex items-center gap-1', color)}>
           <Icon aria-hidden='true' className='size-3' />
-          <span className='font-mono'>{count}</span>
+          {(!compact || count > 1) && <span className='font-mono'>{count}</span>}
         </span>
       ))}
       <span className='sr-only'>

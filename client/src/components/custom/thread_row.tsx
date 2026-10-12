@@ -78,7 +78,7 @@ export function ThreadRow({
               </OverflowTitle>
               {pullRequests.length > 0 && (
                 <span data-pull-request className='ml-auto flex shrink-0'>
-                  <PullRequestMark pullRequests={pullRequests} tooltip={false} />
+                  <PullRequestMark pullRequests={pullRequests} tooltip={false} compact />
                 </span>
               )}
             </Button>
