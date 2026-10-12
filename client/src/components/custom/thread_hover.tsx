@@ -471,7 +471,7 @@ function ThreadHoverPanel({
         <Section label='Pull requests'>
           {prs.map(({ pr, icon: Icon, color, label }) => (
             <Row key={`${pr.repo}#${pr.number}`} onPress={() => onOpenPullRequest(pr)}>
-              <Icon aria-hidden='true' className={cn('size-3.5 shrink-0', color)} />
+              <Icon aria-hidden='true' className={cn('size-3 shrink-0', color)} />
               <span
                 className='shrink-0 text-right font-mono text-muted-foreground'
                 style={{ width: `${numberWidth}ch` }}
@@ -479,7 +479,7 @@ function ThreadHoverPanel({
                 #{pr.number}
               </span>
               <RowTitle>{pr.title ?? ''}</RowTitle>
-              <span className='shrink-0 text-xs text-muted-foreground'>{label}</span>
+              <span className='shrink-0 text-muted-foreground'>{label}</span>
             </Row>
           ))}
         </Section>
@@ -532,7 +532,7 @@ function Row({ onPress, children }: { onPress: () => void; children: ReactNode }
       data-overflow-hover
       className={cn(
         rowClass,
-        'h-auto w-full justify-start rounded-menu-item text-left text-13 font-normal'
+        'h-auto w-full justify-start rounded-menu-item text-left text-xs font-normal'
       )}
       {...pressProps(onPress)}
     >
@@ -552,7 +552,7 @@ function RowTitle({
     <OverflowTitle
       focusable={false}
       renderText={renderText}
-      className='text-13 font-normal text-foreground'
+      className='text-xs leading-4 font-normal text-foreground'
     >
       {children}
     </OverflowTitle>
@@ -562,9 +562,9 @@ function RowTitle({
 function ThreadLinkRow({ thread, onOpen }: { thread: ThreadLink; onOpen: () => void }) {
   return (
     <Row onPress={onOpen}>
-      <StatusGlyph status={thread.status} className='size-3.5' />
+      <StatusGlyph status={thread.status} className='size-3' />
       <RowTitle>{thread.title}</RowTitle>
-      <span className='shrink-0 text-xs text-muted-foreground'>
+      <span className='shrink-0 text-muted-foreground'>
         {statusPresentation[thread.status].label}
       </span>
     </Row>
@@ -575,7 +575,7 @@ function More({ count, onPress }: { count: number; onPress: () => void }) {
   if (count <= 0) return null
   return (
     <Row onPress={onPress}>
-      <span className='pl-5.5 text-muted-foreground'>+{count} more</span>
+      <span className='pl-5 text-muted-foreground'>+{count} more</span>
     </Row>
   )
 }
@@ -612,7 +612,7 @@ function SubagentSection({
           <div className='finish-more' data-hidden={more ? undefined : ''} inert={!more}>
             <div>
               <Row onPress={onOpenOverview}>
-                <span className='pl-5.5 text-muted-foreground'>+{more || lastMore} more</span>
+                <span className='pl-5 text-muted-foreground'>+{more || lastMore} more</span>
               </Row>
             </div>
           </div>
@@ -639,7 +639,7 @@ function SubagentRows({ subagents }: { subagents: readonly SubagentRow[] }) {
           <div data-overflow-hover className={rowClass}>
             <SubagentGlyph
               state={ended ? subagentGlyphState(agent.outcome ?? 'stopped') : 'running'}
-              className='size-3.5 shrink-0'
+              className='size-3 shrink-0'
             />
             <RowTitle
               renderText={
