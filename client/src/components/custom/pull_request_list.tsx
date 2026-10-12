@@ -2,6 +2,7 @@ import type { PullRequestListItem, PullRequestListTab } from '@jetty/shared/wire
 
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
@@ -29,7 +30,7 @@ import {
   PeopleIcon,
   PullRequestIcon,
 } from './central_icons'
-import { ListFilterMenu, ListGroupMenu } from './grouped_list_controls'
+import { ListFilterMenu, ListFilterSection, ListGroupMenu } from './grouped_list_controls'
 import {
   GroupedTable,
   GroupedTableTitle,
@@ -98,6 +99,8 @@ type GroupBy = 'readiness' | 'state' | 'repo'
 
 const compactLines = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 0 })
 
+const repoName = (repo: string) => repo.split('/').at(-1) ?? repo
+
 // Whole thousands from 10k keep the widest count ("+9999 −9999") inside its column.
 function formatLines(lines: number | undefined) {
   if (lines === undefined) return '—'
@@ -151,14 +154,23 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     'readiness',
     (value): value is GroupBy => value === 'readiness' || value === 'state' || value === 'repo'
   )
+  const [hiddenRepos, setHiddenRepos] = useStoredState<string[]>(
+    'jetty.pullRequests.hiddenRepos',
+    [],
+    (value): value is string[] =>
+      Array.isArray(value) && value.every((repo) => typeof repo === 'string')
+  )
+  const repos = [...new Set(pulls.map((pull) => pull.repo))].toSorted((a, b) =>
+    repoName(a).localeCompare(repoName(b))
+  )
   const rows = pulls
-    .filter((pull) => included.includes(pull.state))
+    .filter((pull) => included.includes(pull.state) && !hiddenRepos.includes(pull.repo))
     .toSorted((a, b) => b.updatedAt - a.updatedAt)
   const groups: TableGroup<PullRequestListItem>[] =
     groupBy === 'repo'
       ? [...new Set(rows.map((pull) => pull.repo))].map((repo) => ({
           id: repo,
-          label: repo.split('/').at(-1) ?? repo,
+          label: repoName(repo),
           color: 'var(--muted-foreground)',
           rows: rows.filter((pull) => pull.repo === repo),
         }))
@@ -201,7 +213,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           className='flex min-w-0 font-mono text-xs text-muted-foreground'
           title={`${pull.repo}#${pull.number}`}
         >
-          {groupBy !== 'repo' && <span className='truncate'>{pull.repo.split('/').at(-1)}</span>}
+          {groupBy !== 'repo' && <span className='truncate'>{repoName(pull.repo)}</span>}
           <span className='shrink-0'>#{pull.number}</span>
         </span>
       ),
@@ -314,18 +326,40 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             </TooltipContent>
           </Tooltip>
           <ListFilterMenu
-            label='State'
-            choices={pullRequestGroupOrder.map((value) => ({
-              value,
-              label: pullRequestGroupLabel[value],
-            }))}
-            selected={included}
-            onChange={(value, checked) =>
-              setIncluded((current) =>
-                checked ? [...current, value] : current.filter((group) => group !== value)
-              )
+            active={
+              included.length < pullRequestGroupOrder.length ||
+              repos.some((repo) => hiddenRepos.includes(repo))
             }
-          />
+          >
+            <ListFilterSection
+              label='State'
+              choices={pullRequestGroupOrder.map((value) => ({
+                value,
+                label: pullRequestGroupLabel[value],
+              }))}
+              selected={included}
+              onChange={(value, checked) =>
+                setIncluded((current) =>
+                  checked ? [...current, value] : current.filter((group) => group !== value)
+                )
+              }
+            />
+            {repos.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <ListFilterSection
+                  label='Repository'
+                  choices={repos.map((repo) => ({ value: repo, label: repoName(repo) }))}
+                  selected={repos.filter((repo) => !hiddenRepos.includes(repo))}
+                  onChange={(repo, checked) =>
+                    setHiddenRepos((current) =>
+                      checked ? current.filter((hidden) => hidden !== repo) : [...current, repo]
+                    )
+                  }
+                />
+              </>
+            )}
+          </ListFilterMenu>
           <ListGroupMenu
             choices={[
               { value: 'readiness', label: 'Readiness' },

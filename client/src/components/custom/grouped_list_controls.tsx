@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -15,18 +17,7 @@ import { Filter2Icon, SettingsSliderHorIcon } from './central_icons'
 
 type Choice<T extends string> = { value: T; label: string }
 
-export function ListFilterMenu<T extends string>({
-  label,
-  choices,
-  selected,
-  onChange,
-}: {
-  label: string
-  choices: readonly Choice<T>[]
-  selected: readonly T[]
-  onChange: (value: T, checked: boolean) => void
-}) {
-  const active = selected.length !== choices.length
+export function ListFilterMenu({ active, children }: { active: boolean; children: ReactNode }) {
   return (
     <DropdownMenu>
       <Tooltip>
@@ -45,21 +36,37 @@ export function ListFilterMenu<T extends string>({
         <TooltipContent>Filter</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align='end' className='w-44'>
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>{label}</DropdownMenuLabel>
-          {choices.map((choice) => (
-            <DropdownMenuCheckboxItem
-              key={choice.value}
-              checked={selected.includes(choice.value)}
-              closeOnClick={false}
-              onCheckedChange={(checked) => onChange(choice.value, checked)}
-            >
-              {choice.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuGroup>
+        {children}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+export function ListFilterSection<T extends string>({
+  label,
+  choices,
+  selected,
+  onChange,
+}: {
+  label: string
+  choices: readonly Choice<T>[]
+  selected: readonly T[]
+  onChange: (value: T, checked: boolean) => void
+}) {
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuLabel>{label}</DropdownMenuLabel>
+      {choices.map((choice) => (
+        <DropdownMenuCheckboxItem
+          key={choice.value}
+          checked={selected.includes(choice.value)}
+          closeOnClick={false}
+          onCheckedChange={(checked) => onChange(choice.value, checked)}
+        >
+          <span className='truncate'>{choice.label}</span>
+        </DropdownMenuCheckboxItem>
+      ))}
+    </DropdownMenuGroup>
   )
 }
 
