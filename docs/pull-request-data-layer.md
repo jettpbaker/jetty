@@ -17,13 +17,15 @@ are never shown, so they aren't read), and `isRequired(pullRequestNumber:)`.
 
 Unsubmitted (`PENDING`) review comments are excluded from posted comments and
 their count. Reviews, threads, nested thread replies, conversation comments,
-commit history, status timeline, and viewed-file connections follow cursors until
-exhausted. A thread's comments come 50 to the first page (rarely outgrown; threads that
+commit history, status timeline, viewed-file connections, and check contexts
+follow cursors until exhausted. A thread's comments come 50 to the first page (rarely outgrown; threads that
 do page in parallel), so a big PR's query asks for 5,000 nested comments, not 10,000.
 Reviewer requests, latest reviews, latest opinionated reviews, labels,
-closing issues, and check contexts remain capped at 100. `truncatedConnections`
-reports any remaining pages; check totals and the authoritative rollup remain
-available. Status events are chronological. The first ready/draft event determines
+and closing issues remain capped at 100. `truncatedConnections`
+reports any remaining pages. Check contexts page only once the first hundred
+isn't the end, so a shorter rollup is still one request. A later check page that
+fails stays short, and the authoritative rollup still covers what wasn't read.
+Status events are chronological. The first ready/draft event determines
 whether the PR opened as a draft; without one, its current draft flag determines
 that.
 
@@ -44,7 +46,11 @@ server retries the full read once and refuses a second mixed revision. Even when
 directory metadata is cached, fetching patch pages or reusing patches after the
 base moves requires this revision check. Base movement also refreshes
 classification for removed files. GitHub's flags are used directly rather than
-inferred from a missing patch, extension, or byte sample.
+inferred from a missing patch, extension, or byte sample. Files GitHub leaves
+unmarked are checked for a generated banner in the first 2 KiB. When the patch
+already shows those lines, that decides it. The rest are read from the head, a
+hundred at a time, until every file is tried or the view is gone or GitHub asks
+to back off.
 
 All added schema fields are optional, so stored snapshots still decode. Live
 loads fill them. Actor selections include `... on User { name }`; there are no
@@ -133,7 +139,8 @@ Concurrent PRs can share GraphQL requests. ETag 304s still count as requests.
 | Diff tab, F cold files needing full text   | 1 + 2F |                                                     1 + 2F |
 | Diff tab, warm content cache               |      0 |                                                          0 |
 
-Additional connection/file pages add requests. Checks-only changes cost detection
+Additional connection/file pages add requests. A check rollup past 100 contexts
+adds a page per further hundred. Checks-only changes cost detection
 plus a checks query. A PR file body mounts lazily as it approaches the viewport, then fetches full
 contents through `diffFile` so its folds and trailing context are exact. Mount
 prefetch and fold expansion share one in-flight request and cached result per
@@ -142,12 +149,15 @@ The client retains each revision's cache for 30 minutes of idleness; failed
 requests are removed so expansion can retry. Scrolling away keeps mounted bodies
 and reply drafts alive.
 
-PR list refreshes still cost one GraphQL request: the two searches for a tab
-share one query, and concurrent tab refreshes share that request too. The search
+PR list refreshes still cost one GraphQL request: a tab's searches share one
+query, and concurrent tab refreshes share that request too. Created asks for
+closes in the last 14 days by `closed:`, and again by `updated:` so a close the
+search index has not filed yet still shows. Only the `closed:` search can mark
+the list truncated. Rows closed before the window are dropped. The search
 nodes now include creator names/avatars, diff totals, up to 100 labels, review
 decision, and mergeability alongside the check rollup. There are no per-PR or
 per-author reads. New wire fields are optional so cached lists still decode.
-Live verification reported 4 GraphQL points for one tab and 8 for both together.
+A refresh of both tabs together reported a cost of 5.
 
 ## Operations
 

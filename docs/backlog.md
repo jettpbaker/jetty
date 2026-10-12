@@ -499,9 +499,6 @@ Everything below is for one combined review of the chat, not separate ports.
   duplicate a send (`drafts.ts`). Needs an API call: an admission-locked "was this
   message accepted?" RPC, or keeping the original id for a retried send.
 - Usage: Grok's context ring is unverified mid-turn: it may only move at turn end.
-- PR view: a PR with over 100 check contexts or generated-banner heads drops the rest
-  silently (`pull-request-graphql.ts` ~143, `pull-requests.ts` ~978);
-  100+ old closed PRs can crowd out recent closes ("Showing latest 0").
 - File save (`diff.ts`): a parent-folder symlink swapped after the realpath check
   redirects a new file; a save still splits hard links and drops xattrs/ACLs.
 - Worktrees (`worktrees.ts`, `orchestrator.ts`): the setup watchdog exits with the

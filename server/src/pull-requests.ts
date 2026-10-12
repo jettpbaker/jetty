@@ -21,6 +21,7 @@ import type { Store } from './store'
 import { closestActivity, type Hub } from './hub'
 import {
   actorFields,
+  checkContextsQuery,
   connectionField,
   pageFields,
   pullRequestConnections,
@@ -805,6 +806,7 @@ async function fetchGraphqlBatch(
             ? new GhFailure('unavailable', 'GitHub could not read this pull request')
             : new GhFailure('not_found', 'Pull request not found or access denied')
         if (fields === pullRequestGraphqlFields) await paginatePullRequest(ref, value)
+        await paginateCheckContexts(ref, value)
         cacheWrite(lastPulls, `${prKey(ref)}\0${fields}`, value, 32)
         const graph = mapPullRequestGraphql(value)
         const comparison = record(record(graph.pull.baseRef).compare)
@@ -953,6 +955,49 @@ async function paginateThread(
     const next = record(record(record(response.data).node).comments)
     if (!next.pageInfo || record(next.pageInfo).endCursor === cursor)
       throw new GhFailure('unavailable', 'GitHub returned an incomplete review comment page')
+    connection.nodes = [...nodes(connection), ...nodes(next)]
+    connection.pageInfo = next.pageInfo
+  }
+}
+
+// The first page already carries the rollup state. A later page that fails stays short, so
+// readiness keeps that rollup instead of failing the whole read. A head that moves between
+// pages is left short too: mixing the two commits would mark the old head's checks current.
+async function paginateCheckContexts(ref: PullRequestRef, pull: Record<string, unknown>) {
+  const commit = record(record(nodes(pull.commits)[0]).commit)
+  const connection = record(record(commit.statusCheckRollup).contexts)
+  if (record(connection.pageInfo).hasNextPage !== true) return
+  const head = string(commit.oid)
+  for (let page = 0; record(connection.pageInfo).hasNextPage === true && page < 30; page++) {
+    const cursor = string(record(connection.pageInfo).endCursor)
+    if (!cursor) return
+    let response: Record<string, unknown>
+    try {
+      response = record(await queryGraphql(checkContextsQuery(ref, cursor)))
+    } catch (error) {
+      if (error instanceof GhFailure && error.kind === 'rate_limited') throw error
+      console.warn(
+        `[pr-fetch] ${prKey(ref)} check page failed: ${error instanceof Error ? error.message : String(error)}`
+      )
+      return
+    }
+    const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+    if (errors.length) {
+      console.warn(`[pr-fetch] ${prKey(ref)} check page failed: ${string(errors[0]?.message)}`)
+      return
+    }
+    const nextCommit = record(
+      record(nodes(record(record(record(response.data).repository).pullRequest).commits)[0]).commit
+    )
+    if (head && string(nextCommit.oid) !== head) {
+      console.warn(`[pr-fetch] ${prKey(ref)} head moved while reading checks`)
+      return
+    }
+    const next = record(record(nextCommit.statusCheckRollup).contexts)
+    if (!next.pageInfo || record(next.pageInfo).endCursor === cursor) {
+      console.warn(`[pr-fetch] ${prKey(ref)} check page did not advance`)
+      return
+    }
     connection.nodes = [...nodes(connection), ...nodes(next)]
     connection.pageInfo = next.pageInfo
   }
@@ -1225,40 +1270,41 @@ async function readHead(repo: string, sha: string, file: PullRequestFile, token:
   }
 }
 
-// Ranged reads of the heads patches don't show, at most 100 per head, while `wanted` holds and
-// GitHub isn't asking to back off. Whether every read was tried.
+// Ranged reads of the heads patches don't show. A hundred at a time, while `wanted` holds and
+// GitHub isn't asking to back off; the rest wait for the next pass. Whether every head was tried.
 async function readHeads(
   repo: string,
   sha: string,
   files: readonly PullRequestFile[],
   wanted: () => boolean
 ) {
-  const unread = files
-    .filter(
-      (file) =>
-        file.status !== 'removed' &&
-        file.sha &&
-        !file.generated &&
-        !file.binary &&
-        headVerdict(file) === undefined
-    )
-    .slice(0, 100)
-  if (!unread.length) return true
+  const pending = files.filter(
+    (file) =>
+      file.status !== 'removed' &&
+      file.sha &&
+      !file.generated &&
+      !file.binary &&
+      headVerdict(file) === undefined
+  )
+  if (!pending.length) return true
   if (backingOff()) return false
   const token = await ghToken()
   if (!token) return true
   let complete = true
-  await Effect.runPromise(
-    Effect.forEach(
-      unread,
-      (file) =>
-        Effect.promise(async () => {
-          if (!wanted() || backingOff()) complete = false
-          else await shared(`head ${file.sha}`, () => readHead(repo, sha, file, token))
-        }),
-      { concurrency: 8, discard: true }
+  for (let offset = 0; offset < pending.length && complete; offset += 100) {
+    if (!wanted() || backingOff()) return false
+    await Effect.runPromise(
+      Effect.forEach(
+        pending.slice(offset, offset + 100),
+        (file) =>
+          Effect.promise(async () => {
+            if (!wanted() || backingOff()) complete = false
+            else await shared(`head ${file.sha}`, () => readHead(repo, sha, file, token))
+          }),
+        { concurrency: 8, discard: true }
+      )
     )
-  )
+  }
   return complete
 }
 
@@ -2903,17 +2949,44 @@ function recentSince() {
   return new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10)
 }
 
-function listSearches(tab: PullRequestListTab): string[] {
+// `counts` is whether a search's issueCount past this page means the list is short.
+type ListSearch = { query: string; counts: boolean }
+
+function listSearches(tab: PullRequestListTab): ListSearch[] {
   const open = 'is:pr is:open archived:false sort:updated-desc'
   // Your own PRs are under Created, even when they're assigned to you.
   if (tab === 'for-you')
-    return [`${open} -author:@me review-requested:@me`, `${open} -author:@me assignee:@me`]
-  // GitHub's search index can miss `closed:` dates (it drops some freshly closed PRs), so
-  // search by update time and filter on the PR's own closedAt.
+    return [
+      { query: `${open} -author:@me review-requested:@me`, counts: true },
+      { query: `${open} -author:@me assignee:@me`, counts: true },
+    ]
+  const since = recentSince()
+  // `closed:` fills the page with PRs closed in the window. The search index can miss that
+  // date on a PR that just closed, so the update-time search catches those (they sort first)
+  // and closedAt drops the older ones. Counting that search's extra hits — older closes still
+  // being updated — is what showed "Showing latest 0".
   return [
-    `${open} author:@me`,
-    `is:pr is:closed archived:false author:@me updated:>=${recentSince()} sort:updated-desc`,
+    { query: `${open} author:@me`, counts: true },
+    {
+      query: `is:pr is:closed archived:false author:@me closed:>=${since} sort:updated-desc`,
+      counts: true,
+    },
+    {
+      query: `is:pr is:closed archived:false author:@me updated:>=${since} sort:updated-desc`,
+      counts: false,
+    },
   ]
+}
+
+function tabSearches(tabs: readonly PullRequestListTab[], tabIndex: number) {
+  let start = 0
+  for (let index = 0; index < tabIndex; index++) start += listSearches(tabs[index]!).length
+  return { start, searches: listSearches(tabs[tabIndex]!) }
+}
+
+// An open PR has no closedAt. A closed one stays when it closed inside the window.
+function inListWindow(node: unknown, since: number) {
+  return !(Date.parse(string(record(node).closedAt)) < since)
 }
 
 function listItem(value: unknown): PullRequestListItem | null {
@@ -2952,7 +3025,7 @@ function listItem(value: unknown): PullRequestListItem | null {
 }
 
 export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[]) {
-  const searches = tabs.flatMap(listSearches)
+  const searches = tabs.flatMap(listSearches).map((search) => search.query)
   const fields = `issueCount nodes { ... on PullRequest {
     id number title url headRefOid isDraft state merged updatedAt closedAt repository { nameWithOwner }
     author { ${actorFields} }
@@ -2969,18 +3042,22 @@ export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[])
   }
 }
 
-export function mapPullRequestList(value: unknown, tabIndex = 0) {
+export function mapPullRequestList(
+  value: unknown,
+  tabs: readonly PullRequestListTab[],
+  tabIndex = 0
+) {
   const data = record(record(value).data)
   const since = Date.parse(recentSince())
   const found = new Map<string, PullRequestListItem>()
   let truncated = false
-  for (let index = tabIndex * 2; index < tabIndex * 2 + 2; index++) {
-    const result = record(data[`s${index}`])
+  const { start, searches } = tabSearches(tabs, tabIndex)
+  for (const [offset, search] of searches.entries()) {
+    const result = record(data[`s${start + offset}`])
     const values = nodes(result)
-    if (Number(result.issueCount) > values.length) truncated = true
+    if (search.counts && Number(result.issueCount) > values.length) truncated = true
     for (const node of values) {
-      const closedAt = Date.parse(string(record(node).closedAt))
-      if (closedAt < since) continue
+      if (!inListWindow(node, since)) continue
       const item = listItem(node)
       if (item) found.set(`${item.repo}#${item.number}`, item)
     }
@@ -2991,37 +3068,38 @@ export function mapPullRequestList(value: unknown, tabIndex = 0) {
   }
 }
 
-function listSignature(value: unknown, tabIndex = 0) {
+function listSignature(value: unknown, tabs: readonly PullRequestListTab[], tabIndex = 0) {
   const data = record(record(value).data)
-  const searches = []
   const since = Date.parse(recentSince())
-  for (let index = tabIndex * 2; index < tabIndex * 2 + 2; index++) {
-    const result = record(data[`s${index}`])
-    searches.push({
-      count: result.issueCount,
-      items: nodes(result)
-        .filter((node) => !(Date.parse(string(record(node).closedAt)) < since))
-        .map((value) => {
-          const node = record(value)
-          return [
-            node.id,
-            node.number,
-            record(node.repository).nameWithOwner,
-            node.headRefOid,
-            node.updatedAt,
-            node.closedAt,
-            node.state,
-            node.isDraft,
-            node.reviewDecision,
-            node.mergeStateStatus,
-            node.mergeable,
-            record(record(record(nodes(node.commits)[0]).commit).statusCheckRollup).state ?? null,
-          ]
-        })
-        .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+  const { start, searches } = tabSearches(tabs, tabIndex)
+  return JSON.stringify(
+    searches.map((search, offset) => {
+      const result = record(data[`s${start + offset}`])
+      return {
+        count: search.counts ? result.issueCount : null,
+        items: nodes(result)
+          .filter((node) => inListWindow(node, since))
+          .map((value) => {
+            const node = record(value)
+            return [
+              node.id,
+              node.number,
+              record(node.repository).nameWithOwner,
+              node.headRefOid,
+              node.updatedAt,
+              node.closedAt,
+              node.state,
+              node.isDraft,
+              node.reviewDecision,
+              node.mergeStateStatus,
+              node.mergeable,
+              record(record(record(nodes(node.commits)[0]).commit).statusCheckRollup).state ?? null,
+            ]
+          })
+          .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+      }
     })
-  }
-  return JSON.stringify(searches)
+  )
 }
 
 async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: readonly string[]) {
@@ -3033,7 +3111,7 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
     ${searches
       .map(
         (search, index) => `s${index}: search(
-      query:${JSON.stringify(search)},type:ISSUE,first:${listLimit}
+      query:${JSON.stringify(search.query)},type:ISSUE,first:${listLimit}
     ) {
       issueCount nodes { ... on PullRequest {
         id number repository { nameWithOwner } headRefOid updatedAt closedAt state isDraft
@@ -3080,7 +3158,7 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
         throw new Error('GitHub list probe is incomplete')
     }
   }
-  return new Map(tabs.map((tab, index) => [tab, listSignature(response, index)]))
+  return new Map(tabs.map((tab, index) => [tab, listSignature(response, tabs, index)]))
 }
 
 async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
@@ -3100,18 +3178,28 @@ async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
       'unavailable',
       string(errors[0]?.message) || 'GitHub returned part of the pull request list'
     )
-  return tabs.map((tab, index) => ({
-    signature: listSignature(response, index),
-    ids: [index * 2, index * 2 + 1].flatMap((search) =>
-      nodes(record(record(response).data)[`s${search}`]).map((node) => string(record(node).id))
-    ),
-    list: {
-      tab,
-      status: 'ready',
-      ...mapPullRequestList(response, index),
-      refreshedAt: Date.now(),
-    } satisfies PullRequestList,
-  }))
+  const since = Date.parse(recentSince())
+  return tabs.map((tab, index) => {
+    const { start, searches: tabQueries } = tabSearches(tabs, index)
+    return {
+      signature: listSignature(response, tabs, index),
+      ids: [
+        ...new Set(
+          tabQueries.flatMap((_, offset) =>
+            nodes(record(data)[`s${start + offset}`])
+              .filter((node) => inListWindow(node, since))
+              .map((node) => string(record(node).id))
+          )
+        ),
+      ],
+      list: {
+        tab,
+        status: 'ready',
+        ...mapPullRequestList(response, tabs, index),
+        refreshedAt: Date.now(),
+      } satisfies PullRequestList,
+    }
+  })
 }
 
 function failedList(

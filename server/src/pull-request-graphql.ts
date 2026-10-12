@@ -139,16 +139,35 @@ export function connectionField(field: string, after?: string) {
 
 export const pullRequestStateFields = `updatedAt headRefOid baseRefOid mergeable mergeStateStatus commits(last:1) { nodes { commit { oid statusCheckRollup { state } } } }`
 
-const checkRollupFields = `commits(last:1) { nodes { commit {
-  oid statusCheckRollup { state contexts(first:100) {
+const checkContextNodes = `nodes { __typename
+  ... on CheckRun { id databaseId name status conclusion detailsUrl startedAt completedAt
+    isRequired(pullRequestNumber:PR_NUMBER)
+    checkSuite { app { name } workflowRun { event workflow { name } } } }
+  ... on StatusContext { id context state targetUrl createdAt updatedAt description isRequired(pullRequestNumber:PR_NUMBER) }
+}`
+
+// One page is the whole rollup for a normal PR. Further pages are separate requests.
+export function checkContextsField(after?: string) {
+  return `contexts(first:100${after ? `,after:${JSON.stringify(after)}` : ''}) {
     ${pageFields}
-    nodes { __typename
-      ... on CheckRun { id databaseId name status conclusion detailsUrl startedAt completedAt
-        isRequired(pullRequestNumber:PR_NUMBER)
-        checkSuite { app { name } workflowRun { event workflow { name } } } }
-      ... on StatusContext { id context state targetUrl createdAt updatedAt description isRequired(pullRequestNumber:PR_NUMBER) }
+    ${checkContextNodes}
+  }`
+}
+
+export function checkContextsQuery(ref: PullRequestReference, after: string) {
+  const [owner, name] = ref.repo.split('/')
+  const contexts = checkContextsField(after).replaceAll('PR_NUMBER', String(ref.number))
+  return `query { rateLimit { cost remaining resetAt }
+    repository(owner:${JSON.stringify(owner)},name:${JSON.stringify(name)}) {
+      pullRequest(number:${ref.number}) {
+        commits(last:1) { nodes { commit { oid statusCheckRollup { ${contexts} } } } }
+      }
     }
-  } }
+  }`
+}
+
+const checkRollupFields = `commits(last:1) { nodes { commit {
+  oid statusCheckRollup { state ${checkContextsField()} }
 } } }`
 
 export const pullRequestChecksFields = `updatedAt headRefOid baseRefOid mergeable mergeStateStatus
