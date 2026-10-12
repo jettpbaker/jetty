@@ -126,6 +126,12 @@ export const settingsRows: SettingsRow[] = [
   },
   { page: 'bots', id: 'your-bots', title: 'Your bots', keywords: 'New bot' },
   { page: 'bots', id: 'shared-preferences', title: 'Shared preferences' },
+  {
+    page: 'bots',
+    id: 'show-quiet-turns',
+    title: 'Show check-ins and tidies',
+    keywords: 'chat, wakes',
+  },
   { page: 'bots', id: 'rhythm', title: 'Rhythm', keywords: 'check-ins' },
   { page: 'projects', id: 'projects', title: 'Projects', keywords: 'Add project, rename, icon' },
   { page: 'projects', id: 'worktree-setup', title: 'Worktree setup', keywords: 'worktree.json' },

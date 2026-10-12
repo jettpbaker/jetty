@@ -1,6 +1,8 @@
 import type { Bot } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { useShowQuietTurns } from '@/lib/bot-quiet-turns'
 import { effortLabels, findModel } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useBots, useChrome } from '@/state'
@@ -72,6 +74,7 @@ export function SettingsBots() {
   const bots = useBots()
   const info = useSettingsInfo()
   const [creating, setCreating] = useState(false)
+  const [showQuietTurns, setShowQuietTurns] = useShowQuietTurns()
   const preferences = info && `${info.home}/bots/shared/preferences.md`
   return (
     <SettingsPage
@@ -124,6 +127,21 @@ export function SettingsBots() {
             )}
           </pre>
         </div>
+      </SettingsSection>
+      <SettingsSection id='chat' title='Chat'>
+        <SettingsCard>
+          <SettingsRow
+            id='show-quiet-turns'
+            title='Show check-ins and tidies'
+            description='Show what a bot did when Jetty woke it, even when it had nothing to tell you'
+          >
+            <Switch
+              checked={showQuietTurns}
+              onCheckedChange={setShowQuietTurns}
+              aria-label='Show check-ins and tidies'
+            />
+          </SettingsRow>
+        </SettingsCard>
       </SettingsSection>
       <SettingsSection id='rhythm' title='Rhythm'>
         <SettingsCard>
