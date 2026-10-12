@@ -17,7 +17,8 @@
   width: 2px;
 }
 .sidebar-resize-handle:focus-visible::after {
-  background: var(--border);
+  /* --border is the seam this handle sits on, so it never reads as focus. */
+  background: var(--ring);
 }
 [data-slot='sidebar-wrapper'][data-resizing] [data-slot='sidebar-gap'],
 [data-slot='sidebar-wrapper'][data-resizing] [data-slot='shell-navigation'] {
