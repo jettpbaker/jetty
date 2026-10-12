@@ -4,6 +4,8 @@ import {
   SettingsGear1Icon,
   ArchiveIcon,
   EditSmall1Icon,
+  LayoutTopBottomIcon,
+  TextIndentLeftIcon,
   PinIcon,
   PlusMediumIcon,
   VolumeOffIcon,
@@ -12,6 +14,7 @@ import {
 import { CircleDotIcon } from '@/components/custom/lucide_icons'
 import { pullRequestListSearch } from '@/components/custom/pull_request_list_model'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -20,6 +23,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -77,6 +88,21 @@ import './app_sidebar.css'
 
 const viewKey = 'jetty.sidebar.view'
 
+type BotThreadRows = 'one' | 'two' | 'mixed'
+const botThreadRowChoices: readonly { value: BotThreadRows; label: string }[] = [
+  { value: 'one', label: 'One line' },
+  { value: 'two', label: 'Two lines' },
+  { value: 'mixed', label: 'Two lines with a PR' },
+]
+
+function isRowCount(value: unknown): value is BotThreadRows {
+  return value === 'one' || value === 'two' || value === 'mixed'
+}
+
+function isBotIds(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((id) => typeof id === 'string')
+}
+
 type SidebarView = {
   grouping: ThreadGrouping
   showPinned: boolean
@@ -120,6 +146,12 @@ export const AppSidebar = memo(function AppSidebar() {
   const selectedId = useParams({ strict: false }).threadId
   const selectedBotId = useParams({ strict: false }).botId
   const bots = useBots()
+  const [openBots, setOpenBots] = useStoredState('jetty.sidebar.bots.open', [], isBotIds)
+  const [botThreadRows, setBotThreadRows] = useStoredState<BotThreadRows>(
+    'jetty.sidebar.bot-thread-rows',
+    'two',
+    isRowCount
+  )
   const [newBotOpen, setNewBotOpen] = useState(false)
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const onUsage = pathname === '/usage'
@@ -145,12 +177,33 @@ export const AppSidebar = memo(function AppSidebar() {
   const openPullRequest = useOpenPullRequest()
 
   const list = useSidebarList()
-  const groups = list && sidebarGroups(list, { ...view, query }, now)
-  // ⌥1–9 run down the sidebar from the top: bots first, then threads.
+  const mainList = list && {
+    ...list,
+    threads: query ? list.threads : list.threads.filter((thread) => !thread.botId),
+  }
+  const groups = mainList && sidebarGroups(mainList, { ...view, query }, now)
+  const botThreads = new Map<string, string[]>()
+  for (const thread of (list?.threads ?? []).toSorted((a, b) => b.listedAt - a.listedAt)) {
+    if (!thread.botId || thread.archived) continue
+    const ids = botThreads.get(thread.botId) ?? []
+    ids.push(thread.id)
+    botThreads.set(thread.botId, ids)
+  }
+  const nestedIds = new Set(
+    bots.flatMap((bot) => (openBots.includes(bot.id) ? (botThreads.get(bot.id) ?? []) : []))
+  )
+  // ⌥1–9 follow the visible rows, with search duplicates sharing their thread's shortcut.
   const numbered = [
-    ...(bots ?? []).map((bot) => ({ kind: 'bot' as const, id: bot.id })),
+    ...bots.flatMap((bot) => [
+      { kind: 'bot' as const, id: bot.id },
+      ...(openBots.includes(bot.id) ? (botThreads.get(bot.id) ?? []) : []).map((id) => ({
+        kind: 'thread' as const,
+        id,
+      })),
+    ]),
     ...(groups ?? [])
       .flatMap((group) => (group.archived ? [] : group.threads))
+      .filter((id) => !nestedIds.has(id))
       .map((id) => ({ kind: 'thread' as const, id })),
   ].slice(0, keybinds.sidebarRows.length)
   const shortcutFor = (kind: 'bot' | 'thread', id: string) =>
@@ -214,6 +267,18 @@ export const AppSidebar = memo(function AppSidebar() {
     bumpDraft()
     void navigate({ to: '/' })
   }
+
+  function toggleBot(botId: string) {
+    setOpenBots((open) =>
+      open.includes(botId) ? open.filter((id) => id !== botId) : [...open, botId]
+    )
+  }
+
+  const [indentBotThreads, setIndentBotThreads] = useStoredState(
+    'jetty.sidebar.bot-thread-indent',
+    true,
+    isBoolean
+  )
 
   useHotkey(
     keybinds.newThread.hotkey,
@@ -367,60 +432,135 @@ export const AppSidebar = memo(function AppSidebar() {
           </SidebarMenu>
         </nav>
       </SidebarHeader>
-      <section aria-label='Bots' className='flex shrink-0 flex-col gap-0.5 px-1.5 pb-3.5'>
-        {/* The plus lines up with the status glyphs below. */}
-        <div className='flex h-6 items-center justify-between pr-1.5 pl-2.5'>
-          <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
-          <Button
-            variant='ghost'
-            size='icon-xs'
-            aria-label='New bot'
-            onClick={() => setNewBotOpen(true)}
-          >
-            <PlusMediumIcon />
-          </Button>
-        </div>
-        {bots.length ? (
-          // Six bots show; more scroll here, so the threads below keep their place.
-          <div className='no-scrollbar scroll-fade-y -mx-1.5 flex max-h-[calc(6*2.25rem+5*0.125rem)] flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5'>
-            {bots.map((bot) => (
-              <BotRow
-                key={bot.id}
-                bot={bot}
-                selected={bot.id === selectedBotId}
-                shortcut={shortcutFor('bot', bot.id)}
-                onOpen={() => void navigate({ to: '/bots/$botId', params: { botId: bot.id } })}
-              />
-            ))}
-          </div>
-        ) : (
-          <button
-            type='button'
-            onClick={() => setNewBotOpen(true)}
-            className='flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
-          >
-            <span className='flex size-6 shrink-0 items-center justify-center'>
-              <PlusMediumIcon />
-            </span>
-            Create a bot
-          </button>
-        )}
-      </section>
-      <div className='px-1.5 pb-4'>
-        <SidebarThreadControls
-          query={query}
-          onQueryChange={setQuery}
-          grouping={grouping}
-          onGroupingChange={(next) => changeView({ grouping: next })}
-          showPinned={showPinned}
-          onShowPinnedChange={(next) => changeView({ showPinned: next })}
-          showArchived={showArchived}
-          onShowArchivedChange={(next) => changeView({ showArchived: next })}
-          showQuiet={showQuiet}
-          onShowQuietChange={(next) => changeView({ showQuiet: next })}
-        />
-      </div>
       <ThreadHoverGroup>
+        <section aria-label='Bots' className='flex shrink-0 flex-col gap-0.5 px-1.5 pb-3.5'>
+          {/* The plus lines up with the status glyphs below. */}
+          <div className='flex h-6 items-center justify-between pr-1.5 pl-2.5'>
+            <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
+            <div className='flex items-center gap-0.5'>
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <DropdownMenuTrigger
+                        render={
+                          <Button variant='ghost' size='icon-xs' aria-label='Bot thread rows' />
+                        }
+                      />
+                    }
+                  >
+                    <LayoutTopBottomIcon />
+                  </TooltipTrigger>
+                  <TooltipContent>Bot thread rows</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align='end' className='w-48'>
+                  <DropdownMenuRadioGroup
+                    value={botThreadRows}
+                    onValueChange={(next) => {
+                      if (isRowCount(next)) setBotThreadRows(next)
+                    }}
+                  >
+                    <DropdownMenuLabel>Bot thread rows</DropdownMenuLabel>
+                    {botThreadRowChoices.map((choice) => (
+                      <DropdownMenuRadioItem key={choice.value} value={choice.value}>
+                        {choice.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant='ghost'
+                size='icon-xs'
+                aria-pressed={indentBotThreads}
+                aria-label='Indent bot threads'
+                {...pressProps(() => setIndentBotThreads((indent) => !indent))}
+              >
+                <TextIndentLeftIcon />
+              </Button>
+              <Button
+                variant='ghost'
+                size='icon-xs'
+                aria-label='New bot'
+                onClick={() => setNewBotOpen(true)}
+              >
+                <PlusMediumIcon />
+              </Button>
+            </div>
+          </div>
+          {bots.length ? (
+            <div className='flex flex-col gap-0.5'>
+              {bots.map((bot) => (
+                <Collapsible key={bot.id} open={openBots.includes(bot.id)}>
+                  <BotRow
+                    bot={bot}
+                    selected={bot.id === selectedBotId}
+                    shortcut={shortcutFor('bot', bot.id)}
+                    onOpen={() => void navigate({ to: '/bots/$botId', params: { botId: bot.id } })}
+                    expanded={openBots.includes(bot.id)}
+                    onToggle={() => toggleBot(bot.id)}
+                  />
+                  <CollapsibleContent>
+                    <div className='flex flex-col gap-0.5 pt-0.5'>
+                      {(botThreads.get(bot.id) ?? []).map((id) => (
+                        <div
+                          key={id}
+                          data-thread-row
+                          className={indentBotThreads ? 'pl-3' : undefined}
+                          onPointerEnter={() => {
+                            if (id !== selectedId) prefetch.enter(id)
+                          }}
+                          onPointerLeave={() => prefetch.leave(id)}
+                        >
+                          <SidebarThreadRow
+                            id={id}
+                            now={now}
+                            nested
+                            rows={botThreadRows}
+                            shortcut={shortcutFor('thread', id)}
+                            selected={selectedId === id}
+                            onSelect={openThread}
+                            onArchive={archive}
+                            onUnarchive={archiveThread}
+                            onDelete={remove}
+                            onPin={pinThread}
+                            onRename={renameThread}
+                            onOpenPullRequest={openPullRequest}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
+          ) : (
+            <button
+              type='button'
+              onClick={() => setNewBotOpen(true)}
+              className='flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
+            >
+              <span className='flex size-6 shrink-0 items-center justify-center'>
+                <PlusMediumIcon />
+              </span>
+              Create a bot
+            </button>
+          )}
+        </section>
+        <div className='px-1.5 pb-4'>
+          <SidebarThreadControls
+            query={query}
+            onQueryChange={setQuery}
+            grouping={grouping}
+            onGroupingChange={(next) => changeView({ grouping: next })}
+            showPinned={showPinned}
+            onShowPinnedChange={(next) => changeView({ showPinned: next })}
+            showArchived={showArchived}
+            onShowArchivedChange={(next) => changeView({ showArchived: next })}
+            showQuiet={showQuiet}
+            onShowQuietChange={(next) => changeView({ showQuiet: next })}
+          />
+        </div>
         <MotionSidebarContent
           layoutScroll
           className='overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
@@ -617,6 +757,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   now,
   shortcut,
   selected,
+  nested = false,
+  rows,
   onSelect,
   onArchive,
   onUnarchive,
@@ -629,6 +771,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   now: number
   shortcut?: Keybind
   selected: boolean
+  nested?: boolean
+  // Bot threads only; the main list keeps two lines.
+  rows?: BotThreadRows
   onSelect: (id: string) => void
   onArchive: (id: string) => void
   onUnarchive: ReturnType<typeof useArchiveThread>
@@ -646,6 +791,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       botId={row.thread.botId}
       shortcut={shortcut}
       selected={selected}
+      nested={nested}
+      oneLine={rows === 'one' || (rows === 'mixed' && thread.pullRequests.length === 0)}
       actions={{
         pinned: thread.pinned,
         archived: thread.archived,

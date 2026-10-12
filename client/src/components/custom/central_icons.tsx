@@ -75,6 +75,7 @@ import { IconImages1 } from '@central-icons-react/round-outlined-radius-3-stroke
 import { IconImport } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconImport'
 import { IconItalic } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconItalic'
 import { IconKeyboard } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconKeyboard'
+import { IconLayoutTopBottom } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconLayoutTopBottom'
 import { IconLightningBolt } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconLightningBolt'
 import { IconLinebreak } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconLinebreak'
 import { IconListBullets } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconListBullets'
@@ -115,6 +116,7 @@ import { IconSquareArrowTopRight } from '@central-icons-react/round-outlined-rad
 import { IconSquareBehindSquare1 } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconSquareBehindSquare1'
 import { IconStop } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconStop'
 import { IconStrikeThrough } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconStrikeThrough'
+import { IconTextIndentLeft } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconTextIndentLeft'
 import { IconTextSize } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconTextSize'
 import { IconTrashCanSimple } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconTrashCanSimple'
 import { IconUserAdd } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconUserAdd'
@@ -205,6 +207,7 @@ export const ImportIcon = centralIcon(IconImport)
 export const ItalicIcon = centralIcon(IconItalic)
 export const KeyboardIcon = centralIcon(IconKeyboard)
 export const LightningBoltIcon = centralIcon(IconLightningBolt, IconLightningBoltFilled)
+export const LayoutTopBottomIcon = centralIcon(IconLayoutTopBottom)
 export const LinebreakIcon = centralIcon(IconLinebreak)
 export const ListBulletsIcon = centralIcon(IconListBullets)
 export const MacbookIcon = centralIcon(IconMacbook)
@@ -250,6 +253,7 @@ export const SquareArrowTopRightIcon = centralIcon(IconSquareArrowTopRight)
 export const SquareBehindSquare1Icon = centralIcon(IconSquareBehindSquare1)
 export const StopIcon = centralIcon(IconStop, IconStopFilled)
 export const StrikeThroughIcon = centralIcon(IconStrikeThrough)
+export const TextIndentLeftIcon = centralIcon(IconTextIndentLeft)
 export const TextSizeIcon = centralIcon(IconTextSize)
 export const TrashCanSimpleIcon = centralIcon(IconTrashCanSimple)
 export const UserAddIcon = centralIcon(IconUserAdd)

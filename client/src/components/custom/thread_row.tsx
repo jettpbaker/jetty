@@ -1,5 +1,6 @@
 import type { ProjectIcon } from '@jetty/shared/wire'
 
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useBot } from '@/state'
 
@@ -25,6 +26,8 @@ export function ThreadRow({
   pullRequests,
   shortcut,
   selected,
+  nested = false,
+  oneLine = false,
   actions,
   onSelect,
   onOpenPullRequest,
@@ -39,6 +42,8 @@ export function ThreadRow({
   pullRequests: readonly ThreadPullRequest[]
   shortcut?: Keybind
   selected: boolean
+  nested?: boolean
+  oneLine?: boolean
   actions: Omit<ThreadRowActionsProps, 'title' | 'shortcut'>
   onSelect: () => void
   onOpenPullRequest: () => void
@@ -48,70 +53,100 @@ export function ThreadRow({
   return (
     <div className='thread-row keybind-target' data-selected={selected || undefined}>
       <ThreadHoverCard threadId={id}>
-        {(trigger) => (
-          <TwoLineRow
-            render={trigger}
-            variant='ghost-text'
-            aria-pressed={selected}
-            onClick={(event) =>
-              event.target instanceof Element && event.target.closest('[data-pull-request]')
-                ? onOpenPullRequest()
-                : onSelect()
-            }
-            heading={
-              <span className='flex min-w-0 flex-1 items-center gap-0.5'>
-                {bot && (
-                  <>
-                    {/* The face's slot is a pixel narrower than the face, as the board draws it. */}
-                    <span className='relative h-3.5 w-[13px] shrink-0'>
-                      <JettyBot
-                        shape={bot.shape}
-                        color={bot.color}
-                        size={14}
-                        className='absolute top-0 -left-px'
-                      />
-                    </span>
-                    <span className='shrink-0 text-faint-foreground'>/</span>
-                  </>
-                )}
-                <OverflowTitle
-                  focusable={false}
-                  className={cn('font-normal leading-normal', quiet && 'text-muted-foreground')}
-                >
-                  {title}
-                </OverflowTitle>
-              </span>
-            }
-            glyph={
-              <span className='ml-auto flex shrink-0 items-center'>
-                <HeldKeybind binding={shortcut}>
-                  <StatusGlyph status={status} className='size-3.25' />
-                </HeldKeybind>
-              </span>
-            }
-            metaClassName='gap-2.5'
-          >
-            <span className='flex min-w-0 items-center gap-1' title={project}>
-              <ProjectGlyph icon={projectIcon} className='size-3' />
-              <span className='truncate'>{project}</span>
-            </span>
-            {pullRequests.length > 0 && (
-              <span data-pull-request className='flex shrink-0'>
-                <PullRequestMark pullRequests={pullRequests} tooltip={false} />
-              </span>
-            )}
-            <span
-              className='ml-auto mr-px shrink-0 font-mono'
-              aria-label={
-                lastActivity === 'now'
-                  ? 'Last activity just now'
-                  : `Last activity ${lastActivity} ago`
+        {(trigger) =>
+          oneLine ? (
+            <Button
+              render={trigger}
+              variant='ghost-text'
+              data-overflow-hover
+              className='h-7.5 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-normal text-foreground'
+              aria-pressed={selected}
+              onClick={(event) =>
+                event.target instanceof Element && event.target.closest('[data-pull-request]')
+                  ? onOpenPullRequest()
+                  : onSelect()
               }
             >
-              {lastActivity}
-            </span>
-          </TwoLineRow>
-        )}
+              <HeldKeybind binding={shortcut}>
+                <StatusGlyph status={status} className='size-3.25' />
+              </HeldKeybind>
+              <OverflowTitle
+                focusable={false}
+                className={cn('font-normal leading-normal', quiet && 'text-muted-foreground')}
+              >
+                {title}
+              </OverflowTitle>
+              {pullRequests.length > 0 && (
+                <span data-pull-request className='ml-auto flex shrink-0'>
+                  <PullRequestMark pullRequests={pullRequests} tooltip={false} />
+                </span>
+              )}
+            </Button>
+          ) : (
+            <TwoLineRow
+              render={trigger}
+              variant='ghost-text'
+              aria-pressed={selected}
+              onClick={(event) =>
+                event.target instanceof Element && event.target.closest('[data-pull-request]')
+                  ? onOpenPullRequest()
+                  : onSelect()
+              }
+              heading={
+                <span className='flex min-w-0 flex-1 items-center gap-0.5'>
+                  {!nested && bot && (
+                    <>
+                      {/* The face's slot is a pixel narrower than the face, as the board draws it. */}
+                      <span className='relative h-3.5 w-[13px] shrink-0'>
+                        <JettyBot
+                          shape={bot.shape}
+                          color={bot.color}
+                          size={14}
+                          className='absolute top-0 -left-px'
+                        />
+                      </span>
+                      <span className='shrink-0 text-faint-foreground'>/</span>
+                    </>
+                  )}
+                  <OverflowTitle
+                    focusable={false}
+                    className={cn('font-normal leading-normal', quiet && 'text-muted-foreground')}
+                  >
+                    {title}
+                  </OverflowTitle>
+                </span>
+              }
+              glyph={
+                <span className='ml-auto flex shrink-0 items-center'>
+                  <HeldKeybind binding={shortcut}>
+                    <StatusGlyph status={status} className='size-3.25' />
+                  </HeldKeybind>
+                </span>
+              }
+              metaClassName='gap-2.5'
+            >
+              <span className='flex min-w-0 items-center gap-1' title={project}>
+                <ProjectGlyph icon={projectIcon} className='size-3' />
+                <span className='truncate'>{project}</span>
+              </span>
+              {pullRequests.length > 0 && (
+                <span data-pull-request className='flex shrink-0'>
+                  <PullRequestMark pullRequests={pullRequests} tooltip={false} />
+                </span>
+              )}
+              <span
+                className='ml-auto mr-px shrink-0 font-mono'
+                aria-label={
+                  lastActivity === 'now'
+                    ? 'Last activity just now'
+                    : `Last activity ${lastActivity} ago`
+                }
+              >
+                {lastActivity}
+              </span>
+            </TwoLineRow>
+          )
+        }
       </ThreadHoverCard>
       <ThreadRowActions title={title} shortcut={shortcut} {...actions} />
     </div>
