@@ -25,6 +25,14 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
   const { open, full, narrow, expanded, setExpanded, setChatSlot, show } = layout
   const [pickedTab, setTab] = useState('overview')
   const [file, setFile] = useState<Attachment | 'instructions'>()
+  // The route component is reused when the open bot changes, so a file opened on the last bot
+  // would otherwise stay open against this one.
+  const [shownBotId, setShownBotId] = useState(bot.id)
+  if (bot.id !== shownBotId) {
+    setShownBotId(bot.id)
+    setFile(undefined)
+    setTab('overview')
+  }
   const instructionsDirty = useFileDirty(bot.id, instructionsPath)
   // Opening shows Overview, even where the chat would be a tab of its own, unless a file opened it.
   const [openingTab, setOpeningTab] = useState<string>()
