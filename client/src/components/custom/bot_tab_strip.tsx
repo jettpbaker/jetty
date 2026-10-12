@@ -14,7 +14,11 @@ import { TabLabel } from './thread_details_tabs'
 import { StatusGlyph, threadStatus } from './thread_status'
 
 const botTab = 'bot'
-const tabClass = 'details-header-tab h-auto max-w-48 min-w-0 flex-none rounded-sm px-1 py-1 text-xs'
+const tabClass = 'details-header-tab h-auto rounded-sm px-1 py-1 text-xs'
+// The bot's tab keeps its size. Thread tabs shrink together into what's left, down to 80px (status
+// glyph and a few characters), and only then does the strip scroll.
+const botTabClass = `${tabClass} flex-none`
+const threadTabClass = `${tabClass} max-w-48 min-w-20 flex-initial`
 
 // The hidden thread tabs per bot, per browser. They stay the bot's threads and nest in the sidebar.
 const hiddenKey = 'jetty.bot-tabs.hidden'
@@ -98,12 +102,12 @@ export function BotTabStrip({
             activateOnFocus={false}
             variant='line'
             aria-label={`${bot?.name ?? 'Bot'} work`}
-            className='w-max gap-1.5 px-0 py-1'
+            className='w-full justify-start gap-1.5 px-0 py-1'
           >
             <TabsTrigger
               ref={active === botTab ? activeRef : undefined}
               value={botTab}
-              className={tabClass}
+              className={botTabClass}
               {...pressProps(() => open(botTab))}
             >
               {bot && <BotAvatar bot={bot} size={16} unread={false} />}
@@ -114,7 +118,7 @@ export function BotTabStrip({
                 key={thread.id}
                 ref={thread.id === active ? activeRef : undefined}
                 value={thread.id}
-                className={tabClass}
+                className={threadTabClass}
                 data-hover-close
                 title={thread.title}
                 {...pressProps(() => open(thread.id))}
