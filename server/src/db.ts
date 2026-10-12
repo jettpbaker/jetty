@@ -277,7 +277,7 @@ const migrations = SqliteMigrator.fromRecord({
       WHERE EXISTS (SELECT 1 FROM json_each(threads.pending_messages) m
         WHERE json_type(m.value, '$.replyTo') = 'object')`)
   }),
-  '036_desktops': addThreadColumns({ desktop_json: 'TEXT' }),
+  '037_desktops': addThreadColumns({ desktop_json: 'TEXT' }),
 })
 
 export function databaseLayer(home: string) {
