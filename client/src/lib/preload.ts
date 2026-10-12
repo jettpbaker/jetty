@@ -1,4 +1,7 @@
-// Code a view loads on demand, started early so the view opens on it.
+// Code a view loads on demand, started early so the view opens on it. A settled load is read
+// directly and a pending one throws its promise: use() would suspend on a promise it hasn't
+// seen, flashing the fallback, and calling it only until the load settles is a conditional use()
+// React rejects.
 export function preloadable<T>(load: () => Promise<T>) {
   let loaded: { value: T } | undefined
   let failed: { error: unknown } | undefined
