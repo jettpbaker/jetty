@@ -1,27 +1,8 @@
-/* Base UI moves the positioner in one step; the spring in thread_hover.tsx moves the card. */
+/* Only the card's own open and close fade; moving between rows swaps content and position at once. */
 .thread-hover-panel {
   transition: opacity 100ms ease;
 }
 .thread-hover-panel[data-starting-style],
 .thread-hover-panel[data-ending-style] {
-  opacity: 0;
-}
-
-/* The content's measured height lands here; rows' hover fill reaches 8px into the card's padding. */
-.thread-hover-panel-viewport {
-  position: relative;
-  overflow: clip;
-  overflow-clip-margin: 8px;
-}
-.thread-hover-panel-viewport > [data-current],
-.thread-hover-panel-viewport > [data-previous] {
-  transition: opacity 120ms ease;
-}
-.thread-hover-panel-viewport > [data-previous] {
-  inset: 0 0 auto;
-  pointer-events: none;
-}
-.thread-hover-panel-viewport > [data-current][data-starting-style],
-.thread-hover-panel-viewport > [data-previous][data-ending-style] {
   opacity: 0;
 }

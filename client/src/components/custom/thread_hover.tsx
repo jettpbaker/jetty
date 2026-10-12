@@ -19,11 +19,9 @@ import { PreviewCard } from '@base-ui/react/preview-card'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 import { Equal } from 'effect'
-import { animate, motionValue, type MotionValue } from 'motion'
 import { useReducedMotion } from 'motion/react'
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -202,89 +200,8 @@ function childRank(status: ThreadStatus) {
   return rank === -1 ? childOrder.length : rank
 }
 
-// A spring that keeps its velocity when the hovered row changes mid-flight, so the card chases the
-// pointer instead of restarting from rest.
-const cardSpring = { type: 'spring', visualDuration: 0.1, bounce: 0 } as const
-
-function springTo(value: MotionValue<number>, to: number, jump: boolean) {
-  if (jump || matchMedia('(prefers-reduced-motion: reduce)').matches) value.jump(to)
-  else animate(value, to, cardSpring)
-}
-
-// The card's height is the content's, measured here rather than through Base UI's --popup-height,
-// whose measuring step resets an animation in flight. Each change springs from the current height.
-function useCardMotion() {
-  const setHeight = useRef((_height: number) => {})
-  const popup = useRef<HTMLDivElement>(null)
-  // Only a new trigger's content springs the card across; a scroll moves it with its anchor.
-  const switched = useRef(false)
-
-  const viewport = useCallback((element: HTMLElement | null) => {
-    if (!element) return
-    let measured = false
-    const height = motionValue(0)
-    const stop = height.on('change', (value) => {
-      element.style.height = `${value}px`
-    })
-    setHeight.current = (to) => {
-      springTo(height, to, !measured)
-      measured = true
-    }
-    return () => {
-      stop()
-      height.destroy()
-    }
-  }, [])
-
-  const content = useCallback((element: HTMLElement | null) => {
-    if (!element) return
-    switched.current = true
-    const observer = new ResizeObserver(([entry]) =>
-      setHeight.current(entry!.borderBoxSize[0]!.blockSize)
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-
-  // Base UI moves the positioner in one step; the popup is translated back to where it was and
-  // springs home. Until Base UI has a position, it holds the positioner at 0,0 with opacity 0.
-  const positioner = useCallback((element: HTMLElement | null) => {
-    if (!element) return
-    let left = element.offsetLeft
-    let top = element.offsetTop
-    let positioned = element.style.opacity !== '0'
-    const x = motionValue(left)
-    const y = motionValue(top)
-    function place() {
-      popup.current?.style.setProperty('translate', `${x.get() - left}px ${y.get() - top}px`)
-    }
-    const stops = [x.on('change', place), y.on('change', place)]
-    const observer = new MutationObserver(() => {
-      const settled = positioned && element.style.opacity !== '0'
-      positioned = element.style.opacity !== '0'
-      if (element.offsetLeft === left && element.offsetTop === top) return
-      const jump = !settled || !switched.current
-      switched.current = false
-      left = element.offsetLeft
-      top = element.offsetTop
-      place()
-      springTo(x, left, jump)
-      springTo(y, top, jump)
-    })
-    observer.observe(element, { attributes: true, attributeFilter: ['style'] })
-    return () => {
-      observer.disconnect()
-      for (const stop of stops) stop()
-      x.destroy()
-      y.destroy()
-    }
-  }, [])
-
-  return { viewport, content, positioner, popup }
-}
-
-// One card for every sidebar row: Base UI moves it between rows, and the card follows the hovered
-// row's position and its content's height together.
+// One card for every sidebar row: Base UI moves it between rows, and its content and position
+// swap in a single frame.
 export function ThreadHoverPopup({
   side = 'right',
   children,
@@ -292,23 +209,11 @@ export function ThreadHoverPopup({
   side?: 'right' | 'bottom'
   children: ReactNode
 }) {
-  const { positioner, popup, viewport, content } = useCardMotion()
   return (
     <PreviewCard.Portal>
-      <PreviewCard.Positioner
-        ref={positioner}
-        side={side}
-        align='start'
-        sideOffset={8}
-        className='z-50'
-      >
-        <PreviewCard.Popup
-          ref={popup}
-          className='thread-hover-panel w-[450px] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'
-        >
-          <PreviewCard.Viewport ref={viewport} className='thread-hover-panel-viewport'>
-            <div ref={content}>{children}</div>
-          </PreviewCard.Viewport>
+      <PreviewCard.Positioner side={side} align='start' sideOffset={8} className='z-50'>
+        <PreviewCard.Popup className='thread-hover-panel w-[450px] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
+          {children}
         </PreviewCard.Popup>
       </PreviewCard.Positioner>
     </PreviewCard.Portal>
