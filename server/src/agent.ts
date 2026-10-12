@@ -13,6 +13,8 @@ import type {
 import { newId } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
+import { createEchoBusy } from './echo-busy'
+
 export type AgentImage = {
   mimeType: ImageMimeType
   base64data: string
@@ -262,6 +264,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
     const contextByThread = new Map<string, number>()
     const chunks = Math.max(1, echoEnvInt('JETTY_ECHO_CHUNKS', 4))
     const chunkMs = echoEnvInt('JETTY_ECHO_CHUNK_MS', CHUNK_MS)
+    const busy = yield* createEchoBusy(hooks, echoEnvInt('JETTY_ECHO_BUSY_MS', 600_000))
 
     function emitChunks(emit: Emit, itemId: string, text: string) {
       return Effect.gen(function* () {
@@ -303,8 +306,12 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
     }
 
     return {
+      busy: busy.busy,
+      stopBackgroundTasks: busy.stopBackgroundTasks,
+      stopWorkflow: busy.stopWorkflow,
       interrupt(threadId, reason = 'interrupted') {
         return Effect.gen(function* () {
+          yield* busy.stopBackgroundTasks(threadId)
           const session = sessions.get(threadId)
           if (!session) return
           yield* session.publication.withPermit(
@@ -355,6 +362,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
 
           const lifecycle = Effect.gen(function* () {
             yield* emit({ type: 'turn.started', turnId: input.turnId })
+            if (input.text.includes('echo:busy')) yield* busy.start(input, emit)
 
             const reasoning: ThreadItem = {
               ...itemBase(),
@@ -402,6 +410,7 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
                 })
               )
               if (steered === null) break
+              if (steered.includes('echo:busy')) yield* busy.start(input, emit)
               yield* emitChunks(emit, assistant.id, steered)
             }
             yield* emit({
