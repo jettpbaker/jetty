@@ -4,8 +4,6 @@ import {
   SettingsGear1Icon,
   ArchiveIcon,
   EditSmall1Icon,
-  LayoutTopBottomIcon,
-  TextIndentLeftIcon,
   PinIcon,
   PlusMediumIcon,
   VolumeOffIcon,
@@ -23,14 +21,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -88,17 +78,6 @@ import './app_sidebar.css'
 
 const viewKey = 'jetty.sidebar.view'
 
-type BotThreadRows = 'one' | 'two' | 'mixed'
-const botThreadRowChoices: readonly { value: BotThreadRows; label: string }[] = [
-  { value: 'one', label: 'One line' },
-  { value: 'two', label: 'Two lines' },
-  { value: 'mixed', label: 'Two lines with a PR' },
-]
-
-function isRowCount(value: unknown): value is BotThreadRows {
-  return value === 'one' || value === 'two' || value === 'mixed'
-}
-
 function isBotIds(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((id) => typeof id === 'string')
 }
@@ -147,11 +126,6 @@ export const AppSidebar = memo(function AppSidebar() {
   const selectedBotId = useParams({ strict: false }).botId
   const bots = useBots()
   const [openBots, setOpenBots] = useStoredState('jetty.sidebar.bots.open', [], isBotIds)
-  const [botThreadRows, setBotThreadRows] = useStoredState<BotThreadRows>(
-    'jetty.sidebar.bot-thread-rows',
-    'two',
-    isRowCount
-  )
   const [newBotOpen, setNewBotOpen] = useState(false)
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const onUsage = pathname === '/usage'
@@ -264,12 +238,6 @@ export const AppSidebar = memo(function AppSidebar() {
       open.includes(botId) ? open.filter((id) => id !== botId) : [...open, botId]
     )
   }
-
-  const [indentBotThreads, setIndentBotThreads] = useStoredState(
-    'jetty.sidebar.bot-thread-indent',
-    true,
-    isBoolean
-  )
 
   useHotkey(
     keybinds.newThread.hotkey,
@@ -429,46 +397,6 @@ export const AppSidebar = memo(function AppSidebar() {
           <div className='flex h-6 items-center justify-between pr-1.5 pl-2.5'>
             <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
             <div className='flex items-center gap-0.5'>
-              <DropdownMenu>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <DropdownMenuTrigger
-                        render={
-                          <Button variant='ghost' size='icon-xs' aria-label='Bot thread rows' />
-                        }
-                      />
-                    }
-                  >
-                    <LayoutTopBottomIcon />
-                  </TooltipTrigger>
-                  <TooltipContent>Bot thread rows</TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align='end' className='w-48'>
-                  <DropdownMenuRadioGroup
-                    value={botThreadRows}
-                    onValueChange={(next) => {
-                      if (isRowCount(next)) setBotThreadRows(next)
-                    }}
-                  >
-                    <DropdownMenuLabel>Bot thread rows</DropdownMenuLabel>
-                    {botThreadRowChoices.map((choice) => (
-                      <DropdownMenuRadioItem key={choice.value} value={choice.value}>
-                        {choice.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant='ghost'
-                size='icon-xs'
-                aria-pressed={indentBotThreads}
-                aria-label='Indent bot threads'
-                {...pressProps(() => setIndentBotThreads((indent) => !indent))}
-              >
-                <TextIndentLeftIcon />
-              </Button>
               <Button
                 variant='ghost'
                 size='icon-xs'
@@ -497,7 +425,6 @@ export const AppSidebar = memo(function AppSidebar() {
                         <div
                           key={id}
                           data-thread-row
-                          className={indentBotThreads ? 'pl-3' : undefined}
                           onPointerEnter={() => {
                             if (id !== selectedId) prefetch.enter(id)
                           }}
@@ -507,7 +434,6 @@ export const AppSidebar = memo(function AppSidebar() {
                             id={id}
                             now={now}
                             nested
-                            rows={botThreadRows}
                             shortcut={shortcutFor('thread', id)}
                             selected={selectedId === id}
                             onSelect={openThread}
@@ -749,7 +675,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   shortcut,
   selected,
   nested = false,
-  rows,
   onSelect,
   onArchive,
   onUnarchive,
@@ -762,9 +687,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   now: number
   shortcut?: Keybind
   selected: boolean
+  // Bot threads, one line each; the main list keeps two.
   nested?: boolean
-  // Bot threads only; the main list keeps two lines.
-  rows?: BotThreadRows
   onSelect: (id: string) => void
   onArchive: (id: string) => void
   onUnarchive: ReturnType<typeof useArchiveThread>
@@ -783,7 +707,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       shortcut={shortcut}
       selected={selected}
       nested={nested}
-      oneLine={rows === 'one' || (rows === 'mixed' && thread.pullRequests.length === 0)}
+      oneLine={nested}
       actions={{
         pinned: thread.pinned,
         archived: thread.archived,
