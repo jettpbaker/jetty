@@ -60,3 +60,17 @@ export type SidebarList = NonNullable<Atom.Type<typeof listAtom>>
 export function useSidebarList() {
   return useAtomValue(listAtom)
 }
+
+export type SidebarThread = SidebarList['threads'][number]
+
+// Each bot's unarchived threads in the order they nest under it in the sidebar.
+export function botThreadsByBot(threads: readonly SidebarThread[]) {
+  const byBot = new Map<string, SidebarThread[]>()
+  for (const thread of threads.toSorted((a, b) => b.listedAt - a.listedAt)) {
+    if (!thread.botId || thread.archived) continue
+    const nested = byBot.get(thread.botId) ?? []
+    nested.push(thread)
+    byBot.set(thread.botId, nested)
+  }
+  return byBot
+}

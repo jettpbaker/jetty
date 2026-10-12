@@ -1,50 +1,39 @@
 import { ArrowOutOfBoxIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
-import { useBot } from '@/state'
-import { useNavigate } from '@tanstack/react-router'
 
-import { BotAvatar } from './bot_avatar'
+import { BotTabStrip } from './bot_tab_strip'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 
 export function ThreadHeader({
   onUnarchive,
+  threadId,
   botId,
-  title,
 }: {
   // set while the thread is archived
   onUnarchive?: () => void
+  threadId: string
   botId?: string
-  title?: string
 }) {
-  const bot = useBot(botId)
-  const navigate = useNavigate()
+  const unarchive = onUnarchive && (
+    <Button variant='ghost-text' size='sm' {...pressProps(onUnarchive)}>
+      <ArrowOutOfBoxIcon />
+      Unarchive
+    </Button>
+  )
+  if (botId)
+    return (
+      <BotTabStrip key={botId} botId={botId} threadId={threadId}>
+        {unarchive}
+      </BotTabStrip>
+    )
   return (
     <header
       data-perf-region='thread-header'
       className='details-chat-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
     >
       <PageSidebarTrigger />
-      {bot && (
-        <div className='flex min-w-0 items-center gap-2 text-sm font-medium'>
-          <button
-            type='button'
-            {...pressProps(() => void navigate({ to: '/bots/$botId', params: { botId: bot.id } }))}
-            className='flex shrink-0 items-center gap-2 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
-          >
-            <BotAvatar bot={bot} size={20} unread={false} />
-            {bot.name}
-          </button>
-          <span className='text-faint-foreground'>/</span>
-          <span className='truncate'>{title}</span>
-        </div>
-      )}
-      {onUnarchive && (
-        <Button variant='ghost-text' size='sm' {...pressProps(onUnarchive)}>
-          <ArrowOutOfBoxIcon />
-          Unarchive
-        </Button>
-      )}
+      {unarchive}
     </header>
   )
 }

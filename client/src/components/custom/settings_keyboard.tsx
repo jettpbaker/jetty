@@ -23,6 +23,8 @@ const groups: { title: string; bindings: Keybind[] }[] = [
       keybinds.sidebar,
       keybinds.details,
       keybinds.pin,
+      keybinds.previousTab,
+      keybinds.nextTab,
       sidebarRows,
     ],
   },

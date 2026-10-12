@@ -1,6 +1,6 @@
-import { BotAvatar } from '@/components/custom/bot_avatar'
 import { BotChat } from '@/components/custom/bot_chat'
 import { BotDetailsLayout } from '@/components/custom/bot_details_layout'
+import { BotTabStrip } from '@/components/custom/bot_tab_strip'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { useBot, useChromeReady, useMarkBotSeen } from '@/state'
@@ -38,11 +38,7 @@ function BotChatRoute() {
       aria-label={`Chat with ${bot.name}`}
     >
       <BotDetailsLayout bot={bot}>
-        <header className='details-chat-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'>
-          <PageSidebarTrigger />
-          <BotAvatar bot={bot} size={20} unread={false} />
-          <span className='text-sm font-medium'>{bot.name}</span>
-        </header>
+        <BotTabStrip key={bot.id} botId={bot.id} />
         <BotChat key={bot.id} bot={bot} overlayHost={section} />
       </BotDetailsLayout>
     </section>

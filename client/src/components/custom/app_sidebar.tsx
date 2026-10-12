@@ -58,7 +58,7 @@ import {
 } from '@/state'
 import { threadTreeIds, useReadChrome, type Chrome } from '@/state/chrome'
 import { usePrefetchProviderUsage } from '@/state/provider-usage'
-import { useSidebarList, useSidebarRow } from '@/state/sidebar'
+import { botThreadsByBot, useSidebarList, useSidebarRow } from '@/state/sidebar'
 import { useWorktreeChanges } from '@/state/worktrees'
 import { useHotkey, useHotkeys } from '@tanstack/react-hotkeys'
 import { Link, useMatches, useNavigate, useParams, useRouter } from '@tanstack/react-router'
@@ -182,15 +182,11 @@ export const AppSidebar = memo(function AppSidebar() {
     threads: query ? list.threads : list.threads.filter((thread) => !thread.botId),
   }
   const groups = mainList && sidebarGroups(mainList, { ...view, query }, now)
-  const botThreads = new Map<string, string[]>()
-  for (const thread of (list?.threads ?? []).toSorted((a, b) => b.listedAt - a.listedAt)) {
-    if (!thread.botId || thread.archived) continue
-    const ids = botThreads.get(thread.botId) ?? []
-    ids.push(thread.id)
-    botThreads.set(thread.botId, ids)
-  }
+  const botThreads = botThreadsByBot(list?.threads ?? [])
   const nestedIds = new Set(
-    bots.flatMap((bot) => (openBots.includes(bot.id) ? (botThreads.get(bot.id) ?? []) : []))
+    bots.flatMap((bot) =>
+      openBots.includes(bot.id) ? (botThreads.get(bot.id) ?? []).map((thread) => thread.id) : []
+    )
   )
   // ⌥1–9 follow the visible rows, bots but not the threads nested under them, with search
   // duplicates sharing their thread's shortcut.
@@ -497,7 +493,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   />
                   <CollapsibleContent>
                     <div className='flex flex-col gap-0.5 pt-0.5'>
-                      {(botThreads.get(bot.id) ?? []).map((id) => (
+                      {(botThreads.get(bot.id) ?? []).map(({ id }) => (
                         <div
                           key={id}
                           data-thread-row

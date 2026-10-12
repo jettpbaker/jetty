@@ -71,8 +71,8 @@ function Thread() {
       ) : (
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
+            threadId={threadId}
             botId={meta?.botId}
-            title={meta?.title}
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
           {empty ? (

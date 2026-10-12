@@ -24,3 +24,14 @@ export function useStoredState<T>(key: string, fallback: T, valid: (value: unkno
 export function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean'
 }
+
+export function isStringRecord(value: unknown): value is Record<string, string[]> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every(
+      (ids) => Array.isArray(ids) && ids.every((id) => typeof id === 'string')
+    )
+  )
+}

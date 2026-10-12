@@ -41,6 +41,18 @@ export const keybinds = {
   model: { hotkey: 'Mod+Alt+M', label: '⌥⌘M', name: 'Model', modifiers: ['Alt', 'Meta'] },
   effort: { hotkey: 'Mod+Alt+E', label: '⌥⌘E', name: 'Effort', modifiers: ['Alt', 'Meta'] },
   access: { hotkey: 'Mod+Alt+A', label: '⌥⌘A', name: 'Access mode', modifiers: ['Alt', 'Meta'] },
+  previousTab: {
+    hotkey: 'Mod+Alt+ArrowLeft',
+    label: '⌥⌘←',
+    name: 'Previous tab',
+    modifiers: ['Alt', 'Meta'],
+  },
+  nextTab: {
+    hotkey: 'Mod+Alt+ArrowRight',
+    label: '⌥⌘→',
+    name: 'Next tab',
+    modifiers: ['Alt', 'Meta'],
+  },
   save: { hotkey: 'Mod+S', label: '⌘S', name: 'Save file', modifiers: ['Meta'] },
   findFile: { hotkey: 'Mod+P', label: '⌘P', name: 'Find a file', modifiers: ['Meta'] },
   addToPrompt: { hotkey: 'Mod+L', label: '⌘L', name: 'Add to prompt', modifiers: ['Meta'] },
