@@ -29,6 +29,15 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   would jump around the sidebar. Instead, an "Assign to …" action on a thread row hands it to a
   bot, and optionally a bot can claim an unowned thread through an explicit tool, never one another
   bot owns, with a "Data took this over · Undo" toast rather than a confirm.
+- Routines: scheduled wakes a bot owns (Jett, 12 Oct). Recurring promises ("check X every
+  Friday") live today as a task with the next due date in its note, and routine check-in
+  checks on a page; both want to be one auto-wake. Shape discussed: a routine is a schedule
+  (daily or weekdays at a time, a weekday and time, or every N hours, local time) plus a line
+  of instruction; the bot adds, changes and removes them with tools, and Jett sees and edits
+  them in a Routines section on the bot's overview. A routine wakes the bot like a check-in (a
+  private turn, message_user only if there's news); one missed while the Mac slept runs once on
+  waking. Its chat marker ("Ran its Friday check") hides with check-ins and tidies. Check-ins
+  stay as they are (they keep the prompt cache warm). Needs a table, so a migration.
 - Come back to bot tasks as a whole (Jett, 12 Oct). Each bot keeps its own task list on its
   overview page (`bot_overview.tsx`; todo, in progress, done or dropped, `BotTaskStatus` in
   `shared/src/wire.ts`), and done or dropped tasks fall off after a while (`shared/src/bots.ts`).
