@@ -23,7 +23,8 @@ export function BotRow({
   shortcut?: Keybind
   onOpen: () => void
   expanded: boolean
-  onToggle: () => void
+  // Absent while the bot has no threads to show.
+  onToggle?: () => void
 }) {
   const rowRef = useRef<HTMLButtonElement>(null)
   // A bot opened from elsewhere (just created, the palette) shows in the list, however long it is.
@@ -50,28 +51,32 @@ export function BotRow({
           bot={bot}
           size={24}
           unread={bot.unread && !selected}
-          className='group-hover/bot-row:invisible group-has-focus-visible/bot-row:invisible'
+          className={cn(
+            onToggle && 'group-hover/bot-row:invisible group-has-focus-visible/bot-row:invisible'
+          )}
         />
         <span className='min-w-0 flex-1 truncate'>{bot.name}</span>
         <HeldKeybind binding={shortcut}>
           <span />
         </HeldKeybind>
       </button>
-      <Button
-        variant='ghost-text'
-        size='icon-xs'
-        className='absolute top-1.5 left-2 opacity-0 group-hover/bot-row:opacity-100 group-has-focus-visible/bot-row:opacity-100'
-        aria-expanded={expanded}
-        aria-label={`${expanded ? 'Hide' : 'Show'} ${bot.name}'s threads`}
-        onClick={onToggle}
-      >
-        <ChevronRightSmallIcon
-          className={cn(
-            'transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) motion-reduce:transition-none',
-            expanded && 'rotate-90'
-          )}
-        />
-      </Button>
+      {onToggle && (
+        <Button
+          variant='ghost-text'
+          size='icon-xs'
+          className='absolute top-1.5 left-2 opacity-0 group-hover/bot-row:opacity-100 group-has-focus-visible/bot-row:opacity-100'
+          aria-expanded={expanded}
+          aria-label={`${expanded ? 'Hide' : 'Show'} ${bot.name}'s threads`}
+          onClick={onToggle}
+        >
+          <ChevronRightSmallIcon
+            className={cn(
+              'transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) motion-reduce:transition-none',
+              expanded && 'rotate-90'
+            )}
+          />
+        </Button>
+      )}
     </div>
   )
 }

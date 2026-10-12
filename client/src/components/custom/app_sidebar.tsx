@@ -394,7 +394,7 @@ export const AppSidebar = memo(function AppSidebar() {
                     shortcut={shortcutFor('bot', bot.id)}
                     onOpen={() => void navigate({ to: '/bots/$botId', params: { botId: bot.id } })}
                     expanded={openBots.includes(bot.id)}
-                    onToggle={() => toggleBot(bot.id)}
+                    onToggle={botThreads.get(bot.id)?.length ? () => toggleBot(bot.id) : undefined}
                   />
                   <CollapsibleContent>
                     <div className='flex flex-col gap-0.5 pt-0.5'>
