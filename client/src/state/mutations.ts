@@ -36,18 +36,6 @@ function settleSurfaced(registry: Registry, threadId: string) {
   )
 }
 
-// Opening a thread clears Ready for review. A quiet thread stays quiet: opening it is only a look.
-function markThreadSeen(registry: Registry, threadId: string) {
-  setPatch(registry, threadId, { readyForReview: false })
-  run(registry, (connection) =>
-    connection
-      .request('thread.markSeen', { threadId })
-      .pipe(Effect.ensuring(Effect.sync(() => clearPatch(registry, threadId, 'readyForReview'))))
-  )
-}
-
-export const useMarkThreadSeen = () => useAction(markThreadSeen)
-
 export function without<V>(map: ReadonlyMap<string, V>, keys: readonly string[]) {
   if (!keys.some((key) => map.has(key))) return map
   const next = new Map(map)

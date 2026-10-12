@@ -27,15 +27,19 @@ export type Status =
   | 'archived'
 export type ThreadStatus = Extract<
   Status,
-  'monitoring' | 'idle' | 'working' | 'needs-attention' | 'error' | 'ready'
+  'monitoring' | 'idle' | 'working' | 'needs-attention' | 'error' | 'ready' | 'done'
 >
 
-export function threadStatus(status: SessionStatus, readyForReview = false): ThreadStatus {
+export function threadStatus(
+  status: SessionStatus,
+  readyForReview = false,
+  done = false
+): ThreadStatus {
   switch (status) {
     case 'monitoring':
       return 'monitoring'
     case 'idle':
-      return readyForReview ? 'ready' : 'idle'
+      return done ? 'done' : readyForReview ? 'ready' : 'idle'
     case 'starting':
     case 'running':
       return 'working'

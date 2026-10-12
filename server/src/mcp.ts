@@ -768,6 +768,8 @@ export function createMcpHandler(
                 title: t.title,
                 project: titles.get(t.projectId) ?? t.projectId,
                 status: t.status,
+                readyForReview: t.readyForReview,
+                done: t.done,
                 provider: t.provider,
                 model: t.model,
                 parentThreadId: t.parentThreadId,
@@ -1170,26 +1172,6 @@ export function createMcpHandler(
                     'Jetty sends your question when this turn ends, so end your turn now. The answer arrives as your next message.',
                 }
               })
-            )
-        )
-      if (!bot)
-        server.registerTool(
-          'mark_ready_for_review',
-          {
-            ...toolMeta,
-            description:
-              "Show this thread as Ready for review in the user's sidebar until they open it. In a child thread this does nothing: your final message goes to your creator instead.",
-            inputSchema: {},
-          },
-          () =>
-            invoke(
-              orch.markReadyForReview(identity.threadId).pipe(
-                Effect.map((thread) => ({
-                  threadId: thread.id,
-                  readyForReview: thread.readyForReview === true,
-                  ...(thread.parentThreadId ? { reportsTo: thread.parentThreadId } : {}),
-                }))
-              )
             )
         )
       if (!bot)

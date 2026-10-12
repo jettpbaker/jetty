@@ -67,6 +67,7 @@ const threadFaces: Record<ThreadStatus, BotFace> = {
   error: 'error',
   idle: 'idle',
   ready: 'idle',
+  done: 'idle',
 }
 
 // A bot's face showing the state of one of its threads. Finishing plays done once.

@@ -13,14 +13,13 @@ import {
   useArchiveThread,
   useBumpDraft,
   useChromeReady,
-  useMarkThreadSeen,
   useProject,
   useThread,
   useThreadMeta,
   useThreadOverlay,
 } from '@/state'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect } from 'react'
 
 export const Route = createFileRoute('/threads/$threadId')({ component: Thread })
 
@@ -32,19 +31,6 @@ function Thread() {
   const overlay = useThreadOverlay(threadId, thread)
   const chromeReady = useChromeReady()
   const meta = useThreadMeta(threadId)
-  const markSeen = useMarkThreadSeen()
-  const readyForReview = useRef(false)
-  // Updated in an effect, not during render: switching threads re-renders with the next
-  // thread's flag before the previous thread's cleanup reads it.
-  useEffect(() => {
-    readyForReview.current = Boolean(meta?.readyForReview)
-  }, [meta?.readyForReview])
-  useEffect(
-    () => () => {
-      if (readyForReview.current) markSeen(threadId)
-    },
-    [markSeen, threadId]
-  )
   const project = useProject(meta?.projectId)
   const projectPath = meta?.workingPath ?? project?.path
   const archiveThread = useArchiveThread()

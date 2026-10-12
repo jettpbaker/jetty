@@ -221,11 +221,6 @@ const jettyTools: Record<string, JettyTool> = {
     words: words('Messaging', 'Messaged', 'thread'),
     target: (_, output) => resultField(output, 'title'),
   },
-  mark_ready_for_review: {
-    action: 'Mark ready for review',
-    words: words('Marking', 'Marked', 'review'),
-    target: (input) => (typeof input.summary === 'string' ? input.summary : 'this thread'),
-  },
   link_pull_request: {
     action: 'Link pull request',
     words: words('Linking', 'Linked', 'pull request'),

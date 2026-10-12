@@ -277,6 +277,12 @@ const migrations = SqliteMigrator.fromRecord({
       WHERE EXISTS (SELECT 1 FROM json_each(threads.pending_messages) m
         WHERE json_type(m.value, '$.replyTo') = 'object')`)
   }),
+  // Agent-set flags are not PR readiness. Keep the old columns for database compatibility;
+  // ready_for_review now remembers the PR answer while GitHub reports UNKNOWN.
+  '036_pr_readiness': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`UPDATE threads SET ready_for_review = 0`
+  }),
   '037_desktops': addThreadColumns({ desktop_json: 'TEXT' }),
 })
 

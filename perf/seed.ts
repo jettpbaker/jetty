@@ -121,8 +121,6 @@ export async function seedHome(opts: { tree: Tree; dir: string; gh: GhMode }): P
         )
       })
     await chrome.cancel()
-    for (const id of Object.values(threads))
-      await client.request('thread.markSeen', { threadId: id })
     return { projectId: project.id, threads }
   } finally {
     await client?.close()

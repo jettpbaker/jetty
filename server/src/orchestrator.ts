@@ -1688,22 +1688,6 @@ export function createOrchestrator({
           for (const threadId of upkeep.keys()) yield* interruptUpkeep(threadId)
         })
       },
-      markReadyForReview(threadId: string) {
-        return Effect.gen(function* () {
-          const thread = yield* store.requireThread(threadId)
-          // An agent-created thread reports to its parent automatically when settled.
-          if (thread.parentThreadId) return thread
-          return yield* hub.withChromePublication(
-            store
-              .markReadyForReview(threadId)
-              .pipe(
-                Effect.tap((marked) =>
-                  Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread: marked }))
-                )
-              )
-          )
-        })
-      },
       withAdmission<A, E, R>(threadId: string, effect: Effect.Effect<A, E, R>) {
         return state(threadId).admission.withPermit(effect)
       },

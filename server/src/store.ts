@@ -247,7 +247,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     queuePaused: row.queue_paused !== 0,
     archived: row.archived !== 0,
     pinned: row.pinned !== 0,
-    readyForReview: row.ready_for_review !== 0,
+    readyForReview: false,
     ...(row.awaiting_parent ? { awaitingParent: true } : {}),
     ...(desktop ? { desktop: { id: desktop.id, state: desktop.state } } : {}),
     pullRequests: [],
@@ -383,10 +383,40 @@ export function createStore() {
       )
     }
 
+    function decorateThread(row: ThreadRow, pullRequests: PullRequestLink[]) {
+      const open = pullRequests.filter((pr) => pr.state === 'open' || pr.state === 'draft')
+      const blocked = open.some(
+        (pr) =>
+          pr.state === 'draft' ||
+          (pr.mergeStateStatus !== undefined &&
+            !['CLEAN', 'HAS_HOOKS', 'UNKNOWN'].includes(pr.mergeStateStatus))
+      )
+      const unknown = open.some(
+        (pr) => pr.mergeStateStatus === undefined || pr.mergeStateStatus === 'UNKNOWN'
+      )
+      return {
+        ...rowToThread(row),
+        pullRequests,
+        done:
+          pullRequests.some((pr) => pr.state === 'merged') &&
+          pullRequests.every((pr) => pr.state === 'merged' || pr.state === 'closed'),
+        readyForReview: open.length > 0 && !blocked && (!unknown || row.ready_for_review !== 0),
+      } satisfies ThreadMeta
+    }
+
+    function rememberReadiness(threadIds: readonly string[]) {
+      return Effect.gen(function* () {
+        for (const threadId of threadIds) {
+          const thread = yield* requireThread(threadId)
+          yield* sql`UPDATE threads SET ready_for_review = ${thread.readyForReview ? 1 : 0} WHERE id = ${threadId}`
+        }
+      })
+    }
+
     function getThread(threadId: string) {
       return Effect.gen(function* () {
         const [row] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
-        return row ? { ...rowToThread(row), pullRequests: yield* getLinks(threadId) } : null
+        return row ? decorateThread(row, yield* getLinks(threadId)) : null
       }).pipe(Effect.mapError(storeError))
     }
 
@@ -989,7 +1019,7 @@ export function createStore() {
         const [threadRow] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
         if (!threadRow)
           return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
-        const thread = rowToThread(threadRow)
+        const thread = decorateThread(threadRow, yield* getLinks(threadId))
         const validated = yield* Schema.decodeUnknownEffect(ThreadEvent)(event).pipe(
           Effect.mapError(invalidEvent)
         )
@@ -1043,7 +1073,6 @@ export function createStore() {
           thread: {
             ...thread,
             ...(surface ? { quiet: undefined } : {}),
-            pullRequests: [],
             status: state.status,
             updatedAt: ts,
             turnStartedAt: turnStartedAt ?? undefined,
@@ -1788,7 +1817,9 @@ export function createStore() {
             SELECT * FROM threads WHERE id = ${threadId}
             UNION ALL SELECT t.* FROM threads t JOIN tree p ON t.parent_thread_id = p.id
           ) SELECT * FROM tree`
-          return rows.map(rowToThread)
+          return yield* Effect.forEach(rows, (row) =>
+            getLinks(row.id).pipe(Effect.map((links) => decorateThread(row, links)))
+          )
         }).pipe(Effect.mapError(storeError))
       },
       archiveGroup(threadId: string) {
@@ -1796,7 +1827,13 @@ export function createStore() {
           const root = yield* requireThread(threadId)
           const rows =
             yield* sql<ThreadRow>`SELECT * FROM threads WHERE archive_group = ${threadId}`
-          return [root, ...rows.filter((row) => row.id !== threadId).map(rowToThread)]
+          return [
+            root,
+            ...(yield* Effect.forEach(
+              rows.filter((row) => row.id !== threadId),
+              (row) => getLinks(row.id).pipe(Effect.map((links) => decorateThread(row, links)))
+            )),
+          ]
         }).pipe(Effect.mapError(storeError))
       },
       setArchiveGroup(threadIds: readonly string[], group: string | null) {
@@ -1820,7 +1857,7 @@ export function createStore() {
             yield* writeState(threadId, state)
             entry.state = state
             entry.persistedSeq = state.lastSeq
-            yield* sql`UPDATE threads SET status = 'starting', ready_for_review = 0, awaiting_parent = 0 WHERE id = ${threadId}`
+            yield* sql`UPDATE threads SET status = 'starting', awaiting_parent = 0 WHERE id = ${threadId}`
           }
           const thread = yield* requireThread(threadId)
           const message = thread.pendingMessages?.find((m) => m.id === messageId)
@@ -2112,11 +2149,15 @@ export function createStore() {
         return sql<
           ThreadRow & { last_seq: number }
         >`SELECT t.*, MAX(COALESCE((SELECT MAX(seq) FROM thread_events WHERE thread_id = t.id), 0), COALESCE((SELECT last_seq FROM thread_states WHERE thread_id = t.id), 0)) AS last_seq FROM threads t WHERE t.bot_id = ${botId}`.pipe(
-          Effect.map((rows) =>
-            rows.map((row) => ({
-              ...rowToThread(row),
-              lastSeq: loaded.get(row.id)?.state.lastSeq ?? row.last_seq,
-            }))
+          Effect.flatMap((rows) =>
+            Effect.forEach(rows, (row) =>
+              getLinks(row.id).pipe(
+                Effect.map((links) => ({
+                  ...decorateThread(row, links),
+                  lastSeq: loaded.get(row.id)?.state.lastSeq ?? row.last_seq,
+                }))
+              )
+            )
           ),
           Effect.mapError(storeError)
         )
@@ -2133,10 +2174,7 @@ export function createStore() {
             list.push(rowToLink(link))
             byThread.set(link.thread_id, list)
           }
-          return rows.map((row) => ({
-            ...rowToThread(row),
-            pullRequests: byThread.get(row.id) ?? [],
-          }))
+          return rows.map((row) => decorateThread(row, byThread.get(row.id) ?? []))
         }).pipe(Effect.mapError(storeError))
       },
       // `claim` links only while no thread has this pull request. `transfer` makes this the
@@ -2165,6 +2203,7 @@ export function createStore() {
             yield* sql`INSERT OR IGNORE INTO thread_pull_requests (thread_id, repo, number, linked_at)
               VALUES (${threadId}, ${repo}, ${number}, ${Date.now()})`
           yield* sql`UPDATE threads SET quiet = 0 WHERE id = ${threadId}`
+          yield* rememberReadiness([threadId, ...others.map((row) => row.thread_id)])
           const changed: ThreadMeta[] = []
           if (!had || current.quiet) changed.push(yield* requireThread(threadId))
           for (const row of others) {
@@ -2178,6 +2217,7 @@ export function createStore() {
         return Effect.gen(function* () {
           yield* requireThread(threadId)
           yield* sql`DELETE FROM thread_pull_requests WHERE thread_id = ${threadId} AND repo = ${repo} AND number = ${number}`
+          yield* rememberReadiness([threadId])
           return yield* requireThread(threadId)
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
@@ -2206,13 +2246,20 @@ export function createStore() {
       },
       savePullRequest(snapshot: PullRequestSnapshot) {
         return Effect.gen(function* () {
+          const linked = yield* sql<{
+            thread_id: string
+          }>`SELECT thread_id FROM thread_pull_requests
+            WHERE repo = ${snapshot.repo} AND number = ${snapshot.number}`
+          const threadIds = linked.map((row) => row.thread_id)
+          yield* rememberReadiness(threadIds)
           yield* sql`INSERT INTO pull_requests (repo, number, data_json, status, error, refreshed_at, data_refreshed_at)
             VALUES (${snapshot.repo}, ${snapshot.number}, ${snapshot.data ? JSON.stringify(snapshot.data) : null}, ${snapshot.status}, ${snapshot.error ?? null}, ${snapshot.refreshedAt ?? null}, ${snapshot.dataRefreshedAt ?? null})
             ON CONFLICT(repo, number) DO UPDATE SET data_json = COALESCE(excluded.data_json, pull_requests.data_json),
               status = excluded.status, error = excluded.error, refreshed_at = excluded.refreshed_at,
               data_refreshed_at = COALESCE(excluded.data_refreshed_at, pull_requests.data_refreshed_at)`
+          yield* rememberReadiness(threadIds)
           return snapshot
-        }).pipe(Effect.mapError(storeError))
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       getPullRequestGuides(repo: string, number: number) {
         return sql<{
@@ -2464,20 +2511,6 @@ export function createStore() {
           const turns = new Map<string, string | null>()
           for (const row of rows) turns.set(row.item_id, row.turn_id)
           return [...turns].filter(([, id]) => id === turnId).map(([id]) => id)
-        }).pipe(Effect.mapError(storeError))
-      },
-      markThreadSeen(threadId: string) {
-        return Effect.gen(function* () {
-          yield* requireThread(threadId)
-          yield* sql`UPDATE threads SET ready_for_review = 0 WHERE id = ${threadId}`
-          return yield* requireThread(threadId)
-        }).pipe(Effect.mapError(storeError))
-      },
-      markReadyForReview(threadId: string) {
-        return Effect.gen(function* () {
-          yield* requireThread(threadId)
-          yield* sql`UPDATE threads SET ready_for_review = 1 WHERE id = ${threadId}`
-          return yield* requireThread(threadId)
         }).pipe(Effect.mapError(storeError))
       },
       appendEvent(threadId: string, event: ThreadEvent) {

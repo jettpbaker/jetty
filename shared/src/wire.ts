@@ -395,7 +395,9 @@ export const ThreadMeta = Schema.Struct({
   queuePaused: Schema.optional(Schema.Boolean),
   archived: Schema.Boolean,
   pinned: Schema.Boolean,
+  // PR state, independent of whether the thread has been opened.
   readyForReview: Schema.optional(Schema.Boolean),
+  done: Schema.optional(Schema.Boolean),
   updatedAt: Schema.Int,
   turnStartedAt: Schema.optional(Schema.Int),
   turnEndedAt: Schema.optional(Schema.Int),
@@ -744,11 +746,6 @@ export const methods = {
   // Pinning a quiet thread surfaces it.
   'thread.pin': {
     params: Schema.Struct({ threadId: Schema.String, pinned: Schema.Boolean }),
-    result: Schema.Null,
-  },
-  // Jett has seen it: clears Ready for review, and surfaces a quiet thread he opened.
-  'thread.markSeen': {
-    params: Schema.Struct({ threadId: Schema.String }),
     result: Schema.Null,
   },
   'thread.delete': {

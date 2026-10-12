@@ -4,7 +4,6 @@ export const SELF_TOOLS = [
   'read_thread',
   'list_models',
   'list_bots',
-  'mark_ready_for_review',
   'link_pull_request',
   'send_images',
   'send_video',

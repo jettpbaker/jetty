@@ -27,7 +27,6 @@ export type ThreadPatch = {
   pinned?: boolean
   archived?: boolean
   provider?: ProviderId
-  readyForReview?: boolean
   // false surfaces a quiet thread at once, before the server agrees.
   quiet?: boolean
 }

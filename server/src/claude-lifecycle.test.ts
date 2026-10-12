@@ -451,7 +451,6 @@ describe('scoped Claude sessions', () => {
     )
     expect(readdirSync(folder).sort()).toEqual([...names].sort())
     expect(readFileSync(join(f.botHome, '.gitignore'), 'utf8')).toBe('files/cache\n.jetty/\n')
-    expect(readFileSync(join(folder, 'jetty.md'), 'utf8')).not.toContain('mark_ready_for_review')
     expect(readFileSync(join(folder, 'you.md'), 'utf8')).toContain("You're Verify, a bot in Jetty.")
     expect(readFileSync(join(folder, 'you.md'), 'utf8')).toContain(`Yours is ${projects[0]!.title}`)
     expect(readFileSync(join(folder, 'talking.md'), 'utf8')).toContain(

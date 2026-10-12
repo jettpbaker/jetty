@@ -824,7 +824,7 @@ function Properties({ pr }: { pr: PrPull }) {
             render={<Link to='/threads/$threadId' params={{ threadId: thread.id }} />}
           >
             <StatusGlyph
-              status={threadStatus(thread.status, thread.readyForReview)}
+              status={threadStatus(thread.status, thread.readyForReview, thread.done)}
               className='size-4'
             />
             <span className='truncate'>{thread.title}</span>

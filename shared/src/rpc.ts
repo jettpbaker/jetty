@@ -66,7 +66,6 @@ export const JettyRpcs = RpcGroup.make(
   unary('thread.archive'),
   unary('thread.rename'),
   unary('thread.pin'),
-  unary('thread.markSeen'),
   unary('thread.delete'),
   unary('thread.diff'),
   unary('thread.diffFile'),

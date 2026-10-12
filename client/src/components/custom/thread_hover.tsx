@@ -398,7 +398,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
           ? {
               id: parent.id,
               title: parent.title,
-              status: threadStatus(parent.status, parent.readyForReview),
+              status: threadStatus(parent.status, parent.readyForReview, parent.done),
             }
           : undefined
       }

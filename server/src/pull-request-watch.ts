@@ -309,13 +309,12 @@ function pullRequestChanges(
   changes.push(...reviewChanges.filter((change) => !change.wakes))
 
   const ready =
+    pull.state === 'open' &&
     !pull.draft &&
     mergeReady.has(next.mergeStateStatus ?? '') &&
-    rollup !== 'failure' &&
-    rollup !== 'pending' &&
-    (!mergeReady.has(previous.mergeStateStatus ?? '') ||
-      before === 'failure' ||
-      before === 'pending')
+    (previous.pull.state !== 'open' ||
+      previous.pull.draft ||
+      !mergeReady.has(previous.mergeStateStatus ?? ''))
   if (rollup === 'success' && (before === 'failure' || failedBefore) && !ready)
     changes.push({
       activity: { type: 'checks_passed' },

@@ -33,6 +33,7 @@ const statusOrder: ThreadStatus[] = [
   'error',
   'monitoring',
   'idle',
+  'done',
 ]
 
 export function useChildThreads(parentId: string) {
@@ -47,7 +48,7 @@ export function useChildThreads(parentId: string) {
         thread.provider && thread.model
           ? catalogModelName(models, thread.provider, thread.model)
           : undefined,
-      status: threadStatus(thread.status, thread.readyForReview),
+      status: threadStatus(thread.status, thread.readyForReview, thread.done),
       updatedAt: thread.updatedAt,
       run:
         thread.turnStartedAt === undefined ||
