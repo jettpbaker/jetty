@@ -58,6 +58,8 @@ import { flushSync } from 'react-dom'
 const pinSlack = 96
 const rowGap = 12
 const chatInset = 24
+// A sent message anchors this far below the top: just the row gap, so the row above is out of view.
+const sentInset = rowGap
 // A subagent's transcript sits right under the prompt row above it.
 const agentInset = 4
 // Keeps a jumped-to message below the conversation's top blur.
@@ -475,7 +477,7 @@ export function ThreadList({
   const scrollSize =
     sentStart === undefined
       ? totalSize
-      : Math.max(totalSize, sentStart - chatInset + viewportHeight)
+      : Math.max(totalSize, sentStart - sentInset + viewportHeight)
   // Keep room for the spring to brake when finishing work shrinks the transcript.
   const [scrollSpace, setScrollSpace] = useState(scrollSize)
   if (scrollSize > scrollSpace) setScrollSpace(scrollSize)
@@ -640,7 +642,7 @@ export function ThreadList({
         // Bring a distant sent message into view at the bottom before gliding it to the top.
         const start = Math.min(
           sendTarget.current,
-          Math.max(element.scrollTop, sentStart + message.size + chatInset - element.clientHeight)
+          Math.max(element.scrollTop, sentStart + message.size + sentInset - element.clientHeight)
         )
         element.scrollTop = start
         shownTop.current = element.scrollTop
