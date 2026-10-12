@@ -521,11 +521,12 @@ async function requestApi(request: ApiRequest, revalidate = false): Promise<unkn
   try {
     response = await sendApi(request, cached?.etag)
   } catch (error) {
+    console.warn(`[pr-api] ${request.method} ${request.path} failed`, error)
     if (error instanceof GhFailure) throw error
     const timedOut = error instanceof Error && error.name === 'TimeoutError'
     throw new GhFailure(
       'unavailable',
-      timedOut ? 'GitHub timed out' : 'GitHub API is unavailable',
+      timedOut ? 'GitHub timed out' : 'Couldn’t connect to GitHub',
       undefined,
       timedOut
     )
@@ -560,6 +561,10 @@ async function requestApi(request: ApiRequest, revalidate = false): Promise<unkn
   const message =
     [string(record(value).message), ...errorDetails].filter(Boolean).join('; ') || detail
   observeRateLimit(headers, value, status, message)
+  if (status >= 400 || errorDetails.length)
+    console.warn(
+      `[pr-api] ${request.method} ${request.path} status=${status} request-id=${headers.get('x-github-request-id')} message=${message} errors=${JSON.stringify(errors ?? null)}`
+    )
   if (status === 304 && cached) return cached.value
   const graph = request.path === 'graphql'
   const partialGraph =
@@ -3048,6 +3053,13 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
 
   }`)
   const data = record(record(response).data)
+  const failures = record(response).errors
+  const errors = Array.isArray(failures) ? failures.map(record) : []
+  if (errors.some((error) => !['FORBIDDEN', 'NOT_FOUND'].includes(string(error.type))))
+    throw new GhFailure(
+      'unavailable',
+      string(errors[0]?.message) || 'GitHub returned part of the pull request list'
+    )
   const commits = new Map<string, unknown>()
   for (let index = 0; index < Math.ceil(ids.length / 100); index++) {
     const pulls = data[`c${index}`]
@@ -3102,12 +3114,22 @@ async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
   }))
 }
 
-function failedList(tab: PullRequestListTab, error: unknown): PullRequestList {
+function failedList(
+  tab: PullRequestListTab,
+  error: unknown,
+  phase: 'probe' | 'fetch' | 'backoff'
+): PullRequestList {
+  const status =
+    error instanceof GhFailure && error.kind === 'rate_limited' ? 'rate_limited' : 'unavailable'
+  const message = error instanceof Error ? error.message : 'GitHub API is unavailable'
+  console.warn(
+    `[pr-list] tab=${tab} phase=${phase} status=${status} http=${error instanceof GhFailure ? (error.status ?? 'none') : 'none'} cause=${message}`,
+    error
+  )
   return {
     tab,
-    status:
-      error instanceof GhFailure && error.kind === 'rate_limited' ? 'rate_limited' : 'unavailable',
-    error: error instanceof GhFailure ? error.message : 'GitHub API is unavailable',
+    status,
+    error: message,
     refreshedAt: Date.now(),
   }
 }
@@ -3195,7 +3217,9 @@ export function createPullRequestLists(
       .pipe(
         Effect.map((list) =>
           decorate(
-            list.status === 'loading' && backingOff() ? failedList(tab, backoffFailure()) : list
+            list.status === 'loading' && backingOff()
+              ? failedList(tab, backoffFailure(), 'backoff')
+              : list
           )
         )
       )
@@ -3225,7 +3249,7 @@ export function createPullRequestLists(
           (error) => {
             for (const [tab, resolve] of batch) {
               inFlight.delete(tab)
-              resolve(failedList(tab, error))
+              resolve(failedList(tab, error, 'fetch'))
             }
           }
         )
@@ -3245,7 +3269,7 @@ export function createPullRequestLists(
         catch: (error) => error,
       }).pipe(
         Effect.matchEffect({
-          onFailure: (error) => Effect.succeed(failedList(tab, error)),
+          onFailure: (error) => Effect.succeed(failedList(tab, error, 'probe')),
           onSuccess: (signature) => {
             const unchanged =
               cached.status === 'ready' && cached.items && signatures.get(tab) === signature
