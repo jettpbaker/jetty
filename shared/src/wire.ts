@@ -1117,9 +1117,17 @@ export const methods = {
     params: Schema.Struct({ botId: BotId }),
     result: Schema.Struct({ instructions: Schema.String }),
   },
+  // Saves only while the file still holds `base`, as thread.writeFile does; the bot appends to it.
   'bot.saveInstructions': {
-    params: Schema.Struct({ botId: BotId, instructions: Schema.String }),
-    result: Schema.Null,
+    params: Schema.Struct({
+      botId: BotId,
+      instructions: Schema.String,
+      base: Schema.NullOr(Schema.String),
+    }),
+    result: Schema.Union([
+      Schema.Struct({ saved: Schema.Literal(true) }),
+      Schema.Struct({ conflict: ProjectFile }),
+    ]),
   },
   'bot.markSeen': {
     params: Schema.Struct({ botId: Schema.String }),

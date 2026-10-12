@@ -335,7 +335,7 @@ export function useBotInstructions(botId: string) {
   }
 }
 
-// Same contract as saveProjectFile: writes only while the instructions still hold `base`.
+// Same contract as saveProjectFile; the server writes only while the instructions hold `base`.
 function saveInstructions(
   registry: AtomRegistry.AtomRegistry,
   botId: string,
@@ -346,12 +346,7 @@ function saveInstructions(
   return Effect.runPromise(
     AtomRegistry.getResult(registry, connectionAtom).pipe(
       Effect.flatMap((connection) =>
-        Effect.gen(function* () {
-          const now = (yield* connection.request('bot.getInstructions', { botId })).instructions
-          if (base !== null && now !== base) return { conflict: { contents: now } as ProjectFile }
-          yield* connection.request('bot.saveInstructions', { botId, instructions: contents })
-          return { saved: true as const }
-        })
+        connection.request('bot.saveInstructions', { botId, instructions: contents, base })
       ),
       Effect.tap((result) =>
         Effect.sync(() => {

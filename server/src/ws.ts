@@ -10,7 +10,7 @@ import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { WireError } from '@jetty/shared/wire'
 import { newId } from '@jetty/shared/wire'
 import { Cause, Effect, Fiber, Schema, Stream } from 'effect'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -796,13 +796,14 @@ export function createRpcHandlers(
           )
           return { instructions }
         }).pipe(Effect.mapError(wireError)),
-      'bot.saveInstructions': ({ botId, instructions }) =>
+      'bot.saveInstructions': ({ botId, instructions, base }) =>
         mutation(
           Effect.gen(function* () {
             const home = yield* botHome(botId)
-            yield* fromPromise(() => writeFile(join(home, 'instructions.md'), instructions))
-            yield* fromPromise(() => commitBotHome(home, 'Edit bot instructions'))
-            return null
+            const result = yield* diff.writeProjectFile(home, 'instructions.md', instructions, base)
+            if ('saved' in result)
+              yield* fromPromise(() => commitBotHome(home, 'Edit bot instructions'))
+            return result
           })
         ),
       'bot.send': (params) =>
