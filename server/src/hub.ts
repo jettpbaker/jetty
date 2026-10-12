@@ -70,12 +70,15 @@ export function createHub() {
       // Absent when none run, so chrome stays the same size for most threads.
       ...(subagents && { runningSubagents: subagents }),
       waitingForChildren,
-      status: backgroundStatus(
-        thread.status,
-        tasks,
-        waitingForChildren || thread.awaitingParent === true,
-        deliversQueue(thread)
-      ),
+      status:
+        thread.worktree?.state === 'failed'
+          ? 'error'
+          : backgroundStatus(
+              thread.status,
+              tasks,
+              waitingForChildren || thread.awaitingParent === true,
+              deliversQueue(thread)
+            ),
     }
   }
 
