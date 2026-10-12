@@ -664,7 +664,12 @@ export function threadRows(
   function isAnsweredQuestionTool(item: ThreadItem) {
     return (
       item.kind === 'tool_call' &&
-      item.toolName === 'AskUserQuestion' &&
+      (item.toolName === 'AskUserQuestion' ||
+        item.toolName === 'ask_user_question' ||
+        (typeof item.input === 'object' &&
+          item.input !== null &&
+          'variant' in item.input &&
+          item.input.variant === 'AskUserQuestion')) &&
       askedTurns.has(item.turnId)
     )
   }
