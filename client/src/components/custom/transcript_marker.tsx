@@ -121,7 +121,7 @@ export function BackgroundSeam({ item }: { item: BackgroundItem }) {
       <span className='shrink-0'>
         {monitor ? (ended ? 'Watched' : 'Watching') : ended ? 'Ran' : 'Running'}
       </span>
-      <span className='min-w-0 truncate font-mono'>
+      <span className={cn('min-w-0 truncate', !monitor && 'font-mono')}>
         {monitor ? item.label.replace(/^(watch(ing)?|monitor(ing)?)\s+/i, '') : item.label}
       </span>
       {ended && (

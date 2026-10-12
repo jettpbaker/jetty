@@ -3,6 +3,7 @@ import type { BackgroundTask } from '@jetty/shared/wire'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
 import { formatDuration, formatElapsed } from '@/lib/time'
+import { cn } from '@/lib/utils'
 import { useStopBackgroundTasks } from '@/state/turns'
 
 import { ClockIcon, ConsoleSimpleIcon } from './central_icons'
@@ -16,7 +17,11 @@ export function RunningTaskRow({ threadId, task }: { threadId: string; task: Bac
   return (
     <div className='flex h-7 min-w-0 items-center gap-2 rounded-sm pr-1 pl-2.5 hover:bg-accent/40'>
       <Glyph className={task.kind === 'monitor' ? 'text-status-idle' : 'text-muted-foreground'} />
-      <span className='min-w-0 flex-1 truncate font-mono text-xs'>{task.label}</span>
+      <span
+        className={cn('min-w-0 flex-1 truncate text-xs', task.kind === 'command' && 'font-mono')}
+      >
+        {task.label}
+      </span>
       <span className='shrink-0 font-mono text-xs text-muted-foreground tabular-nums'>
         {elapsed < 60_000 ? formatDuration(elapsed / 1000) : formatElapsed(elapsed)}
       </span>
