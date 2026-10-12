@@ -484,8 +484,7 @@ Everything below is for one combined review of the chat, not separate ports.
 - Codex and Grok usage identity: a failed read restores the last bars without knowing
   whose account they were. Fixing it means reading `~/.codex/auth.json` (and Grok's
   equivalent), which Jetty doesn't read today.
-- Chat: approvals and questions have no Stop (the send button becomes "Deny with
-  note"); the `/usage` tray opens over the chat without re-pinning
+- Chat: the `/usage` tray opens over the chat without re-pinning
   it; sending in a long-code thread leaves the new bubble below the fold for a second.
 - Scroll (`thread_list.tsx`): End can leave following off (~589), a small upward
   scroll within 96px of the bottom gets pulled back (~590), and a message moving into

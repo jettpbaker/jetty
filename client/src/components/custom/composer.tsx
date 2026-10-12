@@ -73,7 +73,8 @@ export function Composer({
   // A new thread with nothing to send as: Enter and Send open the model menu.
   onChooseModel?: () => void
   running: boolean
-  // Stop in place of Send even when a request is showing, as while an approval waits on an empty draft.
+  // A turn waiting on an approval or question keeps Stop in this slot. An answer or follow-up
+  // that can send sits beside it; otherwise Stop takes Send's place, as on an empty running turn.
   stop?: boolean
   strip?: ReactNode
   // The quote the message carries, at the top of the field.
@@ -104,6 +105,8 @@ export function Composer({
   const empty = !value.trim() && attachments.items.length === 0
   const canSend = !(sendDisabled ?? empty) && attachments.ready
   const stopping = stop || (running && empty)
+  // Deny with note, Submit and a queued follow-up stay reachable while Stop is up.
+  const offerSend = !stopping || (Boolean(stop) && canSend)
   const play = !stopping && !running && empty && onContinue !== undefined
   const menu = useComposerSlash(value, onValueChange, textarea, slash)
   const { field } = menu
@@ -231,7 +234,7 @@ export function Composer({
                 />
               </div>
               <div className='flex items-center gap-1'>
-                {stopping ? (
+                {stopping && (
                   <InputGroupButton
                     variant='default'
                     size='icon-sm'
@@ -240,7 +243,8 @@ export function Composer({
                   >
                     <StopIcon filled />
                   </InputGroupButton>
-                ) : play ? (
+                )}
+                {!offerSend ? null : play ? (
                   <Tooltip>
                     <TooltipTrigger
                       render={

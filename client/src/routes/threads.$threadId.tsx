@@ -48,6 +48,7 @@ function Thread() {
       threadId={threadId}
       items={overlay.serverItems}
       running={overlay.running}
+      turnActive={Boolean(thread?.activeTurnId)}
       rows={empty ? 2 : 1}
       ambient={empty}
       loading={!thread}

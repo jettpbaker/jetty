@@ -249,12 +249,56 @@ export function echoUsage(provider: ProviderUsage['provider']): ProviderUsage {
   return fixtures[provider]
 }
 
+type EchoHold = {
+  itemId: string
+  kind: 'approval' | 'question'
+  gate: Deferred.Deferred<void>
+}
+
 type EchoSession = {
   fiber: Fiber.Fiber<void, AgentError>
   input: Queue.Queue<string>
   reason: string
   accepting: boolean
   publication: Semaphore.Semaphore
+  hold: EchoHold | null
+  emit: Emit | null
+}
+
+// `echo:approval` and `echo:question` pause the turn on that card until it is answered or stopped.
+function echoRequest(text: string): EchoHold['kind'] | null {
+  if (text.includes('echo:question')) return 'question'
+  if (text.includes('echo:approval')) return 'approval'
+  return null
+}
+
+function echoRequestItem(kind: EchoHold['kind'], id: string, turnId: string): ThreadItem {
+  const base = { id, turnId, createdAt: Date.now() }
+  if (kind === 'question')
+    return {
+      ...base,
+      kind: 'question',
+      questions: [
+        {
+          header: 'Scope',
+          question: 'Which changes should I include?',
+          multiSelect: false,
+          options: [
+            { label: 'This fix only', description: 'Stop here and leave the rest.' },
+            { label: 'Everything', description: 'Include the follow-up work as well.' },
+          ],
+        },
+      ],
+    }
+  return {
+    ...base,
+    kind: 'approval',
+    title: 'Run the checks',
+    toolName: 'Bash',
+    input: { command: 'bun test' },
+    suggestions: [],
+    always: { scope: 'project', patterns: ['bun test'] },
+  }
 }
 
 export function createEchoAdapter(hooks: AgentHooks = {}) {
@@ -288,6 +332,24 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
         model: 'echo-sonnet',
         asOf: Date.now(),
       }
+    }
+
+    function releaseHold(
+      session: EchoSession | undefined,
+      itemId: string,
+      kind: EchoHold['kind'],
+      patch: Record<string, unknown>
+    ) {
+      return Effect.gen(function* () {
+        const hold = session?.hold
+        const emit = session?.emit
+        if (!session || !hold || !emit || hold.itemId !== itemId || hold.kind !== kind) return false
+        session.hold = null
+        yield* emit({ type: 'item.completed', itemId, patch })
+        yield* emit({ type: 'session.status', status: 'running' })
+        yield* Deferred.succeed(hold.gate, undefined)
+        return true
+      })
     }
 
     function nextContextTarget(threadId: string): { from: number; to: number } {
@@ -336,11 +398,20 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
           )
         })
       },
-      respondToApproval() {
-        return Effect.succeed(false)
+      respondToApproval(threadId, itemId, decision, message) {
+        const note = message?.trim()
+        return releaseHold(sessions.get(threadId), itemId, 'approval', {
+          decision,
+          ...(decision === 'deny' && note ? { deniedReason: note } : {}),
+        })
       },
-      respondToQuestion() {
-        return Effect.succeed(false)
+      respondToQuestion(threadId, itemId, answers) {
+        return releaseHold(
+          sessions.get(threadId),
+          itemId,
+          'question',
+          answers ? { answers } : { dismissed: true }
+        )
       },
       startTurn(input, publish) {
         return Effect.gen(function* () {
@@ -353,15 +424,30 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             reason: 'server shutdown',
             accepting: true,
             publication: yield* Semaphore.make(1),
+            hold: null,
+            emit: null,
           } as EchoSession
           const emit: Emit = (event, onCommit) =>
             session.publication.withPermit(publish(event, onCommit))
+          session.emit = emit
           const { from, to } = nextContextTarget(input.threadId)
           const ramp = [0.25, 0.5, 0.75, 1].map((f) => Math.round(from + (to - from) * f))
           const itemBase = () => ({ id: newId(), turnId: input.turnId, createdAt: Date.now() })
 
           const lifecycle = Effect.gen(function* () {
             yield* emit({ type: 'turn.started', turnId: input.turnId })
+            const request = echoRequest(input.text)
+            if (request) {
+              const itemId = newId()
+              const gate = yield* Deferred.make<void>()
+              session.hold = { itemId, kind: request, gate }
+              yield* emit({
+                type: 'item.started',
+                item: echoRequestItem(request, itemId, input.turnId),
+              })
+              yield* emit({ type: 'session.status', status: 'awaiting_approval' })
+              yield* Deferred.await(gate)
+            }
             if (input.text.includes('echo:busy')) yield* busy.start(input, emit)
 
             const reasoning: ThreadItem = {
@@ -430,9 +516,22 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             hooks.onUsage?.(echoUsage('claude'))
           }).pipe(
             Effect.onInterrupt(() =>
-              emit({ type: 'turn.failed', turnId: input.turnId, error: session.reason }).pipe(
-                Effect.orDie
-              )
+              Effect.gen(function* () {
+                const hold = session.hold
+                if (hold) {
+                  session.hold = null
+                  yield* emit({
+                    type: 'item.completed',
+                    itemId: hold.itemId,
+                    patch: hold.kind === 'question' ? { skipped: true } : { withdrawn: true },
+                  }).pipe(Effect.ignore)
+                }
+                yield* emit({
+                  type: 'turn.failed',
+                  turnId: input.turnId,
+                  error: session.reason,
+                }).pipe(Effect.orDie)
+              })
             ),
             Effect.onExit((exit) => Deferred.done(done, exit)),
             Effect.ensuring(

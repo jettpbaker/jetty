@@ -103,6 +103,7 @@ export function ThreadComposer({
   threadId,
   items = noItems,
   running,
+  turnActive = false,
   rows,
   ambient = false,
   loading = false,
@@ -113,6 +114,8 @@ export function ThreadComposer({
   threadId?: string
   items?: readonly ThreadItem[]
   running: boolean
+  // The server still has this thread's turn. A request left behind after the turn ended is not one.
+  turnActive?: boolean
   rows: number
   ambient?: boolean
   // Sending waits for the thread: until it loads, whether a send starts a turn or queues is unknown.
@@ -555,14 +558,7 @@ export function ThreadComposer({
         onContinue={threadId && heldByRestarts(items) ? () => continueThread(threadId) : undefined}
         onChooseModel={needsModel ? () => modelMenuRef.current?.() : undefined}
         running={running && !item && !editingEntry}
-        stop={
-          running &&
-          !editingEntry &&
-          answering &&
-          item?.kind === 'approval' &&
-          !approval.confirming &&
-          !typed
-        }
+        stop={running && turnActive && !editingEntry && item !== undefined}
         strip={
           hasQueue || usageBanner || mode.strip ? (
             <>
