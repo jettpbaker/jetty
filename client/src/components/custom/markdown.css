@@ -23,6 +23,11 @@
   vertical-align: middle;
 }
 
+/* A long token (a url, a repeated id) otherwise sets the line's min-content and spills out of the bubble. */
+:is(.thread-reply, .work-text, .thinking-text) {
+  overflow-wrap: anywhere;
+}
+
 :is(.thread-reply, .work-text, .thinking-text) :is(h1, h2, h3, h4, h5, h6) {
   font-size: var(--text-sm);
   font-weight: 500;

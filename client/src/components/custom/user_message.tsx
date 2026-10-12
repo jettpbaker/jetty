@@ -71,7 +71,11 @@ export function CollapsibleText({
     <>
       <p
         ref={textRef}
-        className={cn('whitespace-pre-wrap', className, collapsed && 'overflow-hidden')}
+        className={cn(
+          'wrap-anywhere whitespace-pre-wrap',
+          className,
+          collapsed && 'overflow-hidden'
+        )}
         style={
           collapsed
             ? { maxHeight: collapsedTextHeight, maskImage: fade, WebkitMaskImage: fade }
