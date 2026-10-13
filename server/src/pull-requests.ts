@@ -3202,6 +3202,22 @@ async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
   })
 }
 
+// One retry hides GitHub's passing 5xx and timeouts. A dropped connection or a real error shows
+// at once.
+async function retryBlip<T>(attempt: () => Promise<T>) {
+  try {
+    return await attempt()
+  } catch (error) {
+    const blip =
+      error instanceof GhFailure &&
+      error.kind === 'unavailable' &&
+      (error.tooLarge || (error.status ?? 0) >= 500)
+    if (!blip) throw error
+    await Bun.sleep(2000)
+    return attempt()
+  }
+}
+
 function failedList(
   tab: PullRequestListTab,
   error: unknown,
@@ -3255,9 +3271,8 @@ export function createPullRequestLists(
         const batch = [...queuedProbes]
         queuedProbes.clear()
         const tabs = batch.map(([tab]) => tab)
-        void probePullRequestLists(tabs, [
-          ...new Set(tabs.flatMap((tab) => checksIds.get(tab) ?? [])),
-        ]).then(
+        const ids = [...new Set(tabs.flatMap((tab) => checksIds.get(tab) ?? []))]
+        void retryBlip(() => probePullRequestLists(tabs, ids)).then(
           (result) => {
             for (const [tab, { resolve }] of batch) {
               probing.delete(tab)
@@ -3324,7 +3339,7 @@ export function createPullRequestLists(
         flushQueued = false
         const batch = [...queued]
         queued.clear()
-        void fetchPullRequestLists(batch.map(([tab]) => tab)).then(
+        void retryBlip(() => fetchPullRequestLists(batch.map(([tab]) => tab))).then(
           (lists) => {
             for (const [index, [tab, resolve]] of batch.entries()) {
               inFlight.delete(tab)

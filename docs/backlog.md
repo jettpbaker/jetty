@@ -10,10 +10,6 @@ Deferred on purpose. Delete items as they land; delete this file when it's empty
   switch (`perf/`) before `e7e2dae9`, at `e7e2dae9` and at main, and find what the time goes on.
   Other changes from 12 Oct worth ruling out: the chat's top fade (`faa8183c`, a scroll timeline
   on the scroller) and the bot tab strip.
-- The Pull requests page showed "Couldn't refresh" in Jett's real Jetty (12 Oct, 22:41). It didn't
-  reproduce overnight (16 live refreshes on a copy of Jett's data, overlapping the 10s linked-PR
-  sweep). If it happens again, hover the header label for the reason, and the server log has a
-  `[pr-list]` line with the phase, cause, HTTP status and GitHub request id.
 
 ## bot chat, from Jett's first full office day with bots (10 Oct)
 
