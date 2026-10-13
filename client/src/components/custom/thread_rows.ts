@@ -245,6 +245,16 @@ const jettyTools: Record<string, JettyTool> = {
     words: words('Sharing', 'Shared', 'video'),
     target: () => 'video',
   },
+  answer_approval: {
+    action: 'Answer approval',
+    words: words('Allowing', 'Allowed', 'approval'),
+    target: (_input, output) => {
+      const what = resultField(output, 'command') ?? resultField(output, 'action')
+      const title = resultField(output, 'title')
+      if (what && title) return `${what} for ${title}`
+      return what ?? title
+    },
+  },
 }
 
 function jettyTool(name: string) {
@@ -373,6 +383,12 @@ function toActivity(
     unknown
   >
   const kind = toolKind(item.toolName)
+  const answering = mcpTool(item.toolName)?.tool === 'answer_approval'
+  const denying =
+    answering && (fields.decision === 'deny' || resultField(item.output, 'decision') === 'deny')
+  const toolWords = answering
+    ? words(denying ? 'Denying' : 'Allowing', denying ? 'Denied' : 'Allowed', 'approval')
+    : jetty?.words
   return {
     type: 'tool',
     id: item.id,
@@ -380,9 +396,9 @@ function toActivity(
     name,
     jettyTool:
       mcpTool(item.toolName)?.server === 'jetty' ? mcpTool(item.toolName)?.tool : undefined,
-    words: jetty?.words,
+    words: toolWords,
     target: jetty
-      ? (jetty.target(fields, item.output) ?? jetty.words.singular)
+      ? (jetty.target(fields, item.output) ?? toolWords?.singular ?? jetty.words.singular)
       : mcpTool(item.toolName)
         ? name
         : toolTarget(item.toolName, item.input, projectPath),
@@ -773,7 +789,7 @@ export function threadRows(
       (item.kind === 'question' && !awaitsInput(item)) ||
       (item.kind === 'approval' &&
         !awaitsInput(item) &&
-        (item.decision === 'deny' || !!item.withdrawn))
+        (item.decision === 'deny' || !!item.withdrawn || item.decidedBy !== undefined))
     )
   }
   // Replies stay with the work until the turn ends, then its last reply becomes the answer.

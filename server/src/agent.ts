@@ -9,7 +9,12 @@ import type {
   ProviderUsage,
 } from '@jetty/shared/wire'
 
-import { COMPACT_FAILED_PREFIX, type ApprovalDecision, type ThreadItem } from '@jetty/shared/items'
+import {
+  COMPACT_FAILED_PREFIX,
+  type ApprovalDecider,
+  type ApprovalDecision,
+  type ThreadItem,
+} from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
 import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
@@ -97,7 +102,8 @@ export type Agent = {
     threadId: string,
     itemId: string,
     decision: ApprovalDecision,
-    message?: string
+    message?: string,
+    decidedBy?: ApprovalDecider
   ): Effect.Effect<boolean, AgentError>
   // null answers dismiss the question
   respondToQuestion(
@@ -398,11 +404,12 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
           )
         })
       },
-      respondToApproval(threadId, itemId, decision, message) {
+      respondToApproval(threadId, itemId, decision, message, decidedBy) {
         const note = message?.trim()
         return releaseHold(sessions.get(threadId), itemId, 'approval', {
           decision,
           ...(decision === 'deny' && note ? { deniedReason: note } : {}),
+          ...(decidedBy ? { decidedBy } : {}),
         })
       },
       respondToQuestion(threadId, itemId, answers) {

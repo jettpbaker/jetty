@@ -900,7 +900,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           }
         })
       },
-      respondToApproval(threadId, itemId, decision, message?: string) {
+      respondToApproval(threadId, itemId, decision, message?: string, decidedBy?) {
         return respond(
           threadId,
           itemId,
@@ -923,7 +923,11 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
                       : { outcome: 'cancelled' },
                   }
                 })(),
-          { decision, ...(message ? { deniedReason: message } : {}) }
+          {
+            decision,
+            ...(message ? { deniedReason: message } : {}),
+            ...(decidedBy ? { decidedBy } : {}),
+          }
         )
       },
       respondToQuestion(threadId, itemId, answers) {

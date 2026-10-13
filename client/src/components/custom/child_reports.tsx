@@ -15,6 +15,7 @@ export const reportOutcomes = {
   interrupted: { status: 'stopped', verb: 'was stopped', time: 'after' },
   paused: { status: 'stopped', verb: 'paused', time: 'after' },
   asked: { status: 'monitoring', verb: 'asks', time: null },
+  approval: { status: 'monitoring', verb: 'needs approval', time: null },
 } as const
 
 // A child's report reads as one line in the parent's chat, with any question it asks shown under

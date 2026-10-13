@@ -560,7 +560,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           if (session.fiber) yield* Fiber.interrupt(session.fiber)
         })
       },
-      respondToApproval(threadId, itemId, decision, message?: string) {
+      respondToApproval(threadId, itemId, decision, message?: string, decidedBy?) {
         return respond(
           threadId,
           itemId,
@@ -579,7 +579,11 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                           ? 'accept'
                           : 'decline',
                   },
-          { decision, ...(message ? { deniedReason: message } : {}) },
+          {
+            decision,
+            ...(message ? { deniedReason: message } : {}),
+            ...(decidedBy ? { decidedBy } : {}),
+          },
           decision === 'deny' && message?.trim() ? deniedApprovalNote(message.trim()) : undefined
         )
       },

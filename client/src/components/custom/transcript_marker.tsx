@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
+  useBot,
   useContinueThread,
   useContinuing,
   useOpenPullRequestTab,
@@ -30,6 +31,7 @@ import { use } from 'react'
 
 import type { BackgroundItem, CompactionState, PullRequestItem } from './thread_rows'
 
+import { botColorStyle, botTextClass } from './bot_avatar'
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem } from './composer_strip_model'
@@ -38,8 +40,24 @@ import { ProjectFileRoot } from './file_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
 
+function DecidedBy({ decidedBy }: { decidedBy: NonNullable<ApprovalItem['decidedBy']> }) {
+  const bot = useBot(decidedBy.botId)
+  return (
+    <>
+      {' by '}
+      <span
+        className={bot ? botTextClass : 'text-foreground'}
+        style={bot ? botColorStyle(bot.color) : undefined}
+      >
+        {bot?.name ?? decidedBy.name}
+      </span>
+    </>
+  )
+}
+
 function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
   const { target, always } = approvalView(item, projectPath)
+  const by = item.decidedBy ? <DecidedBy decidedBy={item.decidedBy} /> : null
   if (item.decision === 'always')
     return {
       tone: 'allow' as const,
@@ -55,7 +73,10 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
       tone: 'allow' as const,
       text: (
         <>
-          <span className='shrink-0'>Allowed</span>
+          <span className='shrink-0'>
+            Allowed
+            {by}
+          </span>
           <Code className='text-13'>{target}</Code>
         </>
       ),
@@ -64,7 +85,10 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
     tone: item.withdrawn ? ('dismiss' as const) : ('deny' as const),
     text: (
       <>
-        <span className='shrink-0'>{item.withdrawn ? 'Withdrawn' : 'Denied'}</span>
+        <span className='shrink-0'>
+          {item.withdrawn ? 'Withdrawn' : 'Denied'}
+          {!item.withdrawn && by}
+        </span>
         <Code className='max-w-60 shrink-0 text-13'>{target}</Code>
         {item.deniedReason && <span className='truncate'>— “{item.deniedReason}”</span>}
       </>

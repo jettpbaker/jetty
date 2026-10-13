@@ -46,7 +46,9 @@ function checkInItems(
         .sort((a, b) => a.createdAt - b.createdAt)[0]
       if (waiting && now - waiting.createdAt >= timing.workerStaleMs) {
         lines.push(
-          `${link} has waited on ${user}'s ${waiting.kind === 'approval' ? 'approval' : 'answer'} for ${duration(now - waiting.createdAt)}.`
+          waiting.kind === 'approval'
+            ? `${link} has been waiting for approval for ${duration(now - waiting.createdAt)}.`
+            : `${link} has waited on ${user}'s answer for ${duration(now - waiting.createdAt)}.`
         )
         continue
       }

@@ -33,6 +33,7 @@ import type { SearchService } from './search/service'
 import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
+import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
 import { relayedMessage } from './jetty-instructions'
 import { parsePullRequestUrl } from './pull-requests'
 import { createSendImagesTool } from './send-images'
@@ -1260,6 +1261,70 @@ export function createMcpHandler(
           },
           () =>
             invoke(store.listBotTasks(bot.id).pipe(Effect.map((tasks) => tasks.map(taskResult))))
+        )
+        server.registerTool(
+          'answer_approval',
+          {
+            ...toolMeta,
+            description:
+              "Answer a pending approval on a worker you own. The note names the worker and the approval's item id. Allow it, or deny it with a reason the worker can act on. You can't choose always.",
+            inputSchema: {
+              threadId: z.string(),
+              itemId: z.string(),
+              decision: z.enum(['allow', 'deny']),
+              reason: z.string().optional(),
+            },
+          },
+          ({ threadId, itemId, decision, reason }) =>
+            invoke(
+              Effect.gen(function* () {
+                const thread = yield* store.getThread(threadId)
+                if (!thread)
+                  return yield* Effect.fail(
+                    new StoreError('not_found', `Thread ${threadId} not found`)
+                  )
+                const owner = yield* store.getOwningBot(threadId)
+                if (!owner || owner.id !== bot.id || threadId === bot.id)
+                  return yield* Effect.fail(
+                    new StoreError(
+                      'invalid_params',
+                      "You can only answer your own workers' approvals"
+                    )
+                  )
+                const { items } = yield* store.getThreadState(threadId)
+                const item = items.find((candidate) => candidate.id === itemId)
+                if (
+                  item?.kind !== 'approval' ||
+                  item.decision ||
+                  item.withdrawn ||
+                  item.completedAt
+                )
+                  return yield* Effect.fail(
+                    new StoreError('invalid_params', "That approval isn't waiting anymore")
+                  )
+                const note = reason?.trim() || undefined
+                yield* orch.respondApproval(
+                  threadId,
+                  itemId,
+                  decision,
+                  decision === 'deny' ? note : undefined,
+                  { botId: bot.id, name: bot.name }
+                )
+                const command = approvalCommand(item.toolName, item.input)
+                const input =
+                  item.input && typeof item.input === 'object'
+                    ? (item.input as Record<string, unknown>)
+                    : {}
+                return {
+                  decision,
+                  threadId,
+                  title: thread.title,
+                  ...(command
+                    ? { command }
+                    : { action: lowerFirst(botApproval(item.toolName, input, [], []).title) }),
+                }
+              })
+            )
         )
         server.registerTool(
           'message_user',

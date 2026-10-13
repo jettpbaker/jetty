@@ -861,7 +861,14 @@ export function createStore() {
                 : thread.provider === 'grok' &&
                     deniedTitle &&
                     (event.error === 'approval_denied' || /cancelled|canceled/.test(event.error))
-                  ? { type: 'interrupted', user, approval: deniedTitle }
+                  ? {
+                      type: 'interrupted',
+                      user:
+                        denied?.kind === 'approval' && denied.decidedBy
+                          ? denied.decidedBy.name
+                          : user,
+                      approval: deniedTitle,
+                    }
                   : { type: 'failed', error: event.error }
         const lastWork = state.items.findLastIndex(
           (item) =>
@@ -893,8 +900,9 @@ export function createStore() {
                   ? (item.input as Record<string, unknown>)
                   : {}
               const title = lowerFirst(botApproval(item.toolName, input, [], []).title)
+              const who = item.decidedBy?.name ?? user
               return [
-                `${user} denied its request to ${title}${item.deniedReason ? `, saying: "${item.deniedReason}"` : ''}.`,
+                `${who} denied its request to ${title}${item.deniedReason ? `, saying: "${item.deniedReason}"` : ''}.`,
               ]
             }
             const reason = item.kind === 'tool_call' ? classifierDenial(item.output) : undefined

@@ -16,6 +16,7 @@ import type {
 import {
   compactFailureDetail,
   heldByRestarts,
+  type ApprovalDecider,
   type ApprovalDecision,
   type Attachment,
   type Reply,
@@ -625,14 +626,16 @@ export function createOrchestrator({
               const chat = yield* store.getThread(bot.id)
               const messageId = `approval:${threadId}:${item.id}`
               if (chat && !chat.archived && !(yield* store.wasQueued(bot.id, messageId))) {
-                const user = yield* Effect.promise(() => botUserName())
                 const thread = appended.thread
+                const notice = approvalNotice(item)
+                const sentence = notice.endsWith('.') ? notice : `${notice}.`
                 yield* store.enqueueOnce(bot.id, {
                   id: messageId,
-                  text: `[${thread.title}](jetty://threads/${threadId}) is waiting for ${user}'s approval to ${approvalNotice(item)}`,
+                  text: `[${thread.title}](jetty://threads/${threadId}) is waiting for approval to ${sentence} Approval item id: ${item.id}.`,
                   createdAt: appended.ts,
                   hop: 0,
                   from: { threadId, title: thread.title },
+                  reports: [{ threadId, title: thread.title, outcome: 'approval', seconds: 0 }],
                 })
               }
             }
@@ -2092,13 +2095,14 @@ export function createOrchestrator({
         threadId: string,
         itemId: string,
         decision: ApprovalDecision,
-        message?: string
+        message?: string,
+        decidedBy?: ApprovalDecider
       ) {
         return Effect.gen(function* () {
           const provider = yield* store.getThreadProvider(threadId)
           const agent = yield* agentForThread(threadId)
           yield* requireFound(`approval ${itemId}`)(
-            yield* agent.respondToApproval(threadId, itemId, decision, message)
+            yield* agent.respondToApproval(threadId, itemId, decision, message, decidedBy)
           )
           if (decision === 'deny' && message?.trim() && provider === 'grok')
             yield* agent.steer(threadId, deniedApprovalNote(message.trim()))

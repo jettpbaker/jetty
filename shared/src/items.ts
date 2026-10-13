@@ -13,12 +13,12 @@ export const Attachment = Schema.Struct({
 })
 export type Attachment = Schema.Schema.Type<typeof Attachment>
 
-// A child thread's report as the chat shows it: how its run ended and how long it worked, or
-// the question it asked its parent.
+// A child thread's report as the chat shows it: how its run ended and how long it worked, the
+// question it asked its parent, or an approval it's waiting on (a bot's worker).
 export const ChildReport = Schema.Struct({
   threadId: Schema.String,
   title: Schema.String,
-  outcome: Schema.Literals(['finished', 'failed', 'interrupted', 'paused', 'asked']),
+  outcome: Schema.Literals(['finished', 'failed', 'interrupted', 'paused', 'asked', 'approval']),
   seconds: Schema.Number,
   question: Schema.optional(Schema.String),
 })
@@ -50,6 +50,13 @@ export type PullRequestActivity = Schema.Schema.Type<typeof PullRequestActivity>
 
 export const ApprovalDecision = Schema.Literals(['allow', 'always', 'deny'])
 export type ApprovalDecision = Schema.Schema.Type<typeof ApprovalDecision>
+
+// Set when a bot answered. Absent when Jett did: only Jett saves an "always" rule.
+export const ApprovalDecider = Schema.Struct({
+  botId: Schema.String,
+  name: Schema.String,
+})
+export type ApprovalDecider = Schema.Schema.Type<typeof ApprovalDecider>
 
 export const QuestionSpec = Schema.Struct({
   question: Schema.String,
@@ -179,6 +186,7 @@ export const ThreadItem = Schema.Union([
       })
     ),
     decision: Schema.optional(ApprovalDecision),
+    decidedBy: Schema.optional(ApprovalDecider),
     withdrawn: Schema.optional(Schema.Boolean),
     deniedReason: Schema.optional(Schema.String),
     // the tool_call item it gates, when the provider says which

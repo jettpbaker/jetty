@@ -10,6 +10,7 @@ export const SELF_TOOLS = [
   'desktop_session',
   'ask_parent',
   'message_user',
+  'answer_approval',
   'add_instruction',
   'add_task',
   'update_task',

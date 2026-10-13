@@ -1486,13 +1486,17 @@ export function createClaudeAdapter(
           })
         })
       },
-      respondToApproval(threadId, itemId, decision, message) {
+      respondToApproval(threadId, itemId, decision, message, decidedBy) {
         const reason = message?.trim() || undefined
         return resolvePending(
           threadId,
           itemId,
           (session) => session.pendingApprovals,
-          { decision, ...(decision === 'deny' && reason ? { deniedReason: reason } : {}) },
+          {
+            decision,
+            ...(decision === 'deny' && reason ? { deniedReason: reason } : {}),
+            ...(decidedBy ? { decidedBy } : {}),
+          },
           (pending) =>
             decision !== 'deny'
               ? {
