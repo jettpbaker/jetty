@@ -514,6 +514,13 @@ Everything below is for one combined review of the chat, not separate ports.
   `/components/issues-projects`: a per-Project mapping gives fields roles
   (status category, priority level, type, sidebar section, row details), with
   List, Sidebar, Board and Setup looks over two fake Projects.
+- Rewinding a thread to an earlier message (Jett, 13 Oct), like Claude Code's rewind.
+  It shipped briefly on 1 Oct and was reverted when Jett wanted a message navigator
+  instead. `a4cb3f79` and `83f4f016` captured per-turn git checkpoints and rewound
+  each provider's conversation (Claude forks, Codex reverts), `df14d24c` added an
+  "Edit from here" action that put the prompt back in the composer, and `fb37b86a`
+  dropped their events. Start from those once Jett decides whether files rewind with
+  the chat and how it sits beside the navigator.
 
 ## Jetty Bots / project orchestrators (working name, design discussion)
 
