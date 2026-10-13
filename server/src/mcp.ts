@@ -82,6 +82,27 @@ function matchProject(
   )
 }
 
+// A model more than one provider offers (gpt-6.1-sol on Codex and Copilot) needs the provider
+// named: falling back to the caller's would quietly choose which subscription pays.
+function requestedProvider(
+  input: { provider?: ProviderId; model?: string },
+  catalog: readonly ProviderModel[],
+  fallback: ProviderId
+) {
+  if (input.provider) return Effect.succeed(input.provider)
+  const providers = [
+    ...new Set((input.model ? matchingModels(catalog, input.model) : []).map((m) => m.provider)),
+  ]
+  if (providers.length > 1)
+    return Effect.fail(
+      new StoreError(
+        'invalid_params',
+        `${input.model} is offered by ${providers.map((p) => providerNames[p]).join(' and ')}. Pass provider: ${providers.join(' or ')}.`
+      )
+    )
+  return Effect.succeed(providers[0] ?? fallback)
+}
+
 function matchingModels(catalog: readonly ProviderModel[], name: string) {
   const key = modelKey(name)
   const exact = catalog.filter(
@@ -315,7 +336,10 @@ const createInput = z.object({
     .describe(
       "Create the thread in this project (name, case-insensitive). Defaults to yours. If it doesn't match or is ambiguous, the error lists the available names."
     ),
-  provider: z.enum(['claude', 'codex', 'grok', 'copilot']).optional(),
+  provider: z
+    .enum(['claude', 'codex', 'grok', 'copilot'])
+    .optional()
+    .describe('Required when the model is offered by more than one provider.'),
   model: z
     .string()
     .min(1)
@@ -513,8 +537,7 @@ export function createMcpHandler(
               new StoreError('invalid_params', 'Provider discovery is still running; retry shortly')
             )
           const matches = input.model ? matchingModels(catalog, input.model) : []
-          const provider =
-            input.provider ?? (matches.length === 1 ? matches[0]!.provider : identity.provider)
+          const provider = yield* requestedProvider(input, catalog, identity.provider)
           const available = catalog.filter((m) => m.provider === provider)
           if (!available.length)
             return yield* Effect.fail(
@@ -645,10 +668,7 @@ export function createMcpHandler(
         )
         projectId = target.id
         if (input.skill) {
-          const catalog = models() ?? []
-          const matches = input.model ? matchingModels(catalog, input.model) : []
-          const provider =
-            input.provider ?? (matches.length === 1 ? matches[0]!.provider : identity.provider)
+          const provider = yield* requestedProvider(input, models() ?? [], identity.provider)
           const skills =
             provider === 'grok'
               ? []
