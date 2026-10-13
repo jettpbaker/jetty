@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
@@ -128,7 +129,16 @@ function centralSvgs(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  define: {
+    'import.meta.env.JETTY_VERSION': JSON.stringify(
+      command === 'build'
+        ? execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: import.meta.dirname })
+            .toString()
+            .trim()
+        : ''
+    ),
+  },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
@@ -156,4 +166,4 @@ export default defineConfig({
       '/desktop': { target: server, ws: true },
     },
   },
-})
+}))

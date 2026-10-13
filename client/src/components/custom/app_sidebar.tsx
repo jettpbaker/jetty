@@ -60,6 +60,7 @@ import { ProjectGlyph } from './project_glyph'
 import { SidebarProfileMenu } from './sidebar_profile_menu'
 import { SidebarThreadControls } from './sidebar_thread_controls'
 import { sidebarGroups, sidebarThread, type ThreadGrouping } from './sidebar_thread_groups'
+import { SidebarUpdate } from './sidebar_update'
 import { ThreadHoverGroup } from './thread_hover'
 import { ThreadRow } from './thread_row'
 import { StatusGlyph } from './thread_status'
@@ -568,8 +569,11 @@ export const AppSidebar = memo(function AppSidebar() {
           </nav>
         </MotionSidebarContent>
       </ThreadHoverGroup>
-      <SidebarFooter className='sidebar-footer shrink-0 px-1.5 py-1.5'>
-        <SidebarProfileMenu rowClass={navigationButtonClass} />
+      <SidebarFooter className='sidebar-footer shrink-0 gap-0 p-0 pb-1.5'>
+        <SidebarUpdate />
+        <div className='px-1.5 pt-1.5'>
+          <SidebarProfileMenu rowClass={navigationButtonClass} />
+        </div>
       </SidebarFooter>
       <Dialog
         open={Boolean(deletePrompt)}

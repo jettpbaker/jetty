@@ -2,6 +2,7 @@ import type {
   AgentBehaviours,
   Bot,
   ChromePushData,
+  JettyUpdate,
   ModelDiscovery,
   ProviderCapabilities,
   JobModel,
@@ -16,6 +17,7 @@ import type {
 
 import { observeServerTime } from '@/lib/server_time'
 import { newThreadProject } from '@/lib/thread_project'
+import { reload, session } from '@/platform'
 import { useAtomValue } from '@effect/atom-react'
 import { Equal, Stream } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
@@ -58,6 +60,7 @@ export type Chrome = {
   defaultEnvironment?: ThreadMeta['environment']
   jobModels?: Partial<Record<JobName, JobModel>>
   agentBehaviours?: AgentBehaviours
+  jettyUpdate?: JettyUpdate
   bots: readonly Bot[]
 }
 
@@ -73,7 +76,18 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
   switch (update.type) {
     case 'snapshot':
       observeServerTime(update.serverTime)
+      if (
+        import.meta.env.PROD &&
+        update.serverVersion &&
+        update.serverVersion !== import.meta.env.JETTY_VERSION &&
+        // Once per version: a checkout pulled without a rebuild would otherwise reload forever.
+        session.get('jetty.reloadedFor') !== update.serverVersion
+      ) {
+        session.set('jetty.reloadedFor', update.serverVersion)
+        reload()
+      }
       return {
+        jettyUpdate: update.jettyUpdate,
         projects: update.projects,
         threads: update.threads,
         models: update.models,
@@ -85,6 +99,8 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         agentBehaviours: update.agentBehaviours,
         bots: update.bots ?? [],
       }
+    case 'jettyUpdate':
+      return { ...chrome, jettyUpdate: update.state }
     case 'bot.upserted':
       return { ...chrome, bots: upsert(chrome.bots, update.bot) }
     case 'project.upserted':

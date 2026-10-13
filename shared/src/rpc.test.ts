@@ -52,6 +52,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
       Effect.gen(function* () {
         const released = yield* Deferred.make<void>()
         const handlers = JettyRpcs.toLayer({
+          'jetty.update': () => Effect.succeed(null),
           'settings.providerUsage': ({ provider }) =>
             Effect.succeed({ provider, connected: false, windows: [] }),
           'models.refresh': () => Effect.succeed(null),

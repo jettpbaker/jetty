@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path'
 import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
+import type { Updater } from './update'
 import type { Worktrees } from './worktrees'
 
 import { botUserName, commitBotHome, createBotHome } from './bot-home'
@@ -97,7 +98,9 @@ export function createRpcHandlers(
   getProviderUsage: (provider: ProviderUsage['provider']) => Effect.Effect<ProviderUsage> = (
     provider
   ) => Effect.succeed({ provider, connected: false, windows: [] }),
-  home = process.env.JETTY_HOME ?? ''
+  home = process.env.JETTY_HOME ?? '',
+  version?: string,
+  updater?: Updater
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -314,6 +317,11 @@ export function createRpcHandlers(
             return Stream.never
           })
         ),
+      'jetty.update': () =>
+        Effect.sync(() => {
+          updater?.start()
+          return null
+        }),
       'chrome.subscribe': (_, { client }) =>
         Stream.unwrap(
           hub.withChromePublication(
@@ -337,6 +345,8 @@ export function createRpcHandlers(
               const snapshot: ChromePushData = {
                 type: 'snapshot',
                 serverTime: Date.now(),
+                serverVersion: version,
+                jettyUpdate: updater?.state,
                 projects,
                 threads: threads.map(hub.decorateThread),
                 bots,

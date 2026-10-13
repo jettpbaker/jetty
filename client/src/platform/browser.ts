@@ -32,6 +32,7 @@ async function refreshSecret() {
 }
 
 export const browser: Platform = {
+  reload: () => window.location.reload(),
   async connectionUrl(reconnecting) {
     if (reconnecting) await refreshSecret()
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'

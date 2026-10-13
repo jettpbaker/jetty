@@ -20,6 +20,7 @@ import { IconArrowRotateCounterClockwise } from '@central-icons-react/round-outl
 import { IconArrowShareLeft } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconArrowShareLeft'
 import { IconArrowsLeftRight } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconArrowsLeftRight'
 import { IconArrowUp } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconArrowUp'
+import { IconArrowUpCircle } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconArrowUpCircle'
 import { IconArrowUpLeft } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconArrowUpLeft'
 import { IconArrowUpRight } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconArrowUpRight'
 import { IconAtom } from '@central-icons-react/round-outlined-radius-3-stroke-2/IconAtom'
@@ -152,6 +153,7 @@ export const ArrowOutOfBoxIcon = centralIcon(IconArrowOutOfBox)
 export const ArrowRotateClockwiseIcon = centralIcon(IconArrowRotateClockwise)
 export const ArrowRotateCounterClockwiseIcon = centralIcon(IconArrowRotateCounterClockwise)
 export const ArrowShareLeftIcon = centralIcon(IconArrowShareLeft)
+export const ArrowUpCircleIcon = centralIcon(IconArrowUpCircle)
 export const ArrowUpIcon = centralIcon(IconArrowUp)
 export const ArrowUpLeftIcon = centralIcon(IconArrowUpLeft)
 export const ArrowUpRightIcon = centralIcon(IconArrowUpRight)

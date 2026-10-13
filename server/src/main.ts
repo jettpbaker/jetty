@@ -79,6 +79,7 @@ import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
 import { createTitlePrompt, type TitlePrompt } from './title-model'
 import { chainTitlers, firstLineTitler, titleModelTitler, type Titler } from './titler'
+import { createUpdater, serverVersion } from './update'
 import { createWorktrees } from './worktrees'
 import { createRpcHandlers } from './ws'
 
@@ -382,6 +383,16 @@ function createServer(opts: ServerOptions = {}) {
     const store = Context.get(database, Store)
     yield* reconcileOnStartup(store)
     const hub = createHub()
+    const version = yield* Effect.promise(serverVersion)
+    const updater =
+      process.env.JETTY_SUPERVISED === '1'
+        ? createUpdater(home, (state) => hub.pushChrome({ type: 'jettyUpdate', state }))
+        : undefined
+    yield* Effect.addFinalizer(() =>
+      Effect.promise(async () => {
+        await updater?.stop()
+      })
+    )
     const worktrees = createWorktrees(store, home, (thread) =>
       hub.pushChrome({ type: 'thread.upserted', thread })
     )
@@ -613,7 +624,9 @@ function createServer(opts: ServerOptions = {}) {
           provider === 'grok' ? readGrokProviderUsage() : readClaudeProviderUsage()
         )
       },
-      home
+      home,
+      version,
+      updater
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(

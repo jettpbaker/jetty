@@ -1140,6 +1140,7 @@ export const methods = {
     params: Schema.Struct({ botId: Schema.String, otherBotId: Schema.String }),
     result: Schema.Struct({ messages: Schema.Array(BotConversationMessage) }),
   },
+  'jetty.update': { params: Schema.Struct({}), result: Schema.Null },
 } as const
 
 export type MethodName = keyof typeof methods
@@ -1160,12 +1161,20 @@ export type ErrorCode = Schema.Schema.Type<typeof ErrorCode>
 export const WireError = Schema.Struct({ code: ErrorCode, message: Schema.String })
 export type WireError = Schema.Schema.Type<typeof WireError>
 
+export const JettyUpdate = Schema.Struct({
+  status: Schema.Literals(['available', 'updating', 'restarting', 'failed']),
+  error: Schema.optional(Schema.String),
+})
+export type JettyUpdate = Schema.Schema.Type<typeof JettyUpdate>
+
 export const ChromePushData = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('snapshot'),
     // The server's clock when it sent this, for reading its timestamps (edit holds) in a browser
     // whose own clock is off.
     serverTime: Schema.Int,
+    serverVersion: Schema.optional(Schema.String),
+    jettyUpdate: Schema.optional(JettyUpdate),
     projects: Schema.Array(Project),
     threads: Schema.Array(ThreadMeta),
     models: Schema.optional(Schema.Array(ProviderModel)),
@@ -1178,6 +1187,7 @@ export const ChromePushData = Schema.Union([
     // Oldest first.
     bots: Schema.optional(Schema.Array(Bot)),
   }),
+  Schema.Struct({ type: Schema.Literal('jettyUpdate'), state: Schema.optional(JettyUpdate) }),
   Schema.Struct({ type: Schema.Literal('bot.upserted'), bot: Bot }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('project.removed'), projectId: Schema.String }),

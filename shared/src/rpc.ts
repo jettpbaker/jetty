@@ -43,6 +43,7 @@ function unary<
 }
 
 export const JettyRpcs = RpcGroup.make(
+  unary('jetty.update'),
   unary('settings.providerUsage'),
   unary('models.refresh'),
   unary('settings.setBranchPrefix'),

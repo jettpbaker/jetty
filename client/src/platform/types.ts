@@ -1,4 +1,5 @@
 export type Platform = {
+  reload: () => void
   connectionUrl: (reconnecting: boolean) => Promise<string>
   // A desktop's viewer, proxied on Jetty's own origin.
   desktopUrl: (id: string) => string
