@@ -40,6 +40,7 @@ export function Composer({
   onBackgroundSubmit,
   onInterrupt,
   onContinue,
+  continueDisabledReason,
   onChooseModel,
   running,
   stop,
@@ -70,6 +71,7 @@ export function Composer({
   onInterrupt: () => void
   // Offered in place of Send while the composer is empty: carries on a paused thread.
   onContinue?: () => void
+  continueDisabledReason?: string
   // A new thread with nothing to send as: Enter and Send open the model menu.
   onChooseModel?: () => void
   running: boolean
@@ -246,19 +248,19 @@ export function Composer({
                 )}
                 {!offerSend ? null : play ? (
                   <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <InputGroupButton
-                          variant='default'
-                          size='icon-sm'
-                          aria-label='Resume'
-                          onClick={onContinue}
-                        />
-                      }
-                    >
-                      <PlayIcon filled />
+                    <TooltipTrigger render={<span className='flex' />}>
+                      <InputGroupButton
+                        variant='default'
+                        size='icon-sm'
+                        aria-label='Resume'
+                        onClick={onContinue}
+                        disabled={!!continueDisabledReason}
+                        aria-description={continueDisabledReason}
+                      >
+                        <PlayIcon filled />
+                      </InputGroupButton>
                     </TooltipTrigger>
-                    <TooltipContent>Resume</TooltipContent>
+                    <TooltipContent>{continueDisabledReason ?? 'Resume'}</TooltipContent>
                   </Tooltip>
                 ) : onChooseModel ? (
                   <Tooltip>

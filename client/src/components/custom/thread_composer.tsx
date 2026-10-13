@@ -16,7 +16,7 @@ import {
 import { pendingItems } from '@/components/custom/composer_strip_model'
 import { ComposerQueue, useComposerQueue } from '@/components/custom/queued_messages'
 import { ReplyTab } from '@/components/custom/reply_quote'
-import { UsageBanner } from '@/components/custom/usage_limits'
+import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { useAttachments } from '@/hooks/use-attachments'
@@ -46,6 +46,7 @@ import {
   withQuotes,
 } from '@/state'
 import { createItemSelection } from '@/state/item_selection'
+import { useProviderUnavailable } from '@/state/models'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
@@ -190,6 +191,11 @@ export function ThreadComposer({
     }
   }, [threadId, update, read])
   const meta = useThreadMeta(threadId)
+  const providerUnavailable = useProviderUnavailable(lockedProvider)
+  const unavailable =
+    lockedProvider && providerUnavailable && !running && !meta?.botId
+      ? `Connect ${providerNames[lockedProvider]} in Settings to continue this thread`
+      : undefined
   // A message being edited can leave the queue under the composer: removed in another window, or
   // delivered once its hold lapsed. The edit stays as an ordinary draft, and the footer says why.
   const [left, setLeft] = useState<string>()
@@ -327,6 +333,7 @@ export function ThreadComposer({
 
   // In the background, the new-thread page stays put with its picks for the next prompt.
   function startTurn(text: string, background: boolean) {
+    if (unavailable) return
     const chosen = noGit ? 'local' : target?.environment
     const id =
       threadId ??
@@ -349,6 +356,7 @@ export function ThreadComposer({
   }
 
   function submit(background = false) {
+    if (unavailable && !editingEntry) return
     const text = draft.trim()
     if (threadId && editingEntry) {
       if (!text) return
@@ -555,7 +563,14 @@ export function ThreadComposer({
         onInterrupt={() => {
           if (threadId) interruptTurn(threadId)
         }}
-        onContinue={threadId && heldByRestarts(items) ? () => continueThread(threadId) : undefined}
+        onContinue={
+          threadId && heldByRestarts(items)
+            ? () => {
+                if (!unavailable) continueThread(threadId)
+              }
+            : undefined
+        }
+        continueDisabledReason={unavailable}
         onChooseModel={needsModel ? () => modelMenuRef.current?.() : undefined}
         running={running && !item && !editingEntry}
         stop={running && turnActive && !editingEntry && item !== undefined}
@@ -580,9 +595,11 @@ export function ThreadComposer({
         ))}
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
-        sendDisabled={mode.sendDisabled}
+        sendDisabled={!!unavailable || mode.sendDisabled}
         sendHint={
-          needsModel ? (
+          unavailable ? (
+            unavailable
+          ) : needsModel ? (
             'Choose a model first'
           ) : steers ? (
             <span className='flex flex-col gap-1'>
@@ -653,7 +670,9 @@ export function ThreadComposer({
                 provider={provider}
                 ring={!ambient}
                 note={
-                  editingEntry ? (
+                  unavailable ? (
+                    <span className='truncate'>{unavailable}</span>
+                  ) : editingEntry ? (
                     <span className='flex min-w-0 items-center gap-1.5'>
                       <span className='truncate'>Editing a queued message</span>
                       <Kbd>Esc</Kbd>

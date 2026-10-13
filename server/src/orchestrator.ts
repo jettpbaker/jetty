@@ -901,11 +901,26 @@ export function createOrchestrator({
         }
         let provider: string = existing ?? requested ?? registry.defaultProvider
         if (!existing && !requested && model) {
-          const matches = (knownModels?.() ?? []).filter(
+          const catalog =
+            registry.defaultProvider === 'claude' && modelCatalog
+              ? yield* modelCatalog()
+              : (knownModels?.() ?? [])
+          const matches = catalog.filter(
             (candidate) => findProviderModel([candidate], candidate.provider, model) !== undefined
           )
           const providers = new Set(matches.map((candidate) => candidate.provider))
           if (providers.size === 1) provider = matches[0]!.provider
+          else if (
+            modelCatalog &&
+            registry.defaultProvider === 'claude' &&
+            !catalog.some((candidate) => candidate.provider === provider)
+          )
+            return yield* Effect.fail(
+              new StoreError(
+                'invalid_params',
+                `Model ${model} is not available. Choose a model in Settings.`
+              )
+            )
         }
         if (!existing && !requested && !model && provider !== 'echo' && modelCatalog) {
           const catalog = yield* modelCatalog()

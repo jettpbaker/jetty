@@ -24,7 +24,9 @@ import {
   useContinuing,
   useOpenPullRequestTab,
   usePullRequestSummary,
+  useThreadMeta,
 } from '@/state'
+import { useProviderUnavailable } from '@/state/models'
 import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jetty/shared/items'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { use } from 'react'
@@ -35,10 +37,12 @@ import { botColorStyle, botTextClass } from './bot_avatar'
 import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem } from './composer_strip_model'
+import { DisabledTooltip } from './disabled_tooltip'
 import { inlineLinkClass, LeadTitle, OpenPullLink, plainClick, shorten } from './entity_link'
 import { ProjectFileRoot } from './file_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
+import { providerNames } from './usage_limits'
 
 function DecidedBy({ decidedBy }: { decidedBy: NonNullable<ApprovalItem['decidedBy']> }) {
   const bot = useBot(decidedBy.botId)
@@ -184,6 +188,12 @@ export function RestartSeam({ label = 'Jetty restarted' }: { label?: string }) {
 }
 
 export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resumed: boolean }) {
+  const meta = useThreadMeta(threadId)
+  const providerUnavailable = useProviderUnavailable(meta?.provider)
+  const unavailable =
+    !meta?.botId && meta?.provider && providerUnavailable
+      ? `Connect ${providerNames[meta.provider]} in Settings to resume this thread`
+      : undefined
   const continuing = useContinuing(threadId)
   const continueThread = useContinueThread()
   const done = resumed || continuing
@@ -195,7 +205,11 @@ export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resu
         minutes
       </span>
       {done ? null : (
-        <ChatSeamAction onClick={() => continueThread(threadId)}>Resume</ChatSeamAction>
+        <DisabledTooltip reason={unavailable} wrap='flex'>
+          <ChatSeamAction disabled={!!unavailable} onClick={() => continueThread(threadId)}>
+            Resume
+          </ChatSeamAction>
+        </DisabledTooltip>
       )}
     </ChatSeam>
   )

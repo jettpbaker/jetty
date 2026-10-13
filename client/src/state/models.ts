@@ -1,15 +1,26 @@
-import type { AgentBehaviourKey, JobModel, JobName, ResultOf } from '@jetty/shared/wire'
+import type { AgentBehaviourKey, JobModel, JobName, ProviderId, ResultOf } from '@jetty/shared/wire'
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useEffect, useState } from 'react'
 
-import { liveAtom } from './chrome'
+import { liveAtom, useChrome } from './chrome'
 import { run, useAction } from './connection'
 import { observeOptimistic } from './optimistic'
 
 const refreshingAtom = Atom.make(false).pipe(Atom.keepAlive)
+
+export function useProviderUnavailable(provider: ProviderId | undefined) {
+  const chrome = useChrome()
+  const discovery = provider && chrome?.modelDiscovery?.[provider]
+  return Boolean(
+    provider &&
+    discovery &&
+    discovery !== 'loading' &&
+    !chrome?.models?.some((model) => model.provider === provider)
+  )
+}
 
 function refreshModels(registry: AtomRegistry.AtomRegistry, force = false) {
   if (registry.get(refreshingAtom)) return

@@ -7,9 +7,13 @@ import {
   useSendToBot,
   useSendTurn,
   useThread,
+  useThreadMeta,
 } from '@/state'
+import { useProviderUnavailable } from '@/state/models'
 
 import { ArrowRotateClockwiseIcon } from './central_icons'
+import { DisabledTooltip } from './disabled_tooltip'
+import { providerNames } from './usage_limits'
 
 // A failed turn, with Retry under it while it is the latest turn and the thread is idle.
 export function ErrorMessage({
@@ -23,6 +27,12 @@ export function ErrorMessage({
 }) {
   const thread = useThread(threadId)
   const isBot = useBot(threadId) !== undefined
+  const provider = useThreadMeta(threadId)?.provider
+  const providerUnavailable = useProviderUnavailable(provider)
+  const unavailable =
+    !isBot && provider && providerUnavailable
+      ? `Connect ${providerNames[provider]} in Settings to retry this turn`
+      : undefined
   const sending = useSendingIds(threadId)
   const pendingBot = usePendingBotMessages(threadId)
   const sendTurn = useSendTurn()
@@ -46,7 +56,7 @@ export function ErrorMessage({
     sending.length === 0 &&
     pendingBot.length === 0
   function retry() {
-    if (!failed) return
+    if (!failed || unavailable) return
     if (isBot) sendToBot(threadId, sent.text, sent.replies, sent.attachments)
     else sendTurn(threadId, sent.text, undefined, [], sent.replies)
   }
@@ -55,10 +65,18 @@ export function ErrorMessage({
       <MessageContent className='gap-0'>
         <p className='text-sm text-destructive'>{message}</p>
         {failed && (
-          <Button variant='ghost-text' size='xs' className='-ml-3 self-start' onClick={retry}>
-            <ArrowRotateClockwiseIcon />
-            Retry
-          </Button>
+          <DisabledTooltip reason={unavailable} wrap='self-start'>
+            <Button
+              variant='ghost-text'
+              size='xs'
+              className='-ml-3 self-start'
+              onClick={retry}
+              disabled={!!unavailable}
+            >
+              <ArrowRotateClockwiseIcon />
+              Retry
+            </Button>
+          </DisabledTooltip>
         )}
       </MessageContent>
     </Message>
