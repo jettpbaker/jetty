@@ -19,7 +19,7 @@ import { useChrome } from '@/state'
 import { useModelRefresh, useSetAgentBehaviour, useSetJobModel } from '@/state/models'
 import {
   agentBehaviours,
-  claudeJobModel,
+  resolveTidyModel,
   GUIDE_MIN_CHANGED_LINES,
   resolveTitleEffort,
   resolveTitleModel,
@@ -81,7 +81,7 @@ function jobLoadout(
 ): Loadout | undefined {
   if (job !== 'title') {
     const selected =
-      job === 'guide' ? resolveGuideModel(choice, catalog) : claudeJobModel(job, choice)
+      job === 'guide' ? resolveGuideModel(choice, catalog) : resolveTidyModel(choice, catalog)
     if (!selected) return undefined
     const { model, effort, fast } = selected
     return {
@@ -131,6 +131,7 @@ function JobModelSelect({
   catalog,
   value,
   lockedProvider,
+  disabledProviders,
   disabled,
   onChange,
 }: {
@@ -138,6 +139,7 @@ function JobModelSelect({
   catalog: readonly ProviderModel[]
   value: Loadout | undefined
   lockedProvider?: ProviderId
+  disabledProviders?: readonly ProviderId[]
   disabled?: boolean
   onChange: (loadout: Loadout) => void
 }) {
@@ -170,7 +172,13 @@ function JobModelSelect({
         <ChevronDownSmallIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-max min-w-56'>
-        <ModelMenuItems catalog={catalog} models={models} value={value} onChange={onChange} />
+        <ModelMenuItems
+          catalog={catalog}
+          models={models}
+          value={value}
+          disabledProviders={disabledProviders}
+          onChange={onChange}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -231,8 +239,8 @@ export function SettingsIntelligence() {
               <JobModelSelect
                 label='Tidy model'
                 catalog={tidying.catalog}
+                disabledProviders={['grok']}
                 value={tidying.value}
-                lockedProvider='claude'
                 onChange={tidying.set}
               />
             </span>

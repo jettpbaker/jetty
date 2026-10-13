@@ -105,6 +105,38 @@ export function claudeJobModel(
     : CLAUDE_JOB_DEFAULTS[job]
 }
 
+export function resolveTidyModel(
+  choice: JobModel | undefined,
+  models: readonly ProviderModel[],
+  bot?: { provider: ProviderId; model: string; effort?: EffortLevel }
+): JobModel & { model: ModelRef } {
+  const selected =
+    choice?.model &&
+    models.find(
+      (model) =>
+        model.provider === choice.model?.provider &&
+        model.provider !== 'grok' &&
+        (model.provider === 'claude' || model.id === choice.model.id)
+    )
+  if (selected && choice?.model)
+    return choice.model.provider === 'claude'
+      ? { ...choice, model: choice.model }
+      : {
+          ...choice,
+          model: choice.model,
+          effort: resolveTitleEffort(selected, choice.effort ?? selected.defaultEffort),
+          fast: selected.fast && choice.fast === true,
+        }
+  if (bot && bot.provider !== 'claude')
+    return { model: { provider: bot.provider, id: bot.model }, effort: bot.effort }
+  if (!bot && !models.some((model) => model.provider === 'claude')) {
+    const model = models.find((model) => model.provider !== 'grok')
+    if (model)
+      return { model: { provider: model.provider, id: model.id }, effort: model.defaultEffort }
+  }
+  return claudeJobModel('tidy', undefined)
+}
+
 export function resolveGuideModel(
   choice: JobModel | undefined,
   models: readonly ProviderModel[]

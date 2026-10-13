@@ -99,7 +99,14 @@ function copilotPrompt(
             for (const path of paths) {
               const target = yield* Effect.tryPromise(() => canonical(resolve(root, path)))
               const child = relative(root, target)
-              if (isAbsolute(child) || child === '..' || child.startsWith('../')) allowed = false
+              if (
+                isAbsolute(child) ||
+                child === '..' ||
+                child.startsWith('../') ||
+                child === '.git' ||
+                child.startsWith('.git/')
+              )
+                allowed = false
             }
             const permissions = Array.isArray(message.params.options)
               ? message.params.options.map(object)
@@ -116,6 +123,11 @@ function copilotPrompt(
         }
         const update = object(message.params.update)
         const content = object(update.content)
+        if (
+          tools &&
+          (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update')
+        )
+          reply = ''
         if (
           message.method === 'session/update' &&
           message.params.sessionId === sessionId &&

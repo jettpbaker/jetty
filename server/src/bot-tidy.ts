@@ -1,16 +1,18 @@
 import type { EffortLevel } from '@jetty/shared/events'
 
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk'
-import { claudeJobModel, newId, type Bot } from '@jetty/shared/wire'
+import { newId, resolveTidyModel, type ProviderModel, type Bot } from '@jetty/shared/wire'
 import { Cause, Effect, Exit, Queue } from 'effect'
 import { readFile, readdir, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import type { Store } from './store'
 
-import { botUserName, commitBotHome } from './bot-home'
+import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
 import { botTiming, type BotLifecycle } from './bot-lifecycle'
 import { claudeBin } from './claude-bin'
+import { codexTidyPrompt } from './codex-prompt'
+import { copilotTidyPrompt } from './copilot-prompt'
 
 async function botHomeGit(home: string, args: string[]) {
   const proc = Bun.spawn(['git', '-C', home, ...args], { stdout: 'pipe', stderr: 'pipe' })
@@ -50,10 +52,7 @@ async function tidyQuery(
   const pages = join(root, 'pages')
   const index = join(root, 'index.md')
   const instructions = join(root, 'instructions.md')
-  const user = await botUserName()
-  let prompt = await readFile(new URL('./bot-prompt/tidy.md', import.meta.url), 'utf8')
-  for (const [key, value] of Object.entries({ name: bot.name, home, bots: join(home, '..'), user }))
-    prompt = prompt.replaceAll(`{${key}}`, value)
+  const prompt = await tidyPrompt(bot, home)
   const canUseTool: NonNullable<Options['canUseTool']> = async (tool, input) => {
     const writing = tool === 'Edit' || tool === 'Write'
     if (!writing && tool !== 'Read' && tool !== 'Glob' && tool !== 'Grep')
@@ -136,9 +135,47 @@ async function tidyQuery(
   }
 }
 
-export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLifecycle) {
+async function tidyPrompt(bot: Bot, home: string, shared = true) {
+  const user = await botUserName()
+  let prompt = await readFile(new URL('./bot-prompt/tidy.md', import.meta.url), 'utf8')
+  for (const [key, value] of Object.entries({ name: bot.name, home, bots: join(home, '..'), user }))
+    prompt = prompt.replaceAll(`{${key}}`, value)
+  if (!shared)
+    prompt = prompt.replace(
+      `, plus the shared ${join(home, '..')}/shared/preferences.md that every bot reads`,
+      ''
+    )
+  return prompt
+}
+
+async function restoreProtected(home: string, head: string) {
+  const paths = [
+    '.',
+    ':(top,literal,exclude)pages',
+    ':(top,literal,exclude)index.md',
+    ':(top,literal,exclude)instructions.md',
+  ]
+  await botHomeGit(home, ['restore', '--source', head, '--staged', '--worktree', '--', ...paths])
+  await botHomeGit(home, ['clean', '-fdxq', '--', ...paths])
+}
+
+async function restoreHome(home: string, head: string) {
+  await botHomeGit(home, ['reset', '--hard', head])
+  await botHomeGit(home, ['clean', '-fdxq'])
+}
+
+export function tidyBotHome(
+  bot: Bot,
+  home: string,
+  store: Store,
+  record: BotLifecycle,
+  catalog: readonly ProviderModel[] = []
+) {
   let completed = false
   let hasInstructionsFile = false
+  let toolHead: string | undefined
+  let sharedHead: string | undefined
+  const shared = join(home, '..', 'shared')
   return Effect.gen(function* () {
     yield* Effect.tryPromise(() => commitBotHome(home)).pipe(Effect.uninterruptible)
     hasInstructionsFile = Boolean(
@@ -165,16 +202,37 @@ export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLif
       return
     }
     yield* Effect.logInfo(`tidy pass for ${bot.id} started`)
-    const choice = claudeJobModel(
-      'tidy',
-      yield* store.getJobModel('tidy').pipe(Effect.orElseSucceed(() => undefined))
-    )
-    const model = { id: choice.model.id, ...(choice.effort ? { effort: choice.effort } : {}) }
-    const changelog = yield* Effect.tryPromise({
-      try: (signal) => tidyQuery(bot, home, model, signal),
-      catch: (error) => error,
-    })
+    const selected = yield* store.getJobModel('tidy').pipe(Effect.orElseSucceed(() => undefined))
+    const choice = resolveTidyModel(selected, catalog, bot)
+    let changelog: string
+    if (choice.model.provider === 'claude') {
+      const model = { id: choice.model.id, ...(choice.effort ? { effort: choice.effort } : {}) }
+      changelog = yield* Effect.tryPromise({
+        try: (signal) => tidyQuery(bot, home, model, signal),
+        catch: (error) => error,
+      })
+    } else {
+      if (choice.model.provider !== 'codex' && choice.model.provider !== 'copilot')
+        return yield* Effect.fail(new Error(`Tidy is not supported by ${choice.model.provider}`))
+      yield* Effect.tryPromise(async () => {
+        await botHomeGit(home, ['add', '-Af'])
+        await commitBotHome(home)
+        toolHead = await botHomeGit(home, ['rev-parse', 'HEAD'])
+        await commitSharedPreferences(home)
+        await botHomeGit(shared, ['add', '-Af'])
+        await commitSharedPreferences(home)
+        sharedHead = await botHomeGit(shared, ['rev-parse', 'HEAD'])
+      }).pipe(Effect.uninterruptible)
+      const prompt = yield* Effect.tryPromise(() =>
+        tidyPrompt(bot, home, choice.model.provider !== 'copilot')
+      )
+      changelog = yield* choice.model.provider === 'codex'
+        ? codexTidyPrompt(home, choice, prompt)
+        : copilotTidyPrompt(home, choice, prompt)
+    }
     yield* Effect.gen(function* () {
+      if (toolHead) yield* Effect.tryPromise(() => restoreProtected(home, toolHead!))
+      if (sharedHead) yield* Effect.tryPromise(() => restoreHome(shared, sharedHead!))
       const changed = yield* Effect.tryPromise(() =>
         botHomeGit(home, ['status', '--porcelain', '--', 'pages', 'index.md', 'instructions.md'])
       )
@@ -236,27 +294,41 @@ export function tidyBotHome(bot: Bot, home: string, store: Store, record: BotLif
     Effect.onExit((exit) =>
       Effect.gen(function* () {
         if (completed) return
-        yield* Effect.tryPromise(() =>
-          botHomeGit(home, [
-            'checkout',
-            'HEAD',
-            '--',
-            'pages',
-            'index.md',
-            ...(hasInstructionsFile ? ['instructions.md'] : []),
-          ])
-        ).pipe(
-          Effect.catch((error) =>
-            Effect.logWarning(`tidy pass for ${bot.id} restore failed: ${error}`)
+        if (toolHead) {
+          yield* Effect.tryPromise(() => restoreHome(home, toolHead!)).pipe(
+            Effect.catch((error) =>
+              Effect.logWarning(`tidy pass for ${bot.id} restore failed: ${error}`)
+            )
           )
-        )
-        yield* Effect.tryPromise(() =>
-          botHomeGit(home, ['clean', '-fdq', '--', 'pages', 'instructions.md'])
-        ).pipe(
-          Effect.catch((error) =>
-            Effect.logWarning(`tidy pass for ${bot.id} cleanup failed: ${error}`)
+        } else {
+          yield* Effect.tryPromise(() =>
+            botHomeGit(home, [
+              'checkout',
+              'HEAD',
+              '--',
+              'pages',
+              'index.md',
+              ...(hasInstructionsFile ? ['instructions.md'] : []),
+            ])
+          ).pipe(
+            Effect.catch((error) =>
+              Effect.logWarning(`tidy pass for ${bot.id} restore failed: ${error}`)
+            )
           )
-        )
+          yield* Effect.tryPromise(() =>
+            botHomeGit(home, ['clean', '-fdq', '--', 'pages', 'instructions.md'])
+          ).pipe(
+            Effect.catch((error) =>
+              Effect.logWarning(`tidy pass for ${bot.id} cleanup failed: ${error}`)
+            )
+          )
+        }
+        if (sharedHead)
+          yield* Effect.tryPromise(() => restoreHome(shared, sharedHead!)).pipe(
+            Effect.catch((error) =>
+              Effect.logWarning(`tidy pass for ${bot.id} shared restore failed: ${error}`)
+            )
+          )
         if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)) {
           yield* Effect.logInfo(`tidy pass for ${bot.id} interrupted`)
         } else {

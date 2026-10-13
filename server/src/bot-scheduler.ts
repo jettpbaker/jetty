@@ -1,5 +1,6 @@
-import { newId, type Bot, type ThreadMeta } from '@jetty/shared/wire'
+import { newId, type Bot, type ThreadMeta, type ProviderModel } from '@jetty/shared/wire'
 import { Effect, Queue, Schedule } from 'effect'
+import { ChildProcessSpawner } from 'effect/process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -88,7 +89,9 @@ export function startBotScheduler(
   hub: Hub,
   registry: AgentRegistry,
   timing: typeof botTiming,
-  allowTidy: boolean
+  allowTidy: boolean,
+  spawner: ReturnType<typeof ChildProcessSpawner.make>,
+  catalog: () => Effect.Effect<readonly ProviderModel[]>
 ) {
   let tidying = false
   const tick = Effect.gen(function* () {
@@ -142,7 +145,9 @@ export function startBotScheduler(
                     Date.now() - (latest.turnEndedAt ?? endedAt) < timing.awayIdleMs)
                 )
                   return
-                yield* tidyBotHome(bot, home, store, latest)
+                yield* tidyBotHome(bot, home, store, latest, yield* catalog()).pipe(
+                  Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+                )
               }).pipe(
                 Effect.ensuring(
                   Effect.sync(() => {

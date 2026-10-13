@@ -784,7 +784,9 @@ function createServer(opts: ServerOptions = {}) {
       hub,
       registry,
       botTiming,
-      agentKind !== 'echo' && envAgent !== 'echo'
+      agentKind !== 'echo' && envAgent !== 'echo',
+      spawner,
+      modelCatalog
     )
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => markCleanShutdown(home)).pipe(
