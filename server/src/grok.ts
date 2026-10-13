@@ -7,6 +7,7 @@ import { ChildProcessSpawner } from 'effect/process'
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
+import { acpPermissionOutcome } from './acp-permissions'
 import {
   AgentError,
   AgentService,
@@ -905,24 +906,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           threadId,
           itemId,
           (pending) =>
-            pending.questions
-              ? undefined
-              : (() => {
-                  const kind =
-                    decision === 'deny'
-                      ? 'reject_once'
-                      : decision === 'always'
-                        ? 'allow_always'
-                        : 'allow_once'
-                  const option =
-                    pending.options?.find((o) => o.kind === kind) ??
-                    pending.options?.find((o) => o.kind === 'allow_once' && decision !== 'deny')
-                  return {
-                    outcome: option
-                      ? { outcome: 'selected', optionId: option.optionId }
-                      : { outcome: 'cancelled' },
-                  }
-                })(),
+            pending.questions ? undefined : acpPermissionOutcome(pending.options, decision),
           {
             decision,
             ...(message ? { deniedReason: message } : {}),
