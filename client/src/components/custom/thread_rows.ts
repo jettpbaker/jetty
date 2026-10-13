@@ -446,7 +446,8 @@ type ThreadRowsOptions = {
 }
 
 // A bot's chat is its thread with a few rows of its own. A turn another bot started folds into an
-// exchange line, and a check-in or tidy shows only with `showQuiet` or when the bot messaged.
+// exchange line. A check-in, a worker report or the note that created the bot keeps its work once
+// it ends; a tidy shows only with `showQuiet` or when the bot messaged.
 export type BotRows = {
   others: ReadonlySet<string>
   showQuiet: boolean
@@ -460,6 +461,7 @@ type BotTurn = {
   // wake). Only Jett's turns write public text; elsewhere it's private unless sent as a message.
   opener: 'jett' | 'bot' | 'other'
   quiet: boolean
+  wake?: 'check_in' | 'tidy'
   joined: boolean
   messaged: boolean
 }
@@ -491,6 +493,7 @@ function botTurns(items: readonly ThreadItem[], { others }: BotRows) {
               ? 'bot'
               : 'other'
         turn.quiet = item.wake !== undefined
+        turn.wake = item.wake
       }
       if (!item.from && !item.wake) turn.joined = true
     }
@@ -656,23 +659,43 @@ export function threadRows(
       ? tail.turnId
       : undefined
   const turns = bot && botTurns(items, bot)
-  // A turn that shows nothing of its own once it ends. Another bot's is an exchange line. A
-  // check-in, a tidy, the note that created the bot, or a worker report shows only with
-  // `showQuiet`, or once the bot sends a public message. Its errors, thread markers and that
-  // message stay. While it runs it shows its work like any turn, so a busy bot never looks idle;
-  // a tidy has its own line instead.
-  function silent(item: ThreadItem) {
-    const turn = turns?.get(item.turnId)
-    if (!turn || turn.joined) return false
-    if (item.turnId === liveTurnId && !bot!.tidying) return false
+  // A turn Jett didn't start. Another bot's opens on an exchange line. A check-in, a worker
+  // report or the note that created the bot leaves its work once it ends without messaging Jett.
+  // A tidy keeps only its own line. With `showQuiet`, or once the bot messages, the turn shows as
+  // any other. Errors, thread markers and that message stay either way. While it runs it shows
+  // its work like any turn, so a busy bot never looks idle; a tidy has its own line instead.
+  function endedQuiet(turn: BotTurn, turnId: string) {
+    if (turn.joined) return false
+    if (turnId === liveTurnId && !bot!.tidying) return false
     if (turn.opener === 'bot') return true
     if (turn.messaged) return false
     return !bot!.showQuiet
   }
+  function silent(item: ThreadItem) {
+    const turn = turns?.get(item.turnId)
+    return turn !== undefined && endedQuiet(turn, item.turnId)
+  }
+  // Its work stays as the one collapsed block. A tidy stays out: its line is the whole turn.
+  // A turn that messaged is left as it is, so nothing new lands under its reply.
+  function keptQuiet(turnId: string) {
+    const turn = turns?.get(turnId)
+    return turn !== undefined && turn.wake !== 'tidy' && !turn.messaged && endedQuiet(turn, turnId)
+  }
   function dropped(item: ThreadItem) {
     if (!silent(item)) return false
     if (item.kind === 'error' || item.kind === 'thread_marker') return false
-    if (item.kind === 'assistant_message') return item.private === true
+    if (item.kind === 'assistant_message' && item.private !== true) return false
+    // The opener stays, and the work under it. Private text folds into that block.
+    if (
+      keptQuiet(item.turnId) &&
+      (item.kind === 'user_message' ||
+        item.kind === 'reasoning' ||
+        item.kind === 'tool_call' ||
+        item.kind === 'question' ||
+        item.kind === 'approval' ||
+        item.kind === 'assistant_message')
+    )
+      return false
     return true
   }
   // Outside Jett's turns the bot's text is private except what it sends as a message, which
@@ -756,7 +779,8 @@ export function threadRows(
   // Replies stay with the work until the turn ends, then its last reply becomes the answer.
   // A steering message or compaction starts another block (a failed one too, so its seam sits
   // between the work), and in a bot's chat so does a thread marker or a message it sent (a
-  // message to another bot joins the exchange line instead).
+  // message to another bot joins the exchange line instead). A quiet turn keeps one block, so a
+  // marker doesn't leave a second "Worked for" under it.
   const segments: string[] = []
   const lastReplies = new Map<string, string>()
   const lastSentMessages = new Map<string, string>()
@@ -769,7 +793,10 @@ export function threadRows(
       item.kind === 'user_message' ||
       item.kind === 'compaction' ||
       (turns &&
-        ((item.kind === 'thread_marker' && !exchangeEntry(item, bot!.others)) || sentMessage(item)))
+        ((item.kind === 'thread_marker' &&
+          !exchangeEntry(item, bot!.others) &&
+          !keptQuiet(item.turnId)) ||
+          sentMessage(item)))
         ? item.id
         : previous === undefined || before!.turnId !== item.turnId
           ? item.turnId
