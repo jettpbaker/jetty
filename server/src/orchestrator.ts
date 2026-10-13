@@ -1894,6 +1894,13 @@ export function createOrchestrator({
             const provider = thread.provider ?? registry.defaultProvider
             return isAgentProvider(provider) && Boolean(registry.agent(provider)?.busy?.(thread.id))
           }
+          // A monitor waits on news, so its thread isn't done. A background command (a dev server
+          // left up) doesn't hold it: the report says it's still running instead.
+          function watching(thread: ThreadMeta) {
+            return Boolean(
+              hub.decorateThread(thread).backgroundTasks?.some((task) => task.kind === 'monitor')
+            )
+          }
           // A thread still waiting on its own children isn't done; a stopped (paused) one is.
           function busy(thread: ThreadMeta): boolean {
             const runtime = state(thread.id)
@@ -1903,7 +1910,7 @@ export function createOrchestrator({
               agentBusy(thread) ||
               (!thread.awaitingParent &&
                 (thread.status === 'running' || thread.status === 'awaiting_approval')) ||
-              Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
+              watching(thread) ||
               Boolean(thread.pendingMessages?.length && !thread.queuePaused) ||
               (children.get(thread.id) ?? []).some(busy)
             )
@@ -1918,9 +1925,7 @@ export function createOrchestrator({
             )
               continue
             const working =
-              agentBusy(thread) ||
-              Boolean(hub.decorateThread(thread).backgroundTasks?.length) ||
-              (children.get(thread.id) ?? []).some(busy)
+              agentBusy(thread) || watching(thread) || (children.get(thread.id) ?? []).some(busy)
             const key = `${thread.updatedAt}:${thread.pendingMessages?.length ?? 0}:${working}`
             if (checked.get(thread.id) === key) continue
             checked.set(thread.id, key)
@@ -1929,6 +1934,9 @@ export function createOrchestrator({
               Effect.gen(function* () {
                 const result = yield* store.reportSettledChild(thread.id, {
                   working: working || agentBusy(thread),
+                  running: (hub.decorateThread(thread).backgroundTasks ?? []).flatMap((task) =>
+                    task.kind === 'command' ? [task.label] : []
+                  ),
                 })
                 if ('note' in result && result.note) yield* publish(thread.id, result.note)
                 if ('asked' in result)

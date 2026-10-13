@@ -54,6 +54,7 @@ import {
   childReport,
   classifierDenial,
   refusalNote,
+  backgroundNote,
   refusedCall,
   reportMessage,
   restartNote,
@@ -748,7 +749,14 @@ export function createStore() {
     // A question from ask_parent is reported in place of the turn's final message. It reaches the
     // parent however the turn started and even when the parent isn't notified, since it was asked,
     // and as soon as the turn ends: a report also waits for background work and busy children.
-    function reportSettledChild(threadId: string, { working = false, userTurnOnly = false } = {}) {
+    function reportSettledChild(
+      threadId: string,
+      {
+        working = false,
+        userTurnOnly = false,
+        running = [],
+      }: { working?: boolean; userTurnOnly?: boolean; running?: readonly string[] } = {}
+    ) {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.createdBy !== 'agent' || !thread.parentThreadId) return { delivered: false }
@@ -922,7 +930,7 @@ export function createStore() {
                     : '',
               messageId: final.at(-1)?.id,
             })
-        const text = [told, refused].filter(Boolean).join('\n\n')
+        const text = [told, refused, backgroundNote(running)].filter(Boolean).join('\n\n')
         const summary = {
           threadId,
           title: thread.title,

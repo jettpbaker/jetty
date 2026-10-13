@@ -183,12 +183,19 @@ export function classifierDenial(output: string) {
   return /no explanation/i.test(reason) ? 'it gave no reason' : reason.replace(/^\[(.*)\]$/, '$1')
 }
 
+function codeLine(text: string) {
+  const line = text.trim().split('\n')[0]!
+  return `\`${line.length > 120 ? `${line.slice(0, 120)}…` : line}\``
+}
+
 export function refusedCall(toolName: string, input: unknown) {
   const command =
     input && typeof input === 'object' ? (input as Record<string, unknown>).command : undefined
-  if (typeof command !== 'string') return toolName
-  const line = command.trim().split('\n')[0]!
-  return `\`${line.length > 120 ? `${line.slice(0, 120)}…` : line}\``
+  return typeof command === 'string' ? codeLine(command) : toolName
+}
+
+export function backgroundNote(labels: readonly string[]) {
+  return labels.length ? `Still running in the background: ${labels.map(codeLine).join(', ')}.` : ''
 }
 
 export function refusalNote(lines: readonly string[]) {
