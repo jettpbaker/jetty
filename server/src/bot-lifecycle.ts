@@ -8,6 +8,7 @@ export type BotLifecycle = {
   tidiedHead?: string
   tidyRetryAt?: number
   managedFilesRestored?: boolean
+  codexInstructionsHash?: string
 }
 
 function readTiming() {

@@ -399,6 +399,24 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           if (!threadId) return yield* Effect.fail(new AgentError('Codex returned no thread id'))
           session.providerThreadId = threadId
           yield* store.setProviderSessionId(session.input.threadId, 'codex', threadId)
+          if (bot) {
+            const record = yield* store.getBotLifecycle(session.input.threadId)
+            // Resume accepts developerInstructions but retains the original developer message.
+            if (resume && record.codexInstructionsHash !== bot.hash)
+              yield* connection.request('thread/inject_items', {
+                threadId,
+                items: [
+                  {
+                    type: 'message',
+                    role: 'developer',
+                    content: [{ type: 'input_text', text: bot.snapshot }],
+                  },
+                ],
+              })
+            yield* store.updateBotLifecycle(session.input.threadId, {
+              codexInstructionsHash: bot.hash,
+            })
+          }
           yield* session.emit({ type: 'turn.started', turnId: session.input.turnId })
           if (session.input.compact) {
             yield* connection.request('thread/compact/start', { threadId })
