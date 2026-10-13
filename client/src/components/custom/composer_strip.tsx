@@ -30,8 +30,8 @@ import type { Approval, Question, Source } from './composer_strip_model'
 import type { Todo } from './todo_model'
 
 import { DiffCounts } from './diff/file_card'
-import { DisabledTooltip } from './disabled_tooltip'
 import { loadDiffWorkerPool } from './diff_worker_pool'
+import { DisabledTooltip } from './disabled_tooltip'
 import { SourceLabel } from './source_label'
 
 export function Code({ children, className }: { children: ReactNode; className?: string }) {
@@ -446,15 +446,16 @@ export function useQuestion(
     update(text === undefined ? { questions } : { questions, text })
   }
 
-  function answerAt(index: number) {
-    if (!progress) return ''
-    const typed = (index === step ? draft : (progress.custom[index] ?? '')).trim()
-    const picks = progress.picks[index] ?? []
+  function answerAt(state: QuestionProgress, index: number) {
+    const typed = (state.custom[index] ?? '').trim()
+    const picks = state.picks[index] ?? []
     return item?.questions[index]?.multiSelect
       ? [...picks, typed].filter(Boolean).join(', ')
       : typed || picks.join(', ')
   }
-  const current = answerAt(step)
+  const current = progress
+    ? answerAt({ ...progress, custom: progress.custom.with(step, draft) }, step)
+    : ''
 
   function pick(label: string) {
     if (!progress || !spec) return
@@ -471,26 +472,41 @@ export function useQuestion(
     const custom = progress.custom.with(step, draft)
     save({ ...progress, step: to, custom }, custom[to] ?? '')
   }
-  function next() {
-    if (!item || !progress || !current) return
-    if (!last) {
-      go(step + 1)
-      return
-    }
-    const unanswered = item.questions.findIndex((_, index) => !answerAt(index))
-    if (unanswered !== -1) {
-      go(unanswered)
+  // Moves past this question, or once it's the last, sends what was answered. Skipped questions
+  // are left out of the answers; skipping them all dismisses the set.
+  function advance(state: QuestionProgress) {
+    if (!item) return
+    const open = item.questions.findIndex(
+      (_, index) => !answerAt(state, index) && !state.skipped?.[index]
+    )
+    const to = last ? open : step + 1
+    if (to !== -1) {
+      save({ ...state, step: to }, state.custom[to] ?? '')
       return
     }
     keepFocus()
     save(undefined, '')
-    answer(
-      item,
-      Object.fromEntries(
-        item.questions.map((question, index) => [question.question, answerAt(index)])
-      ),
-      { ...progress, custom: progress.custom.with(step, draft) }
+    const answers = Object.fromEntries(
+      item.questions.flatMap((question, index) => {
+        const value = answerAt(state, index)
+        return value ? [[question.question, value]] : []
+      })
     )
+    if (Object.keys(answers).length > 0) answer(item, answers, state)
+    else dismiss(item, state)
+  }
+  function next() {
+    if (!progress || !current) return
+    advance({ ...progress, custom: progress.custom.with(step, draft) })
+  }
+  function skip() {
+    if (!item || !progress) return
+    advance({
+      ...progress,
+      picks: progress.picks.with(step, []),
+      custom: progress.custom.with(step, ''),
+      skipped: (progress.skipped ?? item.questions.map(() => false)).with(step, true),
+    })
   }
   function onDismiss() {
     if (!item || !progress) return
@@ -528,6 +544,7 @@ export function useQuestion(
     pick,
     go,
     next,
+    skip,
     dismiss: onDismiss,
     onKey,
   }
@@ -578,6 +595,9 @@ export function QuestionStrip({
               onNext={() => ctl.go(ctl.step + 1)}
             />
           )}
+          <Button variant='ghost-text' size='xs' onClick={ctl.skip}>
+            Skip
+          </Button>
           <Button
             variant='ghost'
             size='icon-xs'

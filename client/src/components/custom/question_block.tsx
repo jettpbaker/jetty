@@ -17,7 +17,7 @@ export function QuestionBlock({ activity }: { activity: QuestionActivity }) {
             {item.questions.map((question) => (
               <div key={question.question}>
                 <dt className='text-foreground'>{question.question}</dt>
-                <dd>{item.answers?.[question.question] ?? state}</dd>
+                <dd>{item.answers ? (item.answers[question.question] ?? 'Skipped') : state}</dd>
               </div>
             ))}
           </dl>

@@ -21,6 +21,7 @@ const QuestionProgress = Schema.Struct({
   step: Schema.Number,
   picks: Schema.Array(Schema.Array(Schema.String)),
   custom: Schema.Array(Schema.String),
+  skipped: Schema.optional(Schema.Array(Schema.Boolean)),
 })
 export type QuestionProgress = typeof QuestionProgress.Type
 
