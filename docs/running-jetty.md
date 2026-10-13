@@ -8,7 +8,7 @@ and be opened from a browser.
 Jetty needs Bun (the version in `package.json` `engines`) and Git, plus:
 
 - `gh`, logged in (`gh auth login`), for pull requests. Jetty acts as that login.
-- The agent CLIs it should drive, logged in: Claude Code, and optionally Codex or Grok.
+- At least one supported agent CLI, logged in: Claude Code, Codex or Grok. Claude is optional.
 
 ```sh
 git clone https://github.com/jettpbaker/jetty.git ~/jetty
@@ -36,6 +36,12 @@ HOST=127.0.0.1 PORT=8787 JETTY_ALLOWED_ORIGINS=<url> bun run start
 
 Run it somewhere that outlives the shell, such as a detached `tmux` session. Logs go to stdout and
 stderr.
+
+With Codex only, check `codex login status` on the server host and start Jetty normally. In the
+browser, add a project and choose a Codex model in the composer. Settings → Connected accounts
+shows which providers are signed in; Settings → Intelligence chooses models for titles and PR
+guides. These jobs fall back to an available provider when Claude is absent. A thread keeps the
+provider it started on, so continuing an existing Claude thread requires signing in to Claude.
 
 ## Staying up
 

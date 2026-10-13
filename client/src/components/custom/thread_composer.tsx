@@ -600,7 +600,11 @@ export function ThreadComposer({
           unavailable ? (
             unavailable
           ) : needsModel ? (
-            'Choose a model first'
+            catalog.length ? (
+              'Choose a model first'
+            ) : (
+              'Connect a coding agent in Settings, then choose a model'
+            )
           ) : steers ? (
             <span className='flex flex-col gap-1'>
               <span className='flex items-center justify-between gap-3'>

@@ -535,6 +535,11 @@ export function ModelMenuItems({
             onValueChange={(key) => swapModel(String(key))}
           >
             {/* A model pick leaves the menu open, so Effort is one move away. */}
+            {models.length === 0 && (
+              <DropdownMenuItem disabled>
+                No models available. Check Connected accounts in Settings.
+              </DropdownMenuItem>
+            )}
             {models.map((item) => (
               <DropdownMenuRadioItem
                 key={modelKey(item)}

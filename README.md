@@ -30,13 +30,13 @@ append-then-broadcast path; an agent only emits normalized events and knows noth
 about sockets, sqlite, or sequence numbers. An echo agent implements the seam for
 free UI development and tests.
 
-The real agent is Claude Code, and the key division of labor: the CLI is a complete,
-self-sufficient agent that owns its own conversation — context, compaction, tools,
-transcripts under `~/.claude/projects/`. jetty feeds user input in, answers
-permission prompts, watches the message stream, and translates what it sees into
-jetty events. Our sqlite is a rendering ledger for humans, never fed back to Claude;
-each thread keeps one resume pointer (`agent_session_id`) naming the transcript
-Claude reloads.
+Claude Code, Codex and Grok each own their conversation history and tools. Jetty feeds
+user input in, answers permission prompts, watches the message stream, and translates
+what it sees into Jetty events. Our sqlite is a rendering ledger for humans; each
+thread keeps its provider's resume pointer. Claude is optional: model discovery
+lists signed-in providers, and new turns without an explicit provider use an
+available one. Titles and PR guides also use available providers, with their model
+choices in Settings → Intelligence.
 
 Claude processes are spawned on demand and kept warm: a turn spawns `query()` in
 streaming-input mode, messages sent while it works steer the active turn, and after
@@ -55,7 +55,7 @@ closure or server restart.
 Claude runs on your installed Claude Code, so its auto-updates (and new models) reach
 jetty without a dependency bump. `JETTY_CLAUDE_BIN` selects the executable (default
 `claude`, resolved on the server's `PATH`); if it doesn't resolve, jetty falls back to
-the Agent SDK's bundled CLI and logs a warning at startup.
+the Agent SDK's bundled CLI. An unsigned-in Claude account contributes no models.
 
 Stack: Bun + bun:sqlite, TypeScript, zod contracts in `shared/`, React 19 + Vite +
 TanStack Router, Tailwind + shadcn chat components, oxlint + oxfmt.
@@ -63,13 +63,14 @@ TanStack Router, Tailwind + shadcn chat components, oxlint + oxfmt.
 ## Codex backend (v2)
 
 Run `codex login status` on the server host to check the CLI's existing login,
-then start Jetty with `JETTY_AGENT=codex bun run dev:server`. Claude remains the
-implicit default; `JETTY_AGENT=echo` still needs no credentials. This is a backend
-integration only; the replacement frontend is not wired yet.
+then start Jetty normally and choose a Codex model in the composer. Claude does not
+need to be installed or logged in. `JETTY_AGENT=codex` sets the backend's preferred
+provider for turns without a provider choice; `JETTY_AGENT=echo` still needs no
+credentials.
 
 `JETTY_CODEX_BIN` selects a CLI executable (default `codex`). A turn runs the
 thread's model, or the first model Codex lists when the thread has none. Codex runs
-at standard speed.
+at standard speed unless Fast is selected for a model that supports it.
 Jetty does not read credentials, purchase credits, or fall back to an API key.
 
 Codex owns its tools and conversation history. Jetty stores a separate Codex
