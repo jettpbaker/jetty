@@ -172,8 +172,8 @@ export function createRpcHandlers(
       })
     }
 
-    function refreshInBackground(ref: { repo: string; number: number }) {
-      return pullRequests.refreshIfStale(ref).pipe(
+    function refreshInBackground(ref: { repo: string; number: number }, maxAge?: number) {
+      return pullRequests.refreshIfStale(ref, maxAge).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {
             yield* Effect.logWarning(cause)
@@ -597,7 +597,8 @@ export function createRpcHandlers(
             yield* pullRequests.watch(ref, client.id)
             const queue = yield* hub.subscribePullRequest(ref.repo, ref.number)
             const snapshot = yield* pullRequests.get(ref)
-            yield* refreshInBackground(ref)
+            // Opening one always asks GitHub whether it changed, which costs one small query.
+            yield* refreshInBackground(ref, 0)
             // Refreshes reach the client through the hub; the poll itself emits nothing.
             const periodic = Stream.tick('5 seconds').pipe(
               Stream.mapEffect(() => pullRequests.poll(ref).pipe(Effect.catch(() => Effect.void))),

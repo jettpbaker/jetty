@@ -106,6 +106,9 @@ function ownShellCommand(item: ThreadItem | undefined) {
 const GH_PR_CREATE = /(?:^|[;&|\n])\s*gh\s+pr\s+create(?:\s|$)/
 const GH_PR_VIEW = /(?:^|[;&|\n])\s*gh\s+pr\s+view(?:\s|$)/
 const GIT_PUSH = /(?:^|[;&|\n])\s*git\s+push(?:\s|$)/
+// A change to a pull request: a `gh pr` edit, comment or review, or a `gh api` write.
+const GH_PR_WRITE =
+  /(?:^|[;&|\n])\s*gh\s+(?:pr\s+(?:edit|ready|comment|review|close|reopen|merge)(?:\s|$)|api\s[^;&|\n]*(?:(?:-X|--method)[\s=]*['"]?(?:PATCH|POST|PUT|DELETE)\b|\bmutation\b))/
 
 // What a worker's approval would do, the way its card reads, plus the command it runs.
 function approvalNotice(item: Extract<ThreadItem, { kind: 'approval' }>) {
@@ -204,6 +207,7 @@ type OrchestratorOptions = {
     mode: 'transfer' | 'claim'
   ) => Effect.Effect<void, StoreError>
   onBranchPushed?: (threadId: string) => Effect.Effect<void, StoreError>
+  onPullRequestWritten?: (threadId: string, text: string) => Effect.Effect<void, StoreError>
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
   // The last discovered models, read without re-running discovery.
   knownModels?: () => readonly ProviderModel[]
@@ -219,6 +223,7 @@ export function createOrchestrator({
   attachments = null,
   onPullRequestOutput,
   onBranchPushed,
+  onPullRequestWritten,
   modelCatalog,
   knownModels,
 }: OrchestratorOptions) {
@@ -578,7 +583,10 @@ export function createOrchestrator({
         if (event.type === 'turn.started') live.turnId = event.turnId
         yield* onCommit
         yield* publish(threadId, appended)
-        if (event.type === 'item.completed' && (onPullRequestOutput || onBranchPushed)) {
+        if (
+          event.type === 'item.completed' &&
+          (onPullRequestOutput || onBranchPushed || onPullRequestWritten)
+        ) {
           const itemId = event.itemId
           const item = appended.state.items.find((candidate) => candidate.id === itemId)
           const command = ownShellCommand(item)
@@ -599,6 +607,11 @@ export function createOrchestrator({
             }
             if (onBranchPushed && item.status !== 'failed' && GIT_PUSH.test(command))
               yield* onBranchPushed(threadId).pipe(
+                Effect.catchCause((cause) => Effect.logWarning(cause)),
+                Effect.forkIn(scope)
+              )
+            if (onPullRequestWritten && item.status !== 'failed' && GH_PR_WRITE.test(command))
+              yield* onPullRequestWritten(threadId, item.output).pipe(
                 Effect.catchCause((cause) => Effect.logWarning(cause)),
                 Effect.forkIn(scope)
               )

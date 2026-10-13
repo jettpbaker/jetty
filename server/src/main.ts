@@ -572,6 +572,7 @@ function createServer(opts: ServerOptions = {}) {
         agent: registry,
         onPullRequestOutput: pullRequestLinks.linkFound,
         onBranchPushed: pullRequestLinks.linkPushed,
+        onPullRequestWritten: pullRequestLinks.refreshWritten,
         modelCatalog,
         knownModels: () => models ?? [],
         worktrees,

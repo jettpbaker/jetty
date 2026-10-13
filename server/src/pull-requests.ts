@@ -209,6 +209,23 @@ export function createPullRequestLinks(
       Effect.forEach(pullRequestUrls(text), (ref) => linkRef(threadId, ref, mode), {
         discard: true,
       }),
+    // An agent's own change to a pull request is read back at once, so a chip it shares next
+    // opens fresh: the pull requests its output names, else the thread's own.
+    refreshWritten(threadId: string, text: string) {
+      return Effect.gen(function* () {
+        const named = pullRequestUrls(text)
+        const refs = named.length ? named : ((yield* store.getThread(threadId))?.pullRequests ?? [])
+        yield* Effect.forEach(
+          refs,
+          ({ repo, number }) =>
+            pulls.refresh({ repo, number }).pipe(
+              Effect.catchCause((cause) => Effect.logWarning(cause)),
+              Effect.forkIn(scope)
+            ),
+          { discard: true }
+        )
+      })
+    },
     // The last thread to push a pull request's branch owns it. A push with no cached open
     // pull request on that branch is not a pull request, so it changes nothing.
     linkPushed(threadId: string) {
@@ -2126,6 +2143,8 @@ export function createPullRequests(store: Store, hub: Hub) {
       const snapshot = yield* get(ref)
       const interval = maxAge ?? snapshot.rateLimit?.cadenceMs ?? null
       if (pendingOperations.has(prKey(ref)) || interval === null || backingOff()) return snapshot
+      // A read already queued, such as one a background check found, comes first.
+      if (jobs.has(prKey(ref))) return yield* refresh(ref)
       if (snapshot.refreshedAt && Date.now() - snapshot.refreshedAt < interval) return snapshot
       if (detectable(snapshot, interval)) {
         yield* Effect.promise(() => detect(ref))
@@ -2295,7 +2314,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         const snapshot = yield* get(ref)
         if (!graph || !snapshot.data) continue
         if (changed(graph, snapshot.data)) {
-          void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
+          void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch', false)
           continue
         }
         const data = {
@@ -2369,7 +2388,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         }
         if (!snapshot.data || changed(graph, snapshot.data)) {
           reads.add(prKey(ref))
-          void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch')
+          void schedule(ref, watches.has(prKey(ref)) ? 'visible' : 'prefetch', false)
         } else if (
           graph.checkRollupState !== snapshot.data.checkRollupState ||
           graph.pull.mergeable !== snapshot.data.mergeable ||
