@@ -823,7 +823,13 @@ export function createClaudeAdapter(
                 botApproval(
                   toolName,
                   toolInput,
-                  options.suggestions ?? [],
+                  (options.suggestions ?? []).flatMap((suggestion) =>
+                    suggestion.type === 'addRules'
+                      ? suggestion.rules.flatMap((rule) =>
+                          rule.toolName === 'Bash' && rule.ruleContent ? [rule.ruleContent] : []
+                        )
+                      : []
+                  ),
                   session.places,
                   options.matchedAskRule?.toolName === 'Bash'
                     ? options.matchedAskRule.ruleContent

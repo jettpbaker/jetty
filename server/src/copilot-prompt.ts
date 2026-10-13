@@ -45,7 +45,16 @@ function copilotPrompt(
 ) {
   return Effect.scoped(
     Effect.gen(function* () {
-      let processOptions = options
+      let processOptions: StdioProcessOptions = {
+        ...options,
+        args: [
+          ...(options.args ?? COPILOT_ARGS),
+          '--available-tools=',
+          '--disable-builtin-mcps',
+          '--no-custom-instructions',
+        ],
+        env: { ...options.env, COPILOT_CUSTOM_INSTRUCTIONS_DIRS: '' },
+      }
       if (tools) {
         const cliHome = yield* Effect.acquireRelease(
           Effect.tryPromise(() => mkdtemp(join(tmpdir(), 'jetty-tidy-copilot-'))),

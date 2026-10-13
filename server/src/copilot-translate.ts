@@ -154,5 +154,10 @@ export function createCopilotTranslator(turnId: string) {
       ]
     return standard.translate(update)
   }
-  return { translate, finish: standard.finish, toolItemId: standard.toolItemId }
+  return {
+    translate,
+    finish: standard.finish,
+    toolItemId: standard.toolItemId,
+    toolInput: (id: string) => copilotToolInput(tools.get(id) ?? {}),
+  }
 }

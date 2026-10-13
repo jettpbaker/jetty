@@ -1,8 +1,7 @@
-import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { BotAllowRule } from '@jetty/shared/wire'
 
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, relative } from 'node:path'
+import { dirname, isAbsolute, relative, resolve } from 'node:path'
 
 // A folder a bot's rules name in words: its home, or a project by title.
 export type BotPlace = { path: string; name: string }
@@ -25,7 +24,13 @@ export function approvalCommand(toolName: string, input: unknown) {
   if (!input || typeof input !== 'object') return undefined
   if (['edit', 'multiedit', 'write', 'notebookedit', 'filechange'].includes(toolName.toLowerCase()))
     return undefined
-  const command = (input as Record<string, unknown>).command
+  const record = input as Record<string, unknown>
+  const actions = Array.isArray(record.commandActions) ? record.commandActions : []
+  const action =
+    actions.length === 1 && actions[0] && typeof actions[0] === 'object'
+      ? (actions[0] as Record<string, unknown>)
+      : undefined
+  const command = action?.command ?? record.command
   return Array.isArray(command)
     ? command.filter((part) => typeof part === 'string').join(' ')
     : typeof command === 'string'
@@ -94,11 +99,7 @@ function commandPrefix(command: string) {
   return words.join(' ')
 }
 
-function commandPrefixes(
-  command: string,
-  suggestions: readonly PermissionUpdate[],
-  matchedAskRule?: string
-) {
+function commandPrefixes(command: string, suggestions: readonly string[], matchedAskRule?: string) {
   const heads = commandHeads(command)
   const withoutCd = heads.filter((head) => !/^cd(?:\s|$)/.test(commandPrefix(head)))
   const substantive = withoutCd.filter(
@@ -115,17 +116,10 @@ function commandPrefixes(
   }
   const matched = matchedAskRule && matchingPrefix(matchedAskRule)
   if (matched) return [matched]
-  const suggested = suggestions.flatMap((suggestion) =>
-    suggestion.type === 'addRules'
-      ? suggestion.rules.flatMap((rule) => {
-          const prefix =
-            rule.toolName === 'Bash' && rule.ruleContent
-              ? matchingPrefix(rule.ruleContent)
-              : undefined
-          return prefix ? [prefix] : []
-        })
-      : []
-  )
+  const suggested = suggestions.flatMap((content) => {
+    const prefix = matchingPrefix(content)
+    return prefix ? [prefix] : []
+  })
   // No one segment of a compound command is reliably the one that needed approval, so the rule
   // names them all.
   return [...new Set(suggested.length ? suggested : candidates.map(commandPrefix))]
@@ -141,19 +135,22 @@ function listed(items: readonly string[]) {
 export function botApproval(
   toolName: string,
   input: Record<string, unknown>,
-  suggestions: readonly PermissionUpdate[],
+  suggestions: readonly string[],
   places: readonly BotPlace[],
   matchedAskRule?: string
 ) {
-  const description = text(input.description)
+  const description =
+    text(input.description) ?? (toolName === 'commandExecution' ? text(input.reason) : undefined)
   const command = text(approvalCommand(toolName, input))
-  if (toolName === 'Bash' && command) {
+  if (command) {
     const covered = listed(
       commandPrefixes(command, suggestions, matchedAskRule).map((prefix) => `\`${prefix}\``)
     )
+    const ruleCommand =
+      toolName === 'commandExecution' || input.kind === 'execute' ? `\`${command}\`` : covered
     return description
-      ? { title: description, rule: `${description} with ${covered}` }
-      : { title: `Run ${covered.replaceAll('`', '')}`, rule: `Run ${covered}` }
+      ? { title: description, rule: `${description} with ${ruleCommand}` }
+      : { title: `Run ${covered.replaceAll('`', '')}`, rule: `Run ${ruleCommand}` }
   }
   // Jetty asks before every new project, so a rule would never be used.
   if (toolName === 'mcp__jetty__add_project')
@@ -163,11 +160,36 @@ export function botApproval(
 }
 
 function actionOf(toolName: string, input: Record<string, unknown>, places: readonly BotPlace[]) {
-  const verb = fileVerbs[toolName]
+  const verb = toolName === 'fileChange' ? 'Change files in' : fileVerbs[toolName]
   if (verb) {
+    const changes = Array.isArray(input.changes) ? input.changes : []
+    const paths = changes.flatMap((change) =>
+      change && typeof change === 'object' && text(change.path) ? [text(change.path)!] : []
+    )
     const file = text(input.file_path) ?? text(input.notebook_path)
-    const folder = file ? dirname(file) : text(input.path)
+    if (paths.length)
+      return `${verb} ${listed([...new Set(paths.map((path) => placeOf(dirname(resolve(text(input.cwd) ?? places[0]?.path ?? '.', path)), places)))])}`
+    const folder = file ? dirname(file) : (text(input.path) ?? text(input.grantRoot))
     return `${verb} ${folder ? placeOf(folder, places) : (places[0]?.name ?? 'its home')}`
+  }
+  if (toolName === 'request_permissions') {
+    const permissions =
+      input.permissions && typeof input.permissions === 'object'
+        ? (input.permissions as Record<string, unknown>)
+        : {}
+    const fileSystem =
+      permissions.fileSystem && typeof permissions.fileSystem === 'object'
+        ? (permissions.fileSystem as Record<string, unknown>)
+        : {}
+    const grants = []
+    for (const [key, value] of Object.entries(fileSystem)) {
+      if (Array.isArray(value) && value.length)
+        grants.push(
+          `${key.toLowerCase().includes('write') ? 'write' : 'read'} access to ${listed(value.filter((path): path is string => typeof path === 'string').map((path) => placeOf(path, places)))}`
+        )
+    }
+    if (permissions.network) grants.push('network access')
+    return grants.length ? `Grant ${listed(grants)}` : 'Grant additional permissions'
   }
   if (toolName === 'WebFetch') {
     const url = URL.parse(text(input.url) ?? '')

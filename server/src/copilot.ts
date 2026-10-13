@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { prepareBotHome } from './bot-home'
+import type { BotRuleReviewer } from './bot-rule-review'
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
@@ -23,6 +24,11 @@ import {
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
 import { prepareBot } from './bot-preparation'
+import {
+  reviewBotApproval,
+  saveBotApprovalRule,
+  type BotApprovalRule,
+} from './bot-provider-approval'
 import { copilotConfig, setCopilotModel } from './copilot-models'
 import { COPILOT_ARGS, copilotError, openCopilotConnection } from './copilot-rpc'
 import {
@@ -45,6 +51,7 @@ import {
 export type CopilotOptions = StdioProcessOptions & {
   interruptGraceMs?: number
   ttlMs?: number
+  reviewBotApproval?: BotRuleReviewer
   mcp?: McpSessions
 }
 type Session = {
@@ -64,8 +71,12 @@ type Session = {
   reason: string | null
   stopped: boolean
   denied: boolean
+  cwd: string
   next?: { text: string; images?: AgentImage[] }
-  pending: Map<string, { id: RpcId; options: Record<string, unknown>[] }>
+  pending: Map<
+    string,
+    { id: RpcId; options: Record<string, unknown>[]; bot?: true; rule?: BotApprovalRule }
+  >
   publication: Semaphore.Semaphore
   config: Record<string, unknown>
   commands: Set<string>
@@ -123,6 +134,7 @@ function instructionsFolder(text: string, mcp?: { url: string; token: string }) 
 
 export function createCopilotAdapter(store: Store, options: CopilotOptions = {}) {
   return Effect.gen(function* () {
+    const adapterOptions = options
     const owner = yield* Effect.scope
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const sessions = new Map<string, Session>()
@@ -298,7 +310,10 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           return
         }
         const itemId = newId()
-        const input = copilotToolInput(tool)
+        const input = {
+          ...session.translator.toolInput(string(tool.toolCallId)),
+          ...copilotToolInput(tool),
+        }
         const changes = Array.isArray(input.changes)
           ? input.changes.map((change) => ({
               path: string(object(change).path),
@@ -308,7 +323,24 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           : approvalChanges(name, input)
         const toolCallId =
           string(tool.toolCallId) && session.translator.toolItemId(string(tool.toolCallId))
-        session.pending.set(itemId, { id, options })
+        const bot = yield* reviewBotApproval(
+          store,
+          session.input.threadId,
+          session.cwd,
+          name,
+          input,
+          adapterOptions.reviewBotApproval
+        )
+        if (bot?.covered) {
+          yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
+          return
+        }
+        session.pending.set(itemId, {
+          id,
+          options,
+          ...(bot ? { bot: true as const } : {}),
+          ...(bot?.rule ? { rule: { text: bot.rule, source: bot.title } } : {}),
+        })
         yield* session.emit({
           type: 'item.started',
           item: {
@@ -316,13 +348,14 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             turnId: session.input.turnId,
             createdAt: Date.now(),
             kind: 'approval',
-            title: string(tool.title) || 'Run tool',
+            title: bot?.title ?? (string(tool.title) || 'Run tool'),
             toolName: name,
             ...(toolCallId ? { toolCallId } : {}),
             input: changes.length ? approvalInputWithoutChanges(input) : input,
             suggestions: [],
             ...(changes.length ? { changes } : {}),
-            ...(options.some((o) => o.kind === 'allow_always' && string(o.optionId))
+            ...(bot?.rule ? { always: { scope: 'user' as const, patterns: [bot.rule] } } : {}),
+            ...(!bot && options.some((o) => o.kind === 'allow_always' && string(o.optionId))
               ? { always: { scope: 'session', patterns: [] } }
               : {}),
           },
@@ -592,6 +625,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           }
           const session: Session = {
             input,
+            cwd: input.cwd ?? project.path,
             bot,
             emit,
             translator: createCopilotTranslator(input.turnId),
@@ -651,6 +685,9 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           admission.withPermit
         )
       },
+      setBotAllowRules() {
+        return Effect.void
+      },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void) {
         return Effect.suspend(() => {
           const session = sessions.get(threadId)
@@ -698,6 +735,8 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                 const pending = session.pending.get(itemId)
                 if (!session.accepting || session.next || !pending || !session.connection)
                   return false
+                if (decision === 'always' && pending.rule)
+                  yield* saveBotApprovalRule(store, threadId, itemId, pending.rule)
                 yield* session.emit(
                   {
                     type: 'item.completed',
@@ -713,7 +752,10 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                 session.denied = decision === 'deny'
                 yield* session.connection.respond(
                   pending.id,
-                  acpPermissionOutcome(pending.options, decision)
+                  acpPermissionOutcome(
+                    pending.options,
+                    pending.bot && decision === 'always' ? 'allow' : decision
+                  )
                 )
                 yield* session.emit({
                   type: 'session.status',

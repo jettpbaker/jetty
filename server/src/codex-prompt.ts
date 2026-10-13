@@ -42,7 +42,7 @@ function codexPrompt(
       const connection = yield* openCodexConnection(cwd, options)
       const { account } = yield* connection.request('account/read', {})
       if (!account) return yield* Effect.fail(new Error('Codex is not signed in'))
-      const config = tools ? object((yield* connection.request('config/read', {})).config) : {}
+      const config = object((yield* connection.request('config/read', {})).config)
       const mcp = Object.fromEntries(
         Object.keys(object(config.mcp_servers)).map((name) => [
           `mcp_servers.${name}.enabled`,
@@ -67,8 +67,21 @@ function codexPrompt(
                 web_search: 'disabled',
               },
             }
-          : {}),
-        ...(tools ? {} : { baseInstructions: instructions }),
+          : {
+              config: {
+                ...mcp,
+                'features.shell_tool': false,
+                'features.unified_exec': false,
+                'features.multi_agent': false,
+                'features.apps': false,
+                'features.plugins': false,
+                'features.memories': false,
+                'tools.update_plan.enabled': false,
+                'tools.view_image': false,
+                web_search: 'disabled',
+              },
+              baseInstructions: instructions,
+            }),
       })
       const threadId = string(object(started.thread).id)
       yield* connection.request('turn/start', {
@@ -96,6 +109,12 @@ function codexPrompt(
         }
         if (message.params.threadId !== threadId) continue
         const item = object(message.params.item)
+        if (
+          !tools &&
+          message.method === 'item/started' &&
+          !['agentMessage', 'reasoning', 'userMessage'].includes(string(item.type))
+        )
+          return yield* Effect.fail(new Error('This prompt cannot use tools'))
         if (message.method === 'item/completed' && item.type === 'agentMessage')
           reply = string(item.text)
         if (message.method === 'turn/completed') {
