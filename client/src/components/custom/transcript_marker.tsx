@@ -256,18 +256,19 @@ function headline(entry: PullRequestActivity, activity: readonly PullRequestActi
 }
 
 // The glyph and the seam's title take the PR's state once it's settled, else the colour of its
-// worst news.
-function pullRequestSeamLook(activity: readonly PullRequestActivity[]) {
+// worst news on a draft's or an open PR's glyph.
+function pullRequestSeamLook(activity: readonly PullRequestActivity[], draft = false) {
   const types = new Set(activity.map((entry) => entry.type))
   if (types.has('merged'))
     return { icon: prPresentation.merged.icon, tone: prPresentation.merged.color }
   if (types.has('closed'))
     return { icon: prPresentation.closed.icon, tone: prPresentation.closed.color }
+  const icon = draft ? prPresentation.draft.icon : PullRequestIcon
   if (types.has('checks_failed') || types.has('changes_requested') || types.has('conflict'))
-    return { icon: PullRequestIcon, tone: 'text-status-error' }
+    return { icon, tone: 'text-status-error' }
   if (types.has('ready') || types.has('approved') || types.has('checks_passed'))
-    return { icon: PullRequestIcon, tone: 'text-pr-open' }
-  return { icon: PullRequestIcon }
+    return { icon, tone: 'text-pr-open' }
+  return { icon }
 }
 
 function news(entry: PullRequestActivity, activity: readonly PullRequestActivity[]) {
@@ -299,7 +300,7 @@ function news(entry: PullRequestActivity, activity: readonly PullRequestActivity
 
 function PullRequestTitle({ item, menu = false }: { item: PullRequestItem; menu?: boolean }) {
   const summary = usePullRequestSummary({ repo: item.repo, number: item.number })
-  const { icon: Icon, tone } = pullRequestSeamLook(item.activity)
+  const { icon: Icon, tone } = pullRequestSeamLook(item.activity, summary?.pull.draft)
   const title = summary ? shorten(summary.pull.title) : `#${item.number}`
   return menu ? (
     <span className='flex min-w-0 items-center gap-[3px] text-foreground'>
