@@ -8,7 +8,7 @@ and be opened from a browser.
 Jetty needs Bun (the version in `package.json` `engines`) and Git, plus:
 
 - `gh`, logged in (`gh auth login`), for pull requests. Jetty acts as that login.
-- At least one supported agent CLI, logged in: Claude Code, Codex or Grok. Claude is optional.
+- At least one supported agent CLI, logged in: Claude Code, Codex, GitHub Copilot or Grok. Claude is optional.
 
 ```sh
 git clone https://github.com/jettpbaker/jetty.git ~/jetty
