@@ -579,12 +579,13 @@ function createServer(opts: ServerOptions = {}) {
         return models ?? []
       })
     }
-    const modelPrompt = yield* createModelPrompt({ codex: opts.codex, grok: opts.grok })
+    const modelPrompt = yield* createModelPrompt({
+      codex: opts.codex,
+      copilot: opts.copilot,
+      grok: opts.grok,
+    })
     const titlePrompt = yield* createTitlePrompt({
       prompt: modelPrompt,
-      codex: opts.codex,
-      grok: opts.grok,
-      copilot: opts.copilot,
       catalog: modelCatalog,
       choice: () => store.getJobModel('title').pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })

@@ -46,6 +46,7 @@ export function createModelPrompt(options: {
 
 export function createTitlePrompt(options: {
   codex?: StdioProcessOptions
+  copilot?: StdioProcessOptions
   grok?: StdioProcessOptions
   prompt?: ModelPrompt
   catalog: () => Effect.Effect<readonly ProviderModel[]>
