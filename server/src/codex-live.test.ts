@@ -30,8 +30,8 @@ test.skipIf(process.env.JETTY_CODEX_LIVE_TEST !== '1')(
       const first = await client.request('turn.start', {
         threadId,
         text: 'Read marker.txt using a shell tool. Reply with only its exact contents. Do not write files or use network tools.',
-        model: process.env.JETTY_CODEX_MODEL ?? 'gpt-6-astra',
-        effort: 'medium',
+        model: process.env.JETTY_CODEX_MODEL ?? 'gpt-6.1-sol',
+        effort: 'low',
         permissionMode: 'auto',
       })
       const terminal = await subscription.waitFor(
@@ -67,8 +67,8 @@ test.skipIf(process.env.JETTY_CODEX_LIVE_TEST !== '1')(
       await client.request('turn.start', {
         threadId,
         text: 'Without calling tools, repeat the exact marker from your previous reply.',
-        model: process.env.JETTY_CODEX_MODEL ?? 'gpt-6-astra',
-        effort: 'medium',
+        model: process.env.JETTY_CODEX_MODEL ?? 'gpt-6.1-sol',
+        effort: 'low',
         permissionMode: 'auto',
       })
       const second = await resumedSubscription.waitFor(
