@@ -646,7 +646,13 @@ export function SlashMirror({ slash, className }: { slash: Slash; className?: st
         >
           <span className='whitespace-nowrap'>
             {mark.bot ? (
-              <JettyBot shape={mark.bot.shape} color={mark.bot.color} size={14} />
+              <JettyBot
+                shape={mark.bot.shape}
+                color={mark.bot.color}
+                size={14}
+                // The face sizes itself inline; the textarea holds room for a 0.9em glyph.
+                style={{ width: '0.9em', height: '0.9em' }}
+              />
             ) : (
               <ScriptAiIcon />
             )}
