@@ -175,6 +175,37 @@ test('question responses map question text to provider ids; unknown requests fai
   ).toMatchObject({ error: { code: -32601 } })
 })
 
+for (const decision of ['allow', 'always', 'deny'] as const)
+  test(`permission grant ${decision} answers with the requested subset and scope`, async () => {
+    const f = await setup()
+    const turn = await f.start('permissions')
+    await until(f.events, (e) => e.type === 'session.status' && e.status === 'awaiting_approval')
+    const approval = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'approval')!
+    if (approval.type !== 'item.started') throw new Error('Missing approval')
+    await Effect.runPromise(f.agent.respondToApproval(f.threadId, approval.item.id, decision))
+    await Effect.runPromise(turn.await)
+    expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
+      result: {
+        permissions: decision === 'deny' ? {} : { network: { enabled: true } },
+        scope: decision === 'always' ? 'session' : 'turn',
+      },
+    })
+  })
+
+test('provider-resolved approvals are withdrawn without a turn id and cannot be answered', async () => {
+  const f = await setup()
+  const turn = await f.start('resolved')
+  await until(f.events, (e) => e.type === 'item.completed' && e.patch?.withdrawn === true)
+  const approval = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'approval')!
+  if (approval.type !== 'item.started') throw new Error('Missing approval')
+  expect(
+    await Effect.runPromise(f.agent.respondToApproval(f.threadId, approval.item.id, 'allow'))
+  ).toBe(false)
+  expect(f.events.at(-1)).toMatchObject({ type: 'session.status', status: 'running' })
+  await Effect.runPromise(f.agent.interrupt(f.threadId))
+  await Effect.runPromise(Effect.exit(turn.await))
+})
+
 test('steering commits user input after provider acceptance and rejects after completion', async () => {
   const f = await setup()
   const turn = await f.start('hold')

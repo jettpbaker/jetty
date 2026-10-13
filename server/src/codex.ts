@@ -39,7 +39,12 @@ import {
 import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 
 export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
-type Pending = { id: RpcId; questions?: { id: string; question: string }[]; mcpTool?: true }
+type Pending = {
+  id: RpcId
+  questions?: { id: string; question: string }[]
+  mcpTool?: true
+  permissions?: Record<string, unknown>
+}
 type Session = {
   input: TurnInput
   emit: Emit
@@ -123,7 +128,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
         if (id === undefined) return
         if (
           params.threadId !== session.providerThreadId ||
-          params.turnId !== session.providerTurnId
+          (params.turnId !== session.providerTurnId &&
+            !(method === 'mcpServer/elicitation/request' && params.turnId == null))
         ) {
           yield* connection.reject(id, 'Request does not belong to the active Jetty turn')
           return
@@ -160,6 +166,26 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               input: params,
               suggestions: [],
               ...(changes.length ? { changes } : {}),
+              always: { scope: 'session', patterns: [] },
+            },
+          })
+        } else if (method === 'item/permissions/requestApproval') {
+          const permissions = Object.fromEntries(
+            Object.entries(object(params.permissions)).filter(
+              ([key, value]) => (key === 'network' || key === 'fileSystem') && value != null
+            )
+          )
+          session.pending.set(itemId, { id, permissions })
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'approval',
+              title: string(params.reason) || 'Grant additional permissions',
+              toolName: 'request_permissions',
+              toolCallId: session.translator.toolItemId(string(params.itemId)),
+              input: params,
+              suggestions: [],
               always: { scope: 'session', patterns: [] },
             },
           })
@@ -253,10 +279,9 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   ]),
                 ]
               : []),
-            // Off by default; a child asks its parent through ask_parent even if the user enabled it.
-            ...(session.input.parentThreadId
-              ? ['-c', 'features.default_mode_request_user_input=false']
-              : []),
+            // Children ask their parent through ask_parent.
+            '-c',
+            `features.default_mode_request_user_input=${!session.input.parentThreadId}`,
           ]
           const connection = yield* openCodexConnection(cwd, {
             ...options,
@@ -328,6 +353,25 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   return null
                 }
                 if (message.params.threadId !== threadId) return null
+                if (message.method === 'serverRequest/resolved') {
+                  for (const [itemId, pending] of session.pending) {
+                    if (pending.id !== message.params.requestId) continue
+                    yield* session.emit({
+                      type: 'item.completed',
+                      itemId,
+                      patch: pending.questions ? { skipped: true } : { withdrawn: true },
+                    })
+                    session.pending.delete(itemId)
+                  }
+                  yield* session.emit({
+                    type: 'session.status',
+                    status:
+                      session.pending.size || session.asyncQuestions.size
+                        ? 'awaiting_approval'
+                        : 'running',
+                  })
+                  return null
+                }
                 if (session.input.compact && message.method === 'turn/started')
                   session.providerTurnId = string(object(message.params.turn).id)
                 const eventTurn = message.params.turnId ?? object(message.params.turn).id
@@ -359,15 +403,19 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 }
                 const raw = object(message.params.item)
                 if (
-                  (message.method === 'item/started' || message.method === 'item/completed') &&
-                  raw.type === 'fileChange'
+                  ((message.method === 'item/started' || message.method === 'item/completed') &&
+                    raw.type === 'fileChange') ||
+                  message.method === 'item/fileChange/patchUpdated'
                 ) {
-                  const changes = approvalChanges('fileChange', raw)
-                  const providerItemId = string(raw.id)
+                  const changes = approvalChanges(
+                    'fileChange',
+                    message.method === 'item/fileChange/patchUpdated' ? message.params : raw
+                  )
+                  const providerItemId = string(raw.id) || string(message.params.itemId)
                   if (message.method === 'item/completed')
                     session.fileChanges.delete(providerItemId)
                   if (changes.length && session.input.permissionMode !== 'full_access') {
-                    if (message.method === 'item/started')
+                    if (message.method !== 'item/completed')
                       session.fileChanges.set(providerItemId, changes)
                     const approvalId = session.fileChangeApprovals.get(providerItemId)
                     if (approvalId) {
@@ -567,18 +615,23 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           (pending) =>
             pending.questions
               ? undefined
-              : pending.mcpTool
-                ? decision === 'deny'
-                  ? { action: 'decline', content: null }
-                  : { action: 'accept', content: {} }
-                : {
-                    decision:
-                      decision === 'always'
-                        ? 'acceptForSession'
-                        : decision === 'allow'
-                          ? 'accept'
-                          : 'decline',
-                  },
+              : pending.permissions
+                ? {
+                    permissions: decision === 'deny' ? {} : pending.permissions,
+                    scope: decision === 'always' ? 'session' : 'turn',
+                  }
+                : pending.mcpTool
+                  ? decision === 'deny'
+                    ? { action: 'decline', content: null }
+                    : { action: 'accept', content: {} }
+                  : {
+                      decision:
+                        decision === 'always'
+                          ? 'acceptForSession'
+                          : decision === 'allow'
+                            ? 'accept'
+                            : 'decline',
+                    },
           {
             decision,
             ...(message ? { deniedReason: message } : {}),

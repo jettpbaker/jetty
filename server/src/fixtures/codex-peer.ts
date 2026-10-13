@@ -54,14 +54,18 @@ for await (const line of createInterface({ input: process.stdin })) {
     if (scenario === 'crash') process.exit(7)
     else if (scenario === 'malformed') process.stdout.write('{broken\n')
     else if (scenario === 'failure') complete('failed')
-    else if (scenario === 'approval' || scenario === 'question' || scenario === 'unsupported') {
+    else if (
+      ['approval', 'question', 'unsupported', 'permissions', 'resolved'].includes(scenario)
+    ) {
       pending = scenario
       const method =
-        scenario === 'approval'
+        scenario === 'approval' || scenario === 'resolved'
           ? 'item/commandExecution/requestApproval'
           : scenario === 'question'
             ? 'item/tool/requestUserInput'
-            : 'item/permissions/requestApproval'
+            : scenario === 'permissions'
+              ? 'item/permissions/requestApproval'
+              : 'item/tool/call'
       send({
         id: 'approval-1',
         method,
@@ -70,6 +74,7 @@ for await (const line of createInterface({ input: process.stdin })) {
           turnId,
           itemId: 'tool',
           command: 'echo test',
+          permissions: { network: { enabled: true }, fileSystem: null },
           questions: [
             {
               id: 'choice',
@@ -81,6 +86,12 @@ for await (const line of createInterface({ input: process.stdin })) {
           ],
         },
       })
+      if (scenario === 'resolved') {
+        setTimeout(
+          () => notify('serverRequest/resolved', { turnId: undefined, requestId: 'approval-1' }),
+          20
+        )
+      }
     } else if (scenario === 'hold' || scenario === 'ignore-interrupt') {
       notify('item/started', { item: { id: 'waiting', type: 'agentMessage', text: '' } })
     } else {
