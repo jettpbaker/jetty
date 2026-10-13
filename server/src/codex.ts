@@ -453,6 +453,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                       ? ({
                           type: 'turn.completed',
                           turnId: session.input.turnId,
+                          ...(translator.usage() ? { usage: translator.usage() } : {}),
                         } satisfies ThreadEvent)
                       : ({
                           type: 'turn.failed',

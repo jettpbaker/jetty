@@ -1,4 +1,4 @@
-import type { ThreadEvent } from '@jetty/shared/events'
+import type { ThreadEvent, Usage } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
@@ -11,6 +11,8 @@ export function createCodexTranslator(turnId: string) {
   const items = new Map<string, ThreadItem>()
   const completed = new Set<string>()
   const reasoning = new Map<string, { summary: string[]; content: string[] }>()
+  let usageBaseline: Usage | undefined
+  let usage: Usage | undefined
   // ids handed out for items Codex hasn't started yet (an approval comes before its command)
   const reserved = new Map<string, string>()
 
@@ -170,6 +172,22 @@ export function createCodexTranslator(turnId: string) {
     } else if (method === 'thread/tokenUsage/updated') {
       const tokenUsage = object(params.tokenUsage)
       const last = object(tokenUsage.last)
+      const total = object(tokenUsage.total)
+      if (
+        typeof last.inputTokens === 'number' &&
+        typeof last.outputTokens === 'number' &&
+        typeof total.inputTokens === 'number' &&
+        typeof total.outputTokens === 'number'
+      ) {
+        usageBaseline ??= {
+          inputTokens: natural(total.inputTokens - last.inputTokens),
+          outputTokens: natural(total.outputTokens - last.outputTokens),
+        }
+        usage = {
+          inputTokens: natural(total.inputTokens - usageBaseline.inputTokens),
+          outputTokens: natural(total.outputTokens - usageBaseline.outputTokens),
+        }
+      }
       const maxTokens = natural(tokenUsage.modelContextWindow)
       if (maxTokens > 0)
         events.push({
@@ -205,7 +223,7 @@ export function createCodexTranslator(turnId: string) {
     return id
   }
 
-  return { translate, finish, toolItemId }
+  return { translate, finish, toolItemId, usage: () => usage }
 }
 
 function toolName(raw: Record<string, unknown>): string {

@@ -440,6 +440,22 @@ test('translation handles completed-only items and authoritative final text with
     params: { item: { id: 'stopped', type: 'commandExecution', command: 'sleep 30' } },
   })
   expect(t.finish(true)).toEqual([{ type: 'item.completed', itemId: expect.any(String) }])
+  for (const [inputTokens, outputTokens, lastInput, lastOutput] of [
+    [1100, 110, 100, 10],
+    [1300, 130, 200, 20],
+    [1300, 130, 200, 20],
+  ]) {
+    t.translate({
+      method: 'thread/tokenUsage/updated',
+      params: {
+        tokenUsage: {
+          total: { inputTokens, outputTokens },
+          last: { inputTokens: lastInput, outputTokens: lastOutput },
+        },
+      },
+    })
+  }
+  expect(t.usage()).toEqual({ inputTokens: 300, outputTokens: 30 })
 })
 
 for (const permissionMode of ['auto', 'full_access'] as const)
