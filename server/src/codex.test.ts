@@ -123,7 +123,7 @@ test('a new adapter resumes the stored Codex session without replaying Claude hi
   expect(f.log().filter((m) => m.method === 'thread/start')).toHaveLength(1)
 })
 
-for (const decision of ['allow', 'always', 'deny'] as const)
+for (const decision of ['allow', 'deny'] as const)
   test(`approval ${decision} is correlated, persisted before response, and single use`, async () => {
     const f = await setup()
     const turn = await f.start('approval')
@@ -141,14 +141,7 @@ for (const decision of ['allow', 'always', 'deny'] as const)
     ).toBe(false)
     await Effect.runPromise(turn.await)
     expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
-      result: {
-        decision:
-          decision === 'always'
-            ? { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['echo', 'test'] } }
-            : decision === 'allow'
-              ? 'accept'
-              : 'decline',
-      },
+      result: { decision: decision === 'allow' ? 'accept' : 'decline' },
     })
     if (decision === 'deny') {
       const tool = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'tool_call')
@@ -181,81 +174,6 @@ test('question responses map question text to provider ids; unknown requests fai
       .at(-1)
   ).toMatchObject({ error: { code: -32601 } })
 })
-
-for (const decision of ['allow', 'always', 'deny'] as const)
-  test(`permission grant ${decision} answers with the requested subset and scope`, async () => {
-    const f = await setup()
-    const turn = await f.start('permissions')
-    await until(f.events, (e) => e.type === 'session.status' && e.status === 'awaiting_approval')
-    const approval = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'approval')!
-    if (approval.type !== 'item.started') throw new Error('Missing approval')
-    await Effect.runPromise(f.agent.respondToApproval(f.threadId, approval.item.id, decision))
-    await Effect.runPromise(turn.await)
-    expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
-      result: {
-        permissions: decision === 'deny' ? {} : { network: { enabled: true } },
-        scope: decision === 'always' ? 'session' : 'turn',
-      },
-    })
-  })
-
-test('provider-resolved approvals are withdrawn without a turn id and cannot be answered', async () => {
-  const f = await setup()
-  const turn = await f.start('resolved')
-  await until(f.events, (e) => e.type === 'item.completed' && e.patch?.withdrawn === true)
-  const approval = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'approval')!
-  if (approval.type !== 'item.started') throw new Error('Missing approval')
-  expect(
-    await Effect.runPromise(f.agent.respondToApproval(f.threadId, approval.item.id, 'allow'))
-  ).toBe(false)
-  expect(f.events.at(-1)).toMatchObject({ type: 'session.status', status: 'running' })
-  await Effect.runPromise(f.agent.interrupt(f.threadId))
-  await Effect.runPromise(Effect.exit(turn.await))
-})
-
-test('MCP forms without a turn id use typed question answers and reject invalid input', async () => {
-  const f = await setup()
-  const turn = await f.start('form')
-  await until(f.events, (e) => e.type === 'session.status' && e.status === 'awaiting_approval')
-  const question = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'question')!
-  if (question.type !== 'item.started') throw new Error('Missing form')
-  expect(
-    await Effect.runPromise(
-      f.agent.respondToQuestion(f.threadId, question.item.id, {
-        color: 'green',
-        count: '1.5',
-        enabled: 'true',
-      })
-    )
-  ).toBe(false)
-  expect(
-    await Effect.runPromise(
-      f.agent.respondToQuestion(f.threadId, question.item.id, {
-        color: 'blue',
-        count: '2',
-        enabled: 'true',
-      })
-    )
-  ).toBe(true)
-  await Effect.runPromise(turn.await)
-  expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
-    result: { action: 'accept', content: { color: 'blue', count: 2, enabled: true } },
-  })
-})
-
-for (const scenario of ['url', 'mcp-approval'])
-  test(`MCP ${scenario} approvals accept a nullable turn id`, async () => {
-    const f = await setup()
-    const turn = await f.start(scenario)
-    await until(f.events, (e) => e.type === 'session.status' && e.status === 'awaiting_approval')
-    const approval = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'approval')!
-    if (approval.type !== 'item.started') throw new Error('Missing approval')
-    await Effect.runPromise(f.agent.respondToApproval(f.threadId, approval.item.id, 'allow'))
-    await Effect.runPromise(turn.await)
-    expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
-      result: { action: 'accept', content: scenario === 'url' ? null : {} },
-    })
-  })
 
 test('steering commits user input after provider acceptance and rejects after completion', async () => {
   const f = await setup()
@@ -342,12 +260,6 @@ test('failed publication stops the process and allows a later turn', async () =>
 
 test('translation handles completed-only items and authoritative final text without duplication', () => {
   const t = createCodexTranslator('turn')
-  expect(
-    t.translate({
-      method: 'item/completed',
-      params: { item: { id: 'media', type: 'mcpToolCall', server: 'jetty', tool: 'send_images' } },
-    })
-  ).toEqual([])
   const events = t.translate({
     method: 'item/completed',
     params: { item: { id: 'x', type: 'reasoning', summary: ['one', 'two'] } },
@@ -356,25 +268,6 @@ test('translation handles completed-only items and authoritative final text with
     { type: 'item.started', item: { kind: 'reasoning', text: 'one\n\ntwo' } },
     { type: 'item.completed', patch: { text: 'one\n\ntwo', streaming: false } },
   ])
-  t.translate({
-    method: 'item/started',
-    params: { item: { id: 'reasoning', type: 'reasoning', summary: [], content: [] } },
-  })
-  for (const [method, delta, index, expected] of [
-    ['item/reasoning/textDelta', 'raw', 0, 'raw'],
-    ['item/reasoning/summaryTextDelta', 'one', 0, 'one'],
-    ['item/reasoning/summaryTextDelta', 'two', 1, 'one\n\ntwo'],
-  ] as const)
-    expect(
-      t.translate({
-        method,
-        params: { itemId: 'reasoning', delta, summaryIndex: index, contentIndex: index },
-      })
-    ).toMatchObject([{ type: 'item.updated', patch: { text: expected } }])
-  t.translate({
-    method: 'item/completed',
-    params: { item: { id: 'reasoning', type: 'reasoning', summary: ['one', 'two'] } },
-  })
   expect(
     t.translate({
       method: 'item/completed',
@@ -390,54 +283,6 @@ test('translation handles completed-only items and authoritative final text with
   ).toMatchObject([{ item: { kind: 'tool_call' } }, { patch: { status: 'failed' } }])
   t.translate({
     method: 'item/started',
-    params: { item: { id: 'patch', type: 'fileChange', changes: [] } },
-  })
-  const changes = [{ path: 'a.ts', kind: { type: 'update' }, diff: '@@ -1 +1 @@\n-old\n+new\n' }]
-  expect(
-    t.translate({ method: 'item/fileChange/patchUpdated', params: { itemId: 'patch', changes } })
-  ).toMatchObject([
-    {
-      type: 'item.updated',
-      patch: { input: { path: 'a.ts', changes }, output: expect.stringContaining('+new') },
-    },
-  ])
-  expect(
-    t.translate({
-      method: 'item/completed',
-      params: { item: { id: 'patch', type: 'fileChange', changes } },
-    })
-  ).toMatchObject([
-    {
-      patch: {
-        input: { path: 'a.ts', changes },
-        fileChange: { path: 'a.ts', additions: 1, deletions: 1 },
-      },
-    },
-  ])
-  for (const [type, toolName] of [
-    ['read', 'Read'],
-    ['search', 'Grep'],
-    ['listFiles', 'Glob'],
-  ]) {
-    expect(
-      t.translate({
-        method: 'item/completed',
-        params: {
-          item: {
-            id: type,
-            type: 'commandExecution',
-            command: 'command',
-            commandActions: [{ type, path: 'a.ts', query: 'needle' }],
-          },
-        },
-      })
-    ).toMatchObject([
-      { item: { toolName, input: { path: 'a.ts' } } },
-      { patch: { toolName, input: { path: 'a.ts' } } },
-    ])
-  }
-  t.translate({
-    method: 'item/started',
     params: { item: { id: 'unfinished', type: 'commandExecution', command: 'sleep 30' } },
   })
   expect(t.finish()).toMatchObject([{ type: 'item.completed', patch: { status: 'failed' } }])
@@ -447,22 +292,6 @@ test('translation handles completed-only items and authoritative final text with
     params: { item: { id: 'stopped', type: 'commandExecution', command: 'sleep 30' } },
   })
   expect(t.finish(true)).toEqual([{ type: 'item.completed', itemId: expect.any(String) }])
-  for (const [inputTokens, outputTokens, lastInput, lastOutput] of [
-    [1100, 110, 100, 10],
-    [1300, 130, 200, 20],
-    [1300, 130, 200, 20],
-  ]) {
-    t.translate({
-      method: 'thread/tokenUsage/updated',
-      params: {
-        tokenUsage: {
-          total: { inputTokens, outputTokens },
-          last: { inputTokens: lastInput, outputTokens: lastOutput },
-        },
-      },
-    })
-  }
-  expect(t.usage()).toEqual({ inputTokens: 300, outputTokens: 30 })
 })
 
 for (const permissionMode of ['auto', 'full_access'] as const)

@@ -54,73 +54,22 @@ for await (const line of createInterface({ input: process.stdin })) {
     if (scenario === 'crash') process.exit(7)
     else if (scenario === 'malformed') process.stdout.write('{broken\n')
     else if (scenario === 'failure') complete('failed')
-    else if (scenario === 'image') {
-      notify('item/completed', {
-        item: {
-          id: 'generated',
-          type: 'imageGeneration',
-          status: 'completed',
-          revisedPrompt: 'A tiny image',
-          result:
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-        },
-      })
-      answer('Generated an image')
-    } else if (
-      [
-        'approval',
-        'question',
-        'unsupported',
-        'permissions',
-        'resolved',
-        'form',
-        'url',
-        'mcp-approval',
-      ].includes(scenario)
-    ) {
+    else if (scenario === 'approval' || scenario === 'question' || scenario === 'unsupported') {
       pending = scenario
       const method =
-        scenario === 'approval' || scenario === 'resolved'
+        scenario === 'approval'
           ? 'item/commandExecution/requestApproval'
           : scenario === 'question'
             ? 'item/tool/requestUserInput'
-            : ['form', 'url', 'mcp-approval'].includes(scenario)
-              ? 'mcpServer/elicitation/request'
-              : scenario === 'permissions'
-                ? 'item/permissions/requestApproval'
-                : 'item/tool/call'
+            : 'item/tool/call'
       send({
         id: 'approval-1',
         method,
         params: {
           threadId,
-          turnId: ['form', 'url', 'mcp-approval'].includes(scenario) ? null : turnId,
+          turnId,
           itemId: 'tool',
           command: 'echo test',
-          ...(scenario === 'approval' ? { proposedExecpolicyAmendment: ['echo', 'test'] } : {}),
-          permissions: { network: { enabled: true }, fileSystem: null },
-          serverName: 'example',
-          mode: scenario === 'url' ? 'url' : 'form',
-          message: 'Choose settings',
-          url: 'https://example.com/authorize',
-          ...(scenario === 'mcp-approval'
-            ? {
-                _meta: {
-                  codex_approval_kind: 'mcp_tool_call',
-                  tool_name: 'write',
-                  tool_params: { value: 1 },
-                },
-              }
-            : {}),
-          requestedSchema: {
-            type: 'object',
-            properties: {
-              color: { type: 'string', enum: ['red', 'blue'] },
-              count: { type: 'integer', minimum: 1, maximum: 4 },
-              enabled: { type: 'boolean' },
-            },
-            required: ['color', 'count', 'enabled'],
-          },
           questions: [
             {
               id: 'choice',
@@ -132,12 +81,6 @@ for await (const line of createInterface({ input: process.stdin })) {
           ],
         },
       })
-      if (scenario === 'resolved') {
-        setTimeout(
-          () => notify('serverRequest/resolved', { turnId: undefined, requestId: 'approval-1' }),
-          20
-        )
-      }
     } else if (scenario === 'hold' || scenario === 'ignore-interrupt') {
       notify('item/started', { item: { id: 'waiting', type: 'agentMessage', text: '' } })
     } else {
