@@ -67,43 +67,46 @@ function MarkerMenuEntry({ marker }: { marker: Marker }) {
 
 function MarkerRun({ markers, metas }: { markers: Marker[]; metas: readonly ThreadMeta[] }) {
   const first = markers[0]!
-  const sameThread = markers.every((marker) => marker.threadId === first.threadId)
-  if (first.action === 'messaged' && sameThread && markers.length > 1)
+  const verb = first.action === 'started' ? 'Started' : 'Messaged'
+  const threads = markers.filter(
+    (marker, index) => markers.findIndex((entry) => entry.threadId === marker.threadId) === index
+  )
+  if (threads.length === 1 && markers.length > 1)
     return (
       <span className='inline-flex items-center gap-[5px]'>
         <span className='text-foreground'>{markers.length}</span> messages to{' '}
         <MarkerLink marker={first} />
       </span>
     )
-  if (first.action === 'started' && markers.length === 2)
+  if (threads.length === 2)
     return (
       <span className='inline-flex items-center gap-[5px]'>
-        Started <MarkerLink marker={first} /> and <MarkerLink marker={markers[1]!} />
+        {verb} <MarkerLink marker={first} /> and <MarkerLink marker={threads[1]!} />
       </span>
     )
-  if (first.action === 'started' && markers.length >= 3)
+  if (threads.length >= 3)
     return (
       <span className='inline-flex items-center gap-[5px]'>
-        Started{' '}
+        {verb}{' '}
         <Popover>
           <PopoverTrigger className='rounded-sm text-foreground hover:underline'>
-            {markers.length} threads
+            {threads.length} threads
           </PopoverTrigger>
           <PopoverContent className='w-75 gap-0 rounded-sm p-1'>
-            <PopoverTitle className='sr-only'>Started threads</PopoverTitle>
-            {markers.map((marker) => (
+            <PopoverTitle className='sr-only'>{verb} threads</PopoverTitle>
+            {threads.map((marker) => (
               <MarkerMenuEntry key={marker.id} marker={marker} />
             ))}
           </PopoverContent>
         </Popover>
         <span className='inline-flex items-center gap-[7px] pl-0.5'>
-          <MarkerTallies markers={markers} metas={metas} />
+          <MarkerTallies markers={threads} metas={metas} />
         </span>
       </span>
     )
   return (
     <span className='inline-flex items-center gap-[5px]'>
-      {first.action === 'started' ? 'Started' : 'Messaged'} <MarkerLink marker={first} />
+      {verb} <MarkerLink marker={first} />
     </span>
   )
 }
@@ -136,11 +139,7 @@ export function ThreadMarkers({ botId, markers }: { botId: string; markers: Mark
   const groups: Marker[][] = []
   for (const marker of markers) {
     const previous = groups.at(-1)
-    if (
-      previous?.[0]?.action === marker.action &&
-      (marker.action === 'started' || previous[0].threadId === marker.threadId)
-    )
-      previous.push(marker)
+    if (previous?.[0]?.action === marker.action) previous.push(marker)
     else groups.push([marker])
   }
   return (
