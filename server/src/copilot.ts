@@ -72,6 +72,8 @@ type Session = {
   stopped: boolean
   denied: boolean
   cwd: string
+  steerUnread: boolean
+  steerFolding: boolean
   next?: { text: string; images?: AgentImage[] }
   pending: Map<
     string,
@@ -269,6 +271,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           sessionId: session.providerThreadId,
           prompt: blocks,
         })
+        session.steerFolding = session.steerUnread
       })
     }
 
@@ -482,6 +485,16 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                 if (message.method === 'session/update' && message.params.sessionId === sessionId) {
                   const update = object(message.params.update)
                   updateConfig(session, update)
+                  if (
+                    session.steerFolding &&
+                    !session.next &&
+                    ['agent_message_chunk', 'agent_thought_chunk', 'tool_call'].includes(
+                      string(update.sessionUpdate)
+                    )
+                  ) {
+                    session.steerUnread = false
+                    session.steerFolding = false
+                  }
                   const usage = copilotContextUsage(update)
                   if (usage) yield* session.emit({ type: 'context.updated', usage })
                   if (session.input.compact && update.sessionUpdate === 'agent_message_chunk')
@@ -626,6 +639,8 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           const session: Session = {
             input,
             cwd: input.cwd ?? project.path,
+            steerUnread: false,
+            steerFolding: false,
             bot,
             emit,
             translator: createCopilotTranslator(input.turnId),
@@ -685,10 +700,13 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           admission.withPermit
         )
       },
+      hasPendingUserMessage(threadId) {
+        return sessions.get(threadId)?.steerUnread ?? false
+      },
       setBotAllowRules() {
         return Effect.void
       },
-      steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void) {
+      steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {
           const session = sessions.get(threadId)
           if (!session) return Effect.succeed(false)
@@ -698,6 +716,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                 if (!session.accepting || session.next || !session.connection) return false
                 yield* beforeAccept
                 session.next = { text, images }
+                if (fromUser) session.steerUnread = true
                 yield* cancel(session)
                 return true
               })

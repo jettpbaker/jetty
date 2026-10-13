@@ -263,6 +263,7 @@ export function createOrchestrator({
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
+        userMessageSeq: number
         pendingDelta: { event: ItemDelta; onCommit: Effect.Effect<void> } | null
       }
     >()
@@ -281,6 +282,7 @@ export function createOrchestrator({
           publication: Semaphore.makeUnsafe(1),
           turnId: null,
           ready: true,
+          userMessageSeq: 0,
           pendingDelta: null,
         }
         threads.set(threadId, value)
@@ -555,6 +557,12 @@ export function createOrchestrator({
 
     function publish(threadId: string, appended: AppendedEvent) {
       return Effect.gen(function* () {
+        if (
+          appended.event.type === 'item.started' &&
+          appended.event.item.kind === 'user_message' &&
+          !appended.event.item.from
+        )
+          state(threadId).userMessageSeq = appended.seq
         hub.pushThread(threadId, {
           type: 'event',
           seq: appended.seq,
@@ -704,6 +712,7 @@ export function createOrchestrator({
     }
 
     function visibleBotMessage(threadId: string, turnId: string, text: string) {
+      const userMessageSeq = state(threadId).userMessageSeq
       const item = {
         id: newId(),
         turnId,
@@ -716,7 +725,22 @@ export function createOrchestrator({
         Effect.gen(function* () {
           const thread = yield* store.requireThread(threadId)
           const agent = yield* agentForThread(threadId)
+          const { items } = yield* store.getThreadState(threadId)
+          const callIndex = items.findLastIndex(
+            (item) =>
+              item.kind === 'tool_call' &&
+              item.toolName === 'mcp__jetty__message_user' &&
+              item.input &&
+              typeof item.input === 'object' &&
+              'text' in item.input &&
+              item.input.text === text
+          )
+          const userIndex = items.findLastIndex(
+            (item) => item.kind === 'user_message' && !item.from
+          )
           if (
+            (callIndex !== -1 && userIndex > callIndex) ||
+            state(threadId).userMessageSeq !== userMessageSeq ||
             agent.hasPendingUserMessage?.(threadId) ||
             thread.pendingMessages?.some((message) => !message.from)
           ) {

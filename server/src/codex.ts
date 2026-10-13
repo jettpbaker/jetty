@@ -72,6 +72,7 @@ type Session = {
   providerThreadId?: string
   providerTurnId?: string
   cwd: string
+  steerUnread: string[]
   accepting: boolean
   settled: boolean
   reason: string | null
@@ -520,6 +521,19 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 }
                 if (session.input.compact && message.method === 'turn/started')
                   session.providerTurnId = string(object(message.params.turn).id)
+                const rawItem = object(message.params.item)
+                if (
+                  message.method === 'item/started' &&
+                  rawItem.type === 'userMessage' &&
+                  Array.isArray(rawItem.content)
+                ) {
+                  for (const block of rawItem.content) {
+                    const content = object(block)
+                    if (content.type !== 'text') continue
+                    const index = session.steerUnread.indexOf(string(content.text))
+                    if (index !== -1) session.steerUnread.splice(index, 1)
+                  }
+                }
                 const eventTurn = message.params.turnId ?? object(message.params.turn).id
                 if (eventTurn !== session.providerTurnId) return null
                 if (message.method === 'turn/completed') {
@@ -703,6 +717,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             emit,
             translator: createCodexTranslator(input.turnId),
             cwd: input.cwd ?? project.path,
+            steerUnread: [],
             accepting: false,
             settled: false,
             reason: null,
@@ -762,10 +777,13 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           admission.withPermit
         )
       },
+      hasPendingUserMessage(threadId) {
+        return (sessions.get(threadId)?.steerUnread.length ?? 0) > 0
+      },
       setBotAllowRules() {
         return Effect.void
       },
-      steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void) {
+      steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {
           const session = sessions.get(threadId)
           if (!session) return Effect.succeed(false)
@@ -779,6 +797,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   input: codexInput(text, images),
                 })
                 yield* beforeAccept
+                if (fromUser) session.steerUnread.push(text)
                 return true
               })
             )
