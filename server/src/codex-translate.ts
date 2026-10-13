@@ -138,17 +138,6 @@ export function createCodexTranslator(turnId: string) {
       const item = items.get(string(params.itemId))
       if (item && string(params.message))
         events.push({ type: 'item.delta', itemId: item.id, delta: `${params.message}\n` })
-    } else if (method === 'error' && params.willRetry === true) {
-      events.push({
-        type: 'item.started',
-        item: {
-          id: newId(),
-          turnId,
-          createdAt: Date.now(),
-          kind: 'error',
-          message: `Codex is retrying: ${string(object(params.error).message) || 'Request failed'}`,
-        },
-      })
     } else if (method === 'turn/plan/updated' && Array.isArray(params.plan)) {
       // Mirrors Claude's TodoWrite input so one reader serves both providers.
       const todos = params.plan.map(object).map((step) => ({

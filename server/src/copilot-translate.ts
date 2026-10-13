@@ -127,6 +127,12 @@ export function createCopilotTranslator(turnId: string) {
       }
       return events
     }
+    // The CLI reports its own --excluded-tools as a message chunk when a session loads.
+    if (
+      update.sessionUpdate === 'agent_message_chunk' &&
+      /^Info: Disabled tools: [\w, -]+$/.test(string(object(update.content).text))
+    )
+      return []
     if (
       update.sessionUpdate === 'agent_message_chunk' &&
       /^Compacted conversation history and removed \d+ messages and [\d,]+ tokens\.$/.test(
