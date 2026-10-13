@@ -43,7 +43,17 @@ export function createCodexPrompt(options: StdioProcessOptions = {}) {
             const item = object(message.params.item)
             if (message.method === 'item/completed' && item.type === 'agentMessage')
               reply = string(item.text)
-            if (message.method === 'turn/completed') return reply
+            if (message.method === 'turn/completed') {
+              const turn = object(message.params.turn)
+              if (turn.status !== 'completed')
+                return yield* Effect.fail(
+                  new Error(
+                    string(object(turn.error).message) ||
+                      `Codex turn ${string(turn.status) || 'failed'}`
+                  )
+                )
+              return reply
+            }
           }
         })
       ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))

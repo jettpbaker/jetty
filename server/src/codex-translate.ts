@@ -8,6 +8,7 @@ import { object, string, type RpcMessage } from './stdio-rpc'
 export function createCodexTranslator(turnId: string) {
   const items = new Map<string, ThreadItem>()
   const completed = new Set<string>()
+  const reasoning = new Map<string, { summary: string[]; content: string[] }>()
   // ids handed out for items Codex hasn't started yet (an approval comes before its command)
   const reserved = new Map<string, string>()
 
@@ -17,7 +18,12 @@ export function createCodexTranslator(turnId: string) {
       case 'agentMessage':
         return { ...base, kind: 'assistant_message', text: string(raw.text), streaming: true }
       case 'reasoning':
-        return { ...base, kind: 'reasoning', text: textArray(raw.summary), streaming: true }
+        return {
+          ...base,
+          kind: 'reasoning',
+          text: textArray(raw.summary) || textArray(raw.content),
+          streaming: true,
+        }
       case 'plan':
         return { ...base, kind: 'plan', text: string(raw.text), streaming: true }
       case 'userMessage':
@@ -53,6 +59,7 @@ export function createCodexTranslator(turnId: string) {
         item = itemFrom(raw)
         if (!item) return events
         items.set(id, item)
+        if (raw.type === 'reasoning') reasoning.set(id, { summary: [], content: [] })
         events.push({ type: 'item.started', item })
       }
       if (method === 'item/completed') {
@@ -100,14 +107,41 @@ export function createCodexTranslator(turnId: string) {
     } else if (
       method === 'item/agentMessage/delta' ||
       method === 'item/reasoning/summaryTextDelta' ||
+      method === 'item/reasoning/textDelta' ||
       method === 'item/plan/delta' ||
       method === 'item/commandExecution/outputDelta' ||
       method === 'item/fileChange/outputDelta'
     ) {
       const item = items.get(string(params.itemId))
       if (item && typeof params.delta === 'string') {
-        events.push({ type: 'item.delta', itemId: item.id, delta: params.delta })
+        const parts = reasoning.get(string(params.itemId))
+        if (parts) {
+          const summary = method === 'item/reasoning/summaryTextDelta'
+          const target = summary ? parts.summary : parts.content
+          const index = natural(summary ? params.summaryIndex : params.contentIndex)
+          target[index] = (target[index] ?? '') + params.delta
+          events.push({
+            type: 'item.updated',
+            itemId: item.id,
+            patch: { text: textArray(parts.summary) || textArray(parts.content) },
+          })
+        } else events.push({ type: 'item.delta', itemId: item.id, delta: params.delta })
       }
+    } else if (method === 'item/mcpToolCall/progress') {
+      const item = items.get(string(params.itemId))
+      if (item && string(params.message))
+        events.push({ type: 'item.delta', itemId: item.id, delta: `${params.message}\n` })
+    } else if (method === 'error' && params.willRetry === true) {
+      events.push({
+        type: 'item.started',
+        item: {
+          id: newId(),
+          turnId,
+          createdAt: Date.now(),
+          kind: 'error',
+          message: `Codex is retrying: ${string(object(params.error).message) || 'Request failed'}`,
+        },
+      })
     } else if (method === 'turn/plan/updated' && Array.isArray(params.plan)) {
       // Mirrors Claude's TodoWrite input so one reader serves both providers.
       const todos = params.plan.map(object).map((step) => ({

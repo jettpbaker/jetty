@@ -299,6 +299,25 @@ test('translation handles completed-only items and authoritative final text with
     { type: 'item.started', item: { kind: 'reasoning', text: 'one\n\ntwo' } },
     { type: 'item.completed', patch: { text: 'one\n\ntwo', streaming: false } },
   ])
+  t.translate({
+    method: 'item/started',
+    params: { item: { id: 'reasoning', type: 'reasoning', summary: [], content: [] } },
+  })
+  for (const [method, delta, index, expected] of [
+    ['item/reasoning/textDelta', 'raw', 0, 'raw'],
+    ['item/reasoning/summaryTextDelta', 'one', 0, 'one'],
+    ['item/reasoning/summaryTextDelta', 'two', 1, 'one\n\ntwo'],
+  ] as const)
+    expect(
+      t.translate({
+        method,
+        params: { itemId: 'reasoning', delta, summaryIndex: index, contentIndex: index },
+      })
+    ).toMatchObject([{ type: 'item.updated', patch: { text: expected } }])
+  t.translate({
+    method: 'item/completed',
+    params: { item: { id: 'reasoning', type: 'reasoning', summary: ['one', 'two'] } },
+  })
   expect(
     t.translate({
       method: 'item/completed',
