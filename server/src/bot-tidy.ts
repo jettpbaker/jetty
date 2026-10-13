@@ -8,7 +8,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import type { Store } from './store'
 
-import { botUserName, commitBotHome, commitSharedPreferences } from './bot-home'
+import { botUserName, commitBotHome } from './bot-home'
 import { botTiming, type BotLifecycle } from './bot-lifecycle'
 import { claudeBin } from './claude-bin'
 import { codexTidyPrompt } from './codex-prompt'
@@ -174,8 +174,6 @@ export function tidyBotHome(
   let completed = false
   let hasInstructionsFile = false
   let toolHead: string | undefined
-  let sharedHead: string | undefined
-  const shared = join(home, '..', 'shared')
   return Effect.gen(function* () {
     yield* Effect.tryPromise(() => commitBotHome(home)).pipe(Effect.uninterruptible)
     hasInstructionsFile = Boolean(
@@ -214,11 +212,7 @@ export function tidyBotHome(
     } else {
       if (choice.model.provider !== 'codex' && choice.model.provider !== 'copilot')
         return yield* Effect.fail(new Error(`Tidy is not supported by ${choice.model.provider}`))
-      yield* Effect.tryPromise(async () => {
-        toolHead = await botHomeGit(home, ['rev-parse', 'HEAD'])
-        await commitSharedPreferences(home)
-        sharedHead = await botHomeGit(shared, ['rev-parse', 'HEAD'])
-      }).pipe(Effect.uninterruptible)
+      toolHead = head
       const prompt = yield* Effect.tryPromise(() =>
         tidyPrompt(bot, home, choice.model.provider !== 'copilot')
       )
@@ -228,7 +222,6 @@ export function tidyBotHome(
     }
     yield* Effect.gen(function* () {
       if (toolHead) yield* Effect.tryPromise(() => restoreProtected(home, toolHead!))
-      if (sharedHead) yield* Effect.tryPromise(() => restoreHome(shared, sharedHead!))
       const changed = yield* Effect.tryPromise(() =>
         botHomeGit(home, ['status', '--porcelain', '--', 'pages', 'index.md', 'instructions.md'])
       )
@@ -319,12 +312,6 @@ export function tidyBotHome(
             )
           )
         }
-        if (sharedHead)
-          yield* Effect.tryPromise(() => restoreHome(shared, sharedHead!)).pipe(
-            Effect.catch((error) =>
-              Effect.logWarning(`tidy pass for ${bot.id} shared restore failed: ${error}`)
-            )
-          )
         if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)) {
           yield* Effect.logInfo(`tidy pass for ${bot.id} interrupted`)
         } else {
