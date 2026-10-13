@@ -459,7 +459,9 @@ function createServer(opts: ServerOptions = {}) {
       grok: opts.grok,
     })
     const reviewBotApproval = createBotRuleReviewer({
-      catalog: () => refreshModels().pipe(Effect.map(() => models ?? [])),
+      // A bot can ask straight after a restart, before discovery has listed its provider.
+      catalog: () =>
+        (inFlight ? Deferred.await(inFlight) : Effect.void).pipe(Effect.map(() => models ?? [])),
       prompt: modelPrompt,
     })
     const registry =
