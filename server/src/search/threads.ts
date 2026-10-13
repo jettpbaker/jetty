@@ -54,6 +54,23 @@ export function searchableMessages(
   return messages
 }
 
+// How much of a thread's messages the archived search reads. The rest is not indexed.
+export const ARCHIVED_MESSAGE_TEXT_MAX = 80_000
+
+export function archivedMessageText(items: readonly ThreadItem[], threadId: string) {
+  const text = searchableMessages(
+    items,
+    { id: threadId, title: '', archived: true, lastSeq: 0 },
+    '',
+    '',
+    '',
+    () => ''
+  )
+    .map((message) => message.text)
+    .join('\n')
+  return text.length > ARCHIVED_MESSAGE_TEXT_MAX ? text.slice(0, ARCHIVED_MESSAGE_TEXT_MAX) : text
+}
+
 function openThreads(path: string) {
   const db = new Database(path, { create: true })
   db.exec(`PRAGMA journal_mode = WAL;

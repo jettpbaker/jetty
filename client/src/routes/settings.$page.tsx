@@ -3,6 +3,7 @@ import type { ComponentType } from 'react'
 import { SettingsAbout } from '@/components/custom/settings_about'
 import { SettingsAccounts } from '@/components/custom/settings_accounts'
 import { SettingsAppearance } from '@/components/custom/settings_appearance'
+import { SettingsArchived } from '@/components/custom/settings_archived'
 import { SettingsBots } from '@/components/custom/settings_bots'
 import {
   SettingsGuidedReviews,
@@ -33,6 +34,7 @@ const pages: Record<string, ComponentType> = {
   'pr-activity': SettingsPullRequestActivity,
   bots: SettingsBots,
   projects: SettingsProjects,
+  archived: SettingsArchived,
   worktrees: SettingsWorktrees,
   about: SettingsAbout,
 }

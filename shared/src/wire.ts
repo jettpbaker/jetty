@@ -395,6 +395,7 @@ export const ThreadMeta = Schema.Struct({
   awaitingParent: Schema.optional(Schema.Boolean),
   queuePaused: Schema.optional(Schema.Boolean),
   archived: Schema.Boolean,
+  archivedAt: Schema.optional(Schema.Int),
   pinned: Schema.Boolean,
   // PR state, independent of whether the thread has been opened.
   readyForReview: Schema.optional(Schema.Boolean),
@@ -735,6 +736,24 @@ export const methods = {
   'thread.archive': {
     params: Schema.Struct({ threadId: Schema.String, archived: Schema.Boolean }),
     result: Schema.Null,
+  },
+  // Archived message search. Title, project, branch and PR stay local. This returns
+  // only the threads whose messages match, after the page has paused on a query.
+  'thread.searchArchived': {
+    params: Schema.Struct({
+      query: Schema.String.check(Schema.isMaxLength(200)),
+    }),
+    result: Schema.Struct({
+      hits: Schema.Array(
+        Schema.Struct({
+          id: Schema.String,
+          exact: Schema.Array(Schema.String),
+          prefix: Schema.Array(Schema.String),
+          bm25: Schema.Number,
+          snippet: Schema.String,
+        })
+      ),
+    }),
   },
   'thread.rename': {
     params: Schema.Struct({ threadId: Schema.String, title: Schema.String }),

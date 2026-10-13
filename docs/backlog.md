@@ -116,8 +116,6 @@ Everything below is for one combined review of the chat, not separate ports.
   work only while a Jetty tab is open somewhere; closed-tab push (a service worker
   and Web Push) isn't worth it for a local app. macOS must allow the browser's
   notifications too.
-- An Archived threads page in Settings with proper search (Jett, "might want").
-  Needs a design.
 - Guides on Codex and Grok, not just Claude. `pr-guide.ts` runs on the Claude Agent
   SDK, so Settings › Guided reviews lists Claude models only, and its Fast switch
   stays off because Jetty has no Fast for Claude.

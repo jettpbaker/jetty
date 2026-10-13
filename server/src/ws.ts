@@ -38,6 +38,7 @@ import {
   validPullRequestRef,
   validRepo,
 } from './pull-requests'
+import { searchArchivedThreads } from './search/archived'
 import { Skills } from './skills'
 import { StoreError } from './store'
 
@@ -445,6 +446,8 @@ export function createRpcHandlers(
         orch
           .archiveThread(params.threadId, params.archived)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'thread.searchArchived': ({ query }) =>
+        searchArchivedThreads(store, query).pipe(Effect.mapError(wireError)),
       'thread.rename': (params) =>
         upsertThread(store.renameThread(params.threadId, params.title)).pipe(Effect.as(null)),
       'thread.pin': (params) =>

@@ -3,6 +3,7 @@ import {
   ProcessorIcon,
   Folder1Icon,
   WorktreeIcon,
+  ArchiveIcon,
   CircleInfoIcon,
   KeyboardIcon,
   Bell2Icon,
@@ -44,6 +45,7 @@ export const settingsGroups: { label: string; pages: SettingsPage[] }[] = [
     label: 'Workspace',
     pages: [
       { id: 'projects', title: 'Projects', icon: Folder1Icon },
+      { id: 'archived', title: 'Archived threads', icon: ArchiveIcon },
       { id: 'worktrees', title: 'Worktrees', icon: WorktreeIcon },
     ],
   },
@@ -135,6 +137,12 @@ export const settingsRows: SettingsRow[] = [
   },
   { page: 'bots', id: 'rhythm', title: 'Rhythm', keywords: 'check-ins' },
   { page: 'projects', id: 'projects', title: 'Projects', keywords: 'Add project, rename, icon' },
+  {
+    page: 'archived',
+    id: 'archived-threads',
+    title: 'Archived threads',
+    keywords: 'restore, unarchive, search',
+  },
   { page: 'projects', id: 'worktree-setup', title: 'Worktree setup', keywords: 'worktree.json' },
   { page: 'worktrees', id: 'location', title: 'Location', keywords: 'folder' },
   { page: 'worktrees', id: 'branch-prefix', title: 'Branch prefix', keywords: 'branch' },

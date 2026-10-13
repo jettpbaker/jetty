@@ -290,6 +290,14 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`ALTER TABLE bots ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`
   }),
+  // Effect's fromRecord takes the id from the key's leading digits, so this is
+  // migration 39. Threads already archived have no archive instant, so they
+  // take their last activity time.
+  '039_archived_at': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* addThreadColumns({ archived_at: 'INTEGER' })
+    yield* sql`UPDATE threads SET archived_at = updated_at WHERE archived = 1`
+  }),
 })
 
 export function databaseLayer(home: string) {

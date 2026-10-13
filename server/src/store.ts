@@ -6,7 +6,7 @@ import {
   shownInBotChat,
 } from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
-import { Attachment, awaitsInput, heldByRestarts } from '@jetty/shared/items'
+import { Attachment, awaitsInput, heldByRestarts, type ThreadItem } from '@jetty/shared/items'
 import {
   displayedRollupState,
   failedCheckConclusions,
@@ -95,6 +95,7 @@ type ThreadRow = {
   status: SessionStatus
   queue_paused: number
   archived: number
+  archived_at: number | null
   pinned: number
   ready_for_review: number
   updated_at: number
@@ -239,6 +240,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     status: row.status,
     queuePaused: row.queue_paused !== 0,
     archived: row.archived !== 0,
+    ...(row.archived_at === null ? {} : { archivedAt: row.archived_at }),
     pinned: row.pinned !== 0,
     readyForReview: false,
     ...(row.awaiting_parent ? { awaitingParent: true } : {}),
@@ -2099,9 +2101,10 @@ export function createStore() {
       },
       archiveThread(threadId: string, archived: boolean) {
         return Effect.gen(function* () {
-          const existing = yield* requireThread(threadId)
-          yield* sql`UPDATE threads SET archived = ${archived ? 1 : 0}, archive_group = CASE WHEN ${archived ? 1 : 0} = 0 THEN NULL ELSE archive_group END WHERE id = ${threadId}`
-          return { ...existing, archived }
+          yield* requireThread(threadId)
+          const now = Date.now()
+          yield* sql`UPDATE threads SET archived = ${archived ? 1 : 0}, archived_at = CASE WHEN ${archived ? 1 : 0} = 1 THEN ${now} ELSE NULL END, archive_group = CASE WHEN ${archived ? 1 : 0} = 0 THEN NULL ELSE archive_group END WHERE id = ${threadId}`
+          return yield* requireThread(threadId)
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       renameThread(threadId: string, title: string) {
@@ -2187,6 +2190,50 @@ export function createStore() {
           }
           return rows.map((row) => decorateThread(row, byThread.get(row.id) ?? []))
         }).pipe(Effect.mapError(storeError))
+      },
+      // Archived threads, with the sequence search can cache against. Items are set
+      // only when this process already holds a current copy, so a search does not
+      // pin every archived state in the store cache.
+      listArchivedCursors() {
+        return Effect.gen(function* () {
+          const rows = yield* sql<{
+            id: string
+            last_seq: number
+            event_seq: number
+          }>`SELECT t.id,
+            COALESCE((SELECT last_seq FROM thread_states WHERE thread_id = t.id), 0) AS last_seq,
+            COALESCE((SELECT MAX(seq) FROM thread_events WHERE thread_id = t.id), 0) AS event_seq
+            FROM threads t
+            WHERE t.archived = 1 AND t.id NOT IN (SELECT id FROM bots)`
+          return rows.map((row) => {
+            const memory = loaded.get(row.id)
+            const lastSeq = Math.max(memory?.state.lastSeq ?? 0, row.event_seq, row.last_seq)
+            const inMemory = memory !== undefined && memory.state.lastSeq === lastSeq
+            const cursor: {
+              id: string
+              lastSeq: number
+              items?: readonly ThreadItem[]
+              replay: boolean
+            } = {
+              id: row.id,
+              lastSeq,
+              replay: !inMemory && row.event_seq > row.last_seq,
+            }
+            if (inMemory) cursor.items = memory.state.items
+            return cursor
+          })
+        }).pipe(Effect.mapError(storeError))
+      },
+      readThreadStates(ids: readonly string[]) {
+        if (ids.length === 0) return Effect.succeed([] as { id: string; stateJson: string }[])
+        return sql<{ thread_id: string; state_json: string }>`
+          SELECT thread_id, state_json FROM thread_states WHERE thread_id IN ${sql.in(ids)}
+        `.pipe(
+          Effect.map((rows) =>
+            rows.map((row) => ({ id: row.thread_id, stateJson: row.state_json }))
+          ),
+          Effect.mapError(storeError)
+        )
       },
       // `claim` links only while no thread has this pull request. `transfer` makes this the
       // only thread that does. A pull request already linked to several threads stays that way
