@@ -424,9 +424,7 @@ export function ThreadDetailsTabs({
               })}
             </MenuGroup>
             <DropdownMenuSeparator />
-            <MenuGroup label='Desktops' count={1}>
-              <DesktopMenuItem desktops={desktops} canClose={canClose} onClose={closeDesktop} />
-            </MenuGroup>
+            <DesktopMenuItem desktops={desktops} canClose={canClose} onClose={closeDesktop} />
             {subagents.all.length > 0 && (
               <>
                 <DropdownMenuSeparator />
