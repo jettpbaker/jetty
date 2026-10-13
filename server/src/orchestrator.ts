@@ -2202,7 +2202,11 @@ export function createOrchestrator({
           yield* requireFound(`approval ${itemId}`)(
             yield* agent.respondToApproval(threadId, itemId, decision, message, decidedBy)
           )
-          if (decision === 'deny' && message?.trim() && provider === 'grok')
+          if (
+            decision === 'deny' &&
+            message?.trim() &&
+            (provider === 'grok' || provider === 'copilot')
+          )
             yield* agent.steer(threadId, deniedApprovalNote(message.trim()))
         })
       },

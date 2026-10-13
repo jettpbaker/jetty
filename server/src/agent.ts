@@ -184,6 +184,15 @@ export const ECHO_MODELS: ProviderModel[] = [
     fast: false,
     autoMode: true,
   },
+  {
+    provider: 'copilot',
+    id: 'gpt-5-mini',
+    name: 'GPT-5 mini',
+    efforts: ['low', 'medium', 'high'],
+    defaultEffort: 'medium',
+    fast: false,
+    autoMode: true,
+  },
 ]
 
 export function echoUsage(provider: ProviderUsage['provider']): ProviderUsage {

@@ -99,7 +99,7 @@ export const settingsRows: SettingsRow[] = [
   { page: 'connected-accounts', id: 'claude', title: 'Claude Code', keywords: 'sign in' },
   { page: 'connected-accounts', id: 'codex', title: 'Codex', keywords: 'sign in' },
   { page: 'connected-accounts', id: 'grok', title: 'Grok Build', keywords: 'sign in' },
-  { page: 'connected-accounts', id: 'copilot', title: 'GitHub Copilot' },
+  { page: 'connected-accounts', id: 'copilot', title: 'GitHub Copilot', keywords: 'sign in' },
   { page: 'connected-accounts', id: 'github', title: 'GitHub', keywords: 'gh, pull requests' },
   { page: 'models', id: 'loadout', title: 'Loadout', keywords: 'slots, effort, Fast' },
   { page: 'models', id: 'available-models', title: 'Available models', keywords: 'refresh' },

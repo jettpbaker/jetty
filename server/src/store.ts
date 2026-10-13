@@ -869,7 +869,7 @@ export function createStore() {
               ? { type: 'finished' }
               : event.error === 'interrupted'
                 ? { type: 'interrupted', user }
-                : thread.provider === 'grok' &&
+                : (thread.provider === 'grok' || thread.provider === 'copilot') &&
                     deniedTitle &&
                     (event.error === 'approval_denied' || /cancelled|canceled/.test(event.error))
                   ? {
