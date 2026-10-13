@@ -30,6 +30,7 @@ import type { Approval, Question, Source } from './composer_strip_model'
 import type { Todo } from './todo_model'
 
 import { DiffCounts } from './diff/file_card'
+import { DisabledTooltip } from './disabled_tooltip'
 import { loadDiffWorkerPool } from './diff_worker_pool'
 import { SourceLabel } from './source_label'
 
@@ -255,9 +256,18 @@ function ApprovalActions({
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
             <DropdownMenuGroup>
-              <DropdownMenuItem disabled={!ctl.canAlways} onClick={() => ctl.decide('always')}>
-                Always allow this {run ? 'command' : 'action'}
-              </DropdownMenuItem>
+              <DisabledTooltip
+                reason={
+                  ctl.canAlways
+                    ? undefined
+                    : `The agent didn't offer a rule for this ${run ? 'command' : 'action'}`
+                }
+                side='left'
+              >
+                <DropdownMenuItem disabled={!ctl.canAlways} onClick={() => ctl.decide('always')}>
+                  Always allow this {run ? 'command' : 'action'}
+                </DropdownMenuItem>
+              </DisabledTooltip>
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
