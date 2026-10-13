@@ -8,7 +8,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { claudeBin } from './claude-bin'
-import { openCodexConnection } from './codex-rpc'
+import { codexBin, openCodexConnection } from './codex-rpc'
+import { grokBin } from './grok-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
 import { readUsage } from './usage'
 
@@ -268,6 +269,13 @@ function codexWindow(
 }
 
 export function readCodexProviderUsage(cwd: string, options: StdioProcessOptions = {}) {
+  if (!Bun.which(codexBin(options), { PATH: options.env?.PATH ?? process.env.PATH ?? '' }))
+    return Effect.succeed({
+      provider: 'codex',
+      connected: false,
+      installed: false,
+      windows: [],
+    } satisfies ProviderUsage)
   return Effect.scoped(
     Effect.gen(function* () {
       const connection = yield* openCodexConnection(cwd, options)
@@ -330,6 +338,8 @@ export function readCodexProviderUsage(cwd: string, options: StdioProcessOptions
 }
 
 export async function readGrokProviderUsage(): Promise<ProviderUsage> {
+  if (!Bun.which(grokBin()))
+    return { provider: 'grok', connected: false, installed: false, windows: [] }
   // Grok runs on the key (grok-rpc.ts), which has no plan limits.
   if (process.env.XAI_API_KEY) return { provider: 'grok', connected: true, windows: [] }
   let credential: Record<string, unknown>

@@ -12,12 +12,16 @@ export const DEFAULT_CODEX_ARGS = [
   'tools.update_plan.enabled=true',
 ]
 
+export function codexBin(options: CodexProcessOptions = {}) {
+  return options.command ?? process.env.JETTY_CODEX_BIN ?? 'codex'
+}
+
 export function openCodexConnection(cwd: string, options: CodexProcessOptions = {}) {
   return Effect.gen(function* () {
     const connection = yield* openStdioConnection(cwd, {
       ...options,
       name: 'Codex',
-      command: options.command ?? process.env.JETTY_CODEX_BIN ?? 'codex',
+      command: codexBin(options),
       args: options.args ?? DEFAULT_CODEX_ARGS,
     })
     yield* connection.request('initialize', {

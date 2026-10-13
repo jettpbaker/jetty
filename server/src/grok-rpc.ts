@@ -3,6 +3,10 @@ import { Effect } from 'effect'
 import { AgentError } from './agent'
 import { object, openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
 
+export function grokBin(options: StdioProcessOptions = {}) {
+  return options.command ?? process.env.JETTY_GROK_BIN ?? 'grok'
+}
+
 export function openGrokConnection(
   cwd: string,
   args: string[],
@@ -13,7 +17,7 @@ export function openGrokConnection(
       ...options,
       name: 'Grok',
       jsonrpc: true,
-      command: options.command ?? process.env.JETTY_GROK_BIN ?? 'grok',
+      command: grokBin(options),
       args: options.args ?? args,
     })
     const init = yield* connection.request('initialize', {
