@@ -491,7 +491,7 @@ async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiRespons
   if (!status)
     throw new GhFailure(
       'unavailable',
-      err.trim() || 'GitHub API is unavailable',
+      err.trim() || (child.signalCode === null ? 'GitHub API is unavailable' : 'GitHub timed out'),
       undefined,
       child.signalCode !== null
     )
@@ -591,7 +591,7 @@ async function requestApi(request: ApiRequest, revalidate = false): Promise<unkn
       throw new GhFailure('not_found', 'Pull request not found or access denied', status)
     throw new GhFailure(
       'unavailable',
-      message || 'GitHub API is unavailable',
+      message || (status >= 400 ? `GitHub returned HTTP ${status}` : 'GitHub API is unavailable'),
       status,
       status === 502 ||
         status === 504 ||
