@@ -259,6 +259,22 @@ export async function botInstructions(
 
 export const MANAGED_BOT_FILES = ['instructions.md', 'CLAUDE.md', 'open-tasks.md'] as const
 
+const managedEdits = new Map<string, Promise<void>>()
+
+// Parallel tool calls edit managed files at once; each edit restores, writes and commits, so they
+// run one at a time per home.
+export function editManagedBotFiles<T>(home: string, edit: () => Promise<T>) {
+  const next = (managedEdits.get(home) ?? Promise.resolve()).then(edit)
+  managedEdits.set(
+    home,
+    next.then(
+      () => {},
+      () => {}
+    )
+  )
+  return next
+}
+
 export async function commitManagedBotFiles(home: string, files: readonly string[]) {
   const changed = await git(home, ['diff', 'HEAD', '--name-only', '--', ...files])
   if (!changed) return

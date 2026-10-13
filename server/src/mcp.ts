@@ -34,7 +34,7 @@ import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
-import { commitManagedBotFiles, restoreManagedBotFiles } from './bot-home'
+import { commitManagedBotFiles, editManagedBotFiles, restoreManagedBotFiles } from './bot-home'
 import { relayedMessage } from './jetty-instructions'
 import { parsePullRequestUrl } from './pull-requests'
 import { createSendImagesTool } from './send-images'
@@ -1153,19 +1153,20 @@ export function createMcpHandler(
                   return yield* Effect.fail(new StoreError('not_found', 'Bot home not found'))
                 const date = new Date().toISOString().slice(0, 10)
                 const restored = yield* Effect.tryPromise(() =>
-                  restoreManagedBotFiles(home.path, ['instructions.md'])
+                  editManagedBotFiles(home.path, async () => {
+                    const restored = await restoreManagedBotFiles(home.path, ['instructions.md'])
+                    const path = join(home.path, 'instructions.md')
+                    const current = await readFile(path, 'utf8')
+                    await appendFile(
+                      path,
+                      `${current && !current.endsWith('\n') ? '\n' : ''}- ${instruction} (${date}, ${reason})\n`
+                    )
+                    await commitManagedBotFiles(home.path, ['instructions.md'])
+                    return restored
+                  })
                 )
                 if (restored)
                   yield* store.updateBotLifecycle(bot.id, { managedFilesRestored: true })
-                yield* Effect.tryPromise(async () => {
-                  const path = join(home.path, 'instructions.md')
-                  const current = await readFile(path, 'utf8')
-                  await appendFile(
-                    path,
-                    `${current && !current.endsWith('\n') ? '\n' : ''}- ${instruction} (${date}, ${reason})\n`
-                  )
-                  await commitManagedBotFiles(home.path, ['instructions.md'])
-                })
                 return 'Instruction added.'
               })
             )

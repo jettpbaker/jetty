@@ -40,6 +40,7 @@ import {
   commitBotHome,
   commitManagedBotFiles,
   commitSharedPreferences,
+  editManagedBotFiles,
   restoreManagedBotFiles,
   writeBotTasks,
 } from './bot-home'
@@ -690,10 +691,11 @@ export function createOrchestrator({
         const home = yield* store.getProject(botId)
         if (bot && home) {
           yield* Effect.tryPromise({
-            try: async () => {
-              await writeBotTasks(home.path, bot.tasks)
-              await commitManagedBotFiles(home.path, ['open-tasks.md'])
-            },
+            try: () =>
+              editManagedBotFiles(home.path, async () => {
+                await writeBotTasks(home.path, bot.tasks)
+                await commitManagedBotFiles(home.path, ['open-tasks.md'])
+              }),
             catch: (error) => new StoreError('internal', String(error)),
           })
           hub.pushChrome({ type: 'bot.upserted', bot })
@@ -2219,6 +2221,8 @@ export function createOrchestrator({
               new StoreError('invalid_params', 'Archive the bot before deleting it')
             )
           yield* stopBotTurn(botId)
+          // Its turn ends with its rows (and any project approval it awaits), so the delete waits.
+          while (state(botId).turnId) yield* Effect.sleep(10)
           yield* stopDesktop(botId)
           return yield* hub.withChromePublication(
             Effect.uninterruptible(
