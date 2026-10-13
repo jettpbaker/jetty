@@ -111,7 +111,21 @@ for await (const line of createInterface({ input: process.stdin })) {
       continue
     }
     if (text === 'crash') process.exit(1)
-    if (text === 'approval' || text === 'edit approval' || text === 'self tool') {
+    if (
+      text === 'approval' ||
+      text === 'edit approval' ||
+      text === 'self tool' ||
+      text === 'custom mcp'
+    ) {
+      if (text === 'self tool' || text === 'custom mcp')
+        update({
+          sessionUpdate: 'tool_call',
+          toolCallId: 't',
+          title: text === 'self tool' ? 'jetty-list_models' : 'Create a helper',
+          kind: 'read',
+          rawInput: {},
+          status: 'pending',
+        })
       const edit = text === 'edit approval'
       send({
         id: 0,
@@ -122,11 +136,14 @@ for await (const line of createInterface({ input: process.stdin })) {
             toolCallId: 't',
             title:
               text === 'self tool'
-                ? 'jetty-list_models'
-                : edit
-                  ? 'Edit marker'
-                  : 'Run printf marker',
-            kind: text === 'self tool' ? 'other' : edit ? 'edit' : 'execute',
+                ? 'list_models'
+                : text === 'custom mcp'
+                  ? 'create_thread'
+                  : edit
+                    ? 'Edit marker'
+                    : 'Run printf marker',
+            kind:
+              text === 'self tool' || text === 'custom mcp' ? 'other' : edit ? 'edit' : 'execute',
             rawInput: edit
               ? {
                   fileName: 'marker',
@@ -185,7 +202,10 @@ for await (const line of createInterface({ input: process.stdin })) {
         sessionUpdate: 'tool_call_update',
         toolCallId: 'edit',
         status: 'completed',
-        rawOutput: { content: 'File created' },
+        rawOutput: {
+          content: 'File created',
+          detailedContent: '--- a/marker\n+++ b/marker\n@@ -0,0 +1 @@\n+hello\n',
+        },
       })
       update({ sessionUpdate: 'plan', entries: [{ content: 'Ship it', status: 'in_progress' }] })
       complete()
@@ -196,6 +216,17 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (!m.method && m.id === 0) {
     if (m.result?.outcome?.optionId === 'no-once') result(active!.id, { stopReason: 'cancelled' })
     else if (m.result?.outcome?.outcome === 'cancelled') continue
-    else complete()
+    else {
+      if (text === 'self tool' || text === 'custom mcp')
+        update({
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 't',
+          status: 'completed',
+          rawOutput: {
+            content: text === 'custom mcp' ? '{"threadId":"child","created":true}' : '[]',
+          },
+        })
+      complete()
+    }
   } else if (m.id !== undefined) send({ id: m.id, error: { code: -32601, message: 'unsupported' } })
 }

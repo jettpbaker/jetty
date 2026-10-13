@@ -107,6 +107,34 @@ test('passes Jetty MCP into sessions and approves self tools without a card', as
     },
   ])
   expect(f.events.some((e) => e.type === 'item.started' && e.item.kind === 'approval')).toBe(false)
+  const state = f.events.reduce(
+    (state, event, i) => applyEvent(state, { seq: i + 1, ts: Date.now(), event }),
+    emptyThread
+  )
+  expect(state.items.find((item) => item.kind === 'tool_call')).toMatchObject({
+    toolName: 'mcp__jetty__list_models',
+    status: 'succeeded',
+  })
+})
+
+test('MCP permissions identify a tool whose initial title is a description', async () => {
+  const f = await setup()
+  const turn = await f.start('custom mcp')
+  await until(f.events, (event) => event.type === 'item.started' && event.item.kind === 'approval')
+  const event = f.events.find(
+    (event) => event.type === 'item.started' && event.item.kind === 'approval'
+  )!
+  if (event.type !== 'item.started') throw new Error('Missing approval')
+  await Effect.runPromise(f.agent.respondToApproval(f.threadId, event.item.id, 'allow'))
+  await Effect.runPromise(turn.await)
+  const state = f.events.reduce(
+    (state, event, i) => applyEvent(state, { seq: i + 1, ts: Date.now(), event }),
+    emptyThread
+  )
+  expect(state.items.find((item) => item.kind === 'tool_call')).toMatchObject({
+    toolName: 'mcp__jetty__create_thread',
+    status: 'succeeded',
+  })
 })
 
 for (const failed of [false, true])
@@ -267,6 +295,8 @@ test('streams ACP, preserves partial tool output, filters replay, stays warm, an
     {
       toolName: 'Edit',
       status: 'succeeded',
+      output: expect.stringContaining('+hello'),
+      fileChange: { path: 'marker', additions: 1, deletions: 0 },
       input: { file_path: 'marker', content: 'hello', locations: [{ path: 'marker', line: 1 }] },
     },
     { toolName: 'update_plan', input: { todos: [{ content: 'Ship it' }] } },

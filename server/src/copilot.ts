@@ -241,6 +241,13 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
         const tool = object(params.toolCall)
         const allow = options.find((o) => o.kind === 'allow_once' && string(o.optionId))
         const name = copilotToolName(tool)
+        if (name.startsWith('mcp__jetty__'))
+          for (const event of session.translator.translate({
+            ...tool,
+            title: name,
+            sessionUpdate: 'tool_call_update',
+          }))
+            yield* session.emit(event)
         if (allow && SELF_TOOLS.some((tool) => name === `mcp__jetty__${tool}`)) {
           yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
           return
@@ -302,7 +309,10 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
               yield* store.getAgentBehaviours(),
               session.input.parentThreadId,
               { environment: thread.environment, workingPath: cwd, projectPath: project!.path }
-            ).replaceAll('AskUserQuestion', 'a question in your reply')
+            ).replace(
+              'use AskUserQuestion and wait for the answer',
+              'ask your question in your final response'
+            )
           const { connection, init } = yield* openCopilotConnection(cwd, options).pipe(
             Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
           )
@@ -421,10 +431,13 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
 
     function cancel(session: Session) {
       return Effect.gen(function* () {
-        if (!session.connection || !session.providerThreadId) return
-        for (const pending of session.pending.values())
-          yield* session.connection.respond(pending.id, { outcome: { outcome: 'cancelled' } })
-        yield* session.connection.notify('session/cancel', { sessionId: session.providerThreadId })
+        if (session.connection && session.providerThreadId) {
+          for (const pending of session.pending.values())
+            yield* session.connection.respond(pending.id, { outcome: { outcome: 'cancelled' } })
+          yield* session.connection.notify('session/cancel', {
+            sessionId: session.providerThreadId,
+          })
+        }
         const requestId = session.requestId
         yield* Effect.sleep(graceMs).pipe(
           Effect.andThen(

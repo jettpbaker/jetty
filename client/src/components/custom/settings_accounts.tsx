@@ -44,18 +44,18 @@ const providers = [
     install: 'https://developers.openai.com/codex/cli',
   },
   {
-    id: 'copilot',
-    name: 'GitHub Copilot',
-    cli: 'copilot',
-    login: 'copilot login',
-    install: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
-  },
-  {
     id: 'grok',
     name: 'Grok Build',
     cli: 'grok',
     login: 'grok login',
     install: 'https://docs.x.ai/build/overview',
+  },
+  {
+    id: 'copilot',
+    name: 'GitHub Copilot',
+    cli: 'copilot',
+    login: 'copilot login',
+    install: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
   },
 ] as const
 
