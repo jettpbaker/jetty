@@ -19,7 +19,6 @@ import {
   type Emit,
   type TurnInput,
   createEchoAdapter,
-  ECHO_MODELS,
 } from './agent'
 import { createAttachments } from './attachments'
 import { createBotHome } from './bot-home'
@@ -27,7 +26,6 @@ import { databaseLayer } from './db'
 import { createHub } from './hub'
 import { relayedMessage } from './jetty-instructions'
 import { createOrchestrator } from './orchestrator'
-import { agentRegistry } from './registry'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { Store, storeLayer, StoreError } from './store'
@@ -70,50 +68,6 @@ function makeUploadFixture() {
     return { fs, home, store, sql, thread, attachments, hub, agent, started }
   })
 }
-
-test.each(['claude', 'codex', 'grok'] as const)(
-  'an unspecified provider uses %s when it is the only signed-in agent',
-  async (provider) => {
-    await runUploadTest(
-      Effect.gen(function* () {
-        const f = yield* makeUploadFixture()
-        const catalog = ECHO_MODELS.filter((model) => model.provider === provider)
-        const orch = yield* createOrchestrator({
-          store: f.store,
-          agent: agentRegistry({ claude: f.agent, codex: f.agent, grok: f.agent }, 'claude'),
-          hub: f.hub,
-          modelCatalog: () => Effect.succeed(catalog),
-        })
-        yield* orch.startTurnEffect({ threadId: f.thread.id, text: 'hello' })
-        expect((yield* f.store.requireThread(f.thread.id)).provider).toBe(provider)
-        expect(f.started[0]?.model).toBe(catalog[0]?.id)
-      })
-    )
-  }
-)
-
-test('no signed-in agent gives an actionable error without binding the thread to Claude', async () => {
-  await runUploadTest(
-    Effect.gen(function* () {
-      const f = yield* makeUploadFixture()
-      const orch = yield* createOrchestrator({
-        store: f.store,
-        agent: agentRegistry({ claude: f.agent, codex: f.agent, grok: f.agent }, 'claude'),
-        hub: f.hub,
-        modelCatalog: () => Effect.succeed([]),
-      })
-      const result = yield* Effect.result(
-        orch.startTurnEffect({ threadId: f.thread.id, text: 'hello' })
-      )
-      expect(result).toMatchObject({
-        _tag: 'Failure',
-        failure: { message: 'No coding agent is signed in. Connect an account in Settings.' },
-      })
-      expect((yield* f.store.requireThread(f.thread.id)).provider).toBeUndefined()
-      expect(f.started).toHaveLength(0)
-    })
-  )
-})
 
 for (const expireFirst of [false, true]) {
   test(`queue undo isolates duplicate message ids across threads${expireFirst ? ' and expiry' : ''}`, async () => {

@@ -892,6 +892,34 @@ export function createOrchestrator({
       return Effect.fail(new StoreError('invalid_params', `Provider ${provider} is not available`))
     }
 
+    // Claude is the implicit default; a default set with JETTY_AGENT is used as given. A turn that
+    // names no provider, on a thread that hasn't settled one, runs on the provider that has its
+    // model, else on Claude while it's signed in, else on any signed-in provider.
+    function unspecifiedProvider(model: string | undefined) {
+      return Effect.gen(function* () {
+        if (!modelCatalog || registry.defaultProvider !== 'claude') return registry.defaultProvider
+        const catalog = yield* modelCatalog()
+        const owners = new Set(
+          catalog
+            .filter(
+              (candidate) => model && findProviderModel([candidate], candidate.provider, model)
+            )
+            .map((candidate) => candidate.provider)
+        )
+        if (owners.size === 1) return [...owners][0]!
+        if (catalog.some((candidate) => candidate.provider === registry.defaultProvider))
+          return registry.defaultProvider
+        const available = catalog.find((candidate) => registry.agent(candidate.provider))
+        if (available) return available.provider
+        return yield* Effect.fail(
+          new StoreError(
+            'invalid_params',
+            'No coding agent is signed in. Connect an account in Settings.'
+          )
+        )
+      })
+    }
+
     function chooseProvider(threadId: string, requested: ProviderId | undefined, model?: string) {
       return Effect.gen(function* () {
         const column = yield* store.getThreadProvider(threadId)
@@ -899,44 +927,7 @@ export function createOrchestrator({
         if (existing && requested && requested !== existing) {
           return yield* Effect.fail(providerConflict(existing, requested))
         }
-        let provider: string = existing ?? requested ?? registry.defaultProvider
-        if (!existing && !requested && model) {
-          const catalog =
-            registry.defaultProvider === 'claude' && modelCatalog
-              ? yield* modelCatalog()
-              : (knownModels?.() ?? [])
-          const matches = catalog.filter(
-            (candidate) => findProviderModel([candidate], candidate.provider, model) !== undefined
-          )
-          const providers = new Set(matches.map((candidate) => candidate.provider))
-          if (providers.size === 1) provider = matches[0]!.provider
-          else if (
-            modelCatalog &&
-            registry.defaultProvider === 'claude' &&
-            !catalog.some((candidate) => candidate.provider === provider)
-          )
-            return yield* Effect.fail(
-              new StoreError(
-                'invalid_params',
-                `Model ${model} is not available. Choose a model in Settings.`
-              )
-            )
-        }
-        if (!existing && !requested && !model && provider !== 'echo' && modelCatalog) {
-          const catalog = yield* modelCatalog()
-          if (!catalog.some((model) => model.provider === provider)) {
-            const available = catalog.find((model) => registry.agent(model.provider))
-            if (!available)
-              return yield* Effect.fail(
-                new StoreError(
-                  'invalid_params',
-                  'No coding agent is signed in. Connect an account in Settings.'
-                )
-              )
-            provider = available.provider
-          }
-        }
-        const chosen = yield* agentFor(provider)
+        const chosen = yield* agentFor(existing ?? requested ?? (yield* unspecifiedProvider(model)))
         return { ...chosen, stored: column === chosen.provider }
       })
     }

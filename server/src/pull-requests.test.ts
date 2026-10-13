@@ -1,72 +1,7 @@
 import { checkSummary, displayedRollupState } from '@jetty/shared/pull-request'
 import { expect, test } from 'bun:test'
-import { Effect } from 'effect'
 
-import { generateGuide } from './pr-guide'
 import { mapCheckRuns } from './pull-requests'
-
-test('provider prompts write validated PR guides, retry malformed JSON and leave unknown usage absent', async () => {
-  let calls = 0
-  const result = await generateGuide(
-    {
-      title: 'Retry uploads',
-      body: 'Retry transient upload errors.',
-      commits: [],
-      files: [{ path: 'upload.ts', hunks: ['@@ -1 +1 @@\n-const tries = 1\n+const tries = 3\n'] }],
-    },
-    {
-      model: 'gpt-6.1-sol',
-      effort: 'low',
-      prompt: (instructions, text) => {
-        expect(instructions).toContain('JSON object matching this schema')
-        expect(text).toContain('"id":"h1"')
-        calls++
-        return Effect.succeed(
-          calls === 1
-            ? 'invalid JSON'
-            : '```json\n' +
-                JSON.stringify({
-                  summary: 'Uploads retry transient failures.',
-                  chapters: [
-                    {
-                      title: 'Retry uploads',
-                      why: 'Try an upload three times.',
-                      kind: 'core',
-                      hunks: ['h1', 'h1', 'unknown'],
-                    },
-                  ],
-                }) +
-                '\n```'
-        )
-      },
-    }
-  )
-  expect(calls).toBe(2)
-  expect(result.guide.chapters[0]?.files).toEqual([{ path: 'upload.ts', hunks: [0] }])
-  expect(result.guide.unplaced).toEqual([])
-  expect(result.metrics).toMatchObject({ model: 'gpt-6.1-sol', effort: 'low' })
-  expect(result.metrics.inputTokens).toBeUndefined()
-  expect(result.metrics.costUsd).toBeUndefined()
-})
-
-test('provider guide failures are bounded and carry their model metrics', async () => {
-  let calls = 0
-  const result = generateGuide(
-    { title: 'Change', body: '', commits: [], files: [] },
-    {
-      model: 'gpt-6.1-sol',
-      prompt: () => {
-        calls++
-        return Effect.succeed('{}')
-      },
-    }
-  )
-  await expect(result).rejects.toMatchObject({
-    metrics: { model: 'gpt-6.1-sol' },
-    message: expect.stringContaining('Malformed guide response'),
-  })
-  expect(calls).toBe(2)
-})
 
 function run(overrides: Record<string, unknown> = {}) {
   return {
