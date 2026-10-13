@@ -91,6 +91,10 @@ Everything below is for one combined review of the chat, not separate ports.
   `thread_rows.ts`), so during a live turn two long `cd … && export …` commands pin to the bottom
   of the chat under the work block, read as stray chips, and stay under the final reply once the
   turn ends. Goes with the monitors item above.
+- A parent waiting on a child's dev server (Jett, 13 Oct, to consider): since `c8f34fba` a worker
+  that leaves a background command running reports at once, but `waitingForChildren` in `hub.ts`
+  still counts that child (its status is `monitoring`), so its bot or parent keeps the waiting
+  glyph until the process exits. Decide whether only a child's monitors should count.
 - Message footers: the whole footer reveals on hover; `revealWholeFooter` in
   `message_footer.tsx` flips it to time and model always visible.
 - The final answer carries what the user needs. Interim text and the final answer are both just
