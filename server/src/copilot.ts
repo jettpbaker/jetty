@@ -366,6 +366,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                       ? [
                           '--excluded-tools',
                           'update_todo',
+                          'task',
                           ...session.bot.allowedPaths.flatMap((path) => ['--add-dir', path]),
                         ]
                       : []),
