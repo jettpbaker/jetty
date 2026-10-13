@@ -33,7 +33,7 @@ test('Grok fixture over backend RPC: disconnect, durable completion, immediate n
     })
     let subscription = client.subscribeThread({ threadId })
     await subscription.ready
-    await client.request('turn.start', { threadId, text: 'steer' })
+    await client.request('turn.start', { threadId, text: 'steer', provider: 'grok' })
     await subscription.waitFor(
       (message) =>
         message.type === 'event' &&

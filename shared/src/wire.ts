@@ -85,7 +85,7 @@ export function resolveTitleModel(
 ): ProviderModel | undefined {
   const find = (ref: ModelRef) =>
     models.find((model) => model.provider === ref.provider && model.id === ref.id)
-  return (choice && find(choice)) || DEFAULT_TITLE_MODELS.map(find).find(Boolean)
+  return (choice && find(choice)) || DEFAULT_TITLE_MODELS.map(find).find(Boolean) || models[0]
 }
 
 // Guides and tidy passes run on Claude only (pr-guide.ts and bot-tidy.ts drive the Claude Agent SDK).

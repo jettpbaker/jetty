@@ -892,14 +892,36 @@ export function createOrchestrator({
       return Effect.fail(new StoreError('invalid_params', `Provider ${provider} is not available`))
     }
 
-    function chooseProvider(threadId: string, requested: ProviderId | undefined) {
+    function chooseProvider(threadId: string, requested: ProviderId | undefined, model?: string) {
       return Effect.gen(function* () {
         const column = yield* store.getThreadProvider(threadId)
         const existing = column ?? (yield* soleInferredProvider(threadId))
         if (existing && requested && requested !== existing) {
           return yield* Effect.fail(providerConflict(existing, requested))
         }
-        const chosen = yield* agentFor(existing ?? requested ?? registry.defaultProvider)
+        let provider: string = existing ?? requested ?? registry.defaultProvider
+        if (!existing && !requested && model) {
+          const matches = (knownModels?.() ?? []).filter(
+            (candidate) => findProviderModel([candidate], candidate.provider, model) !== undefined
+          )
+          const providers = new Set(matches.map((candidate) => candidate.provider))
+          if (providers.size === 1) provider = matches[0]!.provider
+        }
+        if (!existing && !requested && !model && provider !== 'echo' && modelCatalog) {
+          const catalog = yield* modelCatalog()
+          if (!catalog.some((model) => model.provider === provider)) {
+            const available = catalog.find((model) => registry.agent(model.provider))
+            if (!available)
+              return yield* Effect.fail(
+                new StoreError(
+                  'invalid_params',
+                  'No coding agent is signed in. Connect an account in Settings.'
+                )
+              )
+            provider = available.provider
+          }
+        }
+        const chosen = yield* agentFor(provider)
         return { ...chosen, stored: column === chosen.provider }
       })
     }
@@ -1148,7 +1170,11 @@ export function createOrchestrator({
               }
               if (!state(input.threadId).turnId)
                 yield* store.setPermissionMode(input.threadId, input.permissionMode)
-              const chosen = yield* chooseProvider(input.threadId, input.provider)
+              const chosen = yield* chooseProvider(
+                input.threadId,
+                input.provider,
+                input.model ?? thread.model
+              )
               if (chosen.provider !== 'echo') {
                 const model = input.model ?? thread.model
                 const savedEffort = model && model === thread.model ? thread.effort : undefined

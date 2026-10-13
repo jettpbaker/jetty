@@ -45,7 +45,6 @@ import { Attachments, AttachmentsLive } from './attachments'
 import { botTiming } from './bot-lifecycle'
 import { startBotScheduler } from './bot-scheduler'
 import { claudeLayer } from './claude'
-import { claudeBin } from './claude-bin'
 import { discoverClaudeModels } from './claude-models'
 import { codexLayer, type CodexOptions } from './codex'
 import { discoverCodexModels } from './codex-models'
@@ -561,7 +560,8 @@ function createServer(opts: ServerOptions = {}) {
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
     function modelCatalog() {
       return Effect.gen(function* () {
-        if (models === null) yield* refreshModels()
+        if (models === null || (agentKind === 'claude' && modelDiscovery.claude === 'loading'))
+          yield* refreshModels()
         else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
         return models ?? []
       })
@@ -813,8 +813,6 @@ if (import.meta.main) {
     Effect.gen(function* () {
       const running = yield* ServerService
       yield* Effect.logInfo(`jetty listening on http://${running.hostname}:${running.port}`)
-      if (!claudeBin)
-        yield* Effect.logWarning("no installed claude found; using the SDK's bundled CLI")
       yield* Effect.never
     }).pipe(Effect.provide(serverLayer()))
   )
