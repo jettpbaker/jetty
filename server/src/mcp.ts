@@ -42,7 +42,7 @@ import { listSkills } from './skills'
 import { StoreError } from './store'
 import { NUMBERED } from './titler'
 
-const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok' }
+const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok', copilot: 'GitHub Copilot' }
 const modelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 function modelOptions(catalog: readonly ProviderModel[]) {
@@ -312,7 +312,7 @@ const createInput = z.object({
     .describe(
       "Create the thread in this project (name, case-insensitive). Defaults to yours. If it doesn't match or is ambiguous, the error lists the available names."
     ),
-  provider: z.enum(['claude', 'codex', 'grok']).optional(),
+  provider: z.enum(['claude', 'codex', 'grok', 'copilot']).optional(),
   model: z
     .string()
     .min(1)

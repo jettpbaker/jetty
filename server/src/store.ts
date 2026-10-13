@@ -212,7 +212,8 @@ function rowToProject(row: ProjectRow): Project {
 }
 
 function publicProvider(value: string | null): ProviderId | undefined {
-  if (value === 'claude' || value === 'codex' || value === 'grok') return value
+  if (value === 'claude' || value === 'codex' || value === 'grok' || value === 'copilot')
+    return value
   return undefined
 }
 

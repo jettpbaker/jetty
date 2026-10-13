@@ -236,6 +236,13 @@ export function echoUsage(provider: ProviderUsage['provider']): ProviderUsage {
         },
       ],
     },
+    copilot: {
+      provider: 'copilot',
+      connected: true,
+      account: 'you@example.com',
+      asOf: now,
+      windows: [],
+    },
     grok: {
       provider: 'grok',
       connected: true,

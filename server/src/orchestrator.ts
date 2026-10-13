@@ -1554,7 +1554,7 @@ export function createOrchestrator({
       },
       providerCapabilities() {
         return Object.fromEntries(
-          (['claude', 'codex', 'grok'] as const).map((provider) => [
+          (['claude', 'codex', 'grok', 'copilot'] as const).map((provider) => [
             provider,
             { compaction: registry.agent(provider)?.supportsCompaction === true },
           ])

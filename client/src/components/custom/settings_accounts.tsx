@@ -26,7 +26,7 @@ import {
 } from './central_icons'
 import { GithubIcon } from './github_icon'
 import { ProviderGlyph } from './provider_glyph'
-import { ComingSoon, Mono, SettingsPage, SettingsSection, cardClass } from './settings_layout'
+import { Mono, SettingsPage, SettingsSection, cardClass } from './settings_layout'
 
 const providers = [
   {
@@ -42,6 +42,13 @@ const providers = [
     cli: 'codex',
     login: 'codex login',
     install: 'https://developers.openai.com/codex/cli',
+  },
+  {
+    id: 'copilot',
+    name: 'GitHub Copilot',
+    cli: 'copilot',
+    login: 'copilot login',
+    install: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
   },
   {
     id: 'grok',
@@ -224,13 +231,15 @@ function ProviderCard({ provider }: { provider: (typeof providers)[number] }) {
   const on = enabled[provider.id]
   const status: Status = !on
     ? 'off'
-    : account?.connected
-      ? 'connected'
-      : failed.has(provider.id) || account?.failed
-        ? 'error'
-        : account
-          ? 'signed-out'
-          : 'checking'
+    : account?.installed === false
+      ? 'missing'
+      : account?.connected
+        ? 'connected'
+        : failed.has(provider.id) || account?.failed
+          ? 'error'
+          : account
+            ? 'signed-out'
+            : 'checking'
   const models = catalog
     .filter((model) => model.provider === provider.id)
     .map((model) => modelLabelText(model))
@@ -333,15 +342,6 @@ export function SettingsAccounts() {
           {providers.map((provider) => (
             <ProviderCard key={provider.id} provider={provider} />
           ))}
-          <AccountCard
-            id='copilot'
-            icon={<ProviderGlyph provider='copilot' />}
-            title='GitHub Copilot'
-            description='Claude, GPT and Gemini models through your Copilot plan'
-            disabled
-          >
-            <ComingSoon />
-          </AccountCard>
         </div>
       </SettingsSection>
       <SettingsSection title='Code' description='Pull requests, reviews and checks.'>

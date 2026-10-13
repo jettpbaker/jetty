@@ -29,7 +29,7 @@ export const PermissionMode = Schema.Literals(['auto', 'full_access'])
 export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
 
 // Echo stays off this list: it is the test double, not a choice.
-export const ProviderId = Schema.Literals(['claude', 'codex', 'grok'])
+export const ProviderId = Schema.Literals(['claude', 'codex', 'grok', 'copilot'])
 export type ProviderId = Schema.Schema.Type<typeof ProviderId>
 
 export const ProviderCapabilities = Schema.Record(
@@ -78,6 +78,7 @@ const DEFAULT_TITLE_MODELS: readonly ModelRef[] = [
   { provider: 'claude', id: 'haiku' },
   { provider: 'codex', id: 'gpt-6-luna' },
   { provider: 'grok', id: 'grok-4.7' },
+  { provider: 'copilot', id: 'gpt-5-mini' },
 ]
 
 export function resolveTitleModel(
@@ -521,7 +522,7 @@ export const Bot = Schema.Struct({
   allowRules: Schema.optional(Schema.Array(BotAllowRule)),
   shape: BotShape,
   color: BotColor,
-  provider: ProviderId,
+  provider: Schema.Literals(['claude', 'codex', 'grok']),
   model: Schema.String,
   effort: Schema.optional(EffortLevel),
   fast: Schema.Boolean,
@@ -585,6 +586,7 @@ export type UsageWindow = Schema.Schema.Type<typeof UsageWindow>
 export const ProviderUsage = Schema.Struct({
   provider: ProviderId,
   connected: Schema.Boolean,
+  installed: Schema.optional(Schema.Boolean),
   plan: Schema.optional(Schema.String),
   account: Schema.optional(Schema.String),
   identity: Schema.optional(Schema.String),
@@ -1113,7 +1115,7 @@ export const methods = {
       name: Schema.String.check(Schema.isMinLength(1)).check(Schema.isMaxLength(BOT_NAME_MAX)),
       shape: BotShape,
       color: BotColor,
-      provider: ProviderId,
+      provider: Schema.Literals(['claude', 'codex', 'grok']),
       model: Schema.String,
       effort: Schema.optional(EffortLevel),
       fast: Schema.Boolean,

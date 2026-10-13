@@ -96,6 +96,7 @@ export function createRpcHandlers(
     claude: 'loading',
     codex: 'loading',
     grok: 'loading',
+    copilot: 'loading',
   }),
   getProviderUsage: (provider: ProviderUsage['provider']) => Effect.Effect<ProviderUsage> = (
     provider

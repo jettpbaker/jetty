@@ -2,7 +2,7 @@ import type { Effect } from 'effect'
 
 import type { Agent } from './agent'
 
-export type AgentProvider = 'claude' | 'codex' | 'grok' | 'echo'
+export type AgentProvider = 'claude' | 'codex' | 'grok' | 'copilot' | 'echo'
 
 export type AgentRegistry = {
   readonly defaultProvider: AgentProvider
@@ -16,7 +16,13 @@ export type ProviderTitler = (
 ) => Effect.Effect<string | null>
 
 export function isAgentProvider(value: string): value is AgentProvider {
-  return value === 'claude' || value === 'codex' || value === 'grok' || value === 'echo'
+  return (
+    value === 'claude' ||
+    value === 'codex' ||
+    value === 'grok' ||
+    value === 'copilot' ||
+    value === 'echo'
+  )
 }
 
 export function singleAgentRegistry(agent: Agent): AgentRegistry {

@@ -13,6 +13,7 @@ import type { StdioProcessOptions } from './stdio-rpc'
 
 import { claudePrompt } from './claude-prompt'
 import { createCodexPrompt } from './codex-prompt'
+import { createCopilotPrompt } from './copilot-prompt'
 import { createGrokPrompt } from './grok-prompt'
 
 export type ModelPrompt = (
@@ -27,10 +28,12 @@ export type TitlePrompt = (instructions: string, text: string) => Effect.Effect<
 
 export function createModelPrompt(options: {
   codex?: StdioProcessOptions
+  copilot?: StdioProcessOptions
   grok?: StdioProcessOptions
 }) {
   return Effect.gen(function* () {
     const prompts: Record<ProviderId, ModelPrompt> = {
+      copilot: yield* createCopilotPrompt(options.copilot),
       codex: yield* createCodexPrompt(options.codex),
       claude: claudePrompt,
       grok: yield* createGrokPrompt(options.grok),

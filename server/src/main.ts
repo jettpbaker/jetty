@@ -48,6 +48,9 @@ import { claudeLayer } from './claude'
 import { discoverClaudeModels } from './claude-models'
 import { codexLayer, type CodexOptions } from './codex'
 import { discoverCodexModels } from './codex-models'
+import { copilotLayer, type CopilotOptions } from './copilot'
+import { discoverCopilotModels } from './copilot-models'
+import { readCopilotProviderUsage } from './copilot-usage'
 import { databaseLayer } from './db'
 import { createDesktops } from './desktops'
 import { GitDiffLive } from './diff'
@@ -86,8 +89,9 @@ export type ServerOptions = {
   home?: string
   port?: number
   hostname?: string
-  agent?: 'echo' | 'claude' | 'codex' | 'grok' | Agent
+  agent?: 'echo' | 'claude' | 'codex' | 'grok' | 'copilot' | Agent
   titler?: Titler | null
+  copilot?: CopilotOptions
   grok?: GrokOptions
   codex?: CodexOptions
 }
@@ -375,7 +379,9 @@ function createServer(opts: ServerOptions = {}) {
     const envAgent = process.env.JETTY_AGENT
     const agentKind =
       opts.agent ??
-      (envAgent === 'grok' || envAgent === 'codex' || envAgent === 'echo' ? envAgent : 'claude')
+      (envAgent === 'copilot' || envAgent === 'grok' || envAgent === 'codex' || envAgent === 'echo'
+        ? envAgent
+        : 'claude')
 
     yield* lockHome(home)
     const database = yield* Layer.build(storeLayer.pipe(Layer.provide(databaseLayer(home))))
@@ -438,8 +444,8 @@ function createServer(opts: ServerOptions = {}) {
     const discovers = typeof agentKind === 'string' && agentKind !== 'echo'
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
     let modelDiscovery: ModelDiscovery = discovers
-      ? { claude: 'loading', codex: 'loading', grok: 'loading' }
-      : { claude: 'ready', codex: 'ready', grok: 'ready' }
+      ? { claude: 'loading', codex: 'loading', grok: 'loading', copilot: 'loading' }
+      : { claude: 'ready', codex: 'ready', grok: 'ready', copilot: 'ready' }
     let registerClaudeMcp:
       | ((
           server: McpSdkServerConfigWithInstance['instance'],
@@ -467,6 +473,7 @@ function createServer(opts: ServerOptions = {}) {
                   })
                 ),
                 codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp, attachments })),
+                copilot: yield* loadAgent(copilotLayer(store, { ...opts.copilot, mcp })),
                 grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp, hooks })),
               },
               agentKind
@@ -486,7 +493,7 @@ function createServer(opts: ServerOptions = {}) {
           const done = Deferred.makeUnsafe<void>()
           inFlight = done
           const lists = new Map<ProviderId, readonly ProviderModel[]>(
-            (['claude', 'codex', 'grok'] as const).map((provider) => [
+            (['claude', 'codex', 'grok', 'copilot'] as const).map((provider) => [
               provider,
               models?.filter((model) => model.provider === provider) ?? [],
             ])
@@ -504,7 +511,12 @@ function createServer(opts: ServerOptions = {}) {
               Effect.sync(() => hub.pushChrome({ type: 'modelDiscovery', status: modelDiscovery }))
             )
           }
-          modelDiscovery = { claude: 'loading', codex: 'loading', grok: 'loading' }
+          modelDiscovery = {
+            claude: 'loading',
+            codex: 'loading',
+            grok: 'loading',
+            copilot: 'loading',
+          }
           function probe<E, R>(
             provider: ProviderId,
             discovery: Effect.Effect<readonly ProviderModel[], E, R>
@@ -523,6 +535,7 @@ function createServer(opts: ServerOptions = {}) {
             probe('claude', discoverClaudeModels()),
             probe('codex', discoverCodexModels(home, opts.codex)),
             probe('grok', discoverGrokModels(home, opts.grok)),
+            probe('copilot', discoverCopilotModels(home, opts.copilot)),
           ]
           return publishStatus()
             .pipe(
@@ -571,6 +584,7 @@ function createServer(opts: ServerOptions = {}) {
       prompt: modelPrompt,
       codex: opts.codex,
       grok: opts.grok,
+      copilot: opts.copilot,
       catalog: modelCatalog,
       choice: () => store.getJobModel('title').pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })
@@ -618,6 +632,10 @@ function createServer(opts: ServerOptions = {}) {
       () => modelDiscovery,
       (provider) => {
         if (agentKind === 'echo') return Effect.succeed(echoUsage(provider))
+        if (provider === 'copilot')
+          return readCopilotProviderUsage(home, opts.copilot).pipe(
+            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+          )
         if (provider === 'codex')
           return readCodexProviderUsage(home, opts.codex).pipe(
             Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
