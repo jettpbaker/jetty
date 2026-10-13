@@ -156,12 +156,12 @@ async function restoreProtected(home: string, head: string) {
     ':(top,literal,exclude)instructions.md',
   ]
   await botHomeGit(home, ['restore', '--source', head, '--staged', '--worktree', '--', ...paths])
-  await botHomeGit(home, ['clean', '-fdxq', '--', ...paths])
+  await botHomeGit(home, ['clean', '-fdq', '--', ...paths])
 }
 
 async function restoreHome(home: string, head: string) {
   await botHomeGit(home, ['reset', '--hard', head])
-  await botHomeGit(home, ['clean', '-fdxq'])
+  await botHomeGit(home, ['clean', '-fdq'])
 }
 
 export function tidyBotHome(
@@ -215,11 +215,7 @@ export function tidyBotHome(
       if (choice.model.provider !== 'codex' && choice.model.provider !== 'copilot')
         return yield* Effect.fail(new Error(`Tidy is not supported by ${choice.model.provider}`))
       yield* Effect.tryPromise(async () => {
-        await botHomeGit(home, ['add', '-Af'])
-        await commitBotHome(home)
         toolHead = await botHomeGit(home, ['rev-parse', 'HEAD'])
-        await commitSharedPreferences(home)
-        await botHomeGit(shared, ['add', '-Af'])
         await commitSharedPreferences(home)
         sharedHead = await botHomeGit(shared, ['rev-parse', 'HEAD'])
       }).pipe(Effect.uninterruptible)
