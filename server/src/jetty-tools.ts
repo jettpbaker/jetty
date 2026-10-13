@@ -1,3 +1,5 @@
+export const BOT_MCP_TIMEOUT_MS = 24 * 60 * 60 * 1000
+
 // Jetty's MCP tools that only read, or only touch the calling thread. They never ask for approval.
 export const SELF_TOOLS = [
   'list_threads',

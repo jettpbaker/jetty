@@ -38,7 +38,7 @@ import {
   userAnswers,
   type ThreadWorkspace,
 } from './jetty-instructions'
-import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
+import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 
 export type CodexOptions = CodexProcessOptions & {
   interruptGraceMs?: number
@@ -357,6 +357,9 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   `mcp_servers.jetty.url=${JSON.stringify(binding.url)}`,
                   '-c',
                   'mcp_servers.jetty.bearer_token_env_var="JETTY_MCP_TOKEN"',
+                  ...(bot
+                    ? ['-c', `mcp_servers.jetty.tool_timeout_sec=${BOT_MCP_TIMEOUT_MS / 1000}`]
+                    : []),
                   // Codex sends MCP approvals straight to the user, with no reviewer of its own.
                   ...[...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'].flatMap((name) => [
                     '-c',
@@ -414,7 +417,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 ],
               })
             yield* store.updateBotLifecycle(session.input.threadId, {
-              codexInstructionsHash: bot.hash,
+              codexInstructionsHash: session.input.compact ? undefined : bot.hash,
             })
           }
           yield* session.emit({ type: 'turn.started', turnId: session.input.turnId })

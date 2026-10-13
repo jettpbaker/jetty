@@ -32,7 +32,7 @@ import {
   createCopilotTranslator,
 } from './copilot-translate'
 import { jettyInstructions } from './jetty-instructions'
-import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
+import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 import {
   object,
   string,
@@ -86,7 +86,7 @@ export function copilotInput(text: string, images?: AgentImage[]) {
 
 // ACP has no field for system instructions. Copilot reads always-on instruction files from the
 // folders in COPILOT_CUSTOM_INSTRUCTIONS_DIRS, so each session gets one, removed with it.
-function instructionsFolder(text: string) {
+function instructionsFolder(text: string, mcp?: { url: string; token: string }) {
   return Effect.acquireRelease(
     Effect.tryPromise({
       try: async () => {
@@ -96,6 +96,23 @@ function instructionsFolder(text: string) {
           join(dir, '.github', 'instructions', 'jetty.instructions.md'),
           `---\napplyTo: "**"\n---\n${text}\n`
         )
+        if (mcp)
+          await writeFile(
+            join(dir, 'mcp.json'),
+            JSON.stringify({
+              mcpServers: {
+                jetty: {
+                  type: 'http',
+                  url: mcp.url,
+                  headers: { Authorization: `Bearer ${mcp.token}` },
+                  tools: ['*'],
+                  timeout: BOT_MCP_TIMEOUT_MS,
+                  deferTools: 'never',
+                },
+              },
+            }),
+            { mode: 0o600 }
+          )
         return dir
       },
       catch: (error) => new AgentError(`Could not write Copilot instructions: ${String(error)}`),
@@ -349,7 +366,8 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                     ).replace(
                       'use AskUserQuestion and wait for the answer',
                       'ask your question in your final response'
-                    )
+                    ),
+                  session.bot ? binding : undefined
                 )
               : undefined
           const dirs =
@@ -367,6 +385,9 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                           '--excluded-tools',
                           'update_todo',
                           'task',
+                          ...(binding
+                            ? ['--additional-mcp-config', `@${join(instructions, 'mcp.json')}`]
+                            : []),
                           ...session.bot.allowedPaths.flatMap((path) => ['--add-dir', path]),
                         ]
                       : []),
@@ -388,16 +409,17 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             )
           const result = yield* connection.request(resume ? 'session/load' : 'session/new', {
             cwd,
-            mcpServers: binding
-              ? [
-                  {
-                    type: 'http',
-                    name: 'jetty',
-                    url: binding.url,
-                    headers: [{ name: 'Authorization', value: `Bearer ${binding.token}` }],
-                  },
-                ]
-              : [],
+            mcpServers:
+              binding && !session.bot
+                ? [
+                    {
+                      type: 'http',
+                      name: 'jetty',
+                      url: binding.url,
+                      headers: [{ name: 'Authorization', value: `Bearer ${binding.token}` }],
+                    },
+                  ]
+                : [],
             ...(resume ? { sessionId: resume } : {}),
           })
           const sessionId = resume ?? string(result.sessionId)
