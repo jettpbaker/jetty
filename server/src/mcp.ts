@@ -5,13 +5,16 @@ import {
   SEARCH_MAX_K,
   SEARCH_QUERY_MAX,
 } from '@jetty/shared/bot-search'
-import { heldByRestarts } from '@jetty/shared/items'
+import { SessionStatus } from '@jetty/shared/events'
+import { heldByRestarts, type ThreadItem } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
 import {
   newId,
   worktreeSetupPrompt,
+  type Bot,
   type BotTask,
   type ProviderModel,
+  type ThreadMeta,
   type WireError,
 } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -31,6 +34,7 @@ import type { Store } from './store'
 import type { Worktrees } from './worktrees'
 
 import { relayedMessage } from './jetty-instructions'
+import { parsePullRequestUrl } from './pull-requests'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
 import { listSkills } from './skills'
@@ -106,6 +110,159 @@ function taskResult(task: BotTask) {
     status: task.status,
     ...(task.note ? { note: task.note } : {}),
   }
+}
+
+const LIST_LIMIT = 50
+const LIST_LIMIT_MAX = 200
+const OUTLINE_TURNS = 30
+const OUTLINE_CHARS = 200
+const MESSAGE_PAGE = 10
+const MESSAGE_CHARS = 1500
+// Claude's shell tool. grok-translate and codex-translate name theirs Bash too.
+const SHELL_TOOL = 'Bash'
+
+function findBot(bots: readonly Bot[], name: string) {
+  const byId = bots.find((bot) => bot.id === name)
+  const matches = byId
+    ? [byId]
+    : bots.filter((bot) => bot.name.toLowerCase() === name.toLowerCase())
+  if (matches.length === 1) return matches[0]!
+  const available = bots.map((bot) => bot.name).join(', ') || 'none'
+  return new StoreError(
+    'invalid_params',
+    matches.length === 0
+      ? `Unknown bot ${name}. Available: ${available}`
+      : `Ambiguous bot ${name}. Available: ${available}`
+  )
+}
+
+function pullRequestQuery(value: string): { repo?: string; number: number } | undefined {
+  const url = parsePullRequestUrl(value)
+  if (url) return url
+  const match = /^(?:([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#|#)?(\d+)$/.exec(value.trim())
+  if (!match) return undefined
+  const number = Number(match[3])
+  if (!Number.isSafeInteger(number) || number <= 0) return undefined
+  return match[1] && match[2]
+    ? { repo: `${match[1]}/${match[2]}`.toLowerCase(), number }
+    : { number }
+}
+
+function threadSummary(thread: ThreadMeta, project: string, bot: string | undefined) {
+  const branch = thread.worktree?.branch ?? thread.git?.branch
+  return {
+    id: thread.id,
+    title: thread.title,
+    project,
+    status: thread.status,
+    readyForReview: thread.readyForReview,
+    provider: thread.provider,
+    model: thread.model,
+    parentThreadId: thread.parentThreadId,
+    createdBy: thread.createdBy ?? 'user',
+    ...(thread.pullRequests?.length && {
+      pullRequests: thread.pullRequests.map((pr) => ({
+        ref: `${pr.repo}#${pr.number}`,
+        ...(pr.state ? { state: pr.state } : {}),
+        ...(pr.checks ? { checks: pr.checks } : {}),
+        ...(pr.reviewDecision ? { reviewDecision: pr.reviewDecision } : {}),
+      })),
+    }),
+    ...(branch ? { branch } : {}),
+    lastActivity: new Date(thread.updatedAt).toISOString(),
+    ...(thread.status === 'awaiting_approval' ? { needsInput: true } : {}),
+    ...(thread.awaitingParent ? { awaitingParent: true } : {}),
+    ...(bot ? { bot } : {}),
+    ...(thread.archived ? { archived: true } : {}),
+  }
+}
+
+function singleLine(text: string, cap: number) {
+  const line = text.replaceAll(/\s+/g, ' ').trim()
+  return line.length > cap ? line.slice(0, cap) : line
+}
+
+function firstLine(text: string, cap: number) {
+  const line =
+    text
+      .split(/\r?\n/)
+      .find((part) => part.trim())
+      ?.trim() ?? ''
+  return line.length > cap ? line.slice(0, cap) : line
+}
+
+function messageSender(item: Extract<ThreadItem, { kind: 'user_message' }>) {
+  if (item.wake) return item.wake
+  return item.from?.title ?? 'user'
+}
+
+function turnCounts(items: readonly ThreadItem[]) {
+  const paths = new Set<string>()
+  let commands = 0
+  let started = 0
+  let messaged = 0
+  let pullRequests = 0
+  for (const item of items) {
+    if (item.kind === 'tool_call') {
+      if (item.fileChange) paths.add(item.fileChange.path)
+      if (item.toolName === SHELL_TOOL) commands++
+    } else if (item.kind === 'thread_marker') {
+      if (item.action === 'started') started++
+      else messaged++
+    } else if (item.kind === 'pull_request') pullRequests++
+  }
+  const did = {
+    ...(paths.size > 0 ? { edited: paths.size } : {}),
+    ...(commands > 0 ? { commands } : {}),
+    ...(started > 0 ? { started } : {}),
+    ...(messaged > 0 ? { messaged } : {}),
+    ...(pullRequests > 0 ? { pullRequests } : {}),
+  }
+  return Object.keys(did).length > 0 ? did : undefined
+}
+
+function outlineTurn(items: readonly ThreadItem[]) {
+  const asked = items.find((item) => item.kind === 'user_message')
+  const answered = items.findLast((item) => item.kind === 'assistant_message')
+  const did = turnCounts(items)
+  return {
+    at: new Date(items[0]!.createdAt).toISOString(),
+    ...(asked?.kind === 'user_message'
+      ? {
+          asked: {
+            id: asked.id,
+            who: messageSender(asked),
+            text: singleLine(asked.text, OUTLINE_CHARS),
+          },
+        }
+      : {}),
+    ...(answered?.kind === 'assistant_message'
+      ? { answered: { id: answered.id, text: firstLine(answered.text, OUTLINE_CHARS) } }
+      : {}),
+    ...(did ? { did } : {}),
+  }
+}
+
+function mainTurns(items: readonly ThreadItem[]) {
+  const turns: ThreadItem[][] = []
+  const byTurn = new Map<string, ThreadItem[]>()
+  for (const item of items) {
+    if (item.agentId) continue
+    const turn = byTurn.get(item.turnId)
+    if (turn) turn.push(item)
+    else {
+      const next = [item]
+      byTurn.set(item.turnId, next)
+      turns.push(next)
+    }
+  }
+  return turns
+}
+
+function isChatMessage(
+  item: ThreadItem
+): item is Extract<ThreadItem, { kind: 'user_message' | 'assistant_message' }> {
+  return item.kind === 'user_message' || item.kind === 'assistant_message'
 }
 
 const taskTitle = z.string().trim().min(1).max(200)
@@ -235,11 +392,13 @@ export function createMcpHandler(
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
 
-    function accessible(identity: McpIdentity, targetId: string) {
+    // Reading may open an archived thread. The caller still has to be live, and a tool that acts
+    // on a thread leaves `archived` off, so it keeps refusing archived targets.
+    function accessible(identity: McpIdentity, targetId: string, opts?: { archived?: boolean }) {
       return Effect.gen(function* () {
         const caller = yield* store.requireThread(identity.threadId)
         const target = yield* store.requireThread(targetId)
-        if (caller.archived || target.archived)
+        if (caller.archived || (!opts?.archived && target.archived))
           return yield* Effect.fail(new StoreError('not_found', `Thread ${targetId} is archived`))
         return target
       })
@@ -664,7 +823,7 @@ export function createMcpHandler(
         {
           ...toolMeta,
           description:
-            "List threads across projects (archived ones aren't included) with their status, model, parent and project. Your project first. Pass project to filter by name.",
+            'List threads across projects, yours first and newest activity first, each with its status, model, parent, project, linked pull requests, branch and last activity. Filter by project, status, bot (name or id) and pullRequest (#123, owner/repo#123 or a URL); archived threads stay out unless includeArchived, and the result stops at limit (default 50, max 200) and says how many more match.',
           inputSchema: {
             project: z
               .string()
@@ -672,32 +831,87 @@ export function createMcpHandler(
               .min(1)
               .optional()
               .describe('Filter by project name (case-insensitive).'),
+            status: z
+              .enum(SessionStatus.literals)
+              .optional()
+              .describe('Only threads in this status.'),
+            bot: z
+              .string()
+              .trim()
+              .min(1)
+              .optional()
+              .describe("A bot's name (case-insensitive) or id."),
+            pullRequest: z
+              .string()
+              .trim()
+              .min(1)
+              .optional()
+              .describe('#123, 123, owner/repo#123, or a pull request URL.'),
+            includeArchived: z
+              .boolean()
+              .default(false)
+              .describe('Include archived threads. Default false.'),
+            limit: z
+              .number()
+              .int()
+              .min(1)
+              .max(LIST_LIMIT_MAX)
+              .default(LIST_LIMIT)
+              .describe('How many threads to return. Default 50, max 200.'),
           },
         },
-        ({ project }) =>
+        ({ project, status, bot, pullRequest, includeArchived, limit }) =>
           invoke(
             Effect.gen(function* () {
               const caller = yield* accessible(identity, identity.threadId)
               const titles = new Map(
                 (yield* store.listProjects()).map((item) => [item.id, item.title])
               )
+              const bots = yield* store.listBots()
+              const names = new Map(bots.map((item) => [item.id, item.name]))
+              const found = bot ? findBot(bots, bot) : undefined
+              if (found instanceof StoreError) return yield* Effect.fail(found)
+              const query = pullRequest ? pullRequestQuery(pullRequest) : undefined
+              if (pullRequest && !query)
+                return yield* Effect.fail(
+                  new StoreError(
+                    'invalid_params',
+                    'Use #123, owner/repo#123, or a pull request URL'
+                  )
+                )
               const key = project?.toLowerCase()
-              const listed = (yield* store.listThreads()).filter(
-                (t) => !t.archived && (!key || titles.get(t.projectId)?.toLowerCase() === key)
-              )
-              const own = listed.filter((t) => t.projectId === caller.projectId)
-              const rest = listed.filter((t) => t.projectId !== caller.projectId)
-              return [...own, ...rest].map((t) => ({
-                id: t.id,
-                title: t.title,
-                project: titles.get(t.projectId) ?? t.projectId,
-                status: t.status,
-                readyForReview: t.readyForReview,
-                provider: t.provider,
-                model: t.model,
-                parentThreadId: t.parentThreadId,
-                createdBy: t.createdBy ?? 'user',
-              }))
+              const listed = (yield* store.listThreads()).filter((thread) => {
+                if (!includeArchived && thread.archived) return false
+                if (key && titles.get(thread.projectId)?.toLowerCase() !== key) return false
+                if (status && thread.status !== status) return false
+                if (found && thread.botId !== found.id) return false
+                if (
+                  query &&
+                  !(thread.pullRequests ?? []).some(
+                    (pr) =>
+                      pr.number === query.number &&
+                      (query.repo === undefined || pr.repo.toLowerCase() === query.repo)
+                  )
+                )
+                  return false
+                return true
+              })
+              const ordered = [
+                ...listed.filter((thread) => thread.projectId === caller.projectId),
+                ...listed.filter((thread) => thread.projectId !== caller.projectId),
+              ]
+              const page = ordered.slice(0, limit)
+              const more = ordered.length - page.length
+              return {
+                threads: page.map((thread) =>
+                  threadSummary(
+                    thread,
+                    titles.get(thread.projectId) ?? thread.projectId,
+                    thread.botId ? names.get(thread.botId) : undefined
+                  )
+                ),
+                ...(more > 0 ? { more } : {}),
+              }
             })
           )
       )
@@ -706,51 +920,84 @@ export function createMcpHandler(
         {
           ...toolMeta,
           description:
-            "Read a thread's latest 20 user and assistant messages, each cut at 4,000 characters (marked truncated). Pass after to read on from an earlier message, or messageId to get one message in full.",
+            "Returns an outline of the thread's turns by default, the latest 30, with message ids to open any message in full. Pass view 'messages' for the latest 10 user and assistant messages, each cut at 1,500 characters; after pages those forward and before pages the outline back.",
           inputSchema: {
             threadId: z.string(),
+            view: z
+              .enum(['outline', 'messages'])
+              .default('outline')
+              .describe(
+                'outline summarizes each turn. messages returns recent user and assistant messages.'
+              ),
+            before: z
+              .string()
+              .optional()
+              .describe(
+                'A message id from an outline. Returns the 30 turns before the turn that holds it.'
+              ),
             after: z
               .string()
               .optional()
-              .describe('A message id from an earlier read; returns the messages after it.'),
-            messageId: z.string().optional().describe('Returns that one message in full.'),
+              .describe(
+                'A message id from an earlier messages read. Returns the messages after it. Implies view messages.'
+              ),
+            messageId: z
+              .string()
+              .optional()
+              .describe('Returns that one message in full, whatever the view.'),
           },
         },
         (input) =>
           invoke(
             Effect.gen(function* () {
-              const thread = yield* accessible(identity, input.threadId)
+              const thread = yield* accessible(identity, input.threadId, { archived: true })
               const state = yield* store.getThreadState(input.threadId)
-              const messages = state.items.filter(
-                (i) => i.kind === 'user_message' || i.kind === 'assistant_message'
-              )
-              const cursor = input.messageId ?? input.after
-              const index = cursor ? messages.findIndex((i) => i.id === cursor) : -1
-              if (cursor && index < 0)
-                return yield* Effect.fail(
-                  new StoreError('invalid_params', `No message ${cursor} in this thread`)
-                )
-              const page = input.messageId
-                ? [messages[index]!]
-                : input.after
-                  ? messages.slice(index + 1, index + 21)
-                  : messages.slice(-20)
-              const cap = input.messageId ? Infinity : 4000
+              if (input.messageId || input.after || input.view === 'messages') {
+                const messages = state.items.filter(isChatMessage)
+                const cursor = input.messageId ?? input.after
+                const index = cursor ? messages.findIndex((item) => item.id === cursor) : -1
+                if (cursor && index < 0)
+                  return yield* Effect.fail(
+                    new StoreError('invalid_params', `No message ${cursor} in this thread`)
+                  )
+                const page = input.messageId
+                  ? [messages[index]!]
+                  : input.after
+                    ? messages.slice(index + 1, index + 1 + MESSAGE_PAGE)
+                    : messages.slice(-MESSAGE_PAGE)
+                const cap = input.messageId ? Infinity : MESSAGE_CHARS
+                return {
+                  title: thread.title,
+                  messages: page.map((item) => ({
+                    id: item.id,
+                    role: item.kind === 'user_message' ? 'user' : 'assistant',
+                    text: relayedMessage(
+                      (item.kind === 'user_message' && item.from) || {
+                        threadId: thread.id,
+                        title: thread.title,
+                      },
+                      item.text.slice(0, cap)
+                    ),
+                    truncated: item.text.length > cap,
+                  })),
+                  after: page.at(-1)?.id ?? input.after ?? null,
+                }
+              }
+              const turns = mainTurns(state.items)
+              let end = turns.length
+              if (input.before) {
+                const at = turns.findIndex((turn) => turn.some((item) => item.id === input.before))
+                if (at < 0)
+                  return yield* Effect.fail(
+                    new StoreError('invalid_params', `No message ${input.before} in this thread`)
+                  )
+                end = at
+              }
+              const start = Math.max(0, end - OUTLINE_TURNS)
               return {
                 title: thread.title,
-                messages: page.map((i) => ({
-                  id: i.id,
-                  role: i.kind === 'user_message' ? 'user' : 'assistant',
-                  text: relayedMessage(
-                    (i.kind === 'user_message' && i.from) || {
-                      threadId: thread.id,
-                      title: thread.title,
-                    },
-                    i.text.slice(0, cap)
-                  ),
-                  truncated: i.text.length > cap,
-                })),
-                after: page.at(-1)?.id ?? input.after ?? null,
+                turns: turns.slice(start, end).map(outlineTurn),
+                ...(start > 0 ? { earlier: start } : {}),
               }
             })
           )

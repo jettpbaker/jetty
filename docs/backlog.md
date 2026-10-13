@@ -752,11 +752,20 @@ that clears on session closure or server restart.
   `create_thread`, `send_message`, PR linking and
   `archive_thread`, plus media tools. These operate on ordinary threads; no
   dedicated coordinator role/type is represented in the inspected contracts.
-- **Scope and inspection limits:** listing/reading/messaging require active,
-  unarchived threads in the same project. `read_thread` returns at most 20 user/
-  assistant messages, each truncated to 4,000 characters. Its `after` cursor
-  reads newer messages, not the full tool/event trace. A coordinating agent
-  cannot equate this bounded text view with complete verification evidence.
+- **Scope and inspection limits:** `list_threads` lists across projects, the
+  caller's project first, newest activity first. Each entry includes linked
+  pull requests, branch, last activity, and when set, needs input, awaiting
+  its parent, the owning bot, and archived. It filters by project, status, bot
+  and pull request, leaves archived threads out unless asked, and returns 50
+  by default (200 at most) with a count of how many more matched. Tools that
+  act on a thread still refuse an archived target, and an archived caller
+  cannot call them. `read_thread` can read an archived thread. It returns an
+  outline of the latest 30 turns by default, with message ids to open any
+  message in full. `view: 'messages'` returns the latest 10 user and assistant
+  messages, each cut at 1,500 characters, and `after` pages forward 10 at a
+  time. The outline and those pages are not the full tool or event trace. A
+  coordinating agent cannot equate this bounded text view with complete
+  verification evidence.
 - **Creation and placement:** `create_thread` accepts prompt, optional title,
   provider/model/effort, local/worktree environment, ref, notify flag and request
   ID. It immediately creates/enqueues an ordinary child, not a draft task or

@@ -88,7 +88,13 @@ export function jettyResults(call: ToolActivity, config: ResultTool): JettyResul
   try {
     const output: unknown = JSON.parse(call.output ?? '')
     const input = record(JSON.parse(call.input ?? '{}'))
-    const payload = call.jettyTool === 'search_threads' ? record(output).results : output
+    const body = record(output)
+    const payload =
+      call.jettyTool === 'search_threads'
+        ? body.results
+        : call.jettyTool === 'list_threads'
+          ? (body.threads ?? output)
+          : output
     const rows = config.list ? payload : [payload]
     if (!Array.isArray(rows)) return undefined
     const results: JettyResult[] = []
