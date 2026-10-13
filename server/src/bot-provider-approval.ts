@@ -3,7 +3,7 @@ import { Effect } from 'effect'
 import type { Store } from './store'
 
 import { AgentError } from './agent'
-import { botApproval } from './bot-approval'
+import { approvalCommand, botApproval } from './bot-approval'
 import { type BotRuleReviewer } from './bot-rule-review'
 
 export type BotApprovalRule = { text: string; source: string }
@@ -23,9 +23,16 @@ export function reviewBotApproval(
       .filter((project) => !bot.projectId || bot.projectId === project.id)
       .map((project) => ({ path: project.path, name: project.title }))
     const description = botApproval(tool, input, [], [{ path: cwd, name: 'its home' }, ...projects])
+    const actionInput = approvalActionInput(tool, input)
     const covered =
-      bot.permissionMode !== 'full_access' && reviewer
-        ? yield* reviewer(bot, { tool, input, cwd, home: cwd, projects })
+      actionInput && bot.permissionMode !== 'full_access' && reviewer
+        ? yield* reviewer(bot, {
+            tool,
+            input: actionInput,
+            cwd: typeof input.cwd === 'string' ? input.cwd : cwd,
+            home: cwd,
+            projects,
+          })
         : false
     const current = covered ? yield* store.getBot(threadId) : undefined
     const unchanged =
@@ -48,4 +55,18 @@ export function saveBotApprovalRule(
       { id: itemId, ...rule, createdAt: Date.now() },
     ])
   }).pipe(Effect.mapError((error) => new AgentError(error.message)))
+}
+
+function approvalActionInput(tool: string, input: Record<string, unknown>) {
+  if (tool === 'commandExecution' || tool === 'Bash') {
+    const command = approvalCommand(tool, input)
+    return command ? { command, invocation: input.command } : undefined
+  }
+  if (tool === 'fileChange')
+    return (Array.isArray(input.changes) && input.changes.length) ||
+      typeof input.grantRoot === 'string'
+      ? { changes: input.changes, grantRoot: input.grantRoot }
+      : undefined
+  if (tool === 'request_permissions') return { permissions: input.permissions }
+  return input
 }
