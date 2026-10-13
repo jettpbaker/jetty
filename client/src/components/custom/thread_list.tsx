@@ -477,11 +477,19 @@ export function ThreadList({
   const totalSize = virtualizer.getTotalSize()
   const sentIndex = send.anchor ? rows.findIndex((row) => row.id === send.anchor) : -1
   const sentStart = virtualizer.measurementsCache[sentIndex]?.start
+  // The previous answer stays in view above the sent message: from its top when that leaves the
+  // message in the window's top half, else as much of its end as fits there.
+  const answerIndex = rows.findLastIndex(
+    (row, index) => index < sentIndex && row.kind === 'assistant'
+  )
+  const answerStart = virtualizer.measurementsCache[answerIndex]?.start ?? sentStart
+  const pinStart =
+    sentStart === undefined || answerStart === undefined
+      ? undefined
+      : Math.max(answerStart, sentStart - viewportHeight / 2)
   // The reply consumes this space before its growth needs to move the conversation.
   const scrollSize =
-    sentStart === undefined
-      ? totalSize
-      : Math.max(totalSize, sentStart - sentInset + viewportHeight)
+    pinStart === undefined ? totalSize : Math.max(totalSize, pinStart - sentInset + viewportHeight)
   // Keep room for the spring to brake when finishing work shrinks the transcript.
   const [scrollSpace, setScrollSpace] = useState(scrollSize)
   if (scrollSize > scrollSpace) setScrollSpace(scrollSize)
