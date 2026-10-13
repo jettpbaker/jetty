@@ -2,7 +2,7 @@ import type { ProviderUsage } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
 
-import { copilotBin, openCopilotConnection } from './copilot-rpc'
+import { copilotBin, probeCopilotSession } from './copilot-rpc'
 import { type StdioProcessOptions } from './stdio-rpc'
 
 export function readCopilotProviderUsage(cwd: string, options: StdioProcessOptions = {}) {
@@ -15,8 +15,7 @@ export function readCopilotProviderUsage(cwd: string, options: StdioProcessOptio
   if (!Bun.which(copilotBin(options))) return Effect.succeed(missing)
   return Effect.scoped(
     Effect.gen(function* () {
-      const { connection } = yield* openCopilotConnection(cwd, options)
-      yield* connection.request('session/new', { cwd, mcpServers: [] })
+      yield* probeCopilotSession(cwd, options)
       // ACP exposes context usage, but no account quota API. Never infer limits from token counts.
       return {
         provider: 'copilot',

@@ -1,9 +1,10 @@
 import { Effect } from 'effect'
+import { rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
 
 import { AgentError } from './agent'
-import { openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
+import { openStdioConnection, string, type StdioProcessOptions } from './stdio-rpc'
 
 export const COPILOT_ARGS = ['--acp', '--stdio', '--no-auto-update']
 
@@ -49,4 +50,33 @@ export function openCopilotConnection(cwd: string, options: StdioProcessOptions 
     // Existing CLI credentials are used by session/new; authenticate opens a terminal login.
     return { connection, init }
   }).pipe(Effect.mapError((error) => copilotError(error.message)))
+}
+
+// session/new saves a session in the Copilot home even when nothing is sent. A probe that only
+// reads models, commands or sign-in removes its session once the process has exited, so it never
+// lands in the user's Copilot history.
+export function probeCopilotSession(cwd: string, options: StdioProcessOptions = {}) {
+  return Effect.gen(function* () {
+    let sessionId = ''
+    yield* Effect.addFinalizer(() =>
+      sessionId
+        ? Effect.promise(() =>
+            rm(
+              join(
+                options.env?.COPILOT_HOME ??
+                  process.env.COPILOT_HOME ??
+                  join(homedir(), '.copilot'),
+                'session-state',
+                sessionId
+              ),
+              { recursive: true, force: true }
+            )
+          )
+        : Effect.void
+    )
+    const { connection } = yield* openCopilotConnection(cwd, options)
+    const session = yield* connection.request('session/new', { cwd, mcpServers: [] })
+    sessionId = string(session.sessionId)
+    return { connection, session }
+  })
 }

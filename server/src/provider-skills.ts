@@ -3,7 +3,7 @@ import type { Skill } from '@jetty/shared/wire'
 import { Effect, Queue } from 'effect'
 
 import { openCodexConnection } from './codex-rpc'
-import { openCopilotConnection } from './copilot-rpc'
+import { probeCopilotSession } from './copilot-rpc'
 import { object, string, type StdioConnection } from './stdio-rpc'
 
 export type CodexSkill = Skill & { path: string }
@@ -39,8 +39,7 @@ export function discoverCodexSkills(cwd: string) {
 export function discoverCopilotSkills(cwd: string) {
   return Effect.scoped(
     Effect.gen(function* () {
-      const { connection } = yield* openCopilotConnection(cwd)
-      const session = yield* connection.request('session/new', { cwd, mcpServers: [] })
+      const { connection, session } = yield* probeCopilotSession(cwd)
       while (true) {
         const message = yield* Queue.take(connection.messages)
         if (message.method !== 'session/update' || message.params.sessionId !== session.sessionId)

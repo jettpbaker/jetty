@@ -4,7 +4,7 @@ import type { ProviderModel } from '@jetty/shared/wire'
 import { EffortLevel as Effort } from '@jetty/shared/events'
 import { Effect, Schema } from 'effect'
 
-import { openCopilotConnection } from './copilot-rpc'
+import { probeCopilotSession } from './copilot-rpc'
 import { object, string, type StdioConnection, type StdioProcessOptions } from './stdio-rpc'
 
 export function copilotConfig(session: Record<string, unknown>, category: string, id: string) {
@@ -84,8 +84,7 @@ export function setCopilotModel(
 export function discoverCopilotModels(cwd: string, options: StdioProcessOptions = {}) {
   return Effect.scoped(
     Effect.gen(function* () {
-      const { connection } = yield* openCopilotConnection(cwd, options)
-      const session = yield* connection.request('session/new', { cwd, mcpServers: [] })
+      const { connection, session } = yield* probeCopilotSession(cwd, options)
       const sessionId = string(session.sessionId)
       const models: ProviderModel[] = []
       // Reasoning choices change with the selected model. Configuration requests do not run turns.
