@@ -283,6 +283,54 @@ test('translation handles completed-only items and authoritative final text with
   ).toMatchObject([{ item: { kind: 'tool_call' } }, { patch: { status: 'failed' } }])
   t.translate({
     method: 'item/started',
+    params: { item: { id: 'patch', type: 'fileChange', changes: [] } },
+  })
+  const changes = [{ path: 'a.ts', kind: { type: 'update' }, diff: '@@ -1 +1 @@\n-old\n+new\n' }]
+  expect(
+    t.translate({ method: 'item/fileChange/patchUpdated', params: { itemId: 'patch', changes } })
+  ).toMatchObject([
+    {
+      type: 'item.updated',
+      patch: { input: { path: 'a.ts', changes }, output: expect.stringContaining('+new') },
+    },
+  ])
+  expect(
+    t.translate({
+      method: 'item/completed',
+      params: { item: { id: 'patch', type: 'fileChange', changes } },
+    })
+  ).toMatchObject([
+    {
+      patch: {
+        input: { path: 'a.ts', changes },
+        fileChange: { path: 'a.ts', additions: 1, deletions: 1 },
+      },
+    },
+  ])
+  for (const [type, toolName] of [
+    ['read', 'Read'],
+    ['search', 'Grep'],
+    ['listFiles', 'Glob'],
+  ]) {
+    expect(
+      t.translate({
+        method: 'item/completed',
+        params: {
+          item: {
+            id: type,
+            type: 'commandExecution',
+            command: 'command',
+            commandActions: [{ type, path: 'a.ts', query: 'needle' }],
+          },
+        },
+      })
+    ).toMatchObject([
+      { item: { toolName, input: { path: 'a.ts' } } },
+      { patch: { toolName, input: { path: 'a.ts' } } },
+    ])
+  }
+  t.translate({
+    method: 'item/started',
     params: { item: { id: 'unfinished', type: 'commandExecution', command: 'sleep 30' } },
   })
   expect(t.finish()).toMatchObject([{ type: 'item.completed', patch: { status: 'failed' } }])

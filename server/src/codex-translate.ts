@@ -57,9 +57,12 @@ export function createCodexTranslator(turnId: string) {
       }
       if (method === 'item/completed') {
         completed.add(id)
+        const fileChange = fileChangeCounts(raw)
         const patch =
           item.kind === 'tool_call'
             ? {
+                toolName: toolName(raw),
+                input: toolInput(raw),
                 status:
                   raw.status === 'failed' ||
                   raw.status === 'declined' ||
@@ -69,6 +72,7 @@ export function createCodexTranslator(turnId: string) {
                     : 'succeeded',
                 output:
                   typeof raw.aggregatedOutput === 'string' ? raw.aggregatedOutput : toolOutput(raw),
+                ...(fileChange ? { fileChange } : {}),
               }
             : item.kind === 'compaction'
               ? { status: raw.status === 'failed' ? 'failed' : 'completed' }
@@ -82,6 +86,17 @@ export function createCodexTranslator(turnId: string) {
                 }
         events.push({ type: 'item.completed', itemId: item.id, patch })
       }
+    } else if (method === 'item/fileChange/patchUpdated') {
+      const item = items.get(string(params.itemId))
+      if (item?.kind === 'tool_call')
+        events.push({
+          type: 'item.updated',
+          itemId: item.id,
+          patch: {
+            input: toolInput({ ...params, type: 'fileChange' }),
+            output: toolOutput({ ...params, type: 'fileChange' }),
+          },
+        })
     } else if (
       method === 'item/agentMessage/delta' ||
       method === 'item/reasoning/summaryTextDelta' ||
@@ -157,11 +172,22 @@ export function createCodexTranslator(turnId: string) {
 function toolName(raw: Record<string, unknown>): string {
   switch (raw.type) {
     case 'commandExecution':
-      return 'Bash'
+      switch (commandAction(raw)?.type) {
+        case 'read':
+          return 'Read'
+        case 'search':
+          return 'Grep'
+        case 'listFiles':
+          return 'Glob'
+        default:
+          return 'Bash'
+      }
     case 'fileChange':
       return 'Edit'
     case 'webSearch':
-      return 'WebSearch'
+      return object(raw.action).type === 'openPage' || object(raw.action).type === 'findInPage'
+        ? 'WebFetch'
+        : 'WebSearch'
     case 'imageView':
       return 'Read'
     case 'imageGeneration':
@@ -182,13 +208,17 @@ function toolName(raw: Record<string, unknown>): string {
 function toolInput(raw: Record<string, unknown>): unknown {
   switch (raw.type) {
     case 'commandExecution':
-      return { command: raw.command, cwd: raw.cwd }
+      return { command: raw.command, cwd: raw.cwd, ...commandAction(raw) }
     case 'fileChange': {
       const changes = Array.isArray(raw.changes) ? raw.changes.map(object) : []
       return { path: string(changes[0]?.path), changes }
     }
     case 'webSearch':
-      return { query: raw.query, action: raw.action }
+      return {
+        query: raw.query,
+        action: raw.action,
+        ...(object(raw.action).url ? { url: object(raw.action).url } : {}),
+      }
     case 'imageView':
       return { path: raw.path }
     case 'mcpToolCall':
@@ -224,7 +254,34 @@ function toolOutput(raw: Record<string, unknown>): string {
       .filter(Boolean)
       .join('\n')
   if (raw.error) return string(object(raw.error).message) || JSON.stringify(raw.error)
+  if (Array.isArray(raw.results)) return JSON.stringify(raw.results)
   return ''
+}
+
+function commandAction(raw: Record<string, unknown>) {
+  return Array.isArray(raw.commandActions) && raw.commandActions.length === 1
+    ? object(raw.commandActions[0])
+    : undefined
+}
+
+function fileChangeCounts(raw: Record<string, unknown>) {
+  if (raw.type !== 'fileChange' || !Array.isArray(raw.changes) || raw.changes.length !== 1)
+    return undefined
+  const change = object(raw.changes[0])
+  const path = string(change.path)
+  const diff = string(change.diff)
+  if (!path) return undefined
+  const kind = object(change.kind).type
+  const lines = diff ? diff.split('\n').length - Number(diff.endsWith('\n')) : 0
+  if (kind === 'add') return { path, additions: lines, deletions: 0 }
+  if (kind === 'delete') return { path, additions: 0, deletions: lines }
+  let additions = 0
+  let deletions = 0
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+') && !line.startsWith('+++')) additions++
+    else if (line.startsWith('-') && !line.startsWith('---')) deletions++
+  }
+  return { path, additions, deletions }
 }
 
 function textArray(value: unknown): string {
