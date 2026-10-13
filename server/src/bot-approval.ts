@@ -155,6 +155,12 @@ export function botApproval(
   // Jetty asks before every new project, so a rule would never be used.
   if (toolName === 'mcp__jetty__add_project')
     return { title: `Add ${text(input.path) ?? 'a folder'} as a project` }
+  if (toolName.startsWith('mcp__') && toolName.endsWith('__elicitation') && text(input.url)) {
+    const url = URL.parse(text(input.url)!)
+    const server = toolName.split('__')[1]
+    const title = `Authorize ${server}${url ? ` at ${url.host}` : ''}`
+    return { title, rule: title }
+  }
   const title = description ?? actionOf(toolName, input, places)
   return { title, rule: title }
 }

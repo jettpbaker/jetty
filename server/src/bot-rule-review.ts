@@ -23,7 +23,7 @@ export function createBotRuleReviewer(options: {
   return (bot, action) =>
     Effect.gen(function* () {
       if (bot.provider !== 'codex' && bot.provider !== 'copilot') return false
-      if (action.tool === 'mcp__jetty__add_project' || action.input.url) return false
+      if (action.tool === 'mcp__jetty__add_project') return false
       const models = yield* options.catalog()
       const cheap = bot.provider === 'codex' ? 'gpt-6-luna' : 'gpt-5-mini'
       const model =

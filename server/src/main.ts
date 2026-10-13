@@ -458,7 +458,10 @@ function createServer(opts: ServerOptions = {}) {
       copilot: opts.copilot,
       grok: opts.grok,
     })
-    const reviewBotApproval = createBotRuleReviewer({ catalog: modelCatalog, prompt: modelPrompt })
+    const reviewBotApproval = createBotRuleReviewer({
+      catalog: () => refreshModels().pipe(Effect.map(() => models ?? [])),
+      prompt: modelPrompt,
+    })
     const registry =
       typeof agentKind !== 'string'
         ? singleAgentRegistry(agentKind)
