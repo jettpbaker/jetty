@@ -3,6 +3,9 @@ import type { ApprovalDecider } from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
 import { Cause, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
@@ -63,7 +66,6 @@ type Session = {
   publication: Semaphore.Semaphore
   config: Record<string, unknown>
   commands: Set<string>
-  instructions?: string
   compactionId?: string
   compactionOutput: string
 }
@@ -77,6 +79,26 @@ export function copilotInput(text: string, images?: AgentImage[]) {
       mimeType: image.mimeType,
     })),
   ]
+}
+
+// ACP has no field for system instructions. Copilot reads always-on instruction files from the
+// folders in COPILOT_CUSTOM_INSTRUCTIONS_DIRS, so each session gets one, removed with it.
+function instructionsFolder(text: string) {
+  return Effect.acquireRelease(
+    Effect.tryPromise({
+      try: async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'jetty-copilot-'))
+        await mkdir(join(dir, '.github', 'instructions'), { recursive: true })
+        await writeFile(
+          join(dir, '.github', 'instructions', 'jetty.instructions.md'),
+          `---\napplyTo: "**"\n---\n${text}\n`
+        )
+        return dir
+      },
+      catch: (error) => new AgentError(`Could not write Copilot instructions: ${String(error)}`),
+    }),
+    (dir) => Effect.promise(() => rm(dir, { recursive: true, force: true }))
+  )
 }
 
 export function createCopilotAdapter(store: Store, options: CopilotOptions = {}) {
@@ -209,13 +231,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             },
           })
         }
-        // Copilot has no ACP system-instructions field. Supply Jetty's instructions as prompt context.
         const blocks = session.input.compact ? copilotInput('/compact') : copilotInput(text, images)
-        if (session.instructions && !session.input.compact)
-          blocks.unshift({
-            type: 'text',
-            text: `<jetty-instructions>\n${session.instructions}\n</jetty-instructions>`,
-          })
         session.denied = false
         session.requestId = yield* session.connection!.startRequest('session/prompt', {
           sessionId: session.providerThreadId,
@@ -310,18 +326,35 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             : undefined
           const thread = yield* store.requireThread(session.input.threadId)
           const project = yield* store.getProject(thread.projectId)
-          if (binding)
-            session.instructions = jettyInstructions(
-              yield* store.getAgentBehaviours(),
-              session.input.parentThreadId,
-              { environment: thread.environment, workingPath: cwd, projectPath: project!.path }
-            ).replace(
-              'use AskUserQuestion and wait for the answer',
-              'ask your question in your final response'
-            )
-          const { connection, init } = yield* openCopilotConnection(cwd, options).pipe(
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-          )
+          const instructions = binding
+            ? yield* instructionsFolder(
+                jettyInstructions(yield* store.getAgentBehaviours(), session.input.parentThreadId, {
+                  environment: thread.environment,
+                  workingPath: cwd,
+                  projectPath: project!.path,
+                }).replace(
+                  'use AskUserQuestion and wait for the answer',
+                  'ask your question in your final response'
+                )
+              )
+            : undefined
+          const dirs =
+            options.env?.COPILOT_CUSTOM_INSTRUCTIONS_DIRS ??
+            process.env.COPILOT_CUSTOM_INSTRUCTIONS_DIRS
+          const { connection, init } = yield* openCopilotConnection(
+            cwd,
+            instructions
+              ? {
+                  ...options,
+                  env: {
+                    ...options.env,
+                    COPILOT_CUSTOM_INSTRUCTIONS_DIRS: [dirs, instructions]
+                      .filter(Boolean)
+                      .join(','),
+                  },
+                }
+              : options
+          ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'copilot')
           if (resume && object(init.agentCapabilities).loadSession !== true)
