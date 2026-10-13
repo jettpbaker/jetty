@@ -25,11 +25,9 @@ export type ModelPrompt = (
 
 export type TitlePrompt = (instructions: string, text: string) => Effect.Effect<string, unknown>
 
-export function createTitlePrompt(options: {
+export function createModelPrompt(options: {
   codex?: StdioProcessOptions
   grok?: StdioProcessOptions
-  catalog: () => Effect.Effect<readonly ProviderModel[]>
-  choice: () => Effect.Effect<JobModel>
 }) {
   return Effect.gen(function* () {
     const prompts: Record<ProviderId, ModelPrompt> = {
@@ -37,6 +35,21 @@ export function createTitlePrompt(options: {
       claude: claudePrompt,
       grok: yield* createGrokPrompt(options.grok),
     }
+    const prompt: ModelPrompt = (model, effort, fast, instructions, text) =>
+      prompts[model.provider](model, effort, fast, instructions, text)
+    return prompt
+  })
+}
+
+export function createTitlePrompt(options: {
+  codex?: StdioProcessOptions
+  grok?: StdioProcessOptions
+  prompt?: ModelPrompt
+  catalog: () => Effect.Effect<readonly ProviderModel[]>
+  choice: () => Effect.Effect<JobModel>
+}) {
+  return Effect.gen(function* () {
+    const modelPrompt = options.prompt ?? (yield* createModelPrompt(options))
     const prompt: TitlePrompt = (instructions, text) =>
       Effect.gen(function* () {
         const choice = yield* options.choice()
@@ -44,7 +57,7 @@ export function createTitlePrompt(options: {
         if (!model) return yield* Effect.fail(new Error('No title model is available'))
         const effort = resolveTitleEffort(model, choice.effort)
         const fast = model.fast && choice.fast === true
-        return yield* prompts[model.provider](model, effort, fast, instructions, text)
+        return yield* modelPrompt(model, effort, fast, instructions, text)
       })
     return prompt
   })

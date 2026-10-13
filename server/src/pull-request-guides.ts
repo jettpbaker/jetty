@@ -1,13 +1,15 @@
 import type { EffortLevel } from '@jetty/shared/events'
 import type { PullRequestData } from '@jetty/shared/pull-request'
-import type { PullRequestGuideState, PullRequestListItem } from '@jetty/shared/wire'
+import type { ProviderModel, PullRequestGuideState, PullRequestListItem } from '@jetty/shared/wire'
 
-import { claudeJobModel, GUIDE_MIN_CHANGED_LINES } from '@jetty/shared/wire'
+import { findProviderModel } from '@jetty/shared/model-name'
+import { resolveGuideModel, GUIDE_MIN_CHANGED_LINES } from '@jetty/shared/wire'
 import { Cause, Effect, Fiber, Scope, Semaphore } from 'effect'
 
 import type { GuideMetrics } from './pr-guide'
 import type { createPullRequests, PullRequestRef } from './pull-requests'
 import type { Store, StoredPullRequestGuide } from './store'
+import type { ModelPrompt, TitlePrompt } from './title-model'
 
 import { generateGuide } from './pr-guide'
 import { guideInput } from './pr-guide/hunks'
@@ -20,7 +22,11 @@ function guideKey(ref: PullRequestRef, headSha: string) {
 export function createPullRequestGuides(
   store: Store,
   pulls: ReturnType<typeof createPullRequests>,
-  scope: Scope.Scope
+  scope: Scope.Scope,
+  options: {
+    catalog: () => Effect.Effect<readonly ProviderModel[]>
+    prompt: ModelPrompt
+  }
 ) {
   const admission = Semaphore.makeUnsafe(1)
   const prefetchSlots = Semaphore.makeUnsafe(2)
@@ -31,7 +37,7 @@ export function createPullRequestGuides(
     ref: PullRequestRef,
     data: PullRequestData,
     row: StoredPullRequestGuide,
-    model: { model: string; effort?: EffortLevel }
+    model: { model: string; effort?: EffortLevel; prompt?: TitlePrompt }
   ) {
     return Effect.gen(function* () {
       const result = yield* Effect.tryPromise({
@@ -89,11 +95,28 @@ export function createPullRequestGuides(
       }
       if (running.has(key)) return { state }
       const now = Date.now()
-      const choice = claudeJobModel(
-        'guide',
-        yield* store.getJobModel('guide').pipe(Effect.orElseSucceed(() => undefined))
+      const catalog = yield* options.catalog()
+      const choice = resolveGuideModel(
+        yield* store.getJobModel('guide').pipe(Effect.orElseSucceed(() => undefined)),
+        catalog
       )
-      const model = { model: choice.model.id, ...(choice.effort ? { effort: choice.effort } : {}) }
+      if (!choice) {
+        if (prefetch) return undefined
+        return yield* Effect.fail(
+          new StoreError('invalid_params', 'Connect a coding agent in Settings to write PR guides.')
+        )
+      }
+      const selected = findProviderModel(catalog, choice.model.provider, choice.model.id)
+      const prompt: TitlePrompt | undefined =
+        choice.model.provider === 'claude' || !selected
+          ? undefined
+          : (instructions, text) =>
+              options.prompt(selected, choice.effort, choice.fast === true, instructions, text)
+      const model = {
+        model: choice.model.id,
+        ...(choice.effort ? { effort: choice.effort } : {}),
+        ...(prompt ? { prompt } : {}),
+      }
       const row: StoredPullRequestGuide = {
         status:
           data.pull.additions + data.pull.deletions < GUIDE_MIN_CHANGED_LINES

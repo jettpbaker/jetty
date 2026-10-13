@@ -23,6 +23,7 @@ import {
   GUIDE_MIN_CHANGED_LINES,
   resolveTitleEffort,
   resolveTitleModel,
+  resolveGuideModel,
 } from '@jetty/shared/wire'
 import { useState } from 'react'
 
@@ -73,16 +74,22 @@ function useAgentBehaviours() {
   return { enabled, set }
 }
 
-// A job's saved choice as the loadout the composer's menu edits: titles fall back to the cheapest
-// model you have, at its lowest effort; guides and tidy passes to their Claude default.
 function jobLoadout(
   job: JobName,
   choice: JobModel | undefined,
   catalog: readonly ProviderModel[]
 ): Loadout | undefined {
   if (job !== 'title') {
-    const { model, effort } = claudeJobModel(job, choice)
-    return { provider: model.provider, model: model.id, ...(effort ? { effort } : {}), fast: false }
+    const selected =
+      job === 'guide' ? resolveGuideModel(choice, catalog) : claudeJobModel(job, choice)
+    if (!selected) return undefined
+    const { model, effort, fast } = selected
+    return {
+      provider: model.provider,
+      model: model.id,
+      ...(effort ? { effort } : {}),
+      fast: model.provider !== 'claude' && fast === true,
+    }
   }
   const model = resolveTitleModel(choice?.model, catalog)
   if (!model) return undefined
@@ -173,6 +180,10 @@ export function SettingsIntelligence() {
   const { enabled, set } = useAgentBehaviours()
   const titles = useJobModel('title')
   const tidying = useJobModel('tidy')
+  const unavailable =
+    titles.catalog.length === 0
+      ? 'Connect a coding agent in Settings to generate thread titles'
+      : undefined
   return (
     <SettingsPage
       title='Intelligence'
@@ -187,16 +198,21 @@ export function SettingsIntelligence() {
             id='thread-titles'
             icon={TextSizeIcon}
             title='Thread titles'
-            description='Names new threads, and the branches they work on'
+            description={unavailable ?? 'Names new threads, and the branches they work on'}
+            disabled={!!unavailable}
           >
-            <span className={cn('flex shrink-0', !titles.ready && 'invisible')}>
+            <DisabledTooltip
+              reason={unavailable}
+              wrap={cn('flex shrink-0', !titles.ready && 'invisible')}
+            >
               <JobModelSelect
                 label='Title model'
                 catalog={titles.catalog}
                 value={titles.value}
+                disabled={!!unavailable}
                 onChange={titles.set}
               />
-            </span>
+            </DisabledTooltip>
           </SettingsRow>
           <SettingsLinkRow
             id='guided-reviews'
@@ -274,7 +290,11 @@ export function SettingsGuidedReviews() {
   const { enabled, set } = useAgentBehaviours()
   const guides = useJobModel('guide')
   const on = enabled('guidedReviews')
-  const off = on ? undefined : 'Turn on Guided reviews first'
+  const unavailable =
+    guides.catalog.length === 0
+      ? 'Connect a coding agent in Settings to write PR guides'
+      : undefined
+  const off = unavailable ?? (on ? undefined : 'Turn on Guided reviews first')
   return (
     <SettingsPage
       parent='intelligence'
@@ -282,25 +302,29 @@ export function SettingsGuidedReviews() {
       description='A Guide tab on pull requests that walks you through the change in chapters, in the order it reads best.'
     >
       <SettingsCard className={guides.ready ? undefined : 'invisible'}>
-        <SettingsRow title='Guided reviews' description='Show a Guide tab on pull requests'>
+        <SettingsRow
+          title='Guided reviews'
+          description={unavailable ?? 'Show a Guide tab on pull requests'}
+          disabled={!!unavailable}
+        >
           <Switch
             aria-label='Guided reviews'
             checked={on}
+            disabled={!!unavailable}
             onCheckedChange={(value) => set('guidedReviews', value)}
           />
         </SettingsRow>
         <SettingsRow
           title='Model'
           description='Reads the diff and writes the chapters'
-          disabled={!on}
+          disabled={!!off}
         >
           <DisabledTooltip reason={off} wrap='flex shrink-0'>
             <JobModelSelect
               label='Guide model'
               catalog={guides.catalog}
               value={guides.value}
-              lockedProvider='claude'
-              disabled={!on}
+              disabled={!!off}
               onChange={guides.set}
             />
           </DisabledTooltip>
@@ -330,15 +354,15 @@ export function SettingsGuidedReviews() {
             id='write-ahead'
             title='Write ahead for review requests'
             description="Start a guide when someone asks for your review, so it's ready when you open it"
-            disabled={!on}
+            disabled={!!off}
           >
             <DisabledTooltip reason={off} wrap='flex'>
               <Switch
                 aria-label='Write ahead for review requests'
-                disabled={!on}
+                disabled={!!off}
                 checked={enabled('prefetchPullRequestGuides')}
                 onCheckedChange={(value) => set('prefetchPullRequestGuides', value)}
-                className={cn(!on && 'pointer-events-none')}
+                className={cn(!!off && 'pointer-events-none')}
               />
             </DisabledTooltip>
           </SettingsRow>

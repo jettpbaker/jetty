@@ -4,12 +4,59 @@ import { Result, Schema } from 'effect'
 import { ContextUsage, SequencedEvent, ThreadEvent, Usage as TokenUsage } from './events'
 import { Attachment, MAX_GALLERY_IMAGES, QuestionSpec, ThreadItem } from './items'
 import { applyEvent, emptyThread, ThreadState } from './reducer'
-import { MAX_ATTACHMENTS_PER_TURN, methods, ThreadGitStatus, UsageWindow } from './wire'
+import {
+  CLAUDE_JOB_DEFAULTS,
+  MAX_ATTACHMENTS_PER_TURN,
+  methods,
+  resolveGuideModel,
+  resolveTitleModel,
+  ThreadGitStatus,
+  UsageWindow,
+  type ProviderModel,
+} from './wire'
 
 const attachment = { id: 'a', name: 'image.png', mimeType: 'image/png', sizeBytes: 0 }
 const itemBase = { id: 'item', turnId: 'turn', createdAt: 0 }
 const reasoning = { ...itemBase, kind: 'reasoning', text: '' } satisfies ThreadItem
 const context = { usedTokens: 0, maxTokens: 1, slices: [], asOf: 0 }
+
+test('model jobs preserve Claude defaults and fall back to available providers', () => {
+  const claude: ProviderModel = {
+    provider: 'claude',
+    id: 'sonnet',
+    resolvedId: 'claude-sonnet-5-5',
+    name: 'Sonnet',
+    efforts: ['low', 'medium', 'high'],
+    fast: false,
+    autoMode: true,
+  }
+  const codex: ProviderModel = {
+    provider: 'codex',
+    id: 'gpt-6.1-sol',
+    name: 'GPT-6.1-Sol',
+    efforts: ['low', 'medium', 'high'],
+    defaultEffort: 'low',
+    fast: true,
+    autoMode: true,
+  }
+  expect(resolveGuideModel(undefined, [claude, codex])).toEqual(CLAUDE_JOB_DEFAULTS.guide)
+  const saved = { model: { provider: 'claude' as const, id: 'opus' }, effort: 'high' as const }
+  expect(resolveGuideModel(saved, [claude, codex])).toEqual(saved)
+  expect(resolveGuideModel(saved, [codex])).toEqual({
+    model: { provider: 'codex', id: codex.id },
+    effort: 'low',
+    fast: false,
+  })
+  const picked = {
+    model: { provider: 'codex' as const, id: codex.id },
+    effort: 'medium' as const,
+    fast: true,
+  }
+  expect(resolveGuideModel(picked, [claude, codex])).toEqual(picked)
+  expect(resolveTitleModel(null, [codex])).toBe(codex)
+  expect(resolveGuideModel(undefined, [])).toBeUndefined()
+  expect(resolveTitleModel(null, [])).toBeUndefined()
+})
 
 describe('domain schema constraints', () => {
   test.each([-1, 0.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1])(

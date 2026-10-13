@@ -3,6 +3,7 @@ import { uuidv7 } from 'uuidv7'
 
 import { EffortLevel, SessionStatus } from './events'
 import { ApprovalDecision, Attachment, ChildReport, Reply } from './items'
+import { findProviderModel } from './model-name'
 import {
   GitHubActivity,
   GitHubFile,
@@ -88,7 +89,7 @@ export function resolveTitleModel(
   return (choice && find(choice)) || DEFAULT_TITLE_MODELS.map(find).find(Boolean) || models[0]
 }
 
-// Guides and tidy passes run on Claude only (pr-guide.ts and bot-tidy.ts drive the Claude Agent SDK).
+// Preserve the Claude defaults for guides and the bots' tidy pass.
 export const CLAUDE_JOB_DEFAULTS = {
   guide: { model: { provider: 'claude', id: 'claude-sonnet-5-5' }, effort: 'medium' },
   tidy: { model: { provider: 'claude', id: 'sonnet' }, effort: 'high' },
@@ -101,6 +102,31 @@ export function claudeJobModel(
   return choice?.model?.provider === 'claude'
     ? { ...choice, model: choice.model }
     : CLAUDE_JOB_DEFAULTS[job]
+}
+
+export function resolveGuideModel(
+  choice: JobModel | undefined,
+  models: readonly ProviderModel[]
+): (JobModel & { model: ModelRef }) | undefined {
+  if (choice?.model?.provider === 'claude' && models.some((model) => model.provider === 'claude'))
+    return claudeJobModel('guide', choice)
+  const selected =
+    choice?.model && findProviderModel(models, choice.model.provider, choice.model.id)
+  if (selected && choice?.model)
+    return {
+      ...choice,
+      model: choice.model,
+      effort: resolveTitleEffort(selected, choice.effort ?? selected.defaultEffort),
+      fast: selected.fast && choice.fast === true,
+    }
+  if (models.some((model) => model.provider === 'claude')) return claudeJobModel('guide', choice)
+  const model = models[0]
+  if (!model) return undefined
+  return {
+    model: { provider: model.provider, id: model.id },
+    effort: model.defaultEffort ?? resolveTitleEffort(model, undefined),
+    fast: false,
+  }
 }
 
 export function resolveTitleEffort(model: ProviderModel, effort: EffortLevel | undefined) {

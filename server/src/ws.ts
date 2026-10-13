@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path'
 import type { Hub } from './hub'
 import type { Orchestrator } from './orchestrator'
 import type { Store } from './store'
+import type { ModelPrompt } from './title-model'
 import type { Updater } from './update'
 import type { Worktrees } from './worktrees'
 
@@ -100,8 +101,12 @@ export function createRpcHandlers(
     provider
   ) => Effect.succeed({ provider, connected: false, windows: [] }),
   home = process.env.JETTY_HOME ?? '',
-  version?: string,
-  updater?: Updater
+  version: string | undefined,
+  updater: Updater | undefined,
+  modelJobs: {
+    catalog: () => Effect.Effect<readonly ProviderModel[]>
+    prompt: ModelPrompt
+  }
 ) {
   return Effect.gen(function* () {
     const admissionScope = yield* Effect.scope
@@ -195,7 +200,12 @@ export function createRpcHandlers(
     }
 
     const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, admissionScope)
-    const pullRequestGuides = createPullRequestGuides(store, pullRequests, admissionScope)
+    const pullRequestGuides = createPullRequestGuides(
+      store,
+      pullRequests,
+      admissionScope,
+      modelJobs
+    )
     const pullRequestLists = createPullRequestLists(
       store,
       hub,

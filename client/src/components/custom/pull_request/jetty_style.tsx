@@ -1955,7 +1955,9 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const setState = (state: PrPull['state']) => {
     if (state !== 'merged') void actions.state(state)
   }
-  const guidesOn = useChrome()?.agentBehaviours?.guidedReviews ?? true
+  const chrome = useChrome()
+  const guidesOn = chrome?.agentBehaviours?.guidedReviews ?? true
+  const guideUnavailable = chrome?.models?.length === 0
   const [chosenTab, setTab] = useState('overview')
   // Turning guides off in Settings takes an open Guide tab back to Overview.
   const tab = chosenTab === 'guide' && !guidesOn ? 'overview' : chosenTab
@@ -1966,8 +1968,17 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   if (tab === 'guide' && !guideSeen) setGuideSeen(true)
   // The PR's size is known up front, so a small one's Guide tab is disabled before anyone asks.
   const small = pr.data.pull.additions + pr.data.pull.deletions < GUIDE_MIN_CHANGED_LINES
-  const guide = usePullRequestGuide(ref, pr.data.pull.head.sha, guideSeen && !small && guidesOn)
+  const guide = usePullRequestGuide(
+    ref,
+    pr.data.pull.head.sha,
+    guideSeen && !small && guidesOn && !guideUnavailable
+  )
   const guideSkipped = small || guide.state?.status === 'skipped'
+  const guideReason = guideSkipped
+    ? 'Small PR, no guide'
+    : guideUnavailable
+      ? 'Connect a coding agent in Settings to write PR guides'
+      : undefined
   const [mode, setMode] = useState('all')
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
@@ -2004,14 +2015,14 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
             target.closest('input, textarea, [role=dialog], [role=menu], [role=listbox]')))
       )
         return
-      if (e.key === '1' || e.key === '2' || (e.key === '3' && guidesOn && !guideSkipped)) {
+      if (e.key === '1' || e.key === '2' || (e.key === '3' && guidesOn && !guideReason)) {
         e.preventDefault()
         setTab(e.key === '1' ? 'overview' : e.key === '2' ? 'diff' : 'guide')
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [guideSkipped, guidesOn])
+  }, [guideReason, guidesOn])
   useEffect(() => {
     if (selected)
       view.current
@@ -2119,7 +2130,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       [
                         ['overview', 'Overview', 'Overview · 1'],
                         ['diff', 'Diff', 'Diff · 2'],
-                        ['guide', 'Guide', guideSkipped ? 'Small PR, no guide' : 'Guide · 3'],
+                        ['guide', 'Guide', guideReason ?? 'Guide · 3'],
                       ] as const
                     )
                       .filter(([value]) => value !== 'guide' || guidesOn)
@@ -2130,7 +2141,8 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             tone='muted'
                             size='sm'
                             aria-pressed={tab === value}
-                            disabled={value === 'guide' && guideSkipped}
+                            disabled={value === 'guide' && !!guideReason}
+                            aria-description={value === 'guide' ? guideReason : undefined}
                             className='rounded-sm font-normal aria-pressed:bg-accent'
                             {...pressProps(() => {
                               if (value === 'diff') perf.start('pr.diff')

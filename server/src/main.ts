@@ -76,7 +76,7 @@ import { createSearchClient } from './search/client'
 import { createSearchService } from './search/service'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
-import { createTitlePrompt, type TitlePrompt } from './title-model'
+import { createModelPrompt, createTitlePrompt, type TitlePrompt } from './title-model'
 import { chainTitlers, firstLineTitler, titleModelTitler, type Titler } from './titler'
 import { createUpdater, serverVersion } from './update'
 import { createWorktrees } from './worktrees'
@@ -566,7 +566,9 @@ function createServer(opts: ServerOptions = {}) {
         return models ?? []
       })
     }
+    const modelPrompt = yield* createModelPrompt({ codex: opts.codex, grok: opts.grok })
     const titlePrompt = yield* createTitlePrompt({
+      prompt: modelPrompt,
       codex: opts.codex,
       grok: opts.grok,
       catalog: modelCatalog,
@@ -626,7 +628,8 @@ function createServer(opts: ServerOptions = {}) {
       },
       home,
       version,
-      updater
+      updater,
+      { catalog: modelCatalog, prompt: modelPrompt }
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
     const transportScope = yield* Scope.fork(yield* Effect.scope)
     const http = yield* Layer.build(
