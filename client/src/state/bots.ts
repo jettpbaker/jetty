@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { chromeAtom, serverChrome } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
 import { stageSend } from './drafts'
-import { settleWhen, trackCreation, without } from './mutations'
+import { settleWhen, trackCreation, without, withoutId } from './mutations'
 import { threadAtom } from './threads'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -30,6 +30,7 @@ export type PendingBotMessage = {
 // Bots this tab created that the server hasn't listed yet, and changes it hasn't confirmed.
 const createdBotsAtom = Atom.make<ReadonlyMap<string, Bot>>(new Map()).pipe(Atom.keepAlive)
 const botPatchesAtom = Atom.make<ReadonlyMap<string, Partial<Bot>>>(new Map()).pipe(Atom.keepAlive)
+const deletedBotsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
 const pendingMessagesAtom = Atom.make<ReadonlyMap<string, readonly PendingBotMessage[]>>(
   new Map()
 ).pipe(Atom.keepAlive)
@@ -41,16 +42,31 @@ export const botsAtom = Atom.readable((get) => {
   const listed = get(chromeAtom)?.bots ?? noBots
   const created = get(createdBotsAtom)
   const patches = get(botPatchesAtom)
-  if (!created.size && !patches.size) return listed
+  const deleted = get(deletedBotsAtom)
+  if (!created.size && !patches.size && !deleted.size) return listed
   const known = new Set(listed.map((bot) => bot.id))
-  return [...listed, ...[...created.values()].filter((bot) => !known.has(bot.id))].map((bot) => {
-    const patch = patches.get(bot.id)
-    return patch ? { ...bot, ...patch } : bot
-  })
+  return [...listed, ...[...created.values()].filter((bot) => !known.has(bot.id))]
+    .filter((bot) => !deleted.has(bot.id))
+    .map((bot) => {
+      const patch = patches.get(bot.id)
+      return patch ? { ...bot, ...patch } : bot
+    })
 }).pipe(Atom.withEquality(Equal.equals))
 
+const activeBotsAtom = Atom.readable((get) => get(botsAtom).filter((bot) => !bot.archived)).pipe(
+  Atom.withEquality(Equal.equals)
+)
+
+const archivedBotsAtom = Atom.readable((get) => get(botsAtom).filter((bot) => bot.archived)).pipe(
+  Atom.withEquality(Equal.equals)
+)
+
 export function useBots() {
-  return useAtomValue(botsAtom)
+  return useAtomValue(activeBotsAtom)
+}
+
+export function useArchivedBots() {
+  return useAtomValue(archivedBotsAtom)
 }
 
 const botAtom = Atom.family((botId: string) =>
@@ -80,6 +96,7 @@ function createBot(registry: Registry, bot: NewBot) {
       needsYou: false,
       failed: false,
       unread: false,
+      archived: false,
       tasks: [],
     })
   )
@@ -352,3 +369,58 @@ function updateBot(registry: Registry, botId: string, update: BotUpdate) {
 }
 
 export const useUpdateBot = () => useAction(updateBot)
+
+function archiveBot(registry: Registry, botId: string, archived: boolean) {
+  registry.update(botPatchesAtom, (patches) =>
+    new Map(patches).set(botId, { ...patches.get(botId), archived })
+  )
+  const clear = () =>
+    registry.update(botPatchesAtom, (patches) => {
+      const patch = { ...patches.get(botId) }
+      if (patch.archived !== archived) return patches
+      delete patch.archived
+      const next = new Map(patches)
+      if (Object.keys(patch).length) next.set(botId, patch)
+      else next.delete(botId)
+      return next
+    })
+  run(
+    registry,
+    (connection) =>
+      connection.request('bot.archive', { botId, archived }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() =>
+            settleWhen(registry, () => serverBot(registry, botId)?.archived === archived, clear)
+          )
+        ),
+        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+      ),
+    clear
+  )
+}
+
+export const useArchiveBot = () => useAction(archiveBot)
+
+function deleteBot(registry: Registry, botId: string) {
+  registry.update(deletedBotsAtom, (ids) => new Set(ids).add(botId))
+  const rollback = () => registry.update(deletedBotsAtom, (ids) => withoutId(ids, botId))
+  run(
+    registry,
+    (connection) =>
+      connection.request('bot.delete', { botId }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() =>
+            settleWhen(
+              registry,
+              () => !serverBot(registry, botId),
+              () => registry.update(deletedBotsAtom, (ids) => withoutId(ids, botId))
+            )
+          )
+        ),
+        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+      ),
+    rollback
+  )
+}
+
+export const useDeleteBot = () => useAction(deleteBot)

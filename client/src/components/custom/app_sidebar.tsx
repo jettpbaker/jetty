@@ -139,7 +139,11 @@ export const AppSidebar = memo(function AppSidebar() {
   const list = useSidebarList()
   const mainList = list && {
     ...list,
-    threads: query.trim() ? list.threads : list.threads.filter((thread) => !thread.botId),
+    threads: query.trim()
+      ? list.threads
+      : list.threads.filter(
+          (thread) => !(thread.botId && list.bots.some((bot) => bot.id === thread.botId))
+        ),
   }
   const groups = mainList && sidebarGroups(mainList, { ...view, query }, now)
   const botThreads = botThreadsByBot(list?.threads ?? [])

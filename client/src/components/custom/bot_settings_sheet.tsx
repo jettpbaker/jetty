@@ -1,7 +1,8 @@
 import type { Bot, BotAllowRule } from '@jetty/shared/wire'
 
+import { useArchiveBotAction } from '@/components/custom/bot_archive'
 import { BotAvatar } from '@/components/custom/bot_avatar'
-import { CrossSmallIcon } from '@/components/custom/central_icons'
+import { ArchiveIcon, CrossSmallIcon } from '@/components/custom/central_icons'
 import {
   BotLoadoutPicker,
   botLoadoutChanges,
@@ -31,6 +32,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
   const [name, setName] = useState<string>()
   const setRules = useSetBotAllowRules()
   const update = useUpdateBot()
+  const archiveBot = useArchiveBotAction()
   const navigate = useNavigate()
   const rules = bot.allowRules ?? []
   function saveName() {
@@ -165,6 +167,20 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
             />
           </div>
         </div>
+        {!bot.archived && (
+          <div className='mt-auto border-t border-border pt-4'>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setOpen(false)
+                archiveBot(bot)
+              }}
+            >
+              <ArchiveIcon />
+              Archive bot
+            </Button>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   )

@@ -125,6 +125,7 @@ export const settingsRows: SettingsRow[] = [
     keywords: 'compaction, notes, wiki',
   },
   { page: 'bots', id: 'your-bots', title: 'Your bots', keywords: 'New bot' },
+  { page: 'bots', id: 'archived-bots', title: 'Archived bots', keywords: 'restore, delete' },
   { page: 'bots', id: 'shared-preferences', title: 'Shared preferences' },
   {
     page: 'bots',

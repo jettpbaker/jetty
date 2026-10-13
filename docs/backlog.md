@@ -121,10 +121,6 @@ Everything below is for one combined review of the chat, not separate ports.
 - Guides on Codex and Grok, not just Claude. `pr-guide.ts` runs on the Claude Agent
   SDK, so Settings › Guided reviews lists Claude models only, and its Fast switch
   stays off because Jetty has no Fast for Claude.
-- Removing a bot: nothing in the server or UI yet, and no milestone covers it.
-  Likely an "Archive bot" that hides it and can be restored (undo over a confirm
-  dialog), the way threads archive. Needs Jett's calls on its worker threads (stay as
-  normal threads, or go with it) and on its home and wiki (kept or deleted).
 - Warm Claude sessions ahead of need, so Claude Code's startup and its MCP wait
   (`CLAUDE_CODE_MCP_STARTUP_WAIT_MS`, about 1.7s in practice) overlap the user's
   typing instead of the turn. Simplest: start a thread's session when its composer

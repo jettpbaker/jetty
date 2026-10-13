@@ -5,14 +5,20 @@ import { Switch } from '@/components/ui/switch'
 import { useShowQuietTurns } from '@/lib/bot-quiet-turns'
 import { effortLabels, findModel } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
-import { useBots, useChrome } from '@/state'
+import { useArchiveBot, useArchivedBots, useBots, useChrome } from '@/state'
 import { homePath, useSettingsInfo } from '@/state/models'
 import { modelLabelText } from '@jetty/shared/model-name'
 import { useState } from 'react'
 
+import { DeleteBotDialog } from './bot_archive'
 import { BotAvatar } from './bot_avatar'
 import { BotSettingsSheet } from './bot_settings_sheet'
-import { ChevronRightSmallIcon, Folder1Icon, PlusMediumIcon } from './central_icons'
+import {
+  ArrowOutOfBoxIcon,
+  ChevronRightSmallIcon,
+  Folder1Icon,
+  PlusMediumIcon,
+} from './central_icons'
 import { accessModes } from './composer_access_mode'
 import { copyFilePath } from './file_link'
 import { NewBotDialog } from './new_bot_dialog'
@@ -70,8 +76,30 @@ function BotRow({ bot }: { bot: Bot }) {
   )
 }
 
+function ArchivedBotRow({ bot }: { bot: Bot }) {
+  const archive = useArchiveBot()
+  const [deleting, setDeleting] = useState(false)
+  return (
+    <div className='flex min-h-15 items-center gap-3 py-3'>
+      <span className='flex size-7 shrink-0 items-center justify-center'>
+        <BotAvatar bot={bot} size={34} unread={false} />
+      </span>
+      <span className='min-w-0 grow truncate text-13'>{bot.name}</span>
+      <SettingsButton onClick={() => archive(bot.id, false)}>
+        <ArrowOutOfBoxIcon />
+        Restore
+      </SettingsButton>
+      <Button variant='destructive' size='sm' onClick={() => setDeleting(true)}>
+        Delete
+      </Button>
+      <DeleteBotDialog bot={bot} open={deleting} onOpenChange={setDeleting} />
+    </div>
+  )
+}
+
 export function SettingsBots() {
   const bots = useBots()
+  const archived = useArchivedBots()
   const info = useSettingsInfo()
   const [creating, setCreating] = useState(false)
   const [showQuietTurns, setShowQuietTurns] = useShowQuietTurns()
@@ -100,6 +128,19 @@ export function SettingsBots() {
           )}
         </SettingsCard>
       </SettingsSection>
+      {archived.length > 0 && (
+        <SettingsSection
+          id='archived-bots'
+          title='Archived'
+          description='Hidden from the sidebar. Restore one to bring it back, or delete it and its home.'
+        >
+          <SettingsCard>
+            {archived.map((bot) => (
+              <ArchivedBotRow key={bot.id} bot={bot} />
+            ))}
+          </SettingsCard>
+        </SettingsSection>
+      )}
       <SettingsSection
         id='shared-preferences'
         title='Shared preferences'

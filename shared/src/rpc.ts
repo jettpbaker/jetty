@@ -113,6 +113,8 @@ export const JettyRpcs = RpcGroup.make(
   unary('question.dismiss'),
   unary('bot.create'),
   unary('bot.update'),
+  unary('bot.archive'),
+  unary('bot.delete'),
   unary('bot.conversation'),
   unary('bot.send'),
   unary('bot.markSeen'),

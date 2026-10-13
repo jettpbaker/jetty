@@ -284,6 +284,12 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`UPDATE threads SET ready_for_review = 0`
   }),
   '037_desktops': addThreadColumns({ desktop_json: 'TEXT' }),
+  // Archive hides a bot without touching its workers. The bot's own thread is archived too, so
+  // the queue, check-ins and messages already refuse it.
+  '038_bot_archive': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE bots ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`
+  }),
 })
 
 export function databaseLayer(home: string) {

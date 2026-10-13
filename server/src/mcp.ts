@@ -399,8 +399,17 @@ export function createMcpHandler(
       return Effect.gen(function* () {
         const caller = yield* store.requireThread(identity.threadId)
         const target = yield* store.requireThread(targetId)
-        if (caller.archived || (!opts?.archived && target.archived))
-          return yield* Effect.fail(new StoreError('not_found', `Thread ${targetId} is archived`))
+        if (caller.archived || (!opts?.archived && target.archived)) {
+          const party = [caller, target].find(
+            (thread) => thread.archived && thread.botId === thread.id
+          )
+          return yield* Effect.fail(
+            new StoreError(
+              'not_found',
+              party ? `${party.title} is archived` : `Thread ${targetId} is archived`
+            )
+          )
+        }
         return target
       })
     }
@@ -1218,7 +1227,7 @@ export function createMcpHandler(
                 )
                 const listed = []
                 for (const other of yield* store.listBots()) {
-                  if (other.id === bot.id) continue
+                  if (other.id === bot.id || other.archived) continue
                   const home = yield* store.getProject(other.id)
                   const brief = home
                     ? yield* fs
@@ -1278,6 +1287,8 @@ export function createMcpHandler(
           ({ threadId, itemId, decision, reason }) =>
             invoke(
               Effect.gen(function* () {
+                if (bot.archived)
+                  return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
                 const thread = yield* store.getThread(threadId)
                 if (!thread)
                   return yield* Effect.fail(

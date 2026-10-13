@@ -97,6 +97,7 @@ export function startBotScheduler(
     const threads = yield* store.listThreads(true)
     for (const bot of yield* store.listBots()) {
       yield* Effect.gen(function* () {
+        if (bot.archived) return
         if (!(yield* orch.botIdle(bot.id))) return
         const thread = threads.find((thread) => thread.id === bot.id)
         if (!thread) return

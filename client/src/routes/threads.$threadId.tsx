@@ -12,6 +12,7 @@ import { settingUpWorktree } from '@/lib/thread_worktree'
 import { perf } from '@/perf'
 import {
   useArchiveThread,
+  useBot,
   useBumpDraft,
   useChromeReady,
   useProject,
@@ -35,6 +36,8 @@ function Thread() {
   const project = useProject(meta?.projectId)
   const projectPath = meta?.workingPath ?? project?.path
   const archiveThread = useArchiveThread()
+  const owner = useBot(meta?.botId)
+  const ownerId = owner && !owner.archived ? meta?.botId : undefined
   // Until the thread loads, a thread that has never started a turn is taken to be empty. Threads
   // from before turn times were recorded only have their provider to show for it. A first message
   // held in the queue (its worktree setup stopped or failed) still shows in the chat.
@@ -68,8 +71,8 @@ function Thread() {
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
       {composerOnly &&
-        (meta?.botId ? (
-          <BotTabStrip botId={meta.botId} threadId={threadId} />
+        (ownerId ? (
+          <BotTabStrip botId={ownerId} threadId={threadId} />
         ) : (
           <PageSidebarTrigger standalone />
         ))}
@@ -79,7 +82,7 @@ function Thread() {
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
             threadId={threadId}
-            botId={meta?.botId}
+            botId={ownerId}
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
           {empty ? (

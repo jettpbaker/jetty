@@ -103,6 +103,8 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
       return { ...chrome, jettyUpdate: update.state }
     case 'bot.upserted':
       return { ...chrome, bots: upsert(chrome.bots, update.bot) }
+    case 'bot.removed':
+      return { ...chrome, bots: chrome.bots.filter((bot) => bot.id !== update.botId) }
     case 'project.upserted':
       return { ...chrome, projects: upsert(chrome.projects, update.project) }
     case 'thread.upserted':

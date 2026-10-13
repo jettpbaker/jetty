@@ -509,6 +509,8 @@ export const Bot = Schema.Struct({
   failed: Schema.Boolean,
   // A turn ended with a message Jett hasn't seen. Never true mid-turn.
   unread: Schema.Boolean,
+  // Hidden, with no wakes. Its threads stay, and it can be restored.
+  archived: Schema.Boolean,
   // Every open task, and the ones closed within CLOSED_TASK_SHOWN_MS: in progress, todo, done,
   // then dropped, each oldest first.
   tasks: Schema.Array(BotTask),
@@ -1090,6 +1092,16 @@ export const methods = {
     }),
     result: Schema.Struct({ bot: Bot }),
   },
+  // Archive hides the bot and refuses its wakes. Restore brings the same bot back, threads and all.
+  'bot.archive': {
+    params: Schema.Struct({ botId: BotId, archived: Schema.Boolean }),
+    result: Schema.Struct({ bot: Bot }),
+  },
+  // Only an archived bot. Removes the bot and its home; its threads stay, with no owner.
+  'bot.delete': {
+    params: Schema.Struct({ botId: BotId }),
+    result: Schema.Null,
+  },
   // Starts a turn, or joins the running one, whose text Jett sees from then on.
   'bot.send': {
     params: Schema.Struct({
@@ -1189,6 +1201,7 @@ export const ChromePushData = Schema.Union([
   }),
   Schema.Struct({ type: Schema.Literal('jettyUpdate'), state: Schema.optional(JettyUpdate) }),
   Schema.Struct({ type: Schema.Literal('bot.upserted'), bot: Bot }),
+  Schema.Struct({ type: Schema.Literal('bot.removed'), botId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('project.removed'), projectId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),

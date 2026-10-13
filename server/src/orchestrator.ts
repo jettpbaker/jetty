@@ -991,8 +991,14 @@ export function createOrchestrator({
 
     function startTurnEffect(input: StartTurnInput) {
       return Effect.gen(function* () {
-        if (!input.queued && (yield* store.requireThread(input.threadId)).archived)
-          yield* archiveThread(input.threadId, false)
+        if (!input.queued) {
+          const thread = yield* store.requireThread(input.threadId)
+          // Unarchiving here walks the whole thread tree. A bot's workers stay live while it is
+          // archived, so a message to an archived bot fails instead of restoring them.
+          if (thread.archived && thread.botId === thread.id)
+            return yield* Effect.fail(new StoreError('conflict', `${thread.title} is archived`))
+          if (thread.archived) yield* archiveThread(input.threadId, false)
+        }
         return yield* startAdmittedTurn(input)
       })
     }
@@ -1034,6 +1040,18 @@ export function createOrchestrator({
       return Effect.gen(function* () {
         const fiber = upkeep.get(threadId)?.fiber
         if (fiber) yield* Fiber.interrupt(fiber)
+      })
+    }
+
+    // Idle archive must not pause the queue: interruptAdmittedThread pauses even with no turn.
+    function stopBotTurn(botId: string) {
+      return Effect.gen(function* () {
+        yield* interruptUpkeep(botId)
+        const live = state(botId)
+        const threadState = yield* store.getThreadState(botId)
+        if (!live.turnId && !threadState.activeTurnId) return
+        const stopped = yield* stopSetup(botId)
+        if (!stopped) yield* state(botId).admission.withPermit(interruptAdmittedThread(botId))
       })
     }
 
@@ -2065,6 +2083,54 @@ export function createOrchestrator({
           const agent = yield* agentForThread(threadId)
           if (!agent.stopWorkflow || !(yield* agent.stopWorkflow(threadId, taskId)))
             return yield* Effect.fail(new StoreError('not_found', 'Running workflow not found'))
+        })
+      },
+      archiveBot(botId: string, archived: boolean) {
+        return Effect.gen(function* () {
+          // The flag lands before the interrupt, so a racing continuation cannot enqueue.
+          const bot = yield* hub.withChromePublication(
+            Effect.uninterruptible(
+              Effect.gen(function* () {
+                const next = yield* store.archiveBot(botId, archived)
+                if (!archived) yield* store.setQueuePaused(botId, false)
+                hub.pushChrome({ type: 'bot.upserted', bot: next })
+                return next
+              })
+            )
+          )
+          if (archived) yield* stopBotTurn(botId)
+          return bot
+        })
+      },
+      // The bot's own thread only. deleteThread would archive the tree and drop the workers'
+      // worktrees; those threads stay, just without an owner.
+      deleteBot(botId: string) {
+        return Effect.gen(function* () {
+          const bot = yield* store.getBot(botId)
+          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          if (!bot.archived)
+            return yield* Effect.fail(
+              new StoreError('invalid_params', 'Archive the bot before deleting it')
+            )
+          yield* stopBotTurn(botId)
+          yield* stopDesktop(botId)
+          return yield* hub.withChromePublication(
+            Effect.uninterruptible(
+              Effect.gen(function* () {
+                yield* flushDelta(botId)
+                const removed = yield* store.deleteBot(botId)
+                if (attachments)
+                  yield* Effect.forEach(removed.attachmentIds, (id) => attachments.remove(id), {
+                    discard: true,
+                  })
+                hub.pushChrome({ type: 'bot.removed', botId })
+                hub.pushChrome({ type: 'thread.removed', threadId: botId })
+                for (const worker of removed.workers)
+                  hub.pushChrome({ type: 'thread.upserted', thread: worker })
+                return removed
+              })
+            )
+          )
         })
       },
       updateBot(input: ParamsOf<'bot.update'>, model?: ProviderModel) {

@@ -1,3 +1,4 @@
+import { ArchivedBot } from '@/components/custom/bot_archive'
 import { BotChat } from '@/components/custom/bot_chat'
 import { BotDetailsLayout } from '@/components/custom/bot_details_layout'
 import { BotTabStrip } from '@/components/custom/bot_tab_strip'
@@ -16,8 +17,8 @@ function BotChatRoute() {
   const markSeen = useMarkBotSeen()
   const [section, setSection] = useState<HTMLElement | null>(null)
   useEffect(() => {
-    if (bot?.unread) markSeen(botId)
-  }, [bot?.unread, botId, markSeen])
+    if (bot?.unread && !bot.archived) markSeen(botId)
+  }, [bot?.archived, bot?.unread, botId, markSeen])
   if (!bot)
     return (
       <section className='flex h-full min-h-0 flex-col' aria-label='Bot chat'>
@@ -31,6 +32,7 @@ function BotChatRoute() {
         )}
       </section>
     )
+  if (bot.archived) return <ArchivedBot bot={bot} />
   return (
     <section
       ref={setSection}

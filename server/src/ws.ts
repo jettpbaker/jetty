@@ -10,7 +10,7 @@ import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { WireError } from '@jetty/shared/wire'
 import { newId } from '@jetty/shared/wire'
 import { Cause, Effect, Fiber, Schema, Stream } from 'effect'
-import { readFile } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -780,6 +780,8 @@ export function createRpcHandlers(
             )
           const bot = yield* store.getBot(params.botId)
           if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          if (bot.archived)
+            return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
           const id = params.model ?? bot.model
           const model = getModels()?.find((model) => model.provider === 'claude' && model.id === id)
           if (params.model !== undefined && !model)
@@ -798,6 +800,20 @@ export function createRpcHandlers(
             bot: yield* orch.updateBot(params, params.model === undefined ? undefined : model),
           }
         }).pipe(Effect.mapError(wireError)),
+      'bot.archive': ({ botId, archived }) =>
+        Effect.gen(function* () {
+          return { bot: yield* orch.archiveBot(botId, archived) }
+        }).pipe(Effect.mapError(wireError)),
+      'bot.delete': ({ botId }) =>
+        Effect.gen(function* () {
+          const project = yield* store.getProject(botId)
+          // bots/shared sits beside each home. Only this bot's own folder may be removed.
+          if (project && resolve(project.path) !== resolve(join(home, 'bots', botId)))
+            return yield* Effect.fail(new StoreError('internal', 'Bot home is outside its folder'))
+          yield* orch.deleteBot(botId)
+          if (project) yield* fromPromise(() => rm(project.path, { recursive: true, force: true }))
+          return null
+        }).pipe(Effect.uninterruptible, Effect.mapError(wireError)),
       'bot.getInstructions': ({ botId }) =>
         Effect.gen(function* () {
           const home = yield* botHome(botId)
@@ -812,6 +828,10 @@ export function createRpcHandlers(
       'bot.saveInstructions': ({ botId, instructions, base }) =>
         mutation(
           Effect.gen(function* () {
+            const bot = yield* store.getBot(botId)
+            if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+            if (bot.archived)
+              return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
             const home = yield* botHome(botId)
             const result = yield* diff.writeProjectFile(home, 'instructions.md', instructions, base)
             if ('saved' in result)
@@ -824,6 +844,8 @@ export function createRpcHandlers(
           yield* store.noteUserMessage()
           const bot = yield* store.getBot(params.botId)
           if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          if (bot.archived)
+            return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
           if (!params.text.trim() && !params.attachments?.length && !params.attachmentIds?.length)
             return yield* Effect.fail(new StoreError('invalid_params', 'Message is empty'))
           const persistedAttachments = []
@@ -890,7 +912,16 @@ export function createRpcHandlers(
           return null
         }).pipe(Effect.mapError(wireError)),
       'bot.setAllowRules': ({ botId, rules }) =>
-        mutation(orch.setBotAllowRules(botId, rules).pipe(Effect.as(null))),
+        mutation(
+          Effect.gen(function* () {
+            const bot = yield* store.getBot(botId)
+            if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+            if (bot.archived)
+              return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
+            yield* orch.setBotAllowRules(botId, rules)
+            return null
+          })
+        ),
       'bot.markSeen': ({ botId }) =>
         mutation(
           Effect.gen(function* () {

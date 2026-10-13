@@ -128,6 +128,7 @@ type BotRow = {
   permission_mode: Bot['permissionMode']
   created_at: number
   seen_at: number
+  archived: number
 }
 
 type BotTaskRow = {
@@ -587,7 +588,12 @@ export function createStore() {
       return Effect.gen(function* () {
         const thread = yield* requireThread(threadId)
         if (thread.archived)
-          return yield* Effect.fail(new StoreError('not_found', 'Thread is archived'))
+          return yield* Effect.fail(
+            new StoreError(
+              'not_found',
+              thread.botId === thread.id ? `${thread.title} is archived` : 'Thread is archived'
+            )
+          )
         if (message.hop > 20)
           return yield* Effect.fail(
             new StoreError(
@@ -819,7 +825,9 @@ export function createStore() {
             hop > 20
               ? 'message hop limit exceeded'
               : parent
-                ? 'parent is archived'
+                ? parent.botId === parent.id
+                  ? `${parent.title} is archived`
+                  : 'parent is archived'
                 : 'parent is missing'
           yield* Effect.logWarning(`Report from ${threadId} dropped: ${reason}`)
           const note = yield* append(threadId, {
@@ -1189,6 +1197,7 @@ export function createStore() {
                 item.createdAt > row.seen_at &&
                 shownInBotChat(item)
             ),
+          archived: row.archived !== 0,
         } satisfies Bot
       }).pipe(Effect.mapError(storeError))
     }
@@ -1218,6 +1227,37 @@ export function createStore() {
           return { project, created: true }
         }).pipe(sql.withTransaction)
       }).pipe(Effect.mapError(storeError))
+    }
+
+    // Shared with deleteBot, which deletes the bot's own thread inside its transaction. Wrapping
+    // this again would nest a transaction.
+    function deleteThreadRecord(threadId: string) {
+      return Effect.gen(function* () {
+        const thread = yield* requireThread(threadId)
+        const refs = yield* sql<{
+          attachment_id: string
+        }>`SELECT attachment_id FROM attachment_refs WHERE thread_id = ${threadId}`
+        yield* sql`DELETE FROM attachment_refs WHERE thread_id = ${threadId}`
+        yield* sql`DELETE FROM orchestration_turns WHERE thread_id = ${threadId}`
+        yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
+        yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
+        yield* sql`DELETE FROM thread_pull_requests WHERE thread_id = ${threadId}`
+        yield* sql`DELETE FROM pull_requests WHERE NOT EXISTS (
+          SELECT 1 FROM thread_pull_requests l WHERE l.repo = pull_requests.repo AND l.number = pull_requests.number
+        )`
+        yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
+        yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
+        yield* sql`INSERT OR IGNORE INTO deleted_threads (id) VALUES (${threadId})`
+        yield* sql`DELETE FROM threads WHERE id = ${threadId}`
+        loaded.delete(threadId)
+        const queued = (thread.pendingMessages ?? []).flatMap(
+          (message) => message.attachments ?? []
+        )
+        return yield* unheld([
+          ...queued.map((attachment) => attachment.id),
+          ...refs.map((ref) => ref.attachment_id),
+        ])
+      })
     }
 
     return {
@@ -1309,6 +1349,47 @@ export function createStore() {
             effort = ${next.effort ?? null}, fast = ${next.fast ? 1 : 0}, permission_mode = ${next.permissionMode} WHERE id = ${input.botId}`
           yield* sql`UPDATE projects SET title = ${next.name} WHERE id = ${input.botId}`
           return next
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      // The bot's own thread only. Workers keep their rows, so they stay in the sidebar.
+      archiveBot(botId: string, archived: boolean) {
+        return Effect.gen(function* () {
+          const bot = yield* readBot(botId)
+          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          if (bot.archived === archived) return bot
+          yield* sql`UPDATE bots SET archived = ${archived ? 1 : 0} WHERE id = ${botId}`
+          yield* sql`UPDATE threads SET archived = ${archived ? 1 : 0} WHERE id = ${botId}`
+          const next = yield* readBot(botId)
+          if (!next) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          return next
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
+      // Callers stop the bot's turn first. Workers lose their owner and stay; the home path is
+      // returned so the caller can remove that folder after this commits.
+      deleteBot(botId: string) {
+        return Effect.gen(function* () {
+          const bot = yield* readBot(botId)
+          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+          if (!bot.archived)
+            return yield* Effect.fail(
+              new StoreError('invalid_params', 'Archive the bot before deleting it')
+            )
+          const [project] = yield* sql<ProjectRow>`SELECT * FROM projects WHERE id = ${botId}`
+          const workerRows = yield* sql<{ id: string }>`SELECT id FROM threads
+            WHERE bot_id = ${botId} AND id != ${botId}`
+          yield* sql`UPDATE threads SET bot_id = NULL WHERE bot_id = ${botId} AND id != ${botId}`
+          const attachmentIds = yield* deleteThreadRecord(botId)
+          yield* writeSetting(`bot_allow_rules.${botId}`, undefined)
+          yield* writeSetting(`bot_lifecycle.${botId}`, undefined)
+          yield* writeSetting(`compact_anchor.${botId}`, undefined)
+          yield* sql`DELETE FROM bots WHERE id = ${botId}`
+          yield* sql`DELETE FROM projects WHERE id = ${botId}`
+          const workers: ThreadMeta[] = []
+          for (const row of workerRows) {
+            const thread = yield* getThread(row.id)
+            if (thread) workers.push(thread)
+          }
+          return { home: project?.path ?? null, attachmentIds, workers }
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       isBot(threadId: string) {
@@ -2037,30 +2118,7 @@ export function createStore() {
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       deleteThread(threadId: string) {
-        return Effect.gen(function* () {
-          const thread = yield* requireThread(threadId)
-          const refs = yield* sql<{
-            attachment_id: string
-          }>`SELECT attachment_id FROM attachment_refs WHERE thread_id = ${threadId}`
-          yield* sql`DELETE FROM attachment_refs WHERE thread_id = ${threadId}`
-          yield* sql`DELETE FROM orchestration_turns WHERE thread_id = ${threadId}`
-          yield* sql`DELETE FROM orchestration_requests WHERE caller_id = ${threadId}`
-          yield* sql`DELETE FROM provider_sessions WHERE thread_id = ${threadId}`
-          yield* sql`DELETE FROM thread_pull_requests WHERE thread_id = ${threadId}`
-          yield* sql`DELETE FROM pull_requests WHERE NOT EXISTS (
-            SELECT 1 FROM thread_pull_requests l WHERE l.repo = pull_requests.repo AND l.number = pull_requests.number
-          )`
-          yield* sql`DELETE FROM thread_events WHERE thread_id = ${threadId}`
-          yield* sql`DELETE FROM thread_states WHERE thread_id = ${threadId}`
-          yield* sql`INSERT OR IGNORE INTO deleted_threads (id) VALUES (${threadId})`
-          yield* sql`DELETE FROM threads WHERE id = ${threadId}`
-          loaded.delete(threadId)
-          const queued = (thread.pendingMessages ?? []).flatMap((m) => m.attachments ?? [])
-          return yield* unheld([
-            ...queued.map((attachment) => attachment.id),
-            ...refs.map((ref) => ref.attachment_id),
-          ])
-        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+        return deleteThreadRecord(threadId).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       // Re-posting an attachment holds it for the thread it goes to before that thread's message
       // commits, so deleting the thread it came from meanwhile can't remove the file under it.

@@ -94,7 +94,7 @@ export function ThreadRow({
               }
               heading={
                 <span className='flex min-w-0 flex-1 items-center gap-0.5'>
-                  {!nested && bot && (
+                  {!nested && bot && !bot.archived && (
                     <>
                       {/* The face's slot is a pixel narrower than the face, as the board draws it. */}
                       <span className='relative h-3.5 w-[13px] shrink-0'>

@@ -177,7 +177,9 @@ export function createHub() {
 
   function pushChrome(data: ChromePushData) {
     let parentId: string | undefined
-    if (data.type === 'bot.upserted') {
+    if (data.type === 'bot.removed') {
+      lastBotPush.delete(data.botId)
+    } else if (data.type === 'bot.upserted') {
       const serialized = JSON.stringify(data.bot)
       if (lastBotPush.get(data.bot.id) === serialized) return
       lastBotPush.set(data.bot.id, serialized)

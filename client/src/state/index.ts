@@ -1,10 +1,13 @@
 export { useAccessMode } from './access_mode'
 export {
+  useArchiveBot,
+  useArchivedBots,
   useBot,
   useBotConversation,
   useBotPresence,
   useBots,
   useCreateBot,
+  useDeleteBot,
   useMarkBotSeen,
   usePendingBotMessages,
   useSendToBot,
