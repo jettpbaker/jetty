@@ -335,7 +335,7 @@ const createInput = z.object({
     .regex(/^[^\s/]+$/, 'Use a skill name without the slash')
     .optional()
     .describe(
-      'A skill for the thread to run, by name without the slash; Must be available to the chosen provider; Claude commands are not portable.'
+      'A skill for the thread to run, by name without the slash. It must be available to the chosen provider; Claude commands are not portable.'
     ),
   notify: z
     .boolean()
