@@ -648,13 +648,23 @@ export function threadRows(
     allItems.flatMap((item) => (item.agentId && awaitsInput(item) ? [item.agentId] : []))
   )
   const rows: ThreadRow[] = []
+  const tail = items.at(-1)
+  const sessionRunning = status === 'running' || status === 'starting'
+  const sessionActive = sessionRunning || status === 'awaiting_approval'
+  const liveTurnId =
+    tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
+      ? tail.turnId
+      : undefined
   const turns = bot && botTurns(items, bot)
-  // A turn that shows nothing of its own. Another bot's is an exchange line. A check-in, a tidy,
-  // the note that created the bot, or a worker report shows only with `showQuiet`, or once the
-  // bot sends a public message. Its errors, thread markers and that message stay.
+  // A turn that shows nothing of its own once it ends. Another bot's is an exchange line. A
+  // check-in, a tidy, the note that created the bot, or a worker report shows only with
+  // `showQuiet`, or once the bot sends a public message. Its errors, thread markers and that
+  // message stay. While it runs it shows its work like any turn, so a busy bot never looks idle;
+  // a tidy has its own line instead.
   function silent(item: ThreadItem) {
     const turn = turns?.get(item.turnId)
     if (!turn || turn.joined) return false
+    if (item.turnId === liveTurnId && !bot!.tidying) return false
     if (turn.opener === 'bot') return true
     if (turn.messaged) return false
     return !bot!.showQuiet
@@ -675,9 +685,6 @@ export function threadRows(
       turns.get(item.turnId)?.opener !== 'jett'
     )
   }
-  const tail = items.at(-1)
-  const sessionRunning = status === 'running' || status === 'starting'
-  const sessionActive = sessionRunning || status === 'awaiting_approval'
   const askedTurns = new Set(
     items.filter((item) => item.kind === 'question').map((item) => item.turnId)
   )
@@ -772,10 +779,6 @@ export function threadRows(
     if (item.kind === 'assistant_message') lastReplies.set(item.turnId, item.id)
     if (sentMessage(item)) lastSentMessages.set(item.turnId, item.id)
   }
-  const liveTurnId =
-    tail && !outcomes[tail.turnId] && (sessionActive || (running && tail.kind === 'user_message'))
-      ? tail.turnId
-      : undefined
   // A subagent transcript has one agent, and its liveness is the status this view was given.
   // On the main timeline only the tail turn is live, so an older turn stays stopped.
   function turnLive(turnId: string) {
