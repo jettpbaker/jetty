@@ -51,6 +51,7 @@ type Pending = {
   permissions?: Record<string, unknown>
   form?: Record<string, unknown>
   mcpUrl?: true
+  execpolicyAmendment?: string[]
 }
 type Session = {
   input: TurnInput
@@ -158,7 +159,18 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               : []
           if (method === 'item/fileChange/requestApproval' && !changes.length)
             session.fileChangeApprovals.set(string(params.itemId), itemId)
-          session.pending.set(itemId, { id })
+          const amendment = params.proposedExecpolicyAmendment
+          const execpolicyAmendment =
+            method === 'item/commandExecution/requestApproval' &&
+            Array.isArray(amendment) &&
+            amendment.length &&
+            amendment.every((part) => typeof part === 'string')
+              ? (amendment as string[])
+              : undefined
+          session.pending.set(itemId, {
+            id,
+            ...(execpolicyAmendment ? { execpolicyAmendment } : {}),
+          })
           const toolCallId =
             string(params.itemId) && session.translator.toolItemId(string(params.itemId))
           yield* session.emit({
@@ -173,7 +185,9 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               input: params,
               suggestions: [],
               ...(changes.length ? { changes } : {}),
-              always: { scope: 'session', patterns: [] },
+              always: execpolicyAmendment
+                ? { scope: 'user', patterns: [execpolicyAmendment.join(' ')] }
+                : { scope: 'session', patterns: [] },
             },
           })
         } else if (method === 'item/permissions/requestApproval') {
@@ -753,7 +767,13 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     : {
                         decision:
                           decision === 'always'
-                            ? 'acceptForSession'
+                            ? pending.execpolicyAmendment
+                              ? {
+                                  acceptWithExecpolicyAmendment: {
+                                    execpolicy_amendment: pending.execpolicyAmendment,
+                                  },
+                                }
+                              : 'acceptForSession'
                             : decision === 'allow'
                               ? 'accept'
                               : 'decline',

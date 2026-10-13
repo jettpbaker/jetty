@@ -97,6 +97,7 @@ for await (const line of createInterface({ input: process.stdin })) {
           turnId: ['form', 'url', 'mcp-approval'].includes(scenario) ? null : turnId,
           itemId: 'tool',
           command: 'echo test',
+          ...(scenario === 'approval' ? { proposedExecpolicyAmendment: ['echo', 'test'] } : {}),
           permissions: { network: { enabled: true }, fileSystem: null },
           serverName: 'example',
           mode: scenario === 'url' ? 'url' : 'form',

@@ -123,7 +123,7 @@ test('a new adapter resumes the stored Codex session without replaying Claude hi
   expect(f.log().filter((m) => m.method === 'thread/start')).toHaveLength(1)
 })
 
-for (const decision of ['allow', 'deny'] as const)
+for (const decision of ['allow', 'always', 'deny'] as const)
   test(`approval ${decision} is correlated, persisted before response, and single use`, async () => {
     const f = await setup()
     const turn = await f.start('approval')
@@ -141,7 +141,14 @@ for (const decision of ['allow', 'deny'] as const)
     ).toBe(false)
     await Effect.runPromise(turn.await)
     expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
-      result: { decision: decision === 'allow' ? 'accept' : 'decline' },
+      result: {
+        decision:
+          decision === 'always'
+            ? { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['echo', 'test'] } }
+            : decision === 'allow'
+              ? 'accept'
+              : 'decline',
+      },
     })
     if (decision === 'deny') {
       const tool = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'tool_call')
