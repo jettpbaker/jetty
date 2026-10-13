@@ -292,6 +292,16 @@ export function createOrchestrator({
       return value
     }
 
+    function detachProjectApprovals(threadId: string, turnId: string) {
+      return Effect.gen(function* () {
+        for (const pending of projectApprovals.values()) {
+          if (pending.threadId !== threadId || pending.turnId !== turnId) continue
+          pending.detached = true
+          yield* Deferred.succeed(pending.result, { decision: 'pending' })
+        }
+      })
+    }
+
     // Ends the turn here too, so one whose end couldn't be saved doesn't hold up the queue, or a
     // stop, archive or delete waiting on it, forever.
     function settleTurn(threadId: string, turnId: string) {
@@ -301,11 +311,7 @@ export function createOrchestrator({
           threadId,
           Effect.gen(function* () {
             if (live.turnId === turnId) live.turnId = null
-            for (const pending of projectApprovals.values()) {
-              if (pending.threadId !== threadId || pending.turnId !== turnId) continue
-              pending.detached = true
-              yield* Deferred.succeed(pending.result, { decision: 'pending' })
-            }
+            yield* detachProjectApprovals(threadId, turnId)
           })
         )
         if (yield* store.isBot(threadId)) {
@@ -685,6 +691,7 @@ export function createOrchestrator({
         }
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
           live.turnId = null
+          yield* detachProjectApprovals(threadId, event.turnId)
           if (worktrees)
             yield* Effect.tryPromise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
         }
