@@ -780,7 +780,11 @@ export const methods = {
     result: Schema.Struct({ files: Schema.Array(Schema.String) }),
   },
   'skills.list': {
-    params: Schema.Struct({ projectId: Schema.optional(Schema.String) }),
+    params: Schema.Struct({
+      projectId: Schema.optional(Schema.String),
+      threadId: Schema.optional(Schema.String),
+      provider: Schema.optional(ProviderId),
+    }),
     result: Schema.Struct({ skills: Schema.Array(Skill) }),
   },
   'thread.create': {

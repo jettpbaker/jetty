@@ -46,6 +46,7 @@ import {
   type ThreadWorkspace,
 } from './jetty-instructions'
 import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
+import { codexSkills } from './provider-skills'
 
 export type CodexOptions = CodexProcessOptions & {
   interruptGraceMs?: number
@@ -85,6 +86,30 @@ type Session = {
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
   mcpErrorShown: boolean
+}
+
+function codexSkillInput(
+  connection: CodexConnection,
+  cwd: string,
+  text: string,
+  images?: AgentImage[],
+  requiredSkill?: string
+) {
+  return Effect.gen(function* () {
+    const tokens = [...text.matchAll(/(^|\s)\/([\w:-]+)(?=\s|$)/g)]
+    if (!tokens.length && !requiredSkill) return codexInput(text, images)
+    const available = yield* codexSkills(connection, cwd)
+    const selected = new Map<string, { type: 'skill'; name: string; path: string }>()
+    const rewritten = text.replace(/(^|\s)\/([\w:-]+)(?=\s|$)/g, (token, lead, name) => {
+      const skill = available.find((skill) => skill.name === name)
+      if (!skill) return token
+      selected.set(name, { type: 'skill', name, path: skill.path })
+      return `${lead}$${name}`
+    })
+    if (requiredSkill && !selected.has(requiredSkill))
+      return yield* Effect.fail(new AgentError(`Skill ${requiredSkill} is unavailable on Codex`))
+    return [...codexInput(rewritten, images), ...selected.values()]
+  })
 }
 
 function codexInput(text: string, images?: AgentImage[]) {
@@ -462,7 +487,13 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           } else {
             const turn = yield* connection.request('turn/start', {
               threadId,
-              input: codexInput(session.input.text, session.input.images),
+              input: yield* codexSkillInput(
+                connection,
+                cwd,
+                session.input.text,
+                session.input.images,
+                session.input.skill
+              ),
               effort: session.input.effort,
             })
             session.providerTurnId = string(object(turn.turn).id)
@@ -794,7 +825,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                 yield* session.connection.request('turn/steer', {
                   threadId: session.providerThreadId,
                   expectedTurnId: session.providerTurnId,
-                  input: codexInput(text, images),
+                  input: yield* codexSkillInput(session.connection!, session.cwd, text, images),
                 })
                 yield* beforeAccept
                 if (fromUser) session.steerUnread.push(text)

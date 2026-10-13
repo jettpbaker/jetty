@@ -30,6 +30,7 @@ export type TurnInput = {
   threadId: string
   turnId: string
   text: string
+  skill?: string
   compact?: boolean
   images?: AgentImage[]
   model?: string

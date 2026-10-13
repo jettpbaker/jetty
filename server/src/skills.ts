@@ -1,9 +1,12 @@
-import type { Skill } from '@jetty/shared/wire'
+import type { ProviderId, Skill } from '@jetty/shared/wire'
 
 import { Context, Effect, FileSystem, Layer, Path } from 'effect'
+import { ChildProcessSpawner } from 'effect/process'
 import { homedir } from 'node:os'
 
-type SkillSources = { projectPath?: string; userHome?: string }
+import { discoverCodexSkills, discoverCopilotSkills } from './provider-skills'
+
+type SkillSources = { projectPath?: string; userHome?: string; provider?: ProviderId }
 
 type Frontmatter = {
   description: string
@@ -100,6 +103,35 @@ export function listSkills(opts: SkillSources = {}) {
   })
 }
 
+export function listProviderSkills(opts: SkillSources = {}) {
+  if (!opts.provider || opts.provider === 'claude' || opts.provider === 'grok')
+    return listSkills(opts)
+  const cwd = opts.projectPath ?? opts.userHome ?? homedir()
+  const discover = opts.provider === 'codex' ? discoverCodexSkills : discoverCopilotSkills
+  return discover(cwd).pipe(
+    Effect.map((skills): Skill[] => skills.map(({ name, description }) => ({ name, description }))),
+    Effect.catch(() => listSkillFolders(opts)),
+    Effect.map((skills) => skills.sort((a, b) => a.name.localeCompare(b.name)))
+  )
+}
+
+function listSkillFolders(opts: SkillSources) {
+  return Effect.gen(function* () {
+    const path = yield* Path.Path
+    const into = new Map<string, Skill>()
+    const userHome = opts.userHome ?? homedir()
+    const projectRoots = opts.provider === 'codex' ? ['.agents'] : ['.github', '.claude', '.agents']
+    const personalRoots =
+      opts.provider === 'codex' ? ['.codex', '.agents'] : ['.copilot', '.agents']
+    if (opts.projectPath)
+      for (const root of projectRoots)
+        yield* loadSkillDirs(into, path.join(opts.projectPath, root, 'skills'))
+    for (const root of personalRoots)
+      yield* loadSkillDirs(into, path.join(userHome, root, 'skills'))
+    return [...into.values()]
+  })
+}
+
 export const Skills = Context.Service<{
   listSkills: (opts?: SkillSources) => Effect.Effect<Skill[]>
 }>('jetty/Skills')
@@ -107,9 +139,12 @@ export const Skills = Context.Service<{
 export const SkillsLive = Layer.effect(
   Skills,
   Effect.gen(function* () {
-    const services = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
+    const services = yield* Effect.context<
+      FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+    >()
     return {
-      listSkills: (opts?: SkillSources) => listSkills(opts).pipe(Effect.provideContext(services)),
+      listSkills: (opts?: SkillSources) =>
+        listProviderSkills(opts).pipe(Effect.provideContext(services)),
     }
   })
 )

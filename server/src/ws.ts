@@ -477,9 +477,18 @@ export function createRpcHandlers(
         }).pipe(Effect.mapError(wireError)),
       'skills.list': (params) =>
         Effect.gen(function* () {
-          if (!params.projectId) return { skills: yield* skills.listSkills() }
-          const project = yield* requireProject(params.projectId)
-          return { skills: yield* skills.listSkills({ projectPath: project.path }) }
+          const thread = params.threadId ? yield* store.getThread(params.threadId) : undefined
+          const projectId = thread?.projectId ?? params.projectId
+          const project = projectId ? yield* requireProject(projectId) : undefined
+          const projectPath = thread
+            ? yield* fromPromise(() => worktrees.root(thread.id))
+            : project?.path
+          return {
+            skills: yield* skills.listSkills({
+              projectPath,
+              provider: thread?.provider ?? params.provider,
+            }),
+          }
         }).pipe(Effect.mapError(wireError)),
       'thread.diff': (params) =>
         Effect.gen(function* () {

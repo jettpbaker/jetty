@@ -168,7 +168,12 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
           context={null}
           rows={1}
           inputRef={fieldRef}
-          slash={{ projectId: bot.projectId ?? undefined, bot: true, mentions: others }}
+          slash={{
+            projectId: bot.projectId ?? undefined,
+            provider: bot.provider,
+            bot: true,
+            mentions: others,
+          }}
         />
       </div>
       {room && (

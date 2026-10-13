@@ -1499,6 +1499,7 @@ export function createOrchestrator({
                             threadId: input.threadId,
                             turnId,
                             text,
+                            skill: input.queued?.skill,
                             images: saved.images,
                             model: input.model,
                             effort: input.effort,

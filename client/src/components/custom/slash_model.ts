@@ -18,14 +18,14 @@ export function activeSlash(text: string, caret: number): SlashQuery | undefined
   const before = text.slice(0, caret)
   let end = caret
   while (end < text.length && !/\s/.test(text.charAt(end))) end++
-  const match = /(^|\s)([/@])([\p{L}\p{N}_-]*)$/u.exec(before)
+  const match = /(^|\s)([/@])([\p{L}\p{N}_:-]*)$/u.exec(before)
   if (!match) return undefined
   const [, lead = '', trigger = '/', query = ''] = match
   const start = match.index + lead.length
   return { start, end, query, trigger: trigger as Trigger }
 }
 
-const wordCharacter = /[\p{L}\p{N}_-]/u
+const wordCharacter = /[\p{L}\p{N}_:-]/u
 
 // A bot's name after @, the longest that fits, ending where a word would. Names can have spaces,
 // so this reads names, not words.
@@ -58,7 +58,7 @@ export function linkMentions(text: string, bots: readonly MentionBot[]) {
 }
 
 export function slashTokens(text: string): SlashToken[] {
-  return [...text.matchAll(/(^|\s)\/([\w-]+)(?=\s|$)/g)].map((match) => {
+  return [...text.matchAll(/(^|\s)\/([\w:-]+)(?=\s|$)/g)].map((match) => {
     const [, lead = '', name = ''] = match
     const start = match.index + lead.length
     return { start, end: start + name.length + 1, name }
@@ -114,7 +114,7 @@ function restoreLeads(edit: string, leads: ReadonlyMap<string, Trigger>) {
   const names = [...leads.keys()]
     .sort((a, b) => b.length - a.length)
     .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const chip = new RegExp(`(^|\\s)\u00a0(${names.join('|')})(\u2002|(?![\\p{L}\\p{N}_-]))`, 'gu')
+  const chip = new RegExp(`(^|\\s)\u00a0(${names.join('|')})(\u2002|(?![\\p{L}\\p{N}_:-]))`, 'gu')
   return edit.replace(
     chip,
     (_, space: string, name: string, tail: string) =>

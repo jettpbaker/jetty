@@ -14,12 +14,14 @@ import {
   type Bot,
   type BotTask,
   type ProviderModel,
+  type ProviderId,
   type ThreadMeta,
   type WireError,
 } from '@jetty/shared/wire'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { Effect, FileSystem, Path, Scope } from 'effect'
+import { ChildProcessSpawner } from 'effect/process'
 import { appendFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
@@ -39,7 +41,7 @@ import { relayedMessage } from './jetty-instructions'
 import { parsePullRequestUrl } from './pull-requests'
 import { createSendImagesTool } from './send-images'
 import { createSendVideoTool } from './send-video'
-import { listSkills } from './skills'
+import { listProviderSkills } from './skills'
 import { StoreError } from './store'
 import { NUMBERED } from './titler'
 
@@ -332,7 +334,9 @@ const createInput = z.object({
     .string()
     .regex(/^[^\s/]+$/, 'Use a skill name without the slash')
     .optional()
-    .describe('A skill for the thread to run, by name without the slash; Claude threads only.'),
+    .describe(
+      'A skill for the thread to run, by name without the slash; Must be available to the chosen provider; Claude commands are not portable.'
+    ),
   notify: z
     .boolean()
     .default(true)
@@ -389,7 +393,9 @@ export function createMcpHandler(
   desktops?: Desktops
 ) {
   return Effect.gen(function* () {
-    const context = yield* Effect.context<FileSystem.FileSystem | Path.Path | Scope.Scope>()
+    const context = yield* Effect.context<
+      FileSystem.FileSystem | Path.Path | Scope.Scope | ChildProcessSpawner.ChildProcessSpawner
+    >()
     const run = Effect.runPromiseWith(context)
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
@@ -509,10 +515,6 @@ export function createMcpHandler(
           const matches = input.model ? matchingModels(catalog, input.model) : []
           const provider =
             input.provider ?? (matches.length === 1 ? matches[0]!.provider : identity.provider)
-          if (input.skill && provider !== 'claude')
-            return yield* Effect.fail(
-              new StoreError('invalid_params', 'Skills can only run in Claude threads')
-            )
           const available = catalog.filter((m) => m.provider === provider)
           if (!available.length)
             return yield* Effect.fail(
@@ -643,16 +645,34 @@ export function createMcpHandler(
         )
         projectId = target.id
         if (input.skill) {
-          const skills = yield* listSkills({ projectPath: target.path }).pipe(
-            Effect.provideContext(context)
-          )
-          if (!skills.some((skill) => skill.name === input.skill))
+          const catalog = models() ?? []
+          const matches = input.model ? matchingModels(catalog, input.model) : []
+          const provider =
+            input.provider ?? (matches.length === 1 ? matches[0]!.provider : identity.provider)
+          const skills =
+            provider === 'grok'
+              ? []
+              : yield* listProviderSkills({ projectPath: target.path, provider }).pipe(
+                  Effect.provideContext(context)
+                )
+          if (!skills.some((skill) => skill.name === input.skill)) {
+            const supported: string[] = []
+            for (const candidate of ['claude', 'codex', 'copilot'] satisfies ProviderId[]) {
+              if (candidate === provider) continue
+              const available = yield* listProviderSkills({
+                projectPath: target.path,
+                provider: candidate,
+              }).pipe(Effect.provideContext(context))
+              if (available.some((skill) => skill.name === input.skill))
+                supported.push(providerNames[candidate])
+            }
             return yield* Effect.fail(
               new StoreError(
                 'invalid_params',
-                `No skill named ${input.skill} exists for this project`
+                `Skill ${input.skill} cannot run on ${providerNames[provider]} for this project. Providers that can run it: ${supported.join(', ') || 'none'}.`
               )
             )
+          }
         }
         if (input.setup_worktrees) {
           if (!worktrees)

@@ -1,4 +1,4 @@
-import type { Bot, PermissionMode, ProviderModel, Skill } from '@jetty/shared/wire'
+import type { Bot, PermissionMode, ProviderId, ProviderModel, Skill } from '@jetty/shared/wire'
 
 import {
   ScriptAiIcon,
@@ -65,6 +65,7 @@ import {
 export type SlashScope = {
   threadId?: string
   projectId?: string
+  provider?: ProviderId
   onUsage?: () => void
   // A bot's chat lists only skills: the commands act on a thread.
   bot?: boolean
@@ -109,7 +110,14 @@ export function useComposerSlash(
   text: string,
   onTextChange: (text: string) => void,
   textarea: RefObject<HTMLTextAreaElement | null>,
-  { threadId, projectId, onUsage, bot = false, mentions = [] }: SlashScope = {}
+  {
+    threadId,
+    projectId,
+    provider: scopedProvider,
+    onUsage,
+    bot = false,
+    mentions = [],
+  }: SlashScope = {}
 ) {
   const field = useRef<HTMLDivElement>(null)
   const mirror = useRef<HTMLDivElement>(null)
@@ -131,7 +139,6 @@ export function useComposerSlash(
   const { catalog } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
-  const { skills: listed, refresh } = useSkills(projectId)
   const capabilities = useProviderCapabilities()
   const compactThread = useCompactThread()
   const thread = useThreadMeta(threadId)
@@ -143,10 +150,8 @@ export function useComposerSlash(
   const models = lockedProvider
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
-  const provider = loadout?.provider ?? lockedProvider
-  // The discovered list contains Claude skills; native provider discovery is separate.
-  const runsSkills = provider === 'claude' || provider === 'grok'
-  const skills = runsSkills ? listed : []
+  const provider = scopedProvider ?? loadout?.provider ?? lockedProvider
+  const { skills, refresh } = useSkills(projectId, provider, threadId)
 
   // A finished chip is one piece: the caret resting in it neither un-chips it nor opens the menu.
   const all = chips(text, skills, mentions)
@@ -398,15 +403,14 @@ export function useComposerSlash(
   function itemEntries(range: SlashQuery): Entry[] {
     return [
       ...(bot ? [] : commandEntries(range)),
-      ...listed.map(
+      ...skills.map(
         (skill): Entry => ({
           id: `skill:${skill.name}`,
           kind: 'skill',
           name: skill.name,
-          description: runsSkills ? skill.description : 'Codex can’t run Claude skills',
+          description: skill.description,
           group: 'Skills',
           icon: <ScriptAiIcon />,
-          disabled: !runsSkills,
           score: 0,
           run: () => insert(range, skill.name),
         })
