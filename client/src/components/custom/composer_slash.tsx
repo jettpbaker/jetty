@@ -144,8 +144,8 @@ export function useComposerSlash(
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
   const provider = loadout?.provider ?? lockedProvider
-  // Claude and Grok run Claude skills as /name; Codex has its own. Bots run on Claude.
-  const runsSkills = bot || provider !== 'codex'
+  // The discovered list contains Claude skills; native provider discovery is separate.
+  const runsSkills = provider === 'claude' || provider === 'grok'
   const skills = runsSkills ? listed : []
 
   // A finished chip is one piece: the caret resting in it neither un-chips it nor opens the menu.

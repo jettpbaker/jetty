@@ -1,4 +1,4 @@
-import type { BotColor, BotShape, PermissionMode } from '@jetty/shared/wire'
+import type { BotColor, BotShape, PermissionMode, ProviderId } from '@jetty/shared/wire'
 import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -48,15 +48,16 @@ function swatchStyle(id: BotColor) {
   return { '--body': wheel(botColors), '--deep': wheel(deepBotColors) } as CSSProperties
 }
 
-function firstClaudeLoadout(slots: readonly LoadoutSlot[], catalog: ReturnType<typeof useModels>) {
+function firstBotLoadout(slots: readonly LoadoutSlot[], catalog: ReturnType<typeof useModels>) {
   for (const slot of slots) {
     const loadout = slotLoadout(slot)
-    if (loadout?.provider === 'claude' && findModel(catalog, loadout)) return botLoadout(loadout)
+    if (loadout && loadout.provider !== 'grok' && findModel(catalog, loadout))
+      return botLoadout(loadout)
   }
-  const model = catalog.find((item) => item.provider === 'claude')
+  const model = catalog.find((item) => item.provider !== 'grok')
   return (
     model && {
-      provider: 'claude' as const,
+      provider: model.provider,
       model: model.id,
       effort:
         model.defaultEffort && BOT_EFFORTS.includes(model.defaultEffort)
@@ -127,14 +128,14 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   const [shape, setShape] = useState<BotShape>(face.shape)
   const [color, setColor] = useState<BotColor>(face.color)
   const [loadout, setLoadout] = useState<Loadout | undefined>(() =>
-    firstClaudeLoadout(loadouts, catalog)
+    firstBotLoadout(loadouts, catalog)
   )
   const [project, setProject] = useState(() => (projects.length === 1 ? projects[0]!.id : ALL))
   const projectReady = useRef(loadedProjects !== undefined)
   const [access, setAccess] = useState<PermissionMode>('auto')
   const [adding, setAdding] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
-  const chosenLoadout = loadout ?? firstClaudeLoadout(loadouts, catalog)
+  const chosenLoadout = loadout ?? firstBotLoadout(loadouts, catalog)
   useEffect(() => {
     if (projectReady.current || !loadedProjects) return
     projectReady.current = true
@@ -142,12 +143,12 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   }, [loadedProjects])
 
   function submit() {
-    if (!chosenLoadout || chosenLoadout.provider !== 'claude') return
+    if (!chosenLoadout || chosenLoadout.provider === 'grok') return
     const id = createBot({
       name: name.trim() || 'Bot',
       shape,
       color,
-      provider: 'claude',
+      provider: chosenLoadout.provider,
       model: chosenLoadout.model,
       effort: chosenLoadout.effort,
       fast: chosenLoadout.fast,
@@ -336,12 +337,14 @@ export function botLoadoutChanges(bot: Loadout, next: Loadout) {
   }
 }
 
-// Bots run Claude for now, at any effort but max.
+// A bot keeps its provider, at any supported effort but max.
 export function BotLoadoutPicker({
+  provider,
   value,
   onChange,
   onOpenSettings,
 }: {
+  provider?: ProviderId
   value: Loadout | undefined
   onChange: (loadout: Loadout) => void
   onOpenSettings: () => void
@@ -361,7 +364,9 @@ export function BotLoadoutPicker({
       onChange={(next) => onChange(botLoadout(next))}
       onReorder={setLoadouts}
       onOpenSettings={onOpenSettings}
-      disabledProviders={['codex', 'grok']}
+      disabledProviders={(['claude', 'codex', 'grok', 'copilot'] as const).filter(
+        (item) => item === 'grok' || (provider !== undefined && item !== provider)
+      )}
       allowedEfforts={BOT_EFFORTS}
       hotkeys={false}
     />

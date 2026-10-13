@@ -86,6 +86,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
           <div className='flex flex-col'>
             <Row label='Model'>
               <BotLoadoutPicker
+                provider={bot.provider}
                 value={bot}
                 onChange={(next) => {
                   const changes = botLoadoutChanges(bot, next)

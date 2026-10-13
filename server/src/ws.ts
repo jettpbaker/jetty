@@ -21,7 +21,7 @@ import type { ModelPrompt } from './title-model'
 import type { Updater } from './update'
 import type { Worktrees } from './worktrees'
 
-import { botUserName, commitBotHome, createBotHome } from './bot-home'
+import { botUserName, commitManagedBotFiles, createBotHome } from './bot-home'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
@@ -740,24 +740,28 @@ export function createRpcHandlers(
               if (!state.items.length && !thread.pendingMessages?.length) yield* wakeBot(params.id)
               return { bot: previous }
             }
-            if (params.provider !== 'claude')
+            if (params.provider === 'grok')
               return yield* Effect.fail(
-                new StoreError('invalid_params', 'Only Claude bots are available')
+                new StoreError('invalid_params', 'Grok bots are not available')
               )
             if (params.effort === 'max')
               return yield* Effect.fail(
                 new StoreError('invalid_params', "max isn't available to bots; use xhigh")
               )
             const model = getModels()?.find(
-              (item) => item.provider === 'claude' && item.id === params.model
+              (item) => item.provider === params.provider && item.id === params.model
             )
             if (!model)
               return yield* Effect.fail(
-                new StoreError('invalid_params', `Unknown Claude model ${params.model}`)
+                new StoreError('invalid_params', `Unknown ${params.provider} model ${params.model}`)
               )
             if (params.effort && !model.efforts.includes(params.effort))
               return yield* Effect.fail(
                 new StoreError('invalid_params', 'Unsupported effort for this model')
+              )
+            if (params.fast && !model.fast)
+              return yield* Effect.fail(
+                new StoreError('invalid_params', `${model.name} doesn't support Fast`)
               )
             if (
               params.projectId &&
@@ -797,10 +801,12 @@ export function createRpcHandlers(
           if (bot.archived)
             return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
           const id = params.model ?? bot.model
-          const model = getModels()?.find((model) => model.provider === 'claude' && model.id === id)
+          const model = getModels()?.find(
+            (model) => model.provider === bot.provider && model.id === id
+          )
           if (params.model !== undefined && !model)
             return yield* Effect.fail(
-              new StoreError('invalid_params', `Unknown Claude model ${params.model}`)
+              new StoreError('invalid_params', `Unknown ${bot.provider} model ${params.model}`)
             )
           if (params.effort && !model?.efforts.includes(params.effort))
             return yield* Effect.fail(
@@ -849,7 +855,7 @@ export function createRpcHandlers(
             const home = yield* botHome(botId)
             const result = yield* diff.writeProjectFile(home, 'instructions.md', instructions, base)
             if ('saved' in result)
-              yield* fromPromise(() => commitBotHome(home, 'Edit bot instructions'))
+              yield* fromPromise(() => commitManagedBotFiles(home, ['instructions.md']))
             return result
           })
         ),
