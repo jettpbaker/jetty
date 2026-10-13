@@ -12,7 +12,13 @@ export type ActivityStatus =
   | 'interrupted'
   | 'waiting'
 export type ToolKind = 'read' | 'edit' | 'write' | 'search' | 'terminal' | 'web' | 'generic'
-export type ToolWords = { active: string; done: string; noun: string; singular: string }
+export type ToolWords = {
+  active: string
+  done: string
+  waiting?: string
+  noun: string
+  singular: string
+}
 export type ToolActivity = {
   type: 'tool'
   id: string
@@ -85,42 +91,49 @@ const vocabulary = {
   read: {
     active: 'Reading',
     done: 'Read',
+    waiting: 'Waiting to read',
     noun: 'files',
     singular: 'file',
   },
   edit: {
     active: 'Editing',
     done: 'Edited',
+    waiting: 'Waiting to edit',
     noun: 'files',
     singular: 'file',
   },
   write: {
     active: 'Writing',
     done: 'Wrote',
+    waiting: 'Waiting to write',
     noun: 'files',
     singular: 'file',
   },
   search: {
     active: 'Searching',
     done: 'Searched',
+    waiting: 'Waiting to search',
     noun: 'queries',
     singular: 'query',
   },
   terminal: {
     active: 'Running',
     done: 'Ran',
+    waiting: 'Waiting to run',
     noun: 'commands',
     singular: 'command',
   },
   web: {
     active: 'Searching the web',
     done: 'Searched the web',
+    waiting: 'Waiting to search the web',
     noun: 'queries',
     singular: 'query',
   },
   generic: {
     active: 'Calling',
     done: 'Called',
+    waiting: 'Waiting to call',
     noun: 'calls',
     singular: 'call',
   },
@@ -263,6 +276,8 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const latest = calls.at(-1)!
   const count = (status: ActivityStatus) => calls.filter((call) => call.status === status).length
   const running = calls.filter((call) => call.status === 'running')
+  // An approval holds the call: it hasn't started.
+  const held = running.length > 0 ? [] : calls.filter((call) => call.status === 'waiting')
   const completed = count('complete')
   const failed = count('failed')
   const cancelled = count('cancelled')
@@ -271,23 +286,25 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const counted = files || first.kind === 'terminal'
   const words = first.words ?? vocabulary[first.kind]
   const active =
-    running.length > 0 || (counted && !sealed && failed + cancelled + interrupted === 0)
+    running.length > 0 ||
+    held.length > 0 ||
+    (counted && !sealed && failed + cancelled + interrupted === 0)
   const outcome = !active && !completed ? latest.status : undefined
   const itemCount = files
     ? countToolFiles(
-        active
-          ? calls
-          : calls.filter((call) => call.status === (completed ? 'complete' : latest.status))
+        held.length > 0
+          ? held
+          : active
+            ? calls
+            : calls.filter((call) => call.status === (completed ? 'complete' : latest.status))
       )
     : first.kind === 'terminal'
-      ? active
-        ? calls.length
-        : completed || count(latest.status)
+      ? held.length || (active ? calls.length : completed || count(latest.status))
       : undefined
   const summarise =
     itemCount !== undefined || (sealed && calls.length > 1 && !active) || running.length > 1
-  const shown = itemCount ?? (active ? running.length : completed || calls.length)
-  const current = running[0] ?? latest
+  const shown = itemCount ?? (held.length || (active ? running.length : completed || calls.length))
+  const current = running[0] ?? held[0] ?? latest
   let target = current.target
   if (first.kind === 'web') target = ''
   else if (summarise)
@@ -295,7 +312,12 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
       first.kind === 'generic' && !first.words
         ? `${shown} ${first.name} call${shown === 1 ? '' : 's'}`
         : `${shown} ${shown === 1 ? words.singular : words.noun}`
-  let verb = active ? words.active : words.done
+  let verb =
+    held.length > 0
+      ? (first.words?.waiting ?? vocabulary[first.kind].waiting)
+      : active
+        ? words.active
+        : words.done
   if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
     if (latest.status === 'failed') {
       verb = toolFailureVerb(first)
@@ -320,7 +342,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
     countNoun: itemCount === 1 ? words.singular : words.noun,
     // A count ("2 files") is words. A single path or command stays machine text.
     prose: first.words !== undefined || summarise,
-    active,
+    active: active && held.length === 0,
     failed,
     notices,
     noticeText,

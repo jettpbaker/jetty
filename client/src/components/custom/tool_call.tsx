@@ -39,15 +39,17 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
           <p className='text-muted-foreground'>
             {call.status === 'running'
               ? 'Waiting for output'
-              : failed
-                ? 'No error details were provided.'
-                : call.status === 'cancelled'
-                  ? 'This call was cancelled. No output was received.'
-                  : call.status === 'interrupted'
-                    ? 'This call was stopped. No output was received.'
-                    : call.output === ''
-                      ? 'Completed with no output.'
-                      : 'Output unavailable.'}
+              : call.status === 'waiting'
+                ? 'Waiting for approval'
+                : failed
+                  ? 'No error details were provided.'
+                  : call.status === 'cancelled'
+                    ? 'This call was cancelled. No output was received.'
+                    : call.status === 'interrupted'
+                      ? 'This call was stopped. No output was received.'
+                      : call.output === ''
+                        ? 'Completed with no output.'
+                        : 'Output unavailable.'}
           </p>
         )}
       </section>

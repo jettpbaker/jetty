@@ -340,7 +340,8 @@ function toActivity(
   outcome: TurnOutcome | undefined,
   projectPath: string | undefined,
   source?: string,
-  waitingAgents?: ReadonlySet<string>
+  waitingAgents?: ReadonlySet<string>,
+  heldTools?: ReadonlySet<string>
 ): WorkActivity {
   if (item.kind === 'subagent') {
     // A subagent outlives a finished turn. Stop and a restart cut one off when its status
@@ -413,7 +414,9 @@ function toActivity(
         : item.status === 'succeeded'
           ? 'complete'
           : turnLive && item.completedAt === undefined
-            ? 'running'
+            ? heldTools?.has(item.id)
+              ? 'waiting'
+              : 'running'
             : 'interrupted',
     input,
     output: item.output,
@@ -732,6 +735,11 @@ export function threadRows(
       item.kind === 'approval' && item.decision === 'deny' && item.toolCallId
         ? [item.toolCallId]
         : []
+    )
+  )
+  const heldTools = new Set(
+    allItems.flatMap((item) =>
+      item.kind === 'approval' && awaitsInput(item) && item.toolCallId ? [item.toolCallId] : []
     )
   )
   function isAnsweredQuestionTool(item: ThreadItem) {
@@ -1055,7 +1063,8 @@ export function threadRows(
             outcomes[item.turnId],
             projectPath,
             item.agentId ? agentTitles.get(item.agentId) : undefined,
-            waitingAgents
+            waitingAgents,
+            heldTools
           ),
         ]
       const update = todos.get(item.id)
