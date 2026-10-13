@@ -114,6 +114,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     if (
       text === 'approval' ||
       text === 'edit approval' ||
+      text === 'edit content approval' ||
       text === 'self tool' ||
       text === 'custom mcp'
     ) {
@@ -126,7 +127,7 @@ for await (const line of createInterface({ input: process.stdin })) {
           rawInput: {},
           status: 'pending',
         })
-      const edit = text === 'edit approval'
+      const edit = text === 'edit approval' || text === 'edit content approval'
       send({
         id: 0,
         method: 'session/request_permission',
@@ -150,6 +151,9 @@ for await (const line of createInterface({ input: process.stdin })) {
                   diff: '--- a/marker\n+++ b/marker\n@@ -1 +1 @@\n-before\n+after',
                 }
               : { command: 'printf marker' },
+            ...(text === 'edit content approval'
+              ? { content: [{ type: 'diff', path: 'marker', oldText: 'before', newText: 'after' }] }
+              : {}),
           },
           options: [
             { optionId: 'yes-once', kind: 'allow_once' },

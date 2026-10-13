@@ -258,7 +258,13 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
         }
         const itemId = newId()
         const input = copilotToolInput(tool)
-        const changes = approvalChanges(name, input)
+        const changes = Array.isArray(input.changes)
+          ? input.changes.map((change) => ({
+              path: string(object(change).path),
+              before: string(object(change).before),
+              after: string(object(change).after),
+            }))
+          : approvalChanges(name, input)
         const toolCallId =
           string(tool.toolCallId) && session.translator.toolItemId(string(tool.toolCallId))
         session.pending.set(itemId, { id, options })

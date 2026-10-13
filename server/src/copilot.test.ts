@@ -92,6 +92,21 @@ test('edit approvals keep diffs and correlate the tool id before the tool arrive
   await Effect.runPromise(turn.await)
 })
 
+test('edit approvals also accept ACP content diffs', async () => {
+  const f = await setup()
+  const turn = await f.start('edit content approval')
+  await until(f.events, (event) => event.type === 'item.started' && event.item.kind === 'approval')
+  const event = f.events.find(
+    (event) => event.type === 'item.started' && event.item.kind === 'approval'
+  )!
+  expect(event).toMatchObject({
+    item: { changes: [{ path: 'marker', before: 'before', after: 'after' }] },
+  })
+  if (event.type !== 'item.started') throw new Error('Missing approval')
+  await Effect.runPromise(f.agent.respondToApproval(f.threadId, event.item.id, 'allow'))
+  await Effect.runPromise(turn.await)
+})
+
 test('passes Jetty MCP into sessions and approves self tools without a card', async () => {
   const mcp = createMcpSessions()
   mcp.setUrl('http://localhost:1234/mcp')
