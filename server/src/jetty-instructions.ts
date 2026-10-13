@@ -5,6 +5,7 @@ import {
   newId,
   type AgentBehaviours,
   type QueuedMessage,
+  type ProviderId,
 } from '@jetty/shared/wire'
 
 import { desktopsInstalled } from './desktops'
@@ -60,12 +61,17 @@ export function jettyInstructions(
 }
 
 // A bot's jetty.md. Archiving is in its own workers prompt, as a bot's rule rather than every agent's.
-export function botJettyInstructions(behaviours: AgentBehaviours) {
+export function botJettyInstructions(behaviours: AgentBehaviours, provider: ProviderId = 'claude') {
   return jettyInstructions(
     { ...behaviours, archiveCompletedThreads: false },
     undefined,
     undefined,
     true
+  ).replace(
+    'Your own built-in subagents are a separate thing: keep using them for help within a turn, as you normally would.',
+    provider === 'claude'
+      ? 'Your own built-in subagents are a separate thing: keep using them for help within a turn, as you normally would.'
+      : 'For bot delegation, use Jetty worker threads rather than native subagents.'
   )
 }
 

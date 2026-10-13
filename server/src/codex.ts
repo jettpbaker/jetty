@@ -19,6 +19,7 @@ import {
   type TurnInput,
 } from './agent'
 import { approvalChanges, type ApprovalChange } from './approval-changes'
+import { prepareBot } from './bot-preparation'
 import {
   DEFAULT_CODEX_ARGS,
   object,
@@ -337,6 +338,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
     function run(session: Session, cwd: string, workspace: ThreadWorkspace) {
       return Effect.scoped(
         Effect.gen(function* () {
+          const bot = yield* prepareBot(store, session.input.threadId, cwd)
           const writableRoots =
             session.input.permissionMode === 'full_access'
               ? []
@@ -348,6 +350,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             : undefined
           const providerArgs = [
             ...(options.args ?? DEFAULT_CODEX_ARGS),
+            ...(bot ? ['-c', 'tools.update_plan.enabled=false'] : []),
             ...(binding
               ? [
                   '-c',
@@ -355,7 +358,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   '-c',
                   'mcp_servers.jetty.bearer_token_env_var="JETTY_MCP_TOKEN"',
                   // Codex sends MCP approvals straight to the user, with no reviewer of its own.
-                  ...[...SELF_TOOLS, ...THREAD_TOOLS].flatMap((name) => [
+                  ...[...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'].flatMap((name) => [
                     '-c',
                     `mcp_servers.jetty.tools.${name}.approval_mode="approve"`,
                   ]),
@@ -376,15 +379,20 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'codex')
-          const instructions = binding
-            ? jettyInstructions(
-                yield* store.getAgentBehaviours(),
-                session.input.parentThreadId,
-                workspace
-              )
-            : ''
+          const instructions =
+            bot?.snapshot ??
+            (binding
+              ? jettyInstructions(
+                  yield* store.getAgentBehaviours(),
+                  session.input.parentThreadId,
+                  workspace
+                )
+              : '')
           const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
-            ...threadOptions(session.input, cwd, instructions, writableRoots),
+            ...threadOptions(session.input, cwd, instructions, [
+              ...writableRoots,
+              ...(bot?.allowedPaths ?? []),
+            ]),
             ...(resume ? { threadId: resume } : { ephemeral: false }),
           })
           const threadId = string(object(result.thread).id)

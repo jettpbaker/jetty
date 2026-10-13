@@ -24,7 +24,7 @@ import {
 } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { newId } from '@jetty/shared/wire'
-import { Cause, Context, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Cause, Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Desktops } from './desktops'
@@ -35,7 +35,14 @@ import type { Worktrees } from './worktrees'
 import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
 import { fileSize } from './attachments'
 import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
-import { botUserName, commitBotHome, commitSharedPreferences, writeBotTasks } from './bot-home'
+import {
+  botUserName,
+  commitBotHome,
+  commitManagedBotFiles,
+  commitSharedPreferences,
+  restoreManagedBotFiles,
+  writeBotTasks,
+} from './bot-home'
 import { botTiming } from './bot-lifecycle'
 import {
   CHILD_REPORT_INSTRUCTION,
@@ -238,6 +245,14 @@ export function createOrchestrator({
       string,
       { turnId: string; interrupted: boolean; failed: boolean }
     >()
+    const projectApprovals = new Map<
+      string,
+      {
+        threadId: string
+        turnId: string
+        result: Deferred.Deferred<{ decision: ApprovalDecision; message?: string }>
+      }
+    >()
     const resuming = new Map<string, AbortController>()
     hub.setThreads(yield* store.listThreads(true))
     const threads = new Map<
@@ -278,6 +293,12 @@ export function createOrchestrator({
       return Effect.gen(function* () {
         const live = state(threadId)
         if (live.turnId === turnId) live.turnId = null
+        for (const [itemId, pending] of projectApprovals) {
+          if (pending.threadId !== threadId || pending.turnId !== turnId) continue
+          projectApprovals.delete(itemId)
+          yield* append(threadId, { type: 'item.completed', itemId, patch: { withdrawn: true } })
+          yield* Deferred.succeed(pending.result, { decision: 'deny', message: 'Turn ended' })
+        }
         if (yield* store.isBot(threadId)) {
           yield* store.updateBotLifecycle(threadId, { turnEndedAt: Date.now() })
           const compact = backgroundCompactions.get(threadId)
@@ -294,6 +315,12 @@ export function createOrchestrator({
           }
           const project = yield* store.getProject(threadId)
           if (project) {
+            const bot = yield* store.getBot(threadId)
+            if (bot && bot.provider !== 'claude') {
+              const restored = yield* Effect.promise(() => restoreManagedBotFiles(project.path))
+              if (restored)
+                yield* store.updateBotLifecycle(threadId, { managedFilesRestored: true })
+            }
             yield* Effect.promise(() => commitBotHome(project.path)).pipe(
               Effect.catch((error) => Effect.logWarning(error))
             )
@@ -550,7 +577,7 @@ export function createOrchestrator({
     function commit(
       threadId: string,
       event: ThreadEvent,
-      onCommit: Effect.Effect<void>
+      onCommit: Effect.Effect<void> = Effect.void
     ): Effect.Effect<void, StoreError> {
       return Effect.gen(function* () {
         const live = state(threadId)
@@ -663,7 +690,10 @@ export function createOrchestrator({
         const home = yield* store.getProject(botId)
         if (bot && home) {
           yield* Effect.tryPromise({
-            try: () => writeBotTasks(home.path, bot.tasks),
+            try: async () => {
+              await writeBotTasks(home.path, bot.tasks)
+              await commitManagedBotFiles(home.path, ['open-tasks.md'])
+            },
             catch: (error) => new StoreError('internal', String(error)),
           })
           hub.pushChrome({ type: 'bot.upserted', bot })
@@ -720,7 +750,7 @@ export function createOrchestrator({
     function bufferDelta(
       threadId: string,
       event: ItemDelta,
-      onCommit: Effect.Effect<void>
+      onCommit: Effect.Effect<void> = Effect.void
     ): Effect.Effect<void, StoreError> {
       return Effect.suspend(() => {
         const live = state(threadId)
@@ -783,7 +813,7 @@ export function createOrchestrator({
       { threadId, messageId, text, queued, carriesOn, sendNow, replies }: StartTurnInput,
       turnId: string,
       meta: Attachment[],
-      onCommit: Effect.Effect<void>
+      onCommit: Effect.Effect<void> = Effect.void
     ) {
       return Effect.gen(function* () {
         const item = {
@@ -1321,6 +1351,11 @@ export function createOrchestrator({
                       )}\n\n${text}`
                   }
                 }
+                const record = yield* store.getBotLifecycle(thread.id)
+                if (record.managedFilesRestored) {
+                  text = `${relayedMessage({ threadId: thread.id, title: 'Jetty' }, 'Jetty restored changes you made to managed bot files. Use add_instruction for instructions.md and add_task/update_task for open-tasks.md. CLAUDE.md is managed by Jetty. Write ordinary wiki pages directly.')}\n\n${text}`
+                  yield* store.updateBotLifecycle(thread.id, { managedFilesRestored: false })
+                }
                 text = `${botStamp()}\n${text}`
               }
               const live = state(input.threadId)
@@ -1487,6 +1522,45 @@ export function createOrchestrator({
     return {
       addBotProject(botId: string, path: string) {
         return Effect.gen(function* () {
+          const itemId = newId()
+          const result = yield* Deferred.make<{ decision: ApprovalDecision; message?: string }>()
+          yield* locked(
+            botId,
+            Effect.gen(function* () {
+              const turnId = state(botId).turnId
+              if (!turnId)
+                return yield* Effect.fail(
+                  new StoreError('conflict', 'Bot turn is no longer active')
+                )
+              projectApprovals.set(itemId, { threadId: botId, turnId, result })
+              yield* flushDelta(botId)
+              yield* commit(botId, {
+                type: 'item.started',
+                item: {
+                  id: itemId,
+                  turnId,
+                  createdAt: Date.now(),
+                  kind: 'approval',
+                  title: `Add project ${path}`,
+                  toolName: 'mcp__jetty__add_project',
+                  input: { path },
+                  suggestions: [],
+                },
+              })
+              yield* commit(botId, { type: 'session.status', status: 'awaiting_approval' })
+            })
+          )
+          const answer = yield* Deferred.await(result).pipe(
+            Effect.ensuring(Effect.sync(() => projectApprovals.delete(itemId)))
+          )
+          if (answer.decision === 'deny')
+            return yield* Effect.fail(
+              new StoreError(
+                'conflict',
+                answer.message ||
+                  'The user denied adding this project. Do not retry without their instruction.'
+              )
+            )
           const { project, created } = yield* store.createProjectResult(path)
           hub.pushChrome({ type: 'project.upserted', project })
           yield* store.setBotProjectIfUnset(botId, project.id)
@@ -2197,6 +2271,36 @@ export function createOrchestrator({
         decidedBy?: ApprovalDecider
       ) {
         return Effect.gen(function* () {
+          const pending = projectApprovals.get(itemId)
+          if (pending?.threadId === threadId) {
+            if (decision === 'always')
+              return yield* Effect.fail(
+                new StoreError('invalid_params', 'Adding a project requires approval each time')
+              )
+            yield* locked(
+              threadId,
+              Effect.gen(function* () {
+                if (projectApprovals.get(itemId) !== pending)
+                  return yield* Effect.fail(
+                    new StoreError('not_found', 'Approval is no longer waiting')
+                  )
+                yield* flushDelta(threadId)
+                yield* commit(threadId, {
+                  type: 'item.completed',
+                  itemId,
+                  patch: {
+                    decision,
+                    ...(message ? { deniedReason: message } : {}),
+                    ...(decidedBy ? { decidedBy } : {}),
+                  },
+                })
+                yield* commit(threadId, { type: 'session.status', status: 'running' })
+                projectApprovals.delete(itemId)
+                yield* Deferred.succeed(pending.result, { decision, message })
+              })
+            )
+            return
+          }
           const provider = yield* store.getThreadProvider(threadId)
           const agent = yield* agentForThread(threadId)
           yield* requireFound(`approval ${itemId}`)(

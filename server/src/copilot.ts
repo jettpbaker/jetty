@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { prepareBotHome } from './bot-home'
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
@@ -21,8 +22,9 @@ import {
   type TurnInput,
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
+import { prepareBot } from './bot-preparation'
 import { copilotConfig, setCopilotModel } from './copilot-models'
-import { copilotError, openCopilotConnection } from './copilot-rpc'
+import { COPILOT_ARGS, copilotError, openCopilotConnection } from './copilot-rpc'
 import {
   copilotContextUsage,
   copilotToolInput,
@@ -30,7 +32,7 @@ import {
   createCopilotTranslator,
 } from './copilot-translate'
 import { jettyInstructions } from './jetty-instructions'
-import { SELF_TOOLS } from './jetty-tools'
+import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 import {
   object,
   string,
@@ -47,6 +49,7 @@ export type CopilotOptions = StdioProcessOptions & {
 }
 type Session = {
   input: TurnInput
+  bot?: Awaited<ReturnType<typeof prepareBotHome>>
   emit: Emit
   translator: ReturnType<typeof createCopilotTranslator>
   connection?: StdioConnection
@@ -264,7 +267,12 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             sessionUpdate: 'tool_call_update',
           }))
             yield* session.emit(event)
-        if (allow && SELF_TOOLS.some((tool) => name === `mcp__jetty__${tool}`)) {
+        if (
+          allow &&
+          [...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'].some(
+            (tool) => name === `mcp__jetty__${tool}`
+          )
+        ) {
           yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
           return
         }
@@ -326,18 +334,24 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             : undefined
           const thread = yield* store.requireThread(session.input.threadId)
           const project = yield* store.getProject(thread.projectId)
-          const instructions = binding
-            ? yield* instructionsFolder(
-                jettyInstructions(yield* store.getAgentBehaviours(), session.input.parentThreadId, {
-                  environment: thread.environment,
-                  workingPath: cwd,
-                  projectPath: project!.path,
-                }).replace(
-                  'use AskUserQuestion and wait for the answer',
-                  'ask your question in your final response'
+          const instructions =
+            session.bot || binding
+              ? yield* instructionsFolder(
+                  session.bot?.snapshot ??
+                    jettyInstructions(
+                      yield* store.getAgentBehaviours(),
+                      session.input.parentThreadId,
+                      {
+                        environment: thread.environment,
+                        workingPath: cwd,
+                        projectPath: project!.path,
+                      }
+                    ).replace(
+                      'use AskUserQuestion and wait for the answer',
+                      'ask your question in your final response'
+                    )
                 )
-              )
-            : undefined
+              : undefined
           const dirs =
             options.env?.COPILOT_CUSTOM_INSTRUCTIONS_DIRS ??
             process.env.COPILOT_CUSTOM_INSTRUCTIONS_DIRS
@@ -346,6 +360,16 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             instructions
               ? {
                   ...options,
+                  args: [
+                    ...(options.args ?? COPILOT_ARGS),
+                    ...(session.bot
+                      ? [
+                          '--excluded-tools',
+                          'update_todo',
+                          ...session.bot.allowedPaths.flatMap((path) => ['--add-dir', path]),
+                        ]
+                      : []),
+                  ],
                   env: {
                     ...options.env,
                     COPILOT_CUSTOM_INSTRUCTIONS_DIRS: [dirs, instructions]
@@ -498,7 +522,19 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
       supportsCompaction: true,
       startTurn(input, emit) {
         return Effect.gen(function* () {
+          const thread = yield* store.requireThread(input.threadId)
+          const project = yield* store.getProject(thread.projectId)
+          if (!project) return yield* Effect.fail(new AgentError('Thread project not found'))
+          const bot = yield* prepareBot(store, input.threadId, input.cwd ?? project.path)
           let existing = sessions.get(input.threadId)
+          if (existing && existing.bot?.hash !== bot?.hash) {
+            if (existing.awaitingResult)
+              return yield* Effect.fail(new AgentError('Turn already active'))
+            existing.expired = true
+            if (existing.idle) yield* Fiber.interrupt(existing.idle)
+            if (existing.fiber) yield* Fiber.interrupt(existing.fiber)
+            existing = undefined
+          }
           if (existing) {
             if (existing.awaitingResult)
               return yield* Effect.fail(new AgentError('Turn already active'))
@@ -531,11 +567,9 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
               existing = undefined
             } else return { await: Deferred.await(existing.done) }
           }
-          const thread = yield* store.requireThread(input.threadId)
-          const project = yield* store.getProject(thread.projectId)
-          if (!project) return yield* Effect.fail(new AgentError('Thread project not found'))
           const session: Session = {
             input,
+            bot,
             emit,
             translator: createCopilotTranslator(input.turnId),
             done: yield* Deferred.make<void, AgentError>(),

@@ -49,7 +49,7 @@ import {
 } from './agent'
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
 import { botApproval, botAutoMode, type BotPlace } from './bot-approval'
-import { botInstructions, botUserName } from './bot-home'
+import { prepareBotHome, botUserName } from './bot-home'
 import { createBackgroundTasks, type BackgroundTasks } from './claude-background'
 import { claudeBin } from './claude-bin'
 import {
@@ -68,7 +68,9 @@ import { readClaudeUsageIdentity } from './provider-usage'
 import { readUsage } from './usage'
 
 // The rest of Jetty's tools go through Claude's own reviewer: the auto-mode classifier judges them.
-const AUTO_ALLOWED_TOOLS = new Set(SELF_TOOLS.map((name) => `mcp__jetty__${name}`))
+const AUTO_ALLOWED_TOOLS = new Set(
+  [...SELF_TOOLS, 'add_project'].map((name) => `mcp__jetty__${name}`)
+)
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
@@ -1091,15 +1093,6 @@ export function createClaudeAdapter(
                                         }
                                     }
                                   }
-                                  if (hookInput.tool_name === 'mcp__jetty__add_project')
-                                    return {
-                                      hookSpecificOutput: {
-                                        hookEventName: 'PreToolUse' as const,
-                                        permissionDecision: 'ask' as const,
-                                        permissionDecisionReason:
-                                          'Adding a project needs your approval.',
-                                      },
-                                    }
                                   if (
                                     !['Agent', 'Task'].includes(hookInput.tool_name) ||
                                     !hookInput.tool_input ||
@@ -1238,7 +1231,7 @@ export function createClaudeAdapter(
                   .pipe(Effect.mapError((error) => new AgentError(error.message)))
                 return yield* Effect.tryPromise({
                   try: () =>
-                    botInstructions(bot, projects, behaviours, projectPath, async (text) => {
+                    prepareBotHome(bot, projects, behaviours, projectPath, async (text) => {
                       await run(
                         store.enqueueOnce(bot.id, {
                           id: `${bot.id}-instructions-migration`,
@@ -1248,7 +1241,7 @@ export function createClaudeAdapter(
                           from: { threadId: bot.id, title: 'Jetty' },
                         })
                       )
-                    }),
+                    }).then((prepared) => prepared.instructionsHash),
                   catch: (error) => new AgentError(String(error)),
                 })
               })

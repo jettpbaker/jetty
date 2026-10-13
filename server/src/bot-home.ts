@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/p
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
+import { botTiming } from './bot-lifecycle'
 import { BOT_PROMPT_FILES } from './bot-prompt'
 import { botJettyInstructions, jettyInstructions } from './jetty-instructions'
 
@@ -199,9 +200,18 @@ export async function botInstructions(
     project,
     projects: named.join(', '),
     others: others.join(', ') || 'none',
-    questionTool: 'AskUserQuestion',
+    questionTool: bot.provider === 'codex' ? 'request_user_input' : 'AskUserQuestion',
+    checkIn: `${Math.round(botTiming.checkInMs[bot.provider].ms / 60_000)} minutes`,
+    questioning:
+      bot.provider === 'copilot'
+        ? `When you need ${user}, ask one thing in your reply (or with message_user in a wake turn), give your recommendation and why it matters, then end your turn. Copilot has no question tool in Jetty.`
+        : `When you need ${user}, ask one thing, with your recommendation and why it matters, so they can answer in a word. When the answer blocks your work and comes down to a few clear options, ask with ${bot.provider === 'codex' ? 'request_user_input' : 'AskUserQuestion'}, so ${user} can tap an answer and sees you're waiting on them; ask anything casual in plain text, or with message_user in a turn they didn't start.`,
+    investigations:
+      bot.provider === 'claude'
+        ? "To look into something, do it yourself or use your model's built-in subagents (Agent/Task), so the answer comes back within your turn."
+        : 'To look into something, do it yourself or hand it to a Jetty worker thread. Codex and Copilot have native subagents, but bot delegation goes through Jetty workers so their lifecycle and reports survive restarts.',
   }
-  const base = botJettyInstructions(behaviours)
+  const base = botJettyInstructions(behaviours, bot.provider)
   const files = [{ name: 'jetty.md', content: `${base}\n` }]
   for (const name of BOT_PROMPT_FILES) {
     const source = await readFile(new URL(`./bot-prompt/${name}`, import.meta.url), 'utf8')
@@ -245,4 +255,70 @@ export async function botInstructions(
   return createHash('sha256')
     .update(JSON.stringify(files.map((file) => file.content)))
     .digest('hex')
+}
+
+export const MANAGED_BOT_FILES = ['instructions.md', 'CLAUDE.md', 'open-tasks.md'] as const
+
+export async function commitManagedBotFiles(home: string, files: readonly string[]) {
+  const changed = await git(home, ['diff', 'HEAD', '--name-only', '--', ...files])
+  if (!changed) return
+  await git(home, ['add', '--', ...files])
+  await git(home, [
+    '-c',
+    'user.name=Jetty',
+    '-c',
+    'user.email=jetty@localhost',
+    'commit',
+    '-q',
+    '--only',
+    '-m',
+    'Update managed bot files',
+    '--',
+    ...files,
+  ])
+}
+
+export async function restoreManagedBotFiles(
+  home: string,
+  files: readonly string[] = MANAGED_BOT_FILES
+) {
+  const changed = await git(home, ['diff', 'HEAD', '--name-only', '--', ...files])
+  if (!changed) return false
+  await git(home, ['restore', '--source=HEAD', '--staged', '--worktree', '--', ...files])
+  return true
+}
+
+export async function prepareBotHome(...args: Parameters<typeof botInstructions>) {
+  const [bot, projects, , home] = args
+  const instructionsHash = await botInstructions(...args)
+  const staticPrompt = (
+    await Promise.all(
+      ['jetty.md', ...BOT_PROMPT_FILES, 'preferences.md'].map((name) =>
+        readFile(join(home, '.jetty', 'instructions', name), 'utf8')
+      )
+    )
+  ).join('\n')
+  const memory = (
+    await Promise.all(
+      ['instructions.md', 'brief.md', 'index.md', 'open-tasks.md'].map(
+        async (name) => `## ${name}\n\n${await readFile(join(home, name), 'utf8')}`
+      )
+    )
+  ).join('\n\n')
+  const snapshot = `${staticPrompt}\n\n${memory}`
+  await commitManagedBotFiles(home, MANAGED_BOT_FILES)
+  return {
+    staticPrompt,
+    memory,
+    snapshot,
+    hash: createHash('sha256').update(snapshot).digest('hex'),
+    instructionsHash,
+    allowedPaths: [
+      join(home, '..'),
+      ...(bot.projectId
+        ? projects.filter((project) => project.id === bot.projectId)
+        : projects
+      ).map((project) => project.path),
+    ],
+  }
 }
