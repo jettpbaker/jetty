@@ -482,6 +482,9 @@ function createServer(opts: ServerOptions = {}) {
     const discoveryScope = yield* Effect.scope
     let inFlight: Deferred.Deferred<void> | undefined
     let lastDiscovery = -Infinity
+    // Whether Claude is signed in decides where an unspecified turn goes; after the first answer,
+    // the cached one does.
+    let claudeSettled = false
 
     function refreshModels(force = false) {
       return Effect.uninterruptibleMask((restore) =>
@@ -545,6 +548,7 @@ function createServer(opts: ServerOptions = {}) {
                     discovery.pipe(
                       Effect.flatMap(({ provider, models: next }) => {
                         if (next) lists.set(provider, next)
+                        if (provider === 'claude') claudeSettled = true
                         modelDiscovery = {
                           ...modelDiscovery,
                           [provider]: next ? 'ready' : 'error',
@@ -573,8 +577,7 @@ function createServer(opts: ServerOptions = {}) {
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
     function modelCatalog() {
       return Effect.gen(function* () {
-        if (models === null || (agentKind === 'claude' && modelDiscovery.claude === 'loading'))
-          yield* refreshModels()
+        if (models === null || (agentKind === 'claude' && !claudeSettled)) yield* refreshModels()
         else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
         return models ?? []
       })
