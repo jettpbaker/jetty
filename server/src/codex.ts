@@ -4,6 +4,7 @@ import { newId } from '@jetty/shared/wire'
 import { Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
+import type { Attachments } from './attachments'
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
@@ -38,7 +39,11 @@ import {
 } from './jetty-instructions'
 import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 
-export type CodexOptions = CodexProcessOptions & { interruptGraceMs?: number; mcp?: McpSessions }
+export type CodexOptions = CodexProcessOptions & {
+  interruptGraceMs?: number
+  mcp?: McpSessions
+  attachments?: Attachments
+}
 type Pending = {
   id: RpcId
   questions?: { id: string; question: string }[]
@@ -402,6 +407,57 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   return terminal
                 }
                 const raw = object(message.params.item)
+                if (
+                  message.method === 'item/completed' &&
+                  raw.type === 'imageGeneration' &&
+                  raw.status === 'completed' &&
+                  options.attachments
+                ) {
+                  const attachments = options.attachments
+                  let committed = false
+                  yield* Effect.scoped(
+                    Effect.gen(function* () {
+                      const images = yield* Effect.acquireRelease(
+                        string(raw.result)
+                          ? attachments
+                              .persist([
+                                {
+                                  name: 'generated.png',
+                                  mimeType: 'image/png',
+                                  dataUrl: `data:image/png;base64,${raw.result}`,
+                                },
+                              ])
+                              .pipe(Effect.map((result) => result.meta))
+                          : attachments
+                              .persistFile(string(raw.savedPath), 'image')
+                              .pipe(Effect.map((image) => [image])),
+                        (images) =>
+                          committed
+                            ? Effect.void
+                            : Effect.all(images.map((image) => attachments.remove(image.id))).pipe(
+                                Effect.asVoid
+                              )
+                      )
+                      const itemId = newId()
+                      yield* session.emit(
+                        {
+                          type: 'item.started',
+                          item: {
+                            id: itemId,
+                            turnId: session.input.turnId,
+                            createdAt: Date.now(),
+                            kind: 'image_gallery',
+                            images,
+                          },
+                        },
+                        Effect.sync(() => {
+                          committed = true
+                        })
+                      )
+                      yield* session.emit({ type: 'item.completed', itemId })
+                    })
+                  ).pipe(Effect.mapError((error) => new AgentError(error.message)))
+                }
                 if (
                   ((message.method === 'item/started' || message.method === 'item/completed') &&
                     raw.type === 'fileChange') ||

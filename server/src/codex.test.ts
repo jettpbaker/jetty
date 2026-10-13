@@ -291,6 +291,12 @@ test('failed publication stops the process and allows a later turn', async () =>
 
 test('translation handles completed-only items and authoritative final text without duplication', () => {
   const t = createCodexTranslator('turn')
+  expect(
+    t.translate({
+      method: 'item/completed',
+      params: { item: { id: 'media', type: 'mcpToolCall', server: 'jetty', tool: 'send_images' } },
+    })
+  ).toEqual([])
   const events = t.translate({
     method: 'item/completed',
     params: { item: { id: 'x', type: 'reasoning', summary: ['one', 'two'] } },

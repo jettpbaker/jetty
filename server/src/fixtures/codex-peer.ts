@@ -54,7 +54,19 @@ for await (const line of createInterface({ input: process.stdin })) {
     if (scenario === 'crash') process.exit(7)
     else if (scenario === 'malformed') process.stdout.write('{broken\n')
     else if (scenario === 'failure') complete('failed')
-    else if (
+    else if (scenario === 'image') {
+      notify('item/completed', {
+        item: {
+          id: 'generated',
+          type: 'imageGeneration',
+          status: 'completed',
+          revisedPrompt: 'A tiny image',
+          result:
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        },
+      })
+      answer('Generated an image')
+    } else if (
       ['approval', 'question', 'unsupported', 'permissions', 'resolved'].includes(scenario)
     ) {
       pending = scenario

@@ -80,6 +80,21 @@ test('Codex fixture over backend RPC: disconnect, durable completion, immediate 
     expect(state.items.filter((item) => item.kind === 'user_message')).toHaveLength(3)
     expect(state.items.find((item) => item.kind === 'approval')).toMatchObject({ decision: 'deny' })
     expect(await Effect.runPromise(server.store.getThreadSessionId(threadId))).toBeNull()
+    const imageTurn = await client.request('turn.start', { threadId, text: 'image' })
+    await subscription.waitFor(
+      (message) =>
+        message.type === 'event' &&
+        message.event.type === 'turn.completed' &&
+        message.event.turnId === imageTurn.turnId
+    )
+    const generated = await Effect.runPromise(server.store.getThreadState(threadId))
+    const gallery = generated.items.find((item) => item.kind === 'image_gallery')
+    if (gallery?.kind !== 'image_gallery') throw new Error('Missing generated image gallery')
+    expect(gallery.images).toMatchObject([{ mimeType: 'image/png', width: 1, height: 1 }])
+    const image = gallery.images[0]!
+    const response = await fetch(`http://127.0.0.1:${server.port}/attachments/${image.id}`)
+    expect(response.status).toBe(200)
+    expect((await response.arrayBuffer()).byteLength).toBe(image.sizeBytes)
     const active = await client.request('turn.start', { threadId, text: 'hold' })
     await subscription.waitFor(
       (message) =>

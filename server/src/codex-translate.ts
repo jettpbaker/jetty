@@ -3,6 +3,8 @@ import type { ThreadItem } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
 
+import { SEND_IMAGES_TOOL } from './send-images'
+import { SEND_VIDEO_TOOL } from './send-video'
 import { object, string, type RpcMessage } from './stdio-rpc'
 
 export function createCodexTranslator(turnId: string) {
@@ -36,6 +38,8 @@ export function createCodexTranslator(turnId: string) {
       case 'contextCompaction':
         return { ...base, kind: 'compaction', status: 'running' }
       default:
+        if (toolName(raw) === SEND_IMAGES_TOOL || toolName(raw) === SEND_VIDEO_TOOL)
+          return undefined
         return {
           ...base,
           kind: 'tool_call',
@@ -74,6 +78,7 @@ export function createCodexTranslator(turnId: string) {
                   raw.status === 'failed' ||
                   raw.status === 'declined' ||
                   raw.success === false ||
+                  raw.failure != null ||
                   (typeof raw.exitCode === 'number' && raw.exitCode !== 0)
                     ? 'failed'
                     : 'succeeded',
@@ -255,6 +260,8 @@ function toolInput(raw: Record<string, unknown>): unknown {
       }
     case 'imageView':
       return { path: raw.path }
+    case 'imageGeneration':
+      return { prompt: raw.revisedPrompt, ...(raw.savedPath ? { path: raw.savedPath } : {}) }
     case 'mcpToolCall':
     case 'dynamicToolCall':
       return raw.arguments ?? {}
@@ -288,6 +295,8 @@ function toolOutput(raw: Record<string, unknown>): string {
       .filter(Boolean)
       .join('\n')
   if (raw.error) return string(object(raw.error).message) || JSON.stringify(raw.error)
+  if (raw.failure) return string(object(raw.failure).message) || JSON.stringify(raw.failure)
+  if (raw.type === 'imageGeneration') return string(raw.savedPath)
   if (Array.isArray(raw.results)) return JSON.stringify(raw.results)
   return ''
 }

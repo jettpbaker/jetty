@@ -466,7 +466,7 @@ function createServer(opts: ServerOptions = {}) {
                     attachmentsDir: join(home, 'attachments'),
                   })
                 ),
-                codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp })),
+                codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp, attachments })),
                 grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp, hooks })),
               },
               agentKind
