@@ -15,7 +15,8 @@ need and nothing else.
 One Bun process on the workspace serves everything on one port: the built SPA, a
 small HTTP API, and a WebSocket. The browser talks typed messages over the socket —
 request/response for actions, subscription pushes for updates — with every contract
-defined once as zod schemas in `shared/` that both sides import.
+defined once as zod schemas in `shared/` that both sides import. Setting it up to run
+on a workspace, and how it updates itself, is in `docs/running-jetty.md`.
 
 State comes in two kinds. Chrome state (projects and the thread list) is plain rows
 with CRUD and change pushes. Timelines are an append-only event log per thread, one
