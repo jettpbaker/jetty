@@ -129,7 +129,7 @@ export const agentBehaviours = [
   {
     key: 'watchPullRequests',
     label: 'Agents wake on activity in their pull requests',
-    defaultEnabled: false,
+    defaultEnabled: true,
     instruction:
       "Jetty watches the pull requests you open or last push to. When one gets a review or comments, its checks fail or it hits a merge conflict, Jetty sends you what happened in a <relayed-message> from Jetty, so you don't need to poll CI or wait for reviews. Don't write @jetty in a comment or review you post with `gh`. You post as the user, and that mention wakes the thread.",
   },

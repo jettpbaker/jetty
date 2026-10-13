@@ -527,7 +527,7 @@ describe('scoped Claude sessions', () => {
     expect(f.queries).toHaveLength(2)
     f.queries[1]!.push({ type: 'result', subtype: 'success' })
     await f.runtime.runPromise(third.await)
-    await f.runtime.runPromise(f.store.setAgentBehaviour('watchPullRequests', true))
+    await f.runtime.runPromise(f.store.setAgentBehaviour('watchPullRequests', false))
     const fourth = await f.start('fourth')
     expect(f.queries).toHaveLength(3)
     expect(f.queries[1]!.closed).toBe(true)
