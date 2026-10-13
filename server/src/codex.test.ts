@@ -206,6 +206,50 @@ test('provider-resolved approvals are withdrawn without a turn id and cannot be 
   await Effect.runPromise(Effect.exit(turn.await))
 })
 
+test('MCP forms without a turn id use typed question answers and reject invalid input', async () => {
+  const f = await setup()
+  const turn = await f.start('form')
+  await until(f.events, (e) => e.type === 'session.status' && e.status === 'awaiting_approval')
+  const question = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'question')!
+  if (question.type !== 'item.started') throw new Error('Missing form')
+  expect(
+    await Effect.runPromise(
+      f.agent.respondToQuestion(f.threadId, question.item.id, {
+        color: 'green',
+        count: '1.5',
+        enabled: 'true',
+      })
+    )
+  ).toBe(false)
+  expect(
+    await Effect.runPromise(
+      f.agent.respondToQuestion(f.threadId, question.item.id, {
+        color: 'blue',
+        count: '2',
+        enabled: 'true',
+      })
+    )
+  ).toBe(true)
+  await Effect.runPromise(turn.await)
+  expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
+    result: { action: 'accept', content: { color: 'blue', count: 2, enabled: true } },
+  })
+})
+
+for (const scenario of ['url', 'mcp-approval'])
+  test(`MCP ${scenario} approvals accept a nullable turn id`, async () => {
+    const f = await setup()
+    const turn = await f.start(scenario)
+    await until(f.events, (e) => e.type === 'session.status' && e.status === 'awaiting_approval')
+    const approval = f.events.find((e) => e.type === 'item.started' && e.item.kind === 'approval')!
+    if (approval.type !== 'item.started') throw new Error('Missing approval')
+    await Effect.runPromise(f.agent.respondToApproval(f.threadId, approval.item.id, 'allow'))
+    await Effect.runPromise(turn.await)
+    expect(f.log().find((m) => m.id === 'approval-1')).toMatchObject({
+      result: { action: 'accept', content: scenario === 'url' ? null : {} },
+    })
+  })
+
 test('steering commits user input after provider acceptance and rejects after completion', async () => {
   const f = await setup()
   const turn = await f.start('hold')

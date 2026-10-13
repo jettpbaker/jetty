@@ -49,6 +49,8 @@ type Pending = {
   questions?: { id: string; question: string }[]
   mcpTool?: true
   permissions?: Record<string, unknown>
+  form?: Record<string, unknown>
+  mcpUrl?: true
 }
 type Session = {
   input: TurnInput
@@ -216,6 +218,67 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               toolName,
               input: object(meta.tool_params),
               suggestions: [],
+            },
+          })
+        } else if (method === 'mcpServer/elicitation/request' && params.mode === 'url') {
+          session.pending.set(itemId, { id, mcpUrl: true })
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'approval',
+              title: string(params.message) || 'Open MCP authorization URL',
+              toolName: `mcp__${string(params.serverName)}__elicitation`,
+              input: { url: params.url, message: params.message },
+              suggestions: [],
+            },
+          })
+        } else if (method === 'mcpServer/elicitation/request') {
+          const form = object(params.requestedSchema)
+          const fields = Object.entries(object(form.properties))
+          if (
+            form.type !== 'object' ||
+            !fields.length ||
+            fields.some(
+              ([, field]) =>
+                !['string', 'number', 'integer', 'boolean'].includes(string(object(field).type)) ||
+                object(field).format === 'password'
+            )
+          ) {
+            yield* connection.reject(
+              id,
+              'Jetty supports MCP forms with non-secret scalar fields only'
+            )
+            return
+          }
+          const questions = fields.map(([key, field]) => ({
+            id: key,
+            question: string(object(field).title) ? `${key}: ${object(field).title}` : key,
+          }))
+          session.pending.set(itemId, { id, questions, form })
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'question',
+              questions: fields.map(([key, field], index) => {
+                const schema = object(field)
+                const values =
+                  schema.type === 'boolean'
+                    ? ['true', 'false']
+                    : Array.isArray(schema.enum)
+                      ? schema.enum
+                      : []
+                return {
+                  question: questions[index]!.question,
+                  header: string(params.message) || key,
+                  multiSelect: false,
+                  options: values.map((value) => ({
+                    label: String(value),
+                    description: string(schema.description),
+                  })),
+                }
+              }),
             },
           })
         } else if (method === 'item/tool/requestUserInput') {
@@ -676,18 +739,24 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     permissions: decision === 'deny' ? {} : pending.permissions,
                     scope: decision === 'always' ? 'session' : 'turn',
                   }
-                : pending.mcpTool
-                  ? decision === 'deny'
-                    ? { action: 'decline', content: null }
-                    : { action: 'accept', content: {} }
-                  : {
-                      decision:
-                        decision === 'always'
-                          ? 'acceptForSession'
-                          : decision === 'allow'
-                            ? 'accept'
-                            : 'decline',
-                    },
+                : pending.mcpUrl
+                  ? {
+                      action: decision === 'deny' ? 'decline' : 'accept',
+                      content: null,
+                      _meta: null,
+                    }
+                  : pending.mcpTool
+                    ? decision === 'deny'
+                      ? { action: 'decline', content: null }
+                      : { action: 'accept', content: {} }
+                    : {
+                        decision:
+                          decision === 'always'
+                            ? 'acceptForSession'
+                            : decision === 'allow'
+                              ? 'accept'
+                              : 'decline',
+                      },
           {
             decision,
             ...(message ? { deniedReason: message } : {}),
@@ -731,16 +800,20 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           threadId,
           itemId,
           (pending) =>
-            pending.questions
-              ? {
-                  answers: Object.fromEntries(
-                    pending.questions.map((q) => [
-                      q.id,
-                      { answers: answers?.[q.question] === undefined ? [] : [answers[q.question]] },
-                    ])
-                  ),
-                }
-              : undefined,
+            pending.form
+              ? elicitationAnswers(pending, answers)
+              : pending.questions
+                ? {
+                    answers: Object.fromEntries(
+                      pending.questions.map((q) => [
+                        q.id,
+                        {
+                          answers: answers?.[q.question] === undefined ? [] : [answers[q.question]],
+                        },
+                      ])
+                    ),
+                  }
+                : undefined,
           answers ? { answers } : { dismissed: true }
         )
       },
@@ -801,6 +874,38 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       })
     }
   })
+}
+
+function elicitationAnswers(pending: Pending, answers: Record<string, string> | null) {
+  if (!answers) return { action: 'cancel', content: null, _meta: null }
+  const content: Record<string, unknown> = {}
+  const form = pending.form!
+  const properties = object(form.properties)
+  for (const question of pending.questions ?? []) {
+    const value = answers[question.question]
+    const schema = object(properties[question.id])
+    if (value === undefined || value === '') {
+      if (Array.isArray(form.required) && form.required.includes(question.id)) return undefined
+      continue
+    }
+    let parsed: string | number | boolean = value
+    if (schema.type === 'boolean') {
+      if (value !== 'true' && value !== 'false') return undefined
+      parsed = value === 'true'
+    } else if (schema.type === 'number' || schema.type === 'integer') {
+      parsed = Number(value)
+      if (!Number.isFinite(parsed) || (schema.type === 'integer' && !Number.isInteger(parsed)))
+        return undefined
+      if (typeof schema.minimum === 'number' && parsed < schema.minimum) return undefined
+      if (typeof schema.maximum === 'number' && parsed > schema.maximum) return undefined
+    } else {
+      if (typeof schema.minLength === 'number' && value.length < schema.minLength) return undefined
+      if (typeof schema.maxLength === 'number' && value.length > schema.maxLength) return undefined
+    }
+    if (Array.isArray(schema.enum) && !schema.enum.includes(parsed)) return undefined
+    content[question.id] = parsed
+  }
+  return { action: 'accept', content, _meta: null }
 }
 
 export function codexLayer(store: Store, options: CodexOptions = {}) {

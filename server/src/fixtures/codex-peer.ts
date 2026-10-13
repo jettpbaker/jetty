@@ -67,7 +67,16 @@ for await (const line of createInterface({ input: process.stdin })) {
       })
       answer('Generated an image')
     } else if (
-      ['approval', 'question', 'unsupported', 'permissions', 'resolved'].includes(scenario)
+      [
+        'approval',
+        'question',
+        'unsupported',
+        'permissions',
+        'resolved',
+        'form',
+        'url',
+        'mcp-approval',
+      ].includes(scenario)
     ) {
       pending = scenario
       const method =
@@ -75,18 +84,42 @@ for await (const line of createInterface({ input: process.stdin })) {
           ? 'item/commandExecution/requestApproval'
           : scenario === 'question'
             ? 'item/tool/requestUserInput'
-            : scenario === 'permissions'
-              ? 'item/permissions/requestApproval'
-              : 'item/tool/call'
+            : ['form', 'url', 'mcp-approval'].includes(scenario)
+              ? 'mcpServer/elicitation/request'
+              : scenario === 'permissions'
+                ? 'item/permissions/requestApproval'
+                : 'item/tool/call'
       send({
         id: 'approval-1',
         method,
         params: {
           threadId,
-          turnId,
+          turnId: ['form', 'url', 'mcp-approval'].includes(scenario) ? null : turnId,
           itemId: 'tool',
           command: 'echo test',
           permissions: { network: { enabled: true }, fileSystem: null },
+          serverName: 'example',
+          mode: scenario === 'url' ? 'url' : 'form',
+          message: 'Choose settings',
+          url: 'https://example.com/authorize',
+          ...(scenario === 'mcp-approval'
+            ? {
+                _meta: {
+                  codex_approval_kind: 'mcp_tool_call',
+                  tool_name: 'write',
+                  tool_params: { value: 1 },
+                },
+              }
+            : {}),
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              color: { type: 'string', enum: ['red', 'blue'] },
+              count: { type: 'integer', minimum: 1, maximum: 4 },
+              enabled: { type: 'boolean' },
+            },
+            required: ['color', 'count', 'enabled'],
+          },
           questions: [
             {
               id: 'choice',
