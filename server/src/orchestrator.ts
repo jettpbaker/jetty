@@ -251,7 +251,9 @@ export function createOrchestrator({
       {
         threadId: string
         turnId: string
-        result: Deferred.Deferred<{ decision: ApprovalDecision; message?: string }>
+        path: string
+        detached: boolean
+        result: Deferred.Deferred<{ decision: ApprovalDecision | 'pending'; message?: string }>
       }
     >()
     const resuming = new Map<string, AbortController>()
@@ -295,13 +297,17 @@ export function createOrchestrator({
     function settleTurn(threadId: string, turnId: string) {
       return Effect.gen(function* () {
         const live = state(threadId)
-        if (live.turnId === turnId) live.turnId = null
-        for (const [itemId, pending] of projectApprovals) {
-          if (pending.threadId !== threadId || pending.turnId !== turnId) continue
-          projectApprovals.delete(itemId)
-          yield* append(threadId, { type: 'item.completed', itemId, patch: { withdrawn: true } })
-          yield* Deferred.succeed(pending.result, { decision: 'deny', message: 'Turn ended' })
-        }
+        yield* locked(
+          threadId,
+          Effect.gen(function* () {
+            if (live.turnId === turnId) live.turnId = null
+            for (const pending of projectApprovals.values()) {
+              if (pending.threadId !== threadId || pending.turnId !== turnId) continue
+              pending.detached = true
+              yield* Deferred.succeed(pending.result, { decision: 'pending' })
+            }
+          })
+        )
         if (yield* store.isBot(threadId)) {
           yield* store.updateBotLifecycle(threadId, { turnEndedAt: Date.now() })
           const compact = backgroundCompactions.get(threadId)
@@ -1139,6 +1145,36 @@ export function createOrchestrator({
       })
     }
 
+    function withdrawProjectApprovals(botId: string) {
+      return locked(
+        botId,
+        Effect.gen(function* () {
+          for (const [itemId, pending] of projectApprovals) {
+            if (pending.threadId !== botId) continue
+            yield* flushDelta(botId)
+            yield* commit(botId, {
+              type: 'item.completed',
+              itemId,
+              patch: { withdrawn: true },
+            })
+            projectApprovals.delete(itemId)
+            yield* Deferred.succeed(pending.result, { decision: 'deny', message: 'Bot archived' })
+          }
+        })
+      )
+    }
+
+    function createApprovedBotProject(botId: string, path: string) {
+      return Effect.gen(function* () {
+        const { project, created } = yield* store.createProjectResult(path)
+        hub.pushChrome({ type: 'project.upserted', project })
+        yield* store.setBotProjectIfUnset(botId, project.id)
+        const bot = yield* store.getBot(botId)
+        if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
+        return { ...project, created }
+      })
+    }
+
     function startAdmittedTurn(input: StartTurnInput) {
       return Effect.scoped(
         Effect.suspend(() =>
@@ -1550,7 +1586,10 @@ export function createOrchestrator({
       addBotProject(botId: string, path: string) {
         return Effect.gen(function* () {
           const itemId = newId()
-          const result = yield* Deferred.make<{ decision: ApprovalDecision; message?: string }>()
+          const result = yield* Deferred.make<{
+            decision: ApprovalDecision | 'pending'
+            message?: string
+          }>()
           yield* locked(
             botId,
             Effect.gen(function* () {
@@ -1559,7 +1598,16 @@ export function createOrchestrator({
                 return yield* Effect.fail(
                   new StoreError('conflict', 'Bot turn is no longer active')
                 )
-              projectApprovals.set(itemId, { threadId: botId, turnId, result })
+              const bot = yield* store.getBot(botId)
+              if (!bot || bot.archived)
+                return yield* Effect.fail(new StoreError('conflict', 'Bot is no longer active'))
+              projectApprovals.set(itemId, {
+                threadId: botId,
+                turnId,
+                path,
+                detached: false,
+                result,
+              })
               yield* flushDelta(botId)
               yield* commit(botId, {
                 type: 'item.started',
@@ -1577,9 +1625,9 @@ export function createOrchestrator({
               yield* commit(botId, { type: 'session.status', status: 'awaiting_approval' })
             })
           )
-          const answer = yield* Deferred.await(result).pipe(
-            Effect.ensuring(Effect.sync(() => projectApprovals.delete(itemId)))
-          )
+          const answer = yield* Deferred.await(result)
+          if (answer.decision === 'pending')
+            return 'The user has not answered yet. The approval card remains available; Jetty will tell you their decision. Do not retry this request.'
           if (answer.decision === 'deny')
             return yield* Effect.fail(
               new StoreError(
@@ -1588,12 +1636,7 @@ export function createOrchestrator({
                   'The user denied adding this project. Do not retry without their instruction.'
               )
             )
-          const { project, created } = yield* store.createProjectResult(path)
-          hub.pushChrome({ type: 'project.upserted', project })
-          yield* store.setBotProjectIfUnset(botId, project.id)
-          const bot = yield* store.getBot(botId)
-          if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
-          return { ...project, created }
+          return yield* createApprovedBotProject(botId, path)
         })
       },
       addBotTask(
@@ -2231,7 +2274,10 @@ export function createOrchestrator({
               })
             )
           )
-          if (archived) yield* stopBotTurn(botId)
+          if (archived) {
+            yield* withdrawProjectApprovals(botId)
+            yield* stopBotTurn(botId)
+          }
           return bot
         })
       },
@@ -2246,8 +2292,9 @@ export function createOrchestrator({
               new StoreError('invalid_params', 'Archive the bot before deleting it')
             )
           yield* stopBotTurn(botId)
-          // Its turn ends with its rows (and any project approval it awaits), so the delete waits.
+          // Wait for its final rows before removing the bot.
           while (state(botId).turnId) yield* Effect.sleep(10)
+          yield* withdrawProjectApprovals(botId)
           yield* stopDesktop(botId)
           return yield* hub.withChromePublication(
             Effect.uninterruptible(
@@ -2313,6 +2360,10 @@ export function createOrchestrator({
                   return yield* Effect.fail(
                     new StoreError('not_found', 'Approval is no longer waiting')
                   )
+                const project =
+                  pending.detached && decision === 'allow'
+                    ? yield* createApprovedBotProject(threadId, pending.path)
+                    : null
                 yield* flushDelta(threadId)
                 yield* commit(threadId, {
                   type: 'item.completed',
@@ -2323,9 +2374,23 @@ export function createOrchestrator({
                     ...(decidedBy ? { decidedBy } : {}),
                   },
                 })
-                yield* commit(threadId, { type: 'session.status', status: 'running' })
+                if (!pending.detached && state(threadId).turnId === pending.turnId)
+                  yield* commit(threadId, { type: 'session.status', status: 'running' })
                 projectApprovals.delete(itemId)
                 yield* Deferred.succeed(pending.result, { decision, message })
+                if (pending.detached) {
+                  const text = project
+                    ? `The user allowed adding the project. ${project.title} is now a Jetty project, ready for create_thread.`
+                    : `The user denied adding project ${pending.path}.${message ? ` Reason: ${message}` : ''} Do not retry without their instruction.`
+                  const thread = yield* store.enqueueOnce(threadId, {
+                    id: `project-approval:${itemId}`,
+                    text,
+                    from: { threadId, title: 'Jetty' },
+                    createdAt: Date.now(),
+                    hop: 0,
+                  })
+                  if (thread) hub.pushChrome({ type: 'thread.upserted', thread })
+                }
               })
             )
             return

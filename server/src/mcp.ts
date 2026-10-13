@@ -1221,14 +1221,18 @@ export function createMcpHandler(
           ({ path }) =>
             invoke(
               orch.addBotProject(bot.id, path).pipe(
-                Effect.map(({ id, title, path, created }) => ({
-                  id,
-                  title,
-                  path,
-                  detail: created
-                    ? 'The project is ready for create_thread.'
-                    : `${title} was already a project; it's ready for create_thread.`,
-                }))
+                Effect.map((result) => {
+                  if (typeof result === 'string') return result
+                  const { id, title, path, created } = result
+                  return {
+                    id,
+                    title,
+                    path,
+                    detail: created
+                      ? 'The project is ready for create_thread.'
+                      : `${title} was already a project; it's ready for create_thread.`,
+                  }
+                })
               )
             )
         )

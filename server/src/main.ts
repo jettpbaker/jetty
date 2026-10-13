@@ -185,7 +185,18 @@ function reconcileOnStartup(store: Store) {
       yield* store.transaction(
         Effect.gen(function* () {
           for (const item of state.items) {
-            if (item.kind === 'background' && item.endedAt === undefined) {
+            if (
+              item.kind === 'approval' &&
+              item.toolName === 'mcp__jetty__add_project' &&
+              !item.decision &&
+              !item.withdrawn
+            ) {
+              yield* store.appendEvent(thread.id, {
+                type: 'item.completed',
+                itemId: item.id,
+                patch: { withdrawn: true },
+              })
+            } else if (item.kind === 'background' && item.endedAt === undefined) {
               stoppedNames.push(item.label)
               yield* store.appendEvent(thread.id, {
                 type: 'item.completed',
@@ -239,7 +250,12 @@ function reconcileOnStartup(store: Store) {
           }
           for (const item of state.items) {
             if (item.turnId !== state.activeTurnId) continue
-            if (item.kind === 'approval' && !item.decision && !item.withdrawn)
+            if (
+              item.kind === 'approval' &&
+              item.toolName !== 'mcp__jetty__add_project' &&
+              !item.decision &&
+              !item.withdrawn
+            )
               yield* store.appendEvent(thread.id, {
                 type: 'item.completed',
                 itemId: item.id,
