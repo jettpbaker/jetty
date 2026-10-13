@@ -854,7 +854,8 @@ export function threadRows(
   // Anything after a held turn that isn't a leftover background-stopped line has resumed it.
   const lastFollowUp = items.findLastIndex((item) => item.kind !== 'background_stopped')
   // The guard also holds a turn that finished before the restart stopped its background work.
-  // A monitor or background command's line follows the turn that started it.
+  // A monitor's line follows the turn that started it. A background command has none: it's a step
+  // in its turn's work, and the details pane lists it while it runs.
   const started: BackgroundItem[] = []
   function finishTurn(resumed: boolean) {
     if (!currentTurnId) return
@@ -951,7 +952,7 @@ export function threadRows(
         rows.push({ kind: 'pullRequest', id: item.id, item })
         break
       case 'background':
-        started.push(item)
+        if (item.task === 'monitor') started.push(item)
         break
       case 'background_stopped':
         rows.push({ kind: 'backgroundStopped', id: item.id })

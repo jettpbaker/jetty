@@ -86,11 +86,6 @@ Everything below is for one combined review of the chat, not separate ports.
 - Monitors out of the composer (Jett, 12 Oct, to look into): drop the "Waiting on …" row under
   the composer, show a monitor starting (and ending) in the turn's activity history ("Worked
   for 11s"), and rely on the right sidebar to list the ones still running.
-- Background command lines (Jett, 13 Oct, to work out a better way): a backgrounded command's
-  "Running `<command>`" line sits after everything its turn did (`BackgroundSeam`, placed in
-  `thread_rows.ts`), so during a live turn two long `cd … && export …` commands pin to the bottom
-  of the chat under the work block, read as stray chips, and stay under the final reply once the
-  turn ends. Goes with the monitors item above.
 - A parent waiting on a child's dev server (Jett, 13 Oct, to consider): since `c8f34fba` a worker
   that leaves a background command running reports at once, but `waitingForChildren` in `hub.ts`
   still counts that child (its status is `monitoring`), so its bot or parent keeps the waiting

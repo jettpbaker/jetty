@@ -3,7 +3,6 @@ import {
   CircleXIcon,
   ClockIcon,
   ConciseIcon,
-  ConsoleSimpleIcon,
   PauseIcon,
   ArrowRotateClockwiseIcon,
   PullRequestIcon,
@@ -132,21 +131,15 @@ export function CompactionSeam({ state, reason }: { state: CompactionState; reas
   )
 }
 
-// A monitor or background command, which changes tense once it stops running.
+// A monitor, which changes tense once it stops watching.
 export function BackgroundSeam({ item }: { item: BackgroundItem }) {
-  const monitor = item.task === 'monitor'
   const ended = item.endedAt !== undefined
   return (
     <ChatSeam className='text-xs'>
-      <SeamIcon
-        icon={monitor ? ClockIcon : ConsoleSimpleIcon}
-        tone={monitor ? 'text-status-idle' : undefined}
-      />
-      <span className='shrink-0'>
-        {monitor ? (ended ? 'Watched' : 'Watching') : ended ? 'Ran' : 'Running'}
-      </span>
-      <span className={cn('min-w-0 truncate', !monitor && 'font-mono')}>
-        {monitor ? item.label.replace(/^(watch(ing)?|monitor(ing)?)\s+/i, '') : item.label}
+      <SeamIcon icon={ClockIcon} tone='text-status-idle' />
+      <span className='shrink-0'>{ended ? 'Watched' : 'Watching'}</span>
+      <span className='min-w-0 truncate'>
+        {item.label.replace(/^(watch(ing)?|monitor(ing)?)\s+/i, '')}
       </span>
       {ended && (
         <span className='shrink-0 font-mono text-faint-foreground'>
