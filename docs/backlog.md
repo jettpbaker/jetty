@@ -109,6 +109,17 @@ Everything below is for one combined review of the chat, not separate ports.
 
 ## later
 
+- PR editors refresh on every render (Jett, 14 Oct). Tiptap's `useEditor` compares its options
+  by identity each render and, when one differs, calls `setOptions`: a full ProseMirror view
+  update whose plugin views (the bubble menu) measure the page. `MarkdownEditor`
+  (`pull_request/description_editor.tsx`) builds `extensions` and `editorProps` fresh every
+  render, so any re-render, such as the PR page's tab switch, refreshes every mounted editor. A
+  POC built both once in a `useState` initializer, with `save` reading `editor.isEditable`
+  instead of `disabled` so the frozen handlers stayed correct. The Diff click lost its ProseMirror
+  work and one React commit, but `pr.diff/1` only went 105 → 102 ms (within noise) and layout
+  15.5 → 14.4 ms, so it was shelved: handlers frozen at the first render trip up the next edit.
+  Worth another look if typing in a PR editor or switching tabs shows it, or with a cleaner way
+  to keep the options stable.
 - Browser notifications, for Settings › Notifications (drawn, all Coming soon).
   Browsers allow them on localhost: ask permission from that page's switch, then
   fire from events the client already gets over the socket (a thread needs you, a
