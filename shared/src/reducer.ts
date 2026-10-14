@@ -191,14 +191,32 @@ function appendDelta(delta: string, tokens?: number) {
   }
 }
 
+const itemIndices = new WeakMap<readonly ThreadItem[], ReadonlyMap<string, number>>()
+
+function indexItems(items: readonly ThreadItem[]) {
+  let indices = itemIndices.get(items)
+  if (!indices) {
+    indices = new Map(items.map((item, index) => [item.id, index]))
+    itemIndices.set(items, indices)
+  }
+  return indices
+}
+
+export function findThreadItem(items: readonly ThreadItem[], itemId: string) {
+  const index = indexItems(items).get(itemId)
+  return index === undefined ? undefined : items[index]
+}
+
 function updateItem(
   state: ThreadState,
   itemId: string,
   update: (item: ThreadItem) => ThreadItem
 ): ThreadState {
-  const index = state.items.findIndex((item) => item.id === itemId)
-  if (index === -1) return state
+  const indices = indexItems(state.items)
+  const index = indices.get(itemId)
+  if (index === undefined) return state
   const items = [...state.items]
   items[index] = update(items[index]!)
+  itemIndices.set(items, indices)
   return { ...state, items }
 }

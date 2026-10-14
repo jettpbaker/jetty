@@ -5,12 +5,26 @@ const deltas = new WeakMap<
   { previous: WeakRef<readonly ThreadItem[]>; itemId: string }
 >()
 
+const structures = new WeakMap<readonly ThreadItem[], object>()
+
 export function noteItemDelta(
   previous: readonly ThreadItem[],
   items: readonly ThreadItem[],
   itemId: string
 ) {
-  if (previous !== items) deltas.set(items, { previous: new WeakRef(previous), itemId })
+  if (previous === items) return
+  deltas.set(items, { previous: new WeakRef(previous), itemId })
+  let structure = structures.get(previous)
+  if (!structure) {
+    structure = {}
+    structures.set(previous, structure)
+  }
+  structures.set(items, structure)
+}
+
+export function sameItemStructure(a: readonly ThreadItem[], b: readonly ThreadItem[]) {
+  const structure = structures.get(a)
+  return a === b || (structure !== undefined && structure === structures.get(b))
 }
 
 // The items deltas changed on the way from an earlier array to this one; undefined when anything

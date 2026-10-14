@@ -3,7 +3,7 @@ import type { HistoryPage, HistoryRange, ThreadSnapshot } from '@jetty/shared/hi
 import type { ThreadItem } from '@jetty/shared/items'
 
 import { summaryItem } from '@jetty/shared/history'
-import { applyEvent } from '@jetty/shared/reducer'
+import { applyEvent, findThreadItem } from '@jetty/shared/reducer'
 import { foldTodos } from '@jetty/shared/todos'
 
 // toolSeq: the last tool call to finish, wherever it sits in history.
@@ -75,7 +75,10 @@ export function foldHistoryEvent(state: ThreadView, update: SequencedEvent): Thr
         items: summary.items.filter((item) => item.kind !== 'tool_call'),
       }
     }
-    const reduced = applyEvent({ ...state, items: summary.items }, update)
+    const reduced =
+      event.type === 'item.delta' && !findThreadItem(summary.items, event.itemId)
+        ? { ...next, items: summary.items }
+        : applyEvent({ ...state, items: summary.items }, update)
     status = reduced.status
     let turns = summary.turns
     if (
@@ -105,7 +108,7 @@ export function foldHistoryEvent(state: ThreadView, update: SequencedEvent): Thr
     ...next,
     status,
     ...(event.type === 'item.completed' &&
-      next.items.findLast((item) => item.id === event.itemId)?.kind === 'tool_call' && {
+      findThreadItem(next.items, event.itemId)?.kind === 'tool_call' && {
         toolSeq: update.seq,
       }),
     ...(summary && { summary }),
