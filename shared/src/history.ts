@@ -67,6 +67,27 @@ export const HistoryPage = Schema.Struct({
 })
 export type HistoryPage = Schema.Schema.Type<typeof HistoryPage>
 
+export function omitToolOutput(item: ThreadItem): ThreadItem {
+  if (item.kind !== 'tool_call' || !item.output) return item
+  const fields: Record<string, string> = {}
+  if (item.toolName.startsWith('mcp__jetty__')) {
+    try {
+      const result = JSON.parse(item.output)
+      for (const key of ['title', 'command', 'action', 'decision', 'id', 'threadId'])
+        if (typeof result?.[key] === 'string') fields[key] = result[key]
+    } catch {}
+  }
+  const taskId = item.toolName === 'TaskCreate' ? /#(\d+)/.exec(item.output)?.[1] : undefined
+  return {
+    ...item,
+    output: '',
+    outputBytes: new TextEncoder().encode(item.output).byteLength,
+    ...((taskId || Object.keys(fields).length) && {
+      outputMeta: { ...(taskId && { taskId }), ...(Object.keys(fields).length && { fields }) },
+    }),
+  }
+}
+
 export function summaryItem(item: ThreadItem) {
   return (
     item.kind === 'subagent' ||

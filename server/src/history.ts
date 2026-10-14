@@ -2,7 +2,7 @@ import type { HistoryPage, ThreadSnapshot } from '@jetty/shared/history'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
 
-import { summaryItem } from '@jetty/shared/history'
+import { omitToolOutput, summaryItem } from '@jetty/shared/history'
 import { foldTodos } from '@jetty/shared/todos'
 
 import { StoreError } from './store'
@@ -40,24 +40,7 @@ function latestTurn(state: ThreadState) {
 }
 
 export function projectItem(item: ThreadItem, latestTurnId: string | null): ThreadItem {
-  if (item.kind !== 'tool_call' || item.turnId === latestTurnId || !item.output) return item
-  const fields: Record<string, string> = {}
-  if (item.toolName.startsWith('mcp__jetty__')) {
-    try {
-      const result = JSON.parse(item.output)
-      for (const key of ['title', 'command', 'action', 'decision', 'id', 'threadId'])
-        if (typeof result?.[key] === 'string') fields[key] = result[key]
-    } catch {}
-  }
-  const taskId = item.toolName === 'TaskCreate' ? /#(\d+)/.exec(item.output)?.[1] : undefined
-  return {
-    ...item,
-    output: '',
-    outputBytes: Buffer.byteLength(item.output),
-    ...((taskId || Object.keys(fields).length) && {
-      outputMeta: { ...(taskId && { taskId }), ...(Object.keys(fields).length && { fields }) },
-    }),
-  }
+  return item.turnId === latestTurnId ? item : omitToolOutput(item)
 }
 
 function alignedRange(state: ThreadState, start: number, end: number) {
