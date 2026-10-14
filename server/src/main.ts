@@ -109,7 +109,7 @@ function selectTitler(
   }
   if (typeof kind !== 'string') return null
   return (provider: AgentProvider, text: string, threadId: string) =>
-    provider === 'echo'
+    kind === 'echo' || provider === 'echo'
       ? firstLineTitler(text)
       : linkedTitles(text, threadId, store).pipe(
           Effect.flatMap((items) =>
