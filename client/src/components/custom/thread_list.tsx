@@ -497,15 +497,17 @@ export function ThreadList({
         : Math.max(0, virtualizer.getTotalSize() - window.innerHeight),
   })
 
-  const anchorIndex = readingAnchor
-    ? rows.findIndex((row) =>
-        rowContains(
-          row,
-          readingAnchor.key,
-          items.find((item) => item.id === readingAnchor.key)
-        )
-      )
-    : -1
+  const exactAnchor = readingAnchor ? rows.findIndex((row) => row.id === readingAnchor.key) : -1
+  const anchorItem =
+    readingAnchor && exactAnchor === -1
+      ? items.find((item) => item.id === readingAnchor.key)
+      : undefined
+  const anchorIndex =
+    exactAnchor !== -1
+      ? exactAnchor
+      : readingAnchor
+        ? rows.findIndex((row) => rowContains(row, readingAnchor.key, anchorItem))
+        : -1
   const prependTop =
     anchorIndex === -1
       ? undefined
