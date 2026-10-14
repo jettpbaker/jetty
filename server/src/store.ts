@@ -6,7 +6,7 @@ import {
   shownInBotChat,
 } from '@jetty/shared/bots'
 import { EffortLevel, ThreadEvent, type SessionStatus } from '@jetty/shared/events'
-import { Attachment, awaitsInput, heldByRestarts, type ThreadItem } from '@jetty/shared/items'
+import { Attachment, awaitsInput, heldByRestarts, ThreadItem } from '@jetty/shared/items'
 import {
   displayedRollupState,
   failedCheckConclusions,
@@ -40,7 +40,7 @@ import {
   type BotTask,
   type ParamsOf,
 } from '@jetty/shared/wire'
-import { Context, Effect, FileSystem, Layer, Path, Queue, Schema } from 'effect'
+import { Context, Effect, FileSystem, Layer, Path, Queue, Schema, Struct } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import type { BotLifecycle } from './bot-lifecycle'
@@ -64,6 +64,18 @@ import {
 export const DEFAULT_THREAD_TITLE = 'New thread'
 const PERSIST_INTERVAL = '2 seconds'
 const EVICT_AFTER_MS = 5 * 60_000
+const ThreadMetadata = ThreadState.mapFields(Struct.omit(['items']))
+const ItemJson = Schema.fromJsonString(ThreadItem)
+const MetadataJson = Schema.fromJsonString(ThreadMetadata)
+const decodeItem = Schema.decodeUnknownSync(ItemJson)
+
+type LoadedThread = {
+  state: ThreadState
+  persistedSeq: number
+  persistedItems: readonly ThreadItem[]
+  legacy: boolean
+  usedAt: number
+}
 
 export type AppendedEvent = {
   seq: number
@@ -275,7 +287,7 @@ export function createStore() {
     const persistWake = yield* Queue.sliding<void>(1)
     // Reads and writes of a thread's state run inside SQL transactions, so they are serialized
     // with every event write and never observe an uncommitted one.
-    const loaded = new Map<string, { state: ThreadState; persistedSeq: number; usedAt: number }>()
+    const loaded = new Map<string, LoadedThread>()
     // Queued messages a starting turn has taken: their text is already on its way to the agent,
     // so PR news and reports go to a new message instead of merging into one of these.
     const claimed = new Set<string>()
@@ -447,6 +459,23 @@ export function createStore() {
       })
     }
 
+    function readSnapshot(row: { thread_id: string; state_json: string; items_stored: number }) {
+      return Effect.gen(function* () {
+        if (!row.items_stored)
+          return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(ThreadState))(
+            row.state_json
+          )
+        const metadata = yield* Schema.decodeUnknownEffect(MetadataJson)(row.state_json)
+        const rows = yield* sql<{ item_json: string }>`SELECT item_json FROM thread_items
+          WHERE thread_id = ${row.thread_id} ORDER BY item_index`
+        const items = yield* Effect.try({
+          try: () => rows.map((item) => decodeItem(item.item_json)),
+          catch: storeError,
+        })
+        return { ...metadata, items }
+      })
+    }
+
     function loadThread(threadId: string) {
       return Effect.gen(function* () {
         const cached = loaded.get(threadId)
@@ -455,15 +484,21 @@ export function createStore() {
           return cached
         }
         const [row] = yield* sql<{
+          thread_id: string
           state_json: string
-        }>`SELECT state_json FROM thread_states WHERE thread_id = ${threadId}`
-        const snapshot = row
-          ? yield* Schema.decodeUnknownEffect(Schema.fromJsonString(ThreadState))(row.state_json)
-          : emptyThread
+          items_stored: number
+        }>`SELECT thread_id, state_json, items_stored FROM thread_states WHERE thread_id = ${threadId}`
+        const snapshot = row ? yield* readSnapshot(row) : emptyThread
         let state = snapshot
         for (const event of yield* eventsAfter(threadId, snapshot.lastSeq))
           state = yield* Effect.try({ try: () => applyEvent(state, event), catch: storeError })
-        const entry = { state, persistedSeq: snapshot.lastSeq, usedAt: Date.now() }
+        const entry: LoadedThread = {
+          state,
+          persistedSeq: snapshot.lastSeq,
+          persistedItems: row?.items_stored ? snapshot.items : [],
+          legacy: row !== undefined && !row.items_stored,
+          usedAt: Date.now(),
+        }
         loaded.set(threadId, entry)
         return entry
       })
@@ -534,17 +569,63 @@ export function createStore() {
       }).pipe(sql.withTransaction, Effect.mapError(storeError))
     }
 
-    function writeState(threadId: string, state: ThreadState) {
+    function writeState(
+      threadId: string,
+      state: ThreadState,
+      persistedItems: readonly ThreadItem[] = []
+    ) {
       return Effect.gen(function* () {
-        const json = yield* Schema.encodeEffect(Schema.fromJsonString(ThreadState))(state)
-        yield* sql`INSERT INTO thread_states (thread_id, state_json, last_seq)
-          VALUES (${threadId}, ${json}, ${state.lastSeq})
-          ON CONFLICT(thread_id) DO UPDATE SET state_json = excluded.state_json, last_seq = excluded.last_seq`
+        const json = yield* Schema.encodeEffect(MetadataJson)(state)
+        yield* sql`INSERT INTO thread_states (thread_id, state_json, last_seq, items_stored)
+          VALUES (${threadId}, ${json}, ${state.lastSeq}, 1)
+          ON CONFLICT(thread_id) DO UPDATE SET state_json = excluded.state_json,
+            last_seq = excluded.last_seq, items_stored = 1`
+        const rows: {
+          thread_id: string
+          item_id: string
+          item_index: number
+          item_json: string
+        }[] = []
+        // The reducer only appends items, so an item's index is stable for its lifetime.
+        let index = 0
+        for (const item of state.items) {
+          const itemIndex = index++
+          if (persistedItems[itemIndex] === item) continue
+          rows.push({
+            thread_id: threadId,
+            item_id: item.id,
+            item_index: itemIndex,
+            item_json: yield* Schema.encodeEffect(ItemJson)(item),
+          })
+          if (rows.length === 100) {
+            yield* writeItems(rows)
+            rows.length = 0
+          }
+        }
+        if (rows.length) yield* writeItems(rows)
+        return { seq: state.lastSeq, items: state.items }
       })
     }
 
-    function isDirty(entry: { state: ThreadState; persistedSeq: number }) {
-      return entry.state.lastSeq !== entry.persistedSeq
+    function writeItems(
+      rows: { thread_id: string; item_id: string; item_index: number; item_json: string }[]
+    ) {
+      return sql`INSERT INTO thread_items ${sql.insert(rows)}
+        ON CONFLICT(thread_id, item_index) DO UPDATE SET item_id = excluded.item_id,
+          item_json = excluded.item_json`
+    }
+
+    function rememberSave(
+      entry: LoadedThread,
+      written: { seq: number; items: readonly ThreadItem[] }
+    ) {
+      entry.persistedSeq = written.seq
+      entry.legacy = false
+      entry.persistedItems = written.items
+    }
+
+    function isDirty(entry: LoadedThread) {
+      return entry.legacy || entry.state.lastSeq !== entry.persistedSeq
     }
 
     const persistDirty = Effect.suspend(() =>
@@ -554,12 +635,12 @@ export function createStore() {
           Effect.gen(function* () {
             const entry = loaded.get(threadId)
             if (!entry || !isDirty(entry)) return
-            yield* writeState(threadId, entry.state)
-            return { entry, seq: entry.state.lastSeq }
+            const written = yield* writeState(threadId, entry.state, entry.persistedItems)
+            return { entry, written }
           }).pipe(
             sql.withTransaction,
-            Effect.map((written) => {
-              if (written) written.entry.persistedSeq = written.seq
+            Effect.map((saved) => {
+              if (saved) rememberSave(saved.entry, saved.written)
             }),
             Effect.catchCause((cause) => Effect.logWarning(cause))
           ),
@@ -1897,13 +1978,16 @@ export function createStore() {
         carriesOn = false
       ) {
         return Effect.gen(function* () {
+          let saved:
+            | { entry: LoadedThread; written: { seq: number; items: readonly ThreadItem[] } }
+            | undefined
           const entry = yield* loadThread(threadId)
           if (!entry.state.activeTurnId) {
             // The only state change without an event, so it is persisted right away.
             const state = { ...entry.state, activeTurnId: turnId, status: 'starting' as const }
-            yield* writeState(threadId, state)
+            const written = yield* writeState(threadId, state, entry.persistedItems)
             entry.state = state
-            entry.persistedSeq = state.lastSeq
+            saved = { entry, written }
             yield* sql`UPDATE threads SET status = 'starting', awaiting_parent = 0 WHERE id = ${threadId}`
           }
           const thread = yield* requireThread(threadId)
@@ -1925,7 +2009,17 @@ export function createStore() {
           if (previous && continues) hop = previous.hop
           yield* sql`INSERT INTO orchestration_turns (turn_id, thread_id, hop, initiator_thread_id) VALUES (${turnId}, ${threadId}, ${hop}, ${initiator}) ON CONFLICT(turn_id) DO UPDATE SET hop = MAX(hop, excluded.hop)`
           if (messageId) yield* removeQueued(threadId, messageId)
-        }).pipe(atomically, Effect.mapError(storeError))
+          return saved
+        }).pipe(
+          atomically,
+          Effect.tap((saved) =>
+            Effect.sync(() => {
+              if (saved) rememberSave(saved.entry, saved.written)
+            })
+          ),
+          Effect.asVoid,
+          Effect.mapError(storeError)
+        )
       },
       // Jetty's note resuming a turn a restart cut off. A turn the agent never started also hands
       // over the message that opened it, which the agent never got.
@@ -2227,14 +2321,18 @@ export function createStore() {
       },
       readThreadStates(ids: readonly string[]) {
         if (ids.length === 0) return Effect.succeed([] as { id: string; stateJson: string }[])
-        return sql<{ thread_id: string; state_json: string }>`
-          SELECT thread_id, state_json FROM thread_states WHERE thread_id IN ${sql.in(ids)}
-        `.pipe(
-          Effect.map((rows) =>
-            rows.map((row) => ({ id: row.thread_id, stateJson: row.state_json }))
-          ),
-          Effect.mapError(storeError)
-        )
+        return Effect.gen(function* () {
+          const rows = yield* sql<{ thread_id: string; state_json: string; items_stored: number }>`
+            SELECT thread_id, state_json, items_stored FROM thread_states WHERE thread_id IN ${sql.in(ids)}`
+          return yield* Effect.forEach(rows, (row) =>
+            row.items_stored
+              ? readSnapshot(row).pipe(
+                  Effect.flatMap(Schema.encodeEffect(Schema.fromJsonString(ThreadState))),
+                  Effect.map((stateJson) => ({ id: row.thread_id, stateJson }))
+                )
+              : Effect.succeed({ id: row.thread_id, stateJson: row.state_json })
+          )
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
       // `claim` links only while no thread has this pull request. `transfer` makes this the
       // only thread that does. A pull request already linked to several threads stays that way

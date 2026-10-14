@@ -298,6 +298,15 @@ const migrations = SqliteMigrator.fromRecord({
     yield* addThreadColumns({ archived_at: 'INTEGER' })
     yield* sql`UPDATE threads SET archived_at = updated_at WHERE archived = 1`
   }),
+  '040_thread_items': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE thread_states ADD COLUMN items_stored INTEGER NOT NULL DEFAULT 0`
+    yield* sql`CREATE TABLE thread_items (
+      thread_id TEXT NOT NULL REFERENCES thread_states(thread_id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL, item_index INTEGER NOT NULL, item_json TEXT NOT NULL,
+      PRIMARY KEY (thread_id, item_index)
+    )`
+  }),
 })
 
 export function databaseLayer(home: string) {

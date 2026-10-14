@@ -259,17 +259,49 @@ test('thread creation is atomic, concurrently idempotent, and preserves existing
 
 test('repeat migration and reopen preserve events, snapshots and session pointers and close SQL', async () => {
   const { store, runtime, home, thread, close } = await setup()
-  await runtime.runPromise(store.appendEvent(thread.id, { type: 'turn.started', turnId: 'active' }))
+  await runtime.runPromise(
+    store.appendEvents(thread.id, [
+      { type: 'turn.started', turnId: 'active' },
+      {
+        type: 'item.started',
+        item: {
+          id: 'first',
+          turnId: 'active',
+          createdAt: 0,
+          kind: 'assistant_message',
+          text: 'hello',
+        },
+      },
+      {
+        type: 'item.started',
+        item: {
+          id: 'second',
+          turnId: 'active',
+          createdAt: 1,
+          kind: 'assistant_message',
+          text: 'world',
+        },
+      },
+    ])
+  )
   await runtime.runPromise(store.setThreadSessionId(thread.id, 'session-id'))
   await runtime.runPromise(store.setProviderSessionId(thread.id, 'codex', 'codex-id'))
-  const before = await runtime.runPromise(store.getThreadState(thread.id))
+  let before = await runtime.runPromise(store.getThreadState(thread.id))
   await close()
   await expect(Effect.runPromise(store.getThreadState(thread.id))).rejects.toMatchObject({
     code: 'internal',
   })
-  for (let iteration = 0; iteration < 2; iteration++) {
+  const db = new Database(join(home, 'jetty.db'))
+  db.run('DELETE FROM thread_items WHERE thread_id = ?', [thread.id])
+  db.run('UPDATE thread_states SET state_json = ?, items_stored = 0 WHERE thread_id = ?', [
+    JSON.stringify(before),
+    thread.id,
+  ])
+  db.close()
+  for (let iteration = 0; iteration < 3; iteration++) {
     const reopened = await openTestStore(home)
     try {
+      const sql = await reopened.runtime.runPromise(SqlClient.SqlClient)
       expect(await reopened.runtime.runPromise(reopened.store.getThreadState(thread.id))).toEqual(
         before
       )
@@ -278,21 +310,41 @@ test('repeat migration and reopen preserve events, snapshots and session pointer
       )
       expect(
         await reopened.runtime.runPromise(reopened.store.getEventsAfter(thread.id, 0))
-      ).toHaveLength(1)
+      ).toHaveLength(before.lastSeq)
       expect(
         await reopened.runtime.runPromise(reopened.store.getProviderSessionId(thread.id, 'codex'))
       ).toBe('codex-id')
+      if (iteration === 1) {
+        await reopened.runtime.runPromise(
+          sql`CREATE TRIGGER keep_first_item BEFORE UPDATE ON thread_items
+            WHEN NEW.item_index = 0
+            BEGIN SELECT RAISE(ABORT, 'unchanged item was written'); END`
+        )
+        await reopened.runtime.runPromise(
+          reopened.store.appendEvent(thread.id, {
+            type: 'item.delta',
+            itemId: 'second',
+            delta: '!',
+          })
+        )
+        before = await reopened.runtime.runPromise(reopened.store.getThreadState(thread.id))
+      }
+      if (iteration === 2) {
+        const [saved] = await reopened.runtime.runPromise(
+          sql<{
+            last_seq: number
+          }>`SELECT last_seq FROM thread_states WHERE thread_id = ${thread.id}`
+        )
+        expect(saved?.last_seq).toBe(before.lastSeq)
+      }
       const migrations = await reopened.runtime.runPromise(
-        Effect.gen(function* () {
-          const sql = yield* SqlClient.SqlClient
-          return yield* sql<{
-            migration_id: number
-          }>`SELECT migration_id FROM effect_sql_migrations ORDER BY migration_id`
-        })
+        sql<{
+          migration_id: number
+        }>`SELECT migration_id FROM effect_sql_migrations ORDER BY migration_id`
       )
       expect(migrations.map((row) => row.migration_id)).toEqual([
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
       ])
     } finally {
       await reopened.close()
@@ -336,7 +388,7 @@ test('invalid persisted event JSON is surfaced', async () => {
 test('a snapshot behind the event log catches up by replaying the log', async () => {
   const { store, runtime, sql, thread, home, close } = await setup()
   await runtime.runPromise(
-    sql`CREATE TRIGGER freeze_snapshot BEFORE UPDATE ON thread_states BEGIN SELECT RAISE(IGNORE); END`
+    sql`CREATE TRIGGER freeze_snapshot BEFORE UPDATE ON thread_states BEGIN SELECT RAISE(ABORT, 'frozen snapshot'); END`
   )
   await runtime.runPromise(
     store.appendEvents(thread.id, [
