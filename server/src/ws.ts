@@ -26,6 +26,7 @@ import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
 import { uploadGithubAttachment } from './github-upload'
+import { historyPage, threadSnapshot } from './history'
 import { prefetchIssue } from './issues'
 import { createPullRequestGuides } from './pull-request-guides'
 import {
@@ -70,7 +71,11 @@ export function threadSubscription(
         const snapshot = yield* store.getThreadState(params.threadId)
         const initial: ThreadUpdate[] = []
         if (params.afterSeq === undefined) {
-          initial.push({ type: 'snapshot', snapshot, seq: snapshot.lastSeq })
+          initial.push({
+            type: 'snapshot',
+            snapshot: threadSnapshot(snapshot),
+            seq: snapshot.lastSeq,
+          })
         } else {
           for (const event of yield* store.getEventsAfter(params.threadId, params.afterSeq)) {
             initial.push({ type: 'event', ...event })
@@ -375,6 +380,24 @@ export function createRpcHandlers(
           )
         ),
       'thread.subscribe': (params) => threadSubscription(store, orch, hub, params),
+      'thread.history': (params) =>
+        Effect.gen(function* () {
+          yield* store.requireThread(params.threadId)
+          const state = yield* store.getThreadState(params.threadId)
+          return historyPage(state, params)
+        }).pipe(Effect.mapError(wireError)),
+      'thread.toolOutputs': (params) =>
+        Effect.gen(function* () {
+          yield* store.requireThread(params.threadId)
+          const state = yield* store.getThreadState(params.threadId)
+          const wanted = new Set(params.itemIds)
+          const outputs = state.items.flatMap((item) =>
+            item.kind === 'tool_call' && wanted.has(item.id)
+              ? [{ itemId: item.id, output: item.output }]
+              : []
+          )
+          return { seq: state.lastSeq, outputs }
+        }).pipe(Effect.mapError(wireError)),
       'project.create': (params) =>
         mutation(
           Effect.gen(function* () {

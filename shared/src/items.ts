@@ -152,6 +152,13 @@ export const ThreadItem = Schema.Union([
     toolName: Schema.String,
     input: Schema.Unknown,
     output: Schema.String,
+    outputBytes: Schema.optional(Schema.Natural),
+    outputMeta: Schema.optional(
+      Schema.Struct({
+        taskId: Schema.optional(Schema.String),
+        fields: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+      })
+    ),
     status: Schema.Literals(['running', 'succeeded', 'failed']),
     fileChange: Schema.optional(
       Schema.Struct({

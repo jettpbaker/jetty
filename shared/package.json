@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./history": "./src/history.ts",
+    "./todos": "./src/todos.ts",
     "./items": "./src/items.ts",
     "./events": "./src/events.ts",
     "./reducer": "./src/reducer.ts",

@@ -2,7 +2,7 @@ import { Schema } from 'effect'
 import { Rpc, RpcGroup } from 'effect/rpc'
 
 import { SequencedEvent } from './events'
-import { ThreadState } from './reducer'
+import { ThreadSnapshot } from './history'
 import {
   ChromePushData,
   methods,
@@ -13,7 +13,11 @@ import {
 } from './wire'
 
 export const ThreadUpdate = Schema.Union([
-  Schema.Struct({ type: Schema.Literal('snapshot'), snapshot: ThreadState, seq: Schema.Natural }),
+  Schema.Struct({
+    type: Schema.Literal('snapshot'),
+    snapshot: ThreadSnapshot,
+    seq: Schema.Natural,
+  }),
   Schema.Struct({ type: Schema.Literal('event'), ...SequencedEvent.fields }),
   Schema.Struct({ type: Schema.Literal('ready'), seq: Schema.Natural }),
 ])
@@ -64,6 +68,8 @@ export const JettyRpcs = RpcGroup.make(
   unary('fs.search'),
   unary('skills.list'),
   unary('thread.create'),
+  unary('thread.history'),
+  unary('thread.toolOutputs'),
   unary('thread.archive'),
   unary('thread.searchArchived'),
   unary('thread.rename'),

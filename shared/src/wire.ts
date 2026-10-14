@@ -2,6 +2,7 @@ import { Schema, SchemaTransformation } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
 import { EffortLevel, SessionStatus } from './events'
+import { ThreadSnapshot, HistoryPage } from './history'
 import { ApprovalDecision, Attachment, ChildReport, Reply } from './items'
 import { findProviderModel } from './model-name'
 import {
@@ -11,7 +12,6 @@ import {
   PullRequestData,
   ReviewerCandidate,
 } from './pull-request'
-import { ThreadState } from './reducer'
 
 export function newId() {
   return uuidv7()
@@ -1040,13 +1040,33 @@ export const methods = {
     params: Schema.Struct({ tab: PullRequestListTab }),
     result: PullRequestList,
   },
+  'thread.history': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      before: Schema.optional(Schema.String),
+      target: Schema.optional(Schema.String),
+      oldest: Schema.optional(Schema.Boolean),
+      agentId: Schema.optional(Schema.String),
+    }),
+    result: HistoryPage,
+  },
+  'thread.toolOutputs': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      itemIds: Schema.Array(Schema.String).check(Schema.isMaxLength(64)),
+    }),
+    result: Schema.Struct({
+      seq: Schema.Natural,
+      outputs: Schema.Array(Schema.Struct({ itemId: Schema.String, output: Schema.String })),
+    }),
+  },
   'thread.subscribe': {
     params: Schema.Struct({
       threadId: Schema.String,
       afterSeq: Schema.optional(Schema.Natural),
     }),
     result: Schema.Struct({
-      snapshot: Schema.optional(ThreadState),
+      snapshot: Schema.optional(ThreadSnapshot),
       seq: Schema.Natural,
     }),
   },
