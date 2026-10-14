@@ -145,7 +145,7 @@ export async function connect(port: number) {
   function subscribeThread(params: {
     threadId: string
     afterSeq: number
-  }): Subscription<ThreadUpdate, Ready>
+  }): Subscription<ThreadUpdate, Snapshot | Ready>
   function subscribeThread(
     params: ParamsOf<'thread.subscribe'>
   ): Subscription<ThreadUpdate, Snapshot | Ready>
@@ -153,7 +153,7 @@ export async function connect(port: number) {
     return subscribe(
       rpc('thread.subscribe', params),
       (message): message is Snapshot | Ready =>
-        message.type === (params.afterSeq === undefined ? 'snapshot' : 'ready'),
+        message.type === 'snapshot' || message.type === 'ready',
       (message) => received.publish({ ...message, threadId: params.threadId })
     )
   }

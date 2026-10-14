@@ -70,7 +70,11 @@ export function threadSubscription(
         yield* store.requireThread(params.threadId)
         const snapshot = yield* store.getThreadState(params.threadId)
         const initial: ThreadUpdate[] = []
-        if (params.afterSeq === undefined) {
+        if (
+          params.afterSeq === undefined ||
+          snapshot.lastSeq - params.afterSeq > 1000 ||
+          params.afterSeq > snapshot.lastSeq
+        ) {
           initial.push({
             type: 'snapshot',
             snapshot: threadSnapshot(snapshot),
