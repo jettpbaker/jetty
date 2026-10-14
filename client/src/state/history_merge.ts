@@ -6,7 +6,8 @@ import { summaryItem } from '@jetty/shared/history'
 import { applyEvent } from '@jetty/shared/reducer'
 import { foldTodos } from '@jetty/shared/todos'
 
-export type ThreadView = ThreadSnapshot & { completedSeq?: number }
+// toolSeq: the last tool call to finish, wherever it sits in history.
+export type ThreadView = ThreadSnapshot & { toolSeq?: number }
 
 function mergeRanges(ranges: readonly HistoryRange[]) {
   const merged: HistoryRange[] = []
@@ -103,7 +104,10 @@ export function foldHistoryEvent(state: ThreadView, update: SequencedEvent): Thr
     ...state,
     ...next,
     status,
-    ...(event.type === 'item.completed' && { completedSeq: update.seq }),
+    ...(event.type === 'item.completed' &&
+      next.items.findLast((item) => item.id === event.itemId)?.kind === 'tool_call' && {
+        toolSeq: update.seq,
+      }),
     ...(summary && { summary }),
     ...(history &&
       event.type === 'item.started' && {

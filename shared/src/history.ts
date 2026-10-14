@@ -3,6 +3,7 @@ import { Schema } from 'effect'
 import { TurnLoadout } from './events'
 import { ThreadItem, awaitsInput } from './items'
 import { ThreadState, TurnOutcome } from './reducer'
+import { todoTools } from './todos'
 
 export const HistoryTurn = Schema.Struct({
   id: Schema.String,
@@ -71,9 +72,7 @@ export function summaryItem(item: ThreadItem) {
     item.kind === 'subagent' ||
     item.kind === 'workflow' ||
     awaitsInput(item) ||
-    (item.kind === 'tool_call' &&
-      !item.agentId &&
-      ['TodoWrite', 'update_plan', 'TaskCreate', 'TaskUpdate'].includes(item.toolName))
+    (item.kind === 'tool_call' && !item.agentId && todoTools.has(item.toolName))
   )
 }
 

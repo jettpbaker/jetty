@@ -14,10 +14,9 @@ import {
   type ThreadItem,
 } from '@jetty/shared/items'
 import { claudeModelLabel } from '@jetty/shared/model-name'
+import { foldTodos, todoTools } from '@jetty/shared/todos'
 
 import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_model'
-
-import { foldTodos, todoTools } from './todo_model'
 
 export type CompactionState = 'running' | 'done' | 'failed' | 'stopped'
 

@@ -480,6 +480,23 @@ export function useDismissQuestion() {
   return useAction(dismissQuestion)
 }
 
+// Requests, subagents and workflows from turns older than the loaded history, ahead of it.
+function withSummary(
+  overlaid: readonly ThreadItem[],
+  summary: readonly ThreadItem[] | undefined,
+  resolutions: ReadonlyMap<string, Resolution>,
+  stopping: ReadonlySet<string>
+) {
+  if (!summary?.length) return overlaid
+  const missing = new Map(summary.map((item) => [item.id, item]))
+  for (const item of overlaid) missing.delete(item.id)
+  if (missing.size === 0) return overlaid
+  return [
+    ...Array.from(missing.values(), (item) => overlayItem(item, resolutions, stopping)),
+    ...overlaid,
+  ]
+}
+
 export function useThreadOverlay(threadId: string, thread: ThreadSnapshot | undefined) {
   const registry = useContext(RegistryContext)
   const prompts = useAtomValue(threadPromptsAtom(threadId))
@@ -556,14 +573,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadSnapshot | unde
   return {
     items: pending.length > 0 ? [...overlaid, ...pendingUserItems(pending)] : overlaid,
     // the server's items with local answers applied, without optimistic prompts
-    serverItems: thread?.summary?.items.length
-      ? [
-          ...summaryItems(thread)
-            .filter((item) => !overlaid.some((loaded) => loaded.id === item.id))
-            .map((item) => overlayItem(item, resolutions, stopping)),
-          ...overlaid,
-        ]
-      : overlaid,
+    serverItems: withSummary(overlaid, thread?.summary?.items, resolutions, stopping),
     empty: overlaid.length === 0 && pending.length === 0,
     running: optimistic || live || delivering || continuing,
   }

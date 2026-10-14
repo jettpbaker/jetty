@@ -6,7 +6,7 @@ import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { summaryItems } from '@jetty/shared/history'
 import { emptyThread } from '@jetty/shared/reducer'
-import { foldTodos } from '@jetty/shared/todos'
+import { foldTodos, todoTools } from '@jetty/shared/todos'
 import { backgroundStatus } from '@jetty/shared/wire'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
@@ -112,10 +112,9 @@ const liveAtom = Atom.family((threadId: string) =>
 
 export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
-    get(toolOutputsAtom(threadId))
-    const resume = get(resumeAtom(threadId))
+    // The stream folds into resumeAtom, where history pages merge too.
     get(liveAtom(threadId))
-    const state = resume
+    const state = get(resumeAtom(threadId))
     const thread = get(threadMetaAtom(threadId))
     if (!state) return state
     const status = backgroundStatus(
@@ -236,6 +235,8 @@ async function seekHistory(
   agentId?: string
 ) {
   const loaded = peekThread(registry, threadId)
+  const ranges = loaded?.history?.ranges
+  if (ranges?.length === 1 && ranges[0]!.start === 0) return true
   if (target && loaded?.items.some((item) => item.id === target)) return true
   const ok = await fetchHistory(
     registry,
@@ -340,9 +341,6 @@ export function useThreadContext(threadId: string | undefined) {
 export const threadStatusAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => get(threadAtom(threadId))?.status)
 )
-
-// The calls todo_model folds into the task list.
-const todoTools = new Set(['TodoWrite', 'update_plan', 'TaskCreate', 'TaskUpdate'])
 
 // What the Overview lists, so a streamed reply doesn't re-render it or replay its todos.
 const overviewItemsAtom = Atom.family((threadId: string) => {

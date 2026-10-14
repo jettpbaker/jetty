@@ -1,4 +1,5 @@
 import type { Draft, QuestionProgress } from '@/state'
+import type { Todo } from '@jetty/shared/todos'
 
 import {
   ChevronDownSmallIcon,
@@ -27,7 +28,6 @@ import { cn } from '@/lib/utils'
 import { Suspense, useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react'
 
 import type { Approval, Question, Source } from './composer_strip_model'
-import type { Todo } from './todo_model'
 
 import { DiffCounts } from './diff/file_card'
 import { loadDiffWorkerPool } from './diff_worker_pool'

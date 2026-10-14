@@ -1,8 +1,7 @@
 import type { SubagentStatus, ThreadItem } from '@jetty/shared/items'
+import type { TodoUpdate } from '@jetty/shared/todos'
 
 import { formatDuration } from '@/lib/time'
-
-import type { TodoUpdate } from './todo_model'
 
 export type ActivityStatus =
   | 'running'

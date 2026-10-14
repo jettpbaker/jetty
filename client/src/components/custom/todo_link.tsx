@@ -1,9 +1,9 @@
+import type { TodoUpdate } from '@jetty/shared/todos'
+
 import { ChecklistIcon } from '@/components/custom/central_icons'
 import { cn } from '@/lib/utils'
 import { useRequestSectionReveal } from '@/state'
 import { Fragment } from 'react'
-
-import type { TodoUpdate } from './todo_model'
 
 import { inlineLinkClass } from './entity_link'
 

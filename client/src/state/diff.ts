@@ -34,8 +34,9 @@ function refreshDiff(registry: AtomRegistry.AtomRegistry, key: string) {
 
 const liveStatuses = new Set(['starting', 'running', 'awaiting_approval'])
 
-// Completion events include tools outside the loaded window. Paging and output prefetches
-// leave the watermark alone; a turn ending refreshes the diff and cancels this timer.
+// Any tool call may have changed files (agents edit through a shell as much as through edit
+// tools), so once a live thread's tool calls stop finishing for a second, its diff is due a
+// refresh. A turn's end refreshes the diff anyway, so it drops one still waiting.
 const toolsSettledAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
     let finished: number | undefined
@@ -46,7 +47,7 @@ const toolsSettledAtom = Atom.family((threadId: string) =>
       threadAtom(threadId),
       (state) => {
         if (!state) return
-        const count = state.completedSeq ?? 0
+        const count = state.toolSeq ?? 0
         if (!liveStatuses.has(state.status)) clearTimeout(timer)
         else if (finished !== undefined && count !== finished) {
           clearTimeout(timer)

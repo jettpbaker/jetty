@@ -691,7 +691,7 @@ export function ThreadList({
       } else if ((event.key === 'Home' && !meta) || (event.key === 'ArrowUp' && meta)) {
         event.preventDefault()
         pin(false)
-        if (!history || history.ranges[0]?.start === 0) virtualizer.scrollToOffset(0)
+        if (!history || agentId || history.ranges[0]?.start === 0) virtualizer.scrollToOffset(0)
         else
           void historyActions.seek().then((ok) => {
             if (ok) setSeekFirst(true)
@@ -700,7 +700,7 @@ export function ThreadList({
     }
     element.addEventListener('keydown', jump)
     return () => element.removeEventListener('keydown', jump)
-  }, [pin, virtualizer, history, historyActions])
+  }, [pin, virtualizer, history, agentId, historyActions])
   useLayoutEffect(() => {
     const element = scroller.current
     sendTarget.current = Math.max(0, scrollSize - (element?.clientHeight ?? 0))
@@ -853,7 +853,8 @@ export function ThreadList({
   ])
 
   const localTurns = useTurns(rows)
-  const turns = summary?.turns ?? localTurns
+  // A subagent's transcript arrives whole; the thread's turns are the main agent's.
+  const turns = summary && !agentId ? summary.turns : localTurns
   const latestWidth = useRef(width)
   useLayoutEffect(() => {
     latestRows.current = rows

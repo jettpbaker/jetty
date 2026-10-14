@@ -49,6 +49,14 @@ function turnPreview(rows: readonly ThreadRow[], index: number) {
   }
 }
 
+// A turn outside the loaded history shows its message alone.
+function historyPreview(rows: readonly ThreadRow[], turn: HistoryTurn) {
+  const index = rows.findIndex((row) => row.id === turn.itemId)
+  return index === -1
+    ? { title: compact(turn.title) ?? 'User message', reply: undefined }
+    : turnPreview(rows, index)
+}
+
 // The first index in [low, high) that passes a test that, once passed, passes for the rest.
 function search(low: number, high: number, passes: (index: number) => boolean) {
   while (low < high) {
@@ -59,19 +67,42 @@ function search(low: number, high: number, passes: (index: number) => boolean) {
   return low
 }
 
+type TurnRow = { index: number; row: number }
+
+const turnRowCache = new WeakMap<
+  readonly (HistoryTurn | number)[],
+  { count: number; first: string | undefined; last: string | undefined; entries: TurnRow[] }
+>()
+
+// Each turn whose message is loaded, with its row. A long thread's turns come from the server
+// and point at messages by id, so they're matched to rows again whenever the loaded span moves.
+function turnRows(turns: readonly (HistoryTurn | number)[], rows: readonly ThreadRow[]) {
+  const cached = turnRowCache.get(turns)
+  if (
+    cached &&
+    cached.count === rows.length &&
+    cached.first === rows[0]?.id &&
+    cached.last === rows.at(-1)?.id
+  )
+    return cached.entries
+  const rowIndices =
+    typeof turns[0] === 'number' ? undefined : new Map(rows.map((row, index) => [row.id, index]))
+  const entries = turns.flatMap((turn, index) => {
+    const row = typeof turn === 'number' ? turn : rowIndices!.get(turn.itemId)
+    return row === undefined ? [] : [{ index, row }]
+  })
+  turnRowCache.set(turns, {
+    count: rows.length,
+    first: rows[0]?.id,
+    last: rows.at(-1)?.id,
+    entries,
+  })
+  return entries
+}
+
 // The first turn whose message is on screen, else the last one scrolled past. Rows lie in order,
 // so binary search finds them, reading a few of the virtualizer's (lazily built) measurements
 // rather than every turn's on each scroll.
-const historyViews = new WeakMap<
-  readonly (HistoryTurn | number)[],
-  {
-    count: number
-    first: string | undefined
-    last: string | undefined
-    entries: { index: number; row: number }[]
-  }
->()
-
 function viewOf(
   element: HTMLElement,
   virtualizer: Virtualizer<HTMLDivElement, Element>,
@@ -81,47 +112,19 @@ function viewOf(
   const top = element.scrollTop
   const bottom = top + element.clientHeight
   const cache = virtualizer.measurementsCache
-  if (typeof turns[0] === 'number') {
-    const indices = turns as readonly number[]
-    const at = (turn: number) => cache[indices[turn]!]!
-    const measured = search(0, turns.length, (turn) => indices[turn]! >= cache.length)
-    const first = search(0, measured, (turn) => at(turn).end > top)
-    const end = search(first, measured, (turn) => at(turn).start >= bottom)
-    if (first < end) return { current: first, first, last: end - 1 }
-    const preceding = search(0, measured, (turn) => at(turn).start > top) - 1
-    return { current: preceding >= 0 ? preceding : null, first: -1, last: -1 }
-  }
-  let view = historyViews.get(turns)
-  if (
-    !view ||
-    view.count !== rows.length ||
-    view.first !== rows[0]?.id ||
-    view.last !== rows.at(-1)?.id
-  ) {
-    const rowIndices = new Map(rows.map((row, index) => [row.id, index]))
-    view = {
-      count: rows.length,
-      first: rows[0]?.id,
-      last: rows.at(-1)?.id,
-      entries: turns.flatMap((turn, index) => {
-        const row = rowIndices.get((turn as HistoryTurn).itemId)
-        return row === undefined ? [] : [{ index, row }]
-      }),
-    }
-    historyViews.set(turns, view)
-  }
-  const loaded = view.entries
-  const at = (index: number) => cache[loaded[index]!.row]!
-  const measured = search(0, loaded.length, (index) => loaded[index]!.row >= cache.length)
-  const first = search(0, measured, (index) => at(index).end > top)
-  const end = search(first, measured, (index) => at(index).start >= bottom)
+  const loaded = turnRows(turns, rows)
+  const at = (turn: number) => cache[loaded[turn]!.row]!
+  // A row the virtualizer hasn't counted yet has no measurement.
+  const measured = search(0, loaded.length, (turn) => loaded[turn]!.row >= cache.length)
+  const first = search(0, measured, (turn) => at(turn).start + Math.max(1, at(turn).size) > top)
+  const end = search(first, measured, (turn) => at(turn).start >= bottom)
   if (first < end)
     return {
       current: loaded[first]!.index,
       first: loaded[first]!.index,
       last: loaded[end - 1]!.index,
     }
-  const preceding = search(0, measured, (index) => at(index).start > top) - 1
+  const preceding = search(0, measured, (turn) => at(turn).start > top) - 1
   return { current: loaded[preceding]?.index ?? null, first: -1, last: -1 }
 }
 
@@ -176,13 +179,14 @@ export const ThreadMinimap = memo(function ThreadMinimap({
       // conversation, clamped so uneven turns can't push the on-screen ticks out of the rail.
       const height = box.clientHeight
       const range = element.scrollHeight - element.clientHeight
-      const offset =
-        (next.current !== null
+      // Loaded history covers only part of a long thread, so there the current turn places it.
+      const fraction =
+        typeof turns[0] !== 'number' && next.current !== null
           ? next.current / Math.max(1, turns.length - 1)
           : range > 0
             ? element.scrollTop / range
-            : 0) *
-        (height - length)
+            : 0
+      const offset = fraction * (height - length)
       place(
         layer,
         next.first === -1
@@ -226,13 +230,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
       ? null
       : typeof activeTurn === 'number'
         ? turnPreview(rows.current, activeTurn)
-        : {
-            ...turnPreview(
-              rows.current,
-              rows.current.findIndex((row) => row.id === activeTurn.itemId)
-            ),
-            title: activeTurn.title,
-          }
+        : historyPreview(rows.current, activeTurn)
   const current = view.current !== null && view.current < turns.length ? view.current : null
   const lastIndex = turns.length - 1
 
