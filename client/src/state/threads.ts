@@ -1,6 +1,7 @@
 import type { SequencedEvent } from '@jetty/shared/events'
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 
+import { resendOnDrop } from '@/net/connection'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { summaryItems } from '@jetty/shared/history'
@@ -181,7 +182,9 @@ export function fetchHistory(
   const flight = recordFlight(threadId)
   const request = Effect.runPromise(
     AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap((connection) => connection.request('thread.history', { threadId, ...params })),
+      Effect.flatMap((connection) =>
+        resendOnDrop(connection.request('thread.history', { threadId, ...params }))
+      ),
       Effect.tap((page) =>
         Effect.sync(() => {
           const state = registry.get(resumeAtom(threadId))
@@ -282,7 +285,7 @@ async function flushToolOutputs(registry: AtomRegistry.AtomRegistry, threadId: s
       const result = await Effect.runPromise(
         AtomRegistry.getResult(registry, connectionAtom).pipe(
           Effect.flatMap((connection) =>
-            connection.request('thread.toolOutputs', { threadId, itemIds: batch })
+            resendOnDrop(connection.request('thread.toolOutputs', { threadId, itemIds: batch }))
           )
         )
       )
