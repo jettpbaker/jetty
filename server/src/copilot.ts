@@ -207,14 +207,17 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           input.effort
         )
         const allow = copilotConfig(session.config, 'permissions', 'allow_all')
-        if (allow) {
+        const full = input.permissionMode === 'full_access'
+        // Turning allow-all off also revokes Copilot's assisted approvals, so leave it alone unless
+        // it has to change.
+        if (allow && full !== (allow.currentValue === 'on')) {
           const result = yield* connection.request('session/set_config_option', {
             sessionId,
             configId: allow.id,
-            value: input.permissionMode === 'full_access' ? 'on' : 'off',
+            value: full ? 'on' : 'off',
           })
           if (Array.isArray(result.configOptions)) session.config = { ...session.config, ...result }
-        } else if (input.permissionMode === 'full_access')
+        } else if (!allow && full)
           return yield* Effect.fail(
             new AgentError('GitHub Copilot does not expose full access permissions')
           )
@@ -437,10 +440,29 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           yield* store.setProviderSessionId(session.input.threadId, 'copilot', sessionId)
           yield* configure(session, session.input)
           // ACP load replays history. Jetty's ledger already owns it, but retain session metadata.
-          for (const message of yield* Queue.takeAll(connection.messages)) {
-            if (message.params.sessionId === sessionId)
-              updateConfig(session, object(message.params.update))
-            if (message.id !== undefined) yield* connection.reject(message.id, 'Session is loading')
+          const drain = Effect.gen(function* () {
+            for (const message of yield* Queue.takeAll(connection.messages)) {
+              if (message.params.sessionId === sessionId)
+                updateConfig(session, object(message.params.update))
+              if (message.id !== undefined)
+                yield* connection.reject(message.id, 'Session is loading')
+            }
+          })
+          yield* drain
+          // Copilot's own judge approves safe tool calls and asks about the rest. ACP has no setting
+          // for it, only this command, which the CLI runs itself when it advertises it. Its reply
+          // stays out of the chat; if it fails, Copilot asks as usual.
+          if (
+            session.input.permissionMode !== 'full_access' &&
+            session.commands.has('permissions')
+          ) {
+            yield* connection
+              .request('session/prompt', {
+                sessionId,
+                prompt: copilotInput('/permissions assisted'),
+              })
+              .pipe(Effect.timeout('10 seconds'), Effect.ignore)
+            yield* drain
           }
           yield* session.emit({ type: 'turn.started', turnId: session.input.turnId })
           yield* prompt(session, session.input.text, session.input.images)
