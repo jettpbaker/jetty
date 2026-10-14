@@ -44,7 +44,9 @@ function preloadRoutes() {
 window.addEventListener(
   'load',
   () => {
-    if ('requestIdleCallback' in window) window.requestIdleCallback(preloadRoutes)
+    // The new-thread backdrop animates every frame, and a slow machine may never fall idle under it.
+    if ('requestIdleCallback' in window)
+      window.requestIdleCallback(preloadRoutes, { timeout: 2000 })
     else setTimeout(preloadRoutes, 0)
   },
   { once: true }
