@@ -919,7 +919,7 @@ export function ThreadList({
     revealedTurn,
   ])
 
-  const streamingRows = useStreamingRows(threadId, rows, projectPath, () => {
+  const streamingRows = useStreamingRows(threadId, rows, items, projectPath, () => {
     if (!pinned.current) setFresh(true)
   })
   const localTurns = useTurns(rows)
@@ -928,8 +928,6 @@ export function ThreadList({
   const latestWidth = useRef(width)
   useLayoutEffect(() => {
     latestRows.current = streamingRows.rows
-  })
-  useLayoutEffect(() => {
     latestMessageIndices.current = messageIndices
     latestWidth.current = width
   })

@@ -70,6 +70,7 @@ export function createStreamingRows() {
 export function useStreamingRows(
   threadId: string,
   rows: readonly ThreadRow[],
+  items: readonly ThreadItem[],
   projectPath: string | undefined,
   onTailChanged: () => void
 ) {
@@ -78,8 +79,9 @@ export function useStreamingRows(
   const tailChanged = useEffectEvent(onTailChanged)
   useLayoutEffect(() => {
     store.reset(rows)
-    store.sync(registry.get(threadAtom(threadId))?.items ?? [], projectPath)
-  }, [store, rows, registry, threadId, projectPath])
+    const current = registry.get(threadAtom(threadId))?.items
+    if (current && current !== items) store.sync(current, projectPath)
+  }, [store, rows, items, registry, threadId, projectPath])
   useLayoutEffect(() => {
     let previous = registry.get(threadAtom(threadId))?.items
     return registry.subscribe(threadAtom(threadId), (state) => {
