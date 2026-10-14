@@ -191,20 +191,9 @@ function appendDelta(delta: string, tokens?: number) {
   }
 }
 
-const itemIndices = new WeakMap<readonly ThreadItem[], ReadonlyMap<string, number>>()
-
-function indexItems(items: readonly ThreadItem[]) {
-  let indices = itemIndices.get(items)
-  if (!indices) {
-    indices = new Map(items.map((item, index) => [item.id, index]))
-    itemIndices.set(items, indices)
-  }
-  return indices
-}
-
+// Updates land on recent items, so the search starts from the end.
 export function findThreadItem(items: readonly ThreadItem[], itemId: string) {
-  const index = indexItems(items).get(itemId)
-  return index === undefined ? undefined : items[index]
+  return items.findLast((item) => item.id === itemId)
 }
 
 function updateItem(
@@ -212,11 +201,9 @@ function updateItem(
   itemId: string,
   update: (item: ThreadItem) => ThreadItem
 ): ThreadState {
-  const indices = indexItems(state.items)
-  const index = indices.get(itemId)
-  if (index === undefined) return state
+  const index = state.items.findLastIndex((item) => item.id === itemId)
+  if (index === -1) return state
   const items = [...state.items]
   items[index] = update(items[index]!)
-  itemIndices.set(items, indices)
   return { ...state, items }
 }
