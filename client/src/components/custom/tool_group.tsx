@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 import { useOpenSubagent } from '@/state'
+import { useToolOutputs } from '@/state/tool_outputs'
 import { useState } from 'react'
 
 import { ActivityChevron } from './activity_disclosure'
@@ -11,7 +12,7 @@ import { jettyResultTools } from './jetty_tool_results'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
-import { ToolCall, ToolCallDetails } from './tool_call'
+import { ToolCall, toolCallDetails } from './tool_call'
 import {
   describeToolBatch,
   workEnded,
@@ -20,15 +21,26 @@ import {
   type ToolBatch,
 } from './work_model'
 
-export function ToolGroup({ batch }: { batch: ToolBatch }) {
+export function ToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: string }) {
   return batch.calls[0]?.jettyTool && jettyResultTools[batch.calls[0].jettyTool] ? (
-    <JettyToolGroup batch={batch} />
+    <CachedJettyToolGroup batch={batch} threadId={threadId} />
   ) : (
-    <DefaultToolGroup batch={batch} />
+    <DefaultToolGroup batch={batch} threadId={threadId} />
   )
 }
 
-function DefaultToolGroup({ batch }: { batch: ToolBatch }) {
+function CachedJettyToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: string }) {
+  const ids = batch.calls.filter((call) => call.outputBytes !== undefined).map((call) => call.id)
+  const outputs = useToolOutputs(threadId, ids)
+  const cached = new Map(ids.map((id, index) => [id, outputs[index]]))
+  const calls = batch.calls.map((call) => {
+    const output = cached.get(call.id)
+    return output === undefined ? call : { ...call, output, outputBytes: undefined }
+  })
+  return <JettyToolGroup batch={{ ...batch, calls }} />
+}
+
+function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: string }) {
   const label = describeToolBatch(batch)
   const autoOpen =
     label.itemCount !== undefined &&
@@ -90,13 +102,14 @@ function DefaultToolGroup({ batch }: { batch: ToolBatch }) {
       </CollapsibleTrigger>
       <CollapsibleContent className={cn(autoClosing && 'work-batch-auto-close')}>
         {batch.calls.length === 1 && label.itemCount === undefined ? (
-          <ToolCallDetails call={batch.calls[0]!} />
+          toolCallDetails(batch.calls[0]!, threadId)
         ) : (
           <div className='pl-2'>
             {batch.calls.map((call) => (
               <ToolCall
                 key={call.id}
                 call={call}
+                threadId={threadId}
                 animate={label.itemCount !== undefined && autoOpen && !initialCalls.has(call.id)}
               />
             ))}

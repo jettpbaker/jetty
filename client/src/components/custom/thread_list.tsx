@@ -136,6 +136,20 @@ function messagesBelow(
   return indices.length - start
 }
 
+function rowContains(row: ThreadRow, id: string, item?: ThreadItem) {
+  if (row.id === id) return true
+  if (row.kind === 'work')
+    return row.activities.some((activity) => activity.id === id) || row.turnId === item?.turnId
+  if (row.kind === 'markers') return row.markers.some((marker) => marker.id === id)
+  if (row.kind === 'exchange') return row.entries.some((entry) => entry.id === id)
+  if (item?.kind === 'pull_request') {
+    const pulls =
+      row.kind === 'pullRequestGroup' ? row.items : row.kind === 'pullRequest' ? [row.item] : []
+    return pulls.some((pull) => pull.repo === item.repo && pull.number === item.number)
+  }
+  return false
+}
+
 function rowStamp(row: ThreadRow) {
   switch (row.kind) {
     case 'assistant':
@@ -329,6 +343,11 @@ export function ThreadList({
   bot?: BotRows
   onOpenRoom?: (room: Room) => void
 }) {
+  const [revealedTurn, setRevealedTurn] = useState<string>()
+  const rowBot = useMemo(
+    () => (bot && revealedTurn ? { ...bot, revealedTurn } : bot),
+    [bot, revealedTurn]
+  )
   const [buildRows] = useState(createThreadRows)
   const rows = useMemo(
     () =>
@@ -341,7 +360,7 @@ export function ThreadList({
         threadId,
         agentId,
         settingUp,
-        bot,
+        bot: rowBot,
         history,
         summary,
       }),
@@ -356,7 +375,7 @@ export function ThreadList({
       threadId,
       agentId,
       settingUp,
-      bot,
+      rowBot,
       history,
       summary,
     ]
@@ -478,7 +497,15 @@ export function ThreadList({
         : Math.max(0, virtualizer.getTotalSize() - window.innerHeight),
   })
 
-  const anchorIndex = readingAnchor ? rows.findIndex((row) => row.id === readingAnchor.key) : -1
+  const anchorIndex = readingAnchor
+    ? rows.findIndex((row) =>
+        rowContains(
+          row,
+          readingAnchor.key,
+          items.find((item) => item.id === readingAnchor.key)
+        )
+      )
+    : -1
   const prependTop =
     anchorIndex === -1
       ? undefined
@@ -801,32 +828,30 @@ export function ThreadList({
   useEffect(() => {
     if (!revealId || agentId) return
     const target = items.find((item) => item.id === revealId)
-    const index = rows.findIndex(
-      (row) =>
-        row.id === revealId ||
-        (row.kind === 'work' &&
-          (row.activities.some((activity) => activity.id === revealId) ||
-            row.turnId === target?.turnId))
-    )
+    const index = rows.findIndex((row) => rowContains(row, revealId, target))
     if (index === -1) {
       if (!target) void historyActions.seek(revealId)
+      else if (bot && revealedTurn !== target.turnId) setRevealedTurn(target.turnId)
       return
     }
     clearReveal()
     pin(false)
     virtualizer.scrollToIndex(index, { align: 'center' })
-  }, [revealId, agentId, rows, items, virtualizer, clearReveal, pin, historyActions])
+  }, [
+    revealId,
+    agentId,
+    rows,
+    items,
+    virtualizer,
+    clearReveal,
+    pin,
+    historyActions,
+    bot,
+    revealedTurn,
+  ])
 
   const localTurns = useTurns(rows)
-  const turns = useMemo(
-    () =>
-      summary?.turns ??
-      localTurns.map((index) => {
-        const row = rows[index]!
-        return { id: row.id, itemId: row.id, title: row.kind === 'user' ? row.item.text : '' }
-      }),
-    [summary?.turns, localTurns, rows]
-  )
+  const turns = summary?.turns ?? localTurns
   const latestWidth = useRef(width)
   useLayoutEffect(() => {
     latestRows.current = rows
@@ -964,7 +989,7 @@ export function ThreadList({
       const row = latestRows.current[entry.index]!
       return row.kind === 'work'
         ? row.activities
-            .filter((activity) => activity.type === 'tool')
+            .filter((activity) => activity.type === 'tool' && activity.outputBytes !== undefined)
             .map((activity) => activity.id)
         : []
     })
@@ -1010,7 +1035,10 @@ export function ThreadList({
                   if (row.kind === 'work')
                     historyActions.warm(
                       row.activities
-                        .filter((activity) => activity.type === 'tool')
+                        .filter(
+                          (activity) =>
+                            activity.type === 'tool' && activity.outputBytes !== undefined
+                        )
                         .map((activity) => activity.id)
                     )
                 }}

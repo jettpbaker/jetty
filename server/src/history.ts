@@ -129,18 +129,20 @@ export function historyPage(
 }
 
 export function threadSnapshot(state: ThreadState): ThreadSnapshot {
-  const page =
-    state.items.length <= pageItems
-      ? historyPage(state, { oldest: true, agentId: undefined })
-      : historyPage(state, {})
-  // Small threads arrive whole even when their turns have very few items.
-  const items =
-    state.items.length <= pageItems
-      ? state.items.map((item) => projectItem(item, latestTurn(state)))
-      : page.items
+  if (state.items.length <= pageItems)
+    return {
+      ...state,
+      items: state.items.map((item) => projectItem(item, latestTurn(state))),
+      history: {
+        total: state.items.length,
+        ranges: [{ start: 0, end: state.items.length }],
+        todoUpdates: {},
+      },
+    }
+  const page = historyPage(state, {})
+  const items = page.items
   const latest = latestTurn(state)
   const firstLatest = state.items.findIndex((item) => item.turnId === latest)
-  const allTodos = historyIndex(state.items).todos
   const support = state.items.filter(
     (item) => summaryItem(item) && (item.kind !== 'tool_call' || item.turnId === latest)
   )
@@ -154,23 +156,12 @@ export function threadSnapshot(state: ThreadState): ThreadSnapshot {
   return {
     ...state,
     items,
-    turnOutcomes:
-      state.items.length <= pageItems
-        ? state.turnOutcomes
-        : { ...page.turnOutcomes, ...summaryOutcomes },
-    turnLoadouts:
-      state.items.length <= pageItems
-        ? state.turnLoadouts
-        : { ...page.turnLoadouts, ...summaryLoadouts },
+    turnOutcomes: { ...page.turnOutcomes, ...summaryOutcomes },
+    turnLoadouts: { ...page.turnLoadouts, ...summaryLoadouts },
     history: {
       total: state.items.length,
-      ranges: [
-        { start: state.items.length <= pageItems ? 0 : page.start, end: state.items.length },
-      ],
-      todoUpdates:
-        state.items.length <= pageItems
-          ? Object.fromEntries([...allTodos.updates].map(([id, update]) => [id, update ?? null]))
-          : page.todoUpdates,
+      ranges: [{ start: page.start, end: state.items.length }],
+      todoUpdates: page.todoUpdates,
     },
     summary: {
       latestTurnId: latest,

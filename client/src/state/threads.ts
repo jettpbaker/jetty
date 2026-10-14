@@ -1,10 +1,9 @@
 import type { SequencedEvent } from '@jetty/shared/events'
-import type { ThreadItem } from '@jetty/shared/items'
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { summaryItems, type ThreadSnapshot as ThreadState } from '@jetty/shared/history'
+import { summaryItems } from '@jetty/shared/history'
 import { emptyThread } from '@jetty/shared/reducer'
 import { foldTodos } from '@jetty/shared/todos'
 import { backgroundStatus } from '@jetty/shared/wire'
@@ -14,9 +13,10 @@ import { useContext, useEffect, useRef, useMemo } from 'react'
 
 import { threadMetaAtom } from './chrome'
 import { connectionAtom, subscribe, useAction } from './connection'
-import { foldHistoryEvent, mergeHistory } from './history_merge'
+import { foldHistoryEvent, mergeHistory, type ThreadView as ThreadState } from './history_merge'
 import { createItemSelection, noteItemDelta, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
+import { toolOutputsAtom } from './tool_outputs'
 
 const flights = new Map<string, Set<SequencedEvent[]>>()
 
@@ -53,6 +53,14 @@ const resumeAtom = Atom.family((_threadId: string) =>
 const liveAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
     const cached = get.once(resumeAtom(threadId))
+    let current = cached ?? emptyThread
+    let outputs = get.once(toolOutputsAtom(threadId))
+    get.subscribe(resumeAtom(threadId), (state) => {
+      if (state) current = state
+    })
+    get.subscribe(toolOutputsAtom(threadId), (value) => {
+      outputs = value
+    })
     // A subscription catches up first; its snapshot or `ready` says the events after it are live.
     let live = false
     return subscribe(get, (connection) => {
@@ -64,16 +72,38 @@ const liveAtom = Atom.family((threadId: string) =>
       Stream.tap((update) =>
         Effect.sync(() => {
           perf.threadUpdate(threadId, update)
-          if (update.type === 'event')
+          if (update.type === 'event') {
             for (const events of flights.get(threadId) ?? []) events.push(update)
+            const { event } = update
+            if ('itemId' in event) {
+              const output = outputs.get(event.itemId)
+              if (
+                output !== undefined &&
+                update.seq > output.seq &&
+                (event.type === 'item.delta' ||
+                  ((event.type === 'item.updated' || event.type === 'item.completed') &&
+                    typeof event.patch?.output === 'string'))
+              ) {
+                const next =
+                  event.type === 'item.delta'
+                    ? output.output + event.delta
+                    : (event.patch!.output as string)
+                get.set(
+                  toolOutputsAtom(threadId),
+                  new Map(outputs).set(event.itemId, { output: next, seq: update.seq })
+                )
+              }
+            }
+          }
           if (update.type !== 'event') live = true
           else if (live && update.event.type === 'item.completed')
             noteCompleted(update.event.itemId)
         })
       ),
-      Stream.map((update) =>
-        foldUpdate(get.once(resumeAtom(threadId)) ?? cached ?? emptyThread, update)
-      ),
+      Stream.map((update) => {
+        current = foldUpdate(current, update)
+        return current
+      }),
       Stream.tap((state) => Effect.sync(() => get.set(resumeAtom(threadId), state)))
     )
   }).pipe(Atom.setIdleTTL('90 seconds'))
@@ -81,6 +111,7 @@ const liveAtom = Atom.family((threadId: string) =>
 
 export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
+    get(toolOutputsAtom(threadId))
     const resume = get(resumeAtom(threadId))
     get(liveAtom(threadId))
     const state = resume
@@ -220,21 +251,17 @@ function warmToolOutputs(
   threadId: string,
   itemIds: readonly string[]
 ) {
-  const state = peekThread(registry, threadId)
-  if (!state) return
-  const omitted = new Set(
-    state.items.flatMap((item) =>
-      item.kind === 'tool_call' && item.outputBytes !== undefined ? [item.id] : []
-    )
-  )
+  if (!itemIds.length || !peekThread(registry, threadId)) return
+  const cached = registry.get(toolOutputsAtom(threadId))
+  const missing = itemIds.filter((id) => !cached.has(id) && !outputRequests.get(threadId)?.has(id))
+  if (!missing.length) return
   let queue = outputQueues.get(threadId)
   if (!queue) {
     queue = new Set()
     outputQueues.set(threadId, queue)
     queueMicrotask(() => void flushToolOutputs(registry, threadId))
   }
-  for (const id of itemIds)
-    if (omitted.has(id) && !outputRequests.get(threadId)?.has(id)) queue.add(id)
+  for (const id of missing) queue.add(id)
 }
 
 async function flushToolOutputs(registry: AtomRegistry.AtomRegistry, threadId: string) {
@@ -259,24 +286,23 @@ async function flushToolOutputs(registry: AtomRegistry.AtomRegistry, threadId: s
           )
         )
       )
-      const state = registry.get(resumeAtom(threadId))
-      if (!state) continue
-      const outputs = new Map(result.outputs.map((output) => [output.itemId, output.output]))
-      let hydrated: ThreadState = {
-        ...state,
-        lastSeq: result.seq,
-        items: state.items.map((item) => {
-          const output = outputs.get(item.id)
-          if (item.kind !== 'tool_call' || item.outputBytes === undefined || output === undefined)
-            return item
-          const { outputBytes: _bytes, ...full } = item
-          return { ...full, output }
-        }),
+      const cached = new Map(registry.get(toolOutputsAtom(threadId)))
+      for (const { itemId, output } of result.outputs) {
+        let body = output
+        let bodySeq = result.seq
+        for (const { seq, event } of flight.events) {
+          if (seq <= result.seq || !('itemId' in event) || event.itemId !== itemId) continue
+          bodySeq = Math.max(bodySeq, seq)
+          if (event.type === 'item.delta') body += event.delta
+          else if (
+            (event.type === 'item.updated' || event.type === 'item.completed') &&
+            typeof event.patch?.output === 'string'
+          )
+            body = event.patch.output
+        }
+        cached.set(itemId, { output: body, seq: bodySeq })
       }
-      for (const event of flight.events)
-        if (event.seq > result.seq && 'itemId' in event.event && outputs.has(event.event.itemId))
-          hydrated = { ...hydrated, ...foldHistoryEvent(hydrated, event) }
-      registry.set(resumeAtom(threadId), { ...state, items: hydrated.items })
+      registry.set(toolOutputsAtom(threadId), cached)
     } catch {
       // The next viewport or hover warm retries a dropped request.
     } finally {
@@ -312,7 +338,6 @@ export const threadStatusAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => get(threadAtom(threadId))?.status)
 )
 
-const noItems: readonly ThreadItem[] = []
 // The calls todo_model folds into the task list.
 const todoTools = new Set(['TodoWrite', 'update_plan', 'TaskCreate', 'TaskUpdate'])
 
@@ -338,7 +363,7 @@ const todosAtom = Atom.family((threadId: string) =>
           state.summary.latestTurnId ?? undefined,
           state.summary.todoBase
         ).todos
-      : foldTodos(state?.items ?? noItems).todos
+      : foldTodos(get(overviewItemsAtom(threadId)), state?.items.at(-1)?.turnId).todos
   }).pipe(Atom.withEquality((a, b) => JSON.stringify(a) === JSON.stringify(b)))
 )
 

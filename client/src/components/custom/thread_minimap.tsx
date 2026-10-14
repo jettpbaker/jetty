@@ -62,29 +62,66 @@ function search(low: number, high: number, passes: (index: number) => boolean) {
 // The first turn whose message is on screen, else the last one scrolled past. Rows lie in order,
 // so binary search finds them, reading a few of the virtualizer's (lazily built) measurements
 // rather than every turn's on each scroll.
+const historyViews = new WeakMap<
+  readonly (HistoryTurn | number)[],
+  {
+    count: number
+    first: string | undefined
+    last: string | undefined
+    entries: { index: number; row: number }[]
+  }
+>()
+
 function viewOf(
   element: HTMLElement,
   virtualizer: Virtualizer<HTMLDivElement, Element>,
-  turns: readonly HistoryTurn[],
+  turns: readonly (HistoryTurn | number)[],
   rows: readonly ThreadRow[]
 ): View {
   const top = element.scrollTop
   const bottom = top + element.clientHeight
   const cache = virtualizer.measurementsCache
-  const rowIndices = new Map(rows.map((row, index) => [row.id, index]))
-  const loaded = turns.flatMap((turn, index) => {
-    const row = rowIndices.get(turn.itemId)
-    return row !== undefined && cache[row] ? [{ index, measurement: cache[row]! }] : []
-  })
-  const first = search(0, loaded.length, (index) => loaded[index]!.measurement.end > top)
-  const end = search(first, loaded.length, (index) => loaded[index]!.measurement.start >= bottom)
+  if (typeof turns[0] === 'number') {
+    const indices = turns as readonly number[]
+    const at = (turn: number) => cache[indices[turn]!]!
+    const measured = search(0, turns.length, (turn) => indices[turn]! >= cache.length)
+    const first = search(0, measured, (turn) => at(turn).end > top)
+    const end = search(first, measured, (turn) => at(turn).start >= bottom)
+    if (first < end) return { current: first, first, last: end - 1 }
+    const preceding = search(0, measured, (turn) => at(turn).start > top) - 1
+    return { current: preceding >= 0 ? preceding : null, first: -1, last: -1 }
+  }
+  let view = historyViews.get(turns)
+  if (
+    !view ||
+    view.count !== rows.length ||
+    view.first !== rows[0]?.id ||
+    view.last !== rows.at(-1)?.id
+  ) {
+    const rowIndices = new Map(rows.map((row, index) => [row.id, index]))
+    view = {
+      count: rows.length,
+      first: rows[0]?.id,
+      last: rows.at(-1)?.id,
+      entries: turns.flatMap((turn, index) => {
+        const row = rowIndices.get((turn as HistoryTurn).itemId)
+        return row === undefined ? [] : [{ index, row }]
+      }),
+    }
+    historyViews.set(turns, view)
+  }
+  const loaded = view.entries
+  const at = (index: number) => cache[loaded[index]!.row]!
+  const measured = search(0, loaded.length, (index) => loaded[index]!.row >= cache.length)
+  const first = search(0, measured, (index) => at(index).end > top)
+  const end = search(first, measured, (index) => at(index).start >= bottom)
   if (first < end)
     return {
       current: loaded[first]!.index,
       first: loaded[first]!.index,
       last: loaded[end - 1]!.index,
     }
-  const preceding = search(0, loaded.length, (index) => loaded[index]!.measurement.start > top) - 1
+  const preceding = search(0, measured, (index) => at(index).start > top) - 1
   return { current: loaded[preceding]?.index ?? null, first: -1, last: -1 }
 }
 
@@ -109,7 +146,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
   gutter,
   onSelect,
 }: {
-  turns: readonly HistoryTurn[]
+  turns: readonly (HistoryTurn | number)[]
   rows: RefObject<readonly ThreadRow[]>
   scroller: RefObject<HTMLElement | null>
   virtualizer: Virtualizer<HTMLDivElement, Element>
@@ -183,22 +220,25 @@ export const ThreadMinimap = memo(function ThreadMinimap({
 
   const persistent = gutter >= persistentGutter
   const stripWidth = Math.max(0, Math.min(stripMaxWidth, Math.floor(gutter) - stripLeft))
+  const activeTurn = activeIndex === null ? undefined : turns[activeIndex]
   const preview =
-    activeIndex === null
+    activeTurn === undefined
       ? null
-      : {
-          ...turnPreview(
-            rows.current,
-            rows.current.findIndex((row) => row.id === turns[activeIndex]!.itemId)
-          ),
-          title: turns[activeIndex]!.title,
-        }
+      : typeof activeTurn === 'number'
+        ? turnPreview(rows.current, activeTurn)
+        : {
+            ...turnPreview(
+              rows.current,
+              rows.current.findIndex((row) => row.id === activeTurn.itemId)
+            ),
+            title: activeTurn.title,
+          }
   const current = view.current !== null && view.current < turns.length ? view.current : null
   const lastIndex = turns.length - 1
 
   function select(index: number | null) {
     const row = index === null ? undefined : turns[index]
-    if (row !== undefined) onSelect(row.itemId)
+    if (row !== undefined) onSelect(typeof row === 'number' ? rows.current[row]!.id : row.itemId)
   }
 
   function indexAt(event: MouseEvent<HTMLElement>) {
@@ -297,7 +337,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
                 const distance = activeIndex === null ? null : Math.abs(index - activeIndex)
                 return (
                   <span
-                    key={row.itemId}
+                    key={typeof row === 'number' ? row : row.itemId}
                     aria-hidden='true'
                     data-in-view={(index >= view.first && index <= view.last) || undefined}
                     className={cn(

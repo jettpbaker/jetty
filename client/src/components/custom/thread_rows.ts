@@ -475,6 +475,7 @@ type ThreadRowsOptions = {
 export type BotRows = {
   others: ReadonlySet<string>
   showQuiet: boolean
+  revealedTurn?: string
   // The bot is tidying its notes behind a message of Jett's and the chat doesn't show the tidy:
   // a line stands in for its seam.
   tidying: boolean
@@ -700,6 +701,7 @@ export function threadRows(
   // any other. Errors, thread markers and that message stay either way. While it runs it shows
   // its work like any turn, so a busy bot never looks idle; a tidy has its own line instead.
   function endedQuiet(turn: BotTurn, turnId: string) {
+    if (turnId === bot?.revealedTurn) return false
     if (turn.joined) return false
     if (turnId === liveTurnId && !bot!.tidying) return false
     if (turn.opener === 'bot') return true
@@ -1069,7 +1071,7 @@ export function threadRows(
           ([id, update]) => [id, update ?? undefined] as const
         ),
         ...foldTodos(
-          summary?.items ?? allItems,
+          summary ? allItems.filter((item) => item.turnId === summary.latestTurnId) : allItems,
           summary?.latestTurnId ?? undefined,
           summary?.todoBase
         ).updates,

@@ -128,10 +128,11 @@ function resolve(
   typed: { text?: string; progress?: QuestionProgress },
   problem: string
 ) {
-  registry.update(pendingResolutionsAtom, (map) => new Map(map).set(itemId, resolution))
+  const pendingResolution = { ...resolution, threadId }
+  registry.update(pendingResolutionsAtom, (map) => new Map(map).set(itemId, pendingResolution))
   run(registry, request, () => {
     registry.update(pendingResolutionsAtom, (map) =>
-      map.get(itemId) === resolution ? without(map, [itemId]) : map
+      map.get(itemId) === pendingResolution ? without(map, [itemId]) : map
     )
     restoreAnswer(registry, threadId, itemId, typed.text ?? '', typed.progress)
     toast.error(problem)
@@ -520,8 +521,13 @@ export function useThreadOverlay(threadId: string, thread: ThreadSnapshot | unde
         (item) => (item.kind === 'approval' || item.kind === 'question') && !awaitsInput(item)
       )
       .map((item) => item.id)
+    if (thread?.summary) {
+      const pending = new Set(thread.summary.items.filter(awaitsInput).map((item) => item.id))
+      for (const [id, resolution] of resolutions)
+        if (resolution.threadId === threadId && !pending.has(id)) settledIds.push(id)
+    }
     registry.update(pendingResolutionsAtom, (map) => without(map, settledIds))
-  }, [items, registry, resolutions, thread])
+  }, [items, registry, resolutions, thread, threadId])
 
   useEffect(() => {
     if (stopping.size === 0) return
@@ -550,12 +556,14 @@ export function useThreadOverlay(threadId: string, thread: ThreadSnapshot | unde
   return {
     items: pending.length > 0 ? [...overlaid, ...pendingUserItems(pending)] : overlaid,
     // the server's items with local answers applied, without optimistic prompts
-    serverItems: [
-      ...summaryItems(thread)
-        .filter((item) => !overlaid.some((loaded) => loaded.id === item.id))
-        .map((item) => overlayItem(item, resolutions, stopping)),
-      ...overlaid,
-    ],
+    serverItems: thread?.summary?.items.length
+      ? [
+          ...summaryItems(thread)
+            .filter((item) => !overlaid.some((loaded) => loaded.id === item.id))
+            .map((item) => overlayItem(item, resolutions, stopping)),
+          ...overlaid,
+        ]
+      : overlaid,
     empty: overlaid.length === 0 && pending.length === 0,
     running: optimistic || live || delivering || continuing,
   }

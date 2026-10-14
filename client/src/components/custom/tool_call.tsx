@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
+import { useToolOutputs } from '@/state/tool_outputs'
 import { use, type ReactNode } from 'react'
 
 import './charmed_icons.css'
@@ -19,7 +20,25 @@ function ToolOutput({ className, children }: { className?: string; children: Rea
   )
 }
 
+export function toolCallDetails(call: ToolActivity, threadId?: string) {
+  return threadId && call.outputBytes !== undefined ? (
+    <CachedToolCallDetails call={call} threadId={threadId} />
+  ) : (
+    <ToolCallDetails call={call} />
+  )
+}
+
+function CachedToolCallDetails({ call, threadId }: { call: ToolActivity; threadId: string }) {
+  const [output] = useToolOutputs(threadId, [call.id])
+  return (
+    <ToolCallDetails
+      call={output === undefined ? call : { ...call, output, outputBytes: undefined }}
+    />
+  )
+}
+
 export function ToolCallDetails({ call }: { call: ToolActivity }) {
+  const output = call.output
   const failed = call.status === 'failed'
   return (
     <div className='my-1 flex min-w-0 flex-col gap-3 rounded-sm border border-border bg-card p-3 text-xs'>
@@ -33,8 +52,8 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
         <h4 className='mb-1 text-muted-foreground'>
           {failed ? 'Error' : call.kind === 'edit' ? 'Changes' : 'Output'}
         </h4>
-        {call.output ? (
-          <ToolOutput className={cn(failed && 'text-status-error')}>{call.output}</ToolOutput>
+        {output ? (
+          <ToolOutput className={cn(failed && 'text-status-error')}>{output}</ToolOutput>
         ) : call.outputBytes !== undefined ? null : (
           <p className='text-muted-foreground'>
             {call.status === 'running'
@@ -47,7 +66,7 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
                     ? 'This call was cancelled. No output was received.'
                     : call.status === 'interrupted'
                       ? 'This call was stopped. No output was received.'
-                      : call.output === ''
+                      : output === ''
                         ? 'Completed with no output.'
                         : 'Output unavailable.'}
           </p>
@@ -57,7 +76,15 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
   )
 }
 
-export function ToolCall({ call, animate = false }: { call: ToolActivity; animate?: boolean }) {
+export function ToolCall({
+  call,
+  threadId,
+  animate = false,
+}: {
+  call: ToolActivity
+  threadId?: string
+  animate?: boolean
+}) {
   const root = use(ProjectFileRoot)
   const openFile = use(OpenFileLink)
   const label = describeToolBatch({ type: 'tools', id: call.id, calls: [call], sealed: true })
@@ -117,9 +144,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
           )
         })}
         {hasOutcomeDetails && (
-          <CollapsibleContent>
-            <ToolCallDetails call={call} />
-          </CollapsibleContent>
+          <CollapsibleContent>{toolCallDetails(call, threadId)}</CollapsibleContent>
         )}
       </Collapsible>
     )
@@ -146,9 +171,7 @@ export function ToolCall({ call, animate = false }: { call: ToolActivity; animat
         </span>
         <ActivityChevron />
       </CollapsibleTrigger>
-      <CollapsibleContent>
-        <ToolCallDetails call={call} />
-      </CollapsibleContent>
+      <CollapsibleContent>{toolCallDetails(call, threadId)}</CollapsibleContent>
     </Collapsible>
   )
 }

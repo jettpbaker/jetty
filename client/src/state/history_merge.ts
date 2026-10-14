@@ -6,6 +6,8 @@ import { summaryItem } from '@jetty/shared/history'
 import { applyEvent } from '@jetty/shared/reducer'
 import { foldTodos } from '@jetty/shared/todos'
 
+export type ThreadView = ThreadSnapshot & { completedSeq?: number }
+
 function mergeRanges(ranges: readonly HistoryRange[]) {
   const merged: HistoryRange[] = []
   for (const range of [...ranges].sort((a, b) => a.start - b.start)) {
@@ -18,7 +20,7 @@ function mergeRanges(ranges: readonly HistoryRange[]) {
 }
 
 export function mergeHistory(
-  state: ThreadSnapshot,
+  state: ThreadView,
   page: HistoryPage,
   events: readonly SequencedEvent[]
 ) {
@@ -49,7 +51,7 @@ export function mergeHistory(
   }
 }
 
-export function foldHistoryEvent(state: ThreadSnapshot, update: SequencedEvent): ThreadSnapshot {
+export function foldHistoryEvent(state: ThreadView, update: SequencedEvent): ThreadView {
   if (update.seq <= state.lastSeq) return state
   const next = applyEvent(state, update)
   const { event } = update
@@ -101,6 +103,7 @@ export function foldHistoryEvent(state: ThreadSnapshot, update: SequencedEvent):
     ...state,
     ...next,
     status,
+    ...(event.type === 'item.completed' && { completedSeq: update.seq }),
     ...(summary && { summary }),
     ...(history &&
       event.type === 'item.started' && {

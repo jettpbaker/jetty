@@ -294,7 +294,7 @@ function WorkHistory({
             ) : entry.type === 'subagents' ? (
               <SubagentGroup threadId={threadId} batch={entry} />
             ) : (
-              <ToolGroup batch={entry} />
+              <ToolGroup batch={entry} threadId={threadId} />
             )}
           </div>
         ))}

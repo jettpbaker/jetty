@@ -127,7 +127,8 @@ export function foldTodos(
 ) {
   let todos: Tracked[] = [...initial]
   const updates = new Map<string, TodoUpdate | undefined>()
-  let made = Math.max(0, ...initial.map((todo) => Number(/^todo-(\d+)$/.exec(todo.id)?.[1] ?? 0)))
+  let made = 0
+  for (const todo of initial) made = Math.max(made, Number(/^todo-(\d+)$/.exec(todo.id)?.[1] ?? 0))
   const newId = () => `todo-${++made}`
   let run: TodoUpdate | undefined
   for (const item of items) {
