@@ -5,9 +5,12 @@
 }
 
 /* Capy's dot grid as a subagent's status: only running travels; waiting and failed light a shape, done and stopped rest. */
+/* Longhands, not a shorthand without a name: the minifier reads that as `animation: none`. */
 /* Running: a comet (1, .7, .45 on .25) up, down, up the columns, then left, right, left home through the rows; 16 × 100ms. */
 .subagent-glyph-running circle {
-  animation: 1600ms ease-in-out infinite;
+  animation-duration: 1600ms;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 .subagent-glyph-running [data-dot='0'] {
   animation-name: subagent-running-0;
@@ -539,7 +542,9 @@
 }
 /* Failed: the ✕ draws in pen order, holds, and clears together at 1.1s; each dot off (.25) or on (1), 80ms fades. */
 .subagent-glyph-failed circle {
-  animation: 1600ms ease-in-out infinite;
+  animation-duration: 1600ms;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 .subagent-glyph-failed [data-dot='0'] {
   animation-name: subagent-failed-0;
