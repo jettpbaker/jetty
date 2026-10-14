@@ -109,65 +109,71 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
             </Row>
           </div>
         </div>
-        <div className='flex flex-col gap-2'>
-          <div className='flex flex-col gap-0.5'>
-            <h2 className='text-xs font-medium text-muted-foreground'>Always allowed</h2>
-            <p className='text-xs text-muted-foreground'>
-              Saved from Allow always. Only used while Full access is off.
-            </p>
-          </div>
-          <div className='flex flex-col overflow-hidden rounded-md border border-border'>
-            {rules.map((rule) => (
-              <div
-                key={rule.id}
-                className='flex items-center gap-2 border-b border-border py-2 pr-[5px] pl-[11px]'
-              >
-                <div className='flex min-w-0 grow flex-col gap-0.5'>
-                  <div className='text-13 break-words'>
-                    <RuleText text={rule.text} />
-                  </div>
-                  <div className='text-xs text-muted-foreground'>
-                    {[
-                      ruleOrigin(rule),
-                      new Date(rule.createdAt).toLocaleDateString('en-AU', {
-                        day: 'numeric',
-                        month: 'short',
-                      }),
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </div>
-                </div>
-                <Button
-                  variant='ghost'
-                  size='icon-xs'
-                  aria-label={`Remove rule: ${rule.text}`}
-                  onClick={() =>
-                    setRules(
-                      bot.id,
-                      rules.filter((candidate) => candidate.id !== rule.id)
-                    )
-                  }
+        {bot.provider === 'codex' || bot.provider === 'copilot' ? (
+          <p className='text-xs text-muted-foreground'>
+            Approvals are managed by {bot.provider === 'codex' ? 'Codex' : 'GitHub Copilot'}.
+          </p>
+        ) : (
+          <div className='flex flex-col gap-2'>
+            <div className='flex flex-col gap-0.5'>
+              <h2 className='text-xs font-medium text-muted-foreground'>Always allowed</h2>
+              <p className='text-xs text-muted-foreground'>
+                Saved from Allow always. Only used while Full access is off.
+              </p>
+            </div>
+            <div className='flex flex-col overflow-hidden rounded-md border border-border'>
+              {rules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className='flex items-center gap-2 border-b border-border py-2 pr-[5px] pl-[11px]'
                 >
-                  <CrossSmallIcon />
-                </Button>
-              </div>
-            ))}
-            <input
-              aria-label='Add a rule in plain words'
-              placeholder='Add a rule in plain words…'
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  addRule()
-                }
-              }}
-              className='min-h-9 bg-transparent px-[11px] py-2 text-13 outline-none placeholder:text-muted-foreground'
-            />
+                  <div className='flex min-w-0 grow flex-col gap-0.5'>
+                    <div className='text-13 break-words'>
+                      <RuleText text={rule.text} />
+                    </div>
+                    <div className='text-xs text-muted-foreground'>
+                      {[
+                        ruleOrigin(rule),
+                        new Date(rule.createdAt).toLocaleDateString('en-AU', {
+                          day: 'numeric',
+                          month: 'short',
+                        }),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  </div>
+                  <Button
+                    variant='ghost'
+                    size='icon-xs'
+                    aria-label={`Remove rule: ${rule.text}`}
+                    onClick={() =>
+                      setRules(
+                        bot.id,
+                        rules.filter((candidate) => candidate.id !== rule.id)
+                      )
+                    }
+                  >
+                    <CrossSmallIcon />
+                  </Button>
+                </div>
+              ))}
+              <input
+                aria-label='Add a rule in plain words'
+                placeholder='Add a rule in plain words…'
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    addRule()
+                  }
+                }}
+                className='min-h-9 bg-transparent px-[11px] py-2 text-13 outline-none placeholder:text-muted-foreground'
+              />
+            </div>
           </div>
-        </div>
+        )}
         {!bot.archived && (
           <div className='mt-auto border-t border-border pt-4'>
             <Button
