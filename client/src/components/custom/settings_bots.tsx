@@ -188,13 +188,13 @@ export function SettingsBots() {
         <SettingsCard>
           <SettingsRow
             title='Check-ins'
-            description="A quiet bot looks over its area. Only while you're around."
+            description="A quiet bot looks over its area while you're around. About hourly on Claude, every 25 minutes on Codex and Copilot."
             disabled
           >
             <SettingsSelect
               label='Check-ins'
-              value='hourly'
-              options={[{ value: 'hourly', label: 'Every hour' }]}
+              value='automatic'
+              options={[{ value: 'automatic', label: 'Automatic' }]}
               disabled
             />
           </SettingsRow>
