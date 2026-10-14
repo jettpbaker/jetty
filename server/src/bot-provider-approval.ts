@@ -3,7 +3,7 @@ import { Effect } from 'effect'
 import type { Store } from './store'
 
 import { AgentError } from './agent'
-import { approvalCommand, botApproval } from './bot-approval'
+import { approvalCommand, botApproval, rulesCoverCommand } from './bot-approval'
 import { type BotRuleReviewer } from './bot-rule-review'
 
 export type BotApprovalRule = { text: string; source: string }
@@ -24,16 +24,24 @@ export function reviewBotApproval(
       .map((project) => ({ path: project.path, name: project.title }))
     const description = botApproval(tool, input, [], [{ path: cwd, name: 'its home' }, ...projects])
     const actionInput = approvalActionInput(tool, input)
+    const command =
+      tool === 'commandExecution' || input.kind === 'execute'
+        ? approvalCommand(tool, input)
+        : undefined
     const covered =
-      actionInput && bot.permissionMode !== 'full_access' && reviewer
-        ? yield* reviewer(bot, {
-            tool,
-            input: actionInput,
-            cwd: typeof input.cwd === 'string' ? input.cwd : cwd,
-            home: cwd,
-            projects,
-          })
-        : false
+      bot.permissionMode === 'full_access'
+        ? false
+        : command && rulesCoverCommand(command, bot.allowRules ?? [])
+          ? true
+          : actionInput && reviewer
+            ? yield* reviewer(bot, {
+                tool,
+                input: actionInput,
+                cwd: typeof input.cwd === 'string' ? input.cwd : cwd,
+                home: cwd,
+                projects,
+              })
+            : false
     const current = covered ? yield* store.getBot(threadId) : undefined
     const unchanged =
       current && JSON.stringify(current.allowRules) === JSON.stringify(bot.allowRules)

@@ -87,6 +87,26 @@ function commandHeads(command: string) {
   return heads.filter(Boolean)
 }
 
+// The commands an Allow always rule names: "Close the v16 issues with `gh issue close`".
+export function ruleCommands(text: string) {
+  return [...text.matchAll(/`([^`]+)`/g)].map((match) => match[1]!)
+}
+
+// Whether saved rules' commands cover every part of a shell command, token by token, as Codex
+// matches its own rules. Splitting inside quotes only makes this refuse more; anything it can't read
+// plainly (substitution, redirection, a shell wrapper) is left to the reviewer.
+export function rulesCoverCommand(command: string, rules: readonly { text: string }[]) {
+  if (/[`$<>(){}]/.test(command)) return false
+  const words = (text: string) => text.trim().split(/\s+/).filter(Boolean)
+  const allowed = rules.flatMap((rule) => ruleCommands(rule.text).map(words))
+  const parts = command.split(/&&|\|\||[;|&\n]/).map(words)
+  return parts.every(
+    (part) =>
+      part.length > 0 &&
+      allowed.some((prefix) => prefix.every((word, index) => part[index] === word))
+  )
+}
+
 function commandPrefix(command: string) {
   const tokens = command.replace(/^(?:[A-Za-z_][\w]*=\S+\s+)+/, '').split(/\s+/)
   const executable = tokens[0]!
@@ -146,8 +166,14 @@ export function botApproval(
     const covered = listed(
       commandPrefixes(command, suggestions, matchedAskRule).map((prefix) => `\`${prefix}\``)
     )
-    const ruleCommand =
-      toolName === 'commandExecution' || input.kind === 'execute' ? `\`${command}\`` : covered
+    // Codex vets the prefix it offers for "don't ask again"; without one, it would allow only the
+    // whole command.
+    const amendment = input.proposedExecpolicyAmendment
+    const codexPrefix =
+      Array.isArray(amendment) && amendment.every((part) => typeof part === 'string')
+        ? amendment.join(' ')
+        : ''
+    const ruleCommand = toolName === 'commandExecution' ? `\`${codexPrefix || command}\`` : covered
     return description
       ? { title: description, rule: `${description} with ${ruleCommand}` }
       : { title: `Run ${covered.replaceAll('`', '')}`, rule: `Run ${ruleCommand}` }
