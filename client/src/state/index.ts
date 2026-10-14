@@ -66,6 +66,7 @@ export {
   completedAgo,
   useOverviewItems,
   useThread,
+  useThreadStructure,
   useThreadContext,
   useThreadJourney,
   useThreadRowPrefetch,

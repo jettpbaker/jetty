@@ -15,7 +15,7 @@ import { useContext, useEffect, useRef, useMemo } from 'react'
 import { threadMetaAtom } from './chrome'
 import { connectionAtom, subscribe, useAction } from './connection'
 import { foldHistoryEvent, mergeHistory, type ThreadView as ThreadState } from './history_merge'
-import { createItemSelection, noteItemDelta, sameItems } from './item_selection'
+import { createItemSelection, noteItemDelta, sameItemStructure, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
 import { toolOutputsAtom } from './tool_outputs'
 
@@ -25,8 +25,11 @@ export function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadStat
   if (update.type === 'snapshot') return { ...update.snapshot, lastSeq: update.seq }
   if (update.type === 'event') {
     const next = foldHistoryEvent(state, update)
-    if (update.event.type === 'item.delta')
+    if (update.event.type === 'item.delta') {
       noteItemDelta(state.items, next.items, update.event.itemId)
+      if (state.summary && next.summary)
+        noteItemDelta(state.summary.items, next.summary.items, update.event.itemId)
+    }
     return next
   }
   return { ...state, lastSeq: Math.max(state.lastSeq, update.seq) }
@@ -150,6 +153,37 @@ export function useThreadJourney() {
 export function useThread(threadId: string): ThreadState | undefined {
   return useAtomValue(threadAtom(threadId))
 }
+
+export const threadStructureAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadAtom(threadId))).pipe(
+    Atom.withEquality<ThreadState | undefined>(
+      (a, b) =>
+        a === b ||
+        (a !== undefined &&
+          b !== undefined &&
+          a.status === b.status &&
+          a.activeTurnId === b.activeTurnId &&
+          a.lastTurnOutcome === b.lastTurnOutcome &&
+          a.turnOutcomes === b.turnOutcomes &&
+          a.turnLoadouts === b.turnLoadouts &&
+          a.history === b.history &&
+          a.summary === b.summary &&
+          sameItemStructure(a.items, b.items))
+    )
+  )
+)
+
+export function useThreadStructure(threadId: string) {
+  return useAtomValue(threadStructureAtom(threadId))
+}
+
+const threadSummaryAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => get(threadAtom(threadId))?.summary)
+)
+
+export const summaryItemsAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => summaryItems(get(threadAtom(threadId))))
+)
 
 const historyRequests = new Map<string, Promise<boolean>>()
 
@@ -350,21 +384,20 @@ const overviewItemsAtom = Atom.family((threadId: string) => {
       item.kind === 'workflow' ||
       (item.kind === 'tool_call' && !item.agentId && todoTools.has(item.toolName))
   )
-  return Atom.readable((get) => select(summaryItems(get(threadAtom(threadId))))).pipe(
+  return Atom.readable((get) => select(get(summaryItemsAtom(threadId)))).pipe(
     Atom.withEquality(sameItems)
   )
 })
 
 const todosAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
-    const state = get(threadAtom(threadId))
-    return state?.summary
-      ? foldTodos(
-          state.summary.items,
-          state.summary.latestTurnId ?? undefined,
-          state.summary.todoBase
+    const summary = get(threadSummaryAtom(threadId))
+    return summary
+      ? foldTodos(summary.items, summary.latestTurnId ?? undefined, summary.todoBase).todos
+      : foldTodos(
+          get(overviewItemsAtom(threadId)),
+          get(threadStructureAtom(threadId))?.items.at(-1)?.turnId
         ).todos
-      : foldTodos(get(overviewItemsAtom(threadId)), state?.items.at(-1)?.turnId).todos
   }).pipe(Atom.withEquality((a, b) => JSON.stringify(a) === JSON.stringify(b)))
 )
 

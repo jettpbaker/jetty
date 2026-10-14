@@ -1,6 +1,6 @@
 import { useNow } from '@/hooks/use-now'
 import { formatDuration } from '@/lib/time'
-import { useThread } from '@/state'
+import { useThreadStructure } from '@/state'
 import { useHistory } from '@/state/threads'
 import { summaryItems } from '@jetty/shared/history'
 import { useEffect } from 'react'
@@ -21,7 +21,7 @@ export function SubagentView({
   agentId: string
   projectPath?: string
 }) {
-  const thread = useThread(threadId)
+  const thread = useThreadStructure(threadId)
   const items = thread?.items ?? []
   const history = useHistory(threadId)
   useEffect(() => {

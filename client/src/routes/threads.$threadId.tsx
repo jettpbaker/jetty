@@ -16,7 +16,7 @@ import {
   useBumpDraft,
   useChromeReady,
   useProject,
-  useThread,
+  useThreadStructure,
   useThreadMeta,
   useThreadOverlay,
 } from '@/state'
@@ -27,7 +27,7 @@ export const Route = createFileRoute('/threads/$threadId')({ component: Thread }
 
 function Thread() {
   const { threadId } = Route.useParams()
-  const thread = useThread(threadId)
+  const thread = useThreadStructure(threadId)
   perf.threadLocal(threadId, thread !== undefined)
   useLayoutEffect(() => perf.threadShown(threadId, thread !== undefined))
   const overlay = useThreadOverlay(threadId, thread)

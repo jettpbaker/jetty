@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { useThreadMeta } from './chrome'
 import { connectionAtom, useAction } from './connection'
 import { beginFileSave, endFileSave, settleFileDraft } from './file_drafts'
-import { threadAtom, threadStatusAtom } from './threads'
+import { threadStructureAtom, threadStatusAtom } from './threads'
 
 const diffAtom = Atom.family((key: string) => {
   const [threadId, scope] = key.split('\0') as [string, DiffScope]
@@ -44,7 +44,7 @@ const toolsSettledAtom = Atom.family((threadId: string) =>
     let timer: ReturnType<typeof setTimeout> | undefined
     get.addFinalizer(() => clearTimeout(timer))
     get.subscribe(
-      threadAtom(threadId),
+      threadStructureAtom(threadId),
       (state) => {
         if (!state) return
         const count = state.toolSeq ?? 0

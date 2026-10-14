@@ -7,8 +7,9 @@ import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
 
 import { useAction } from './connection'
+import { createItemSelection, sameItems } from './item_selection'
 import { detailsRequestAtom } from './thread_tab'
-import { peekThread, threadAtom } from './threads'
+import { peekThread, summaryItemsAtom } from './threads'
 
 export type SubagentSummary = {
   id: string
@@ -52,8 +53,17 @@ function sameSummary(a: SubagentSummary, b: SubagentSummary) {
 }
 
 // Only the fields the chat links and the pane read, so streaming deltas don't re-render them.
+const subagentItemsAtom = Atom.family((threadId: string) => {
+  const select = createItemSelection(
+    (item) => item.kind === 'subagent' || Boolean(item.agentId && awaitsInput(item))
+  )
+  return Atom.readable((get) => select(get(summaryItemsAtom(threadId)))).pipe(
+    Atom.withEquality(sameItems)
+  )
+})
+
 const subagentsAtom = Atom.family((threadId: string) =>
-  Atom.readable((get) => summarise(summaryItems(get(threadAtom(threadId))))).pipe(
+  Atom.readable((get) => summarise(get(subagentItemsAtom(threadId)))).pipe(
     Atom.withEquality<SubagentSummary[]>(
       (a, b) => a.length === b.length && a.every((agent, index) => sameSummary(agent, b[index]!))
     )

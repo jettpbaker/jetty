@@ -37,6 +37,7 @@ import { whenIdle } from '@/lib/preload'
 import { getSendMotionTransition } from '@/lib/send-motion'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
+import { useStreamingRows } from '@/state/streaming_rows'
 import { useHistory } from '@/state/threads'
 import { pendingTurnId } from '@/state/turns'
 import {
@@ -49,6 +50,7 @@ import { animate } from 'motion/react'
 import {
   memo,
   useCallback,
+  useSyncExternalStore,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -214,18 +216,28 @@ function rowStamp(row: ThreadRow) {
 
 // Rows keep their identity while unchanged, so a list re-render (scroll, measurement) skips them.
 const ThreadItemRow = memo(function ThreadItemRow({
-  row,
+  row: baseRow,
+  streamingRows,
   threadId,
   provider,
   projectPath,
   onOpenRoom,
 }: {
   row: ThreadRow
+  streamingRows: ReturnType<typeof useStreamingRows>
   threadId: string
   provider?: string
   projectPath?: string
   onOpenRoom?: (room: Room) => void
 }) {
+  const subscription = useMemo(
+    () => ({
+      subscribe: (listener: () => void) => streamingRows.subscribe(baseRow.id, listener),
+      snapshot: () => streamingRows.get(baseRow),
+    }),
+    [streamingRows, baseRow]
+  )
+  const row = useSyncExternalStore(subscription.subscribe, subscription.snapshot)
   if (row.kind === 'user')
     return (
       <UserMessage
@@ -309,6 +321,61 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'video')
     return <VideoMessage video={row.item.video} caption={row.item.caption} />
   return null
+})
+
+const VirtualRow = memo(function VirtualRow({
+  index,
+  start,
+  row,
+  streamingRows,
+  virtualizer,
+  historyActions,
+  threadId,
+  provider,
+  projectPath,
+  onOpenRoom,
+}: {
+  index: number
+  start: number
+  row: ThreadRow
+  streamingRows: ReturnType<typeof useStreamingRows>
+  virtualizer: Virtualizer<HTMLDivElement, Element>
+  historyActions: ReturnType<typeof useHistory>
+  threadId: string
+  provider?: string
+  projectPath?: string
+  onOpenRoom?: (room: Room) => void
+}) {
+  return (
+    <div
+      data-index={index}
+      data-history-row={row.id}
+      onPointerEnter={() => {
+        if (row.kind === 'work')
+          historyActions.warm(
+            row.activities
+              .filter((activity) => activity.type === 'tool' && activity.outputBytes !== undefined)
+              .map((activity) => activity.id)
+          )
+      }}
+      ref={virtualizer.measureElement}
+      className='absolute top-0 left-0 w-full'
+      style={{ transform: `translateY(${start}px)` }}
+    >
+      <div
+        className={cn('mx-auto w-full max-w-[873px] px-6', paddedRows.has(row.kind) && 'py-1.5')}
+      >
+        <ThreadItemRow
+          row={row}
+          streamingRows={streamingRows}
+          threadId={threadId}
+          provider={provider}
+          projectPath={projectPath}
+          onOpenRoom={onOpenRoom}
+        />
+      </div>
+    </div>
+  )
 })
 
 export function ThreadList({
@@ -536,7 +603,7 @@ export function ThreadList({
     [view, virtualizer, width]
   )
 
-  const latestRows = useRef(rows)
+  const latestRows = useRef<readonly ThreadRow[]>(rows)
 
   const stamp = useMemo(() => rows.map(rowStamp).join('|'), [rows])
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
@@ -852,12 +919,17 @@ export function ThreadList({
     revealedTurn,
   ])
 
+  const streamingRows = useStreamingRows(threadId, rows, projectPath, () => {
+    if (!pinned.current) setFresh(true)
+  })
   const localTurns = useTurns(rows)
   // A subagent's transcript arrives whole; the thread's turns are the main agent's.
   const turns = summary && !agentId ? summary.turns : localTurns
   const latestWidth = useRef(width)
   useLayoutEffect(() => {
-    latestRows.current = rows
+    latestRows.current = streamingRows.rows
+  })
+  useLayoutEffect(() => {
     latestMessageIndices.current = messageIndices
     latestWidth.current = width
   })
@@ -1029,41 +1101,19 @@ export function ThreadList({
         >
           <div className='relative w-full' style={{ height: Math.max(scrollSize, scrollSpace) }}>
             {virtualRows.map((virtualRow) => (
-              <div
+              <VirtualRow
                 key={virtualRow.key}
-                data-index={virtualRow.index}
-                data-history-row={rows[virtualRow.index]!.id}
-                onPointerEnter={() => {
-                  const row = rows[virtualRow.index]!
-                  if (row.kind === 'work')
-                    historyActions.warm(
-                      row.activities
-                        .filter(
-                          (activity) =>
-                            activity.type === 'tool' && activity.outputBytes !== undefined
-                        )
-                        .map((activity) => activity.id)
-                    )
-                }}
-                ref={virtualizer.measureElement}
-                className='absolute top-0 left-0 w-full'
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
-              >
-                <div
-                  className={cn(
-                    'mx-auto w-full max-w-[873px] px-6',
-                    paddedRows.has(rows[virtualRow.index]!.kind) && 'py-1.5'
-                  )}
-                >
-                  <ThreadItemRow
-                    row={rows[virtualRow.index]!}
-                    threadId={threadId}
-                    provider={provider}
-                    projectPath={projectPath}
-                    onOpenRoom={onOpenRoom}
-                  />
-                </div>
-              </div>
+                index={virtualRow.index}
+                start={virtualRow.start}
+                row={rows[virtualRow.index]!}
+                streamingRows={streamingRows}
+                virtualizer={virtualizer}
+                historyActions={historyActions}
+                threadId={threadId}
+                provider={provider}
+                projectPath={projectPath}
+                onOpenRoom={onOpenRoom}
+              />
             ))}
           </div>
         </section>

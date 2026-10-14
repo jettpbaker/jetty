@@ -13,7 +13,7 @@ import { chromeAtom, serverChrome } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
 import { stageSend } from './drafts'
 import { settleWhen, trackCreation, without, withoutId } from './mutations'
-import { threadAtom } from './threads'
+import { threadStructureAtom } from './threads'
 
 type Registry = AtomRegistry.AtomRegistry
 
@@ -150,7 +150,7 @@ function dropPending(registry: Registry, botId: string, messageId: string) {
 }
 
 function listed(registry: Registry, botId: string, messageId: string) {
-  return hasMessage(registry.get(threadAtom(botId)), messageId)
+  return hasMessage(registry.get(threadStructureAtom(botId)), messageId)
 }
 
 function sendToBot(
@@ -216,7 +216,7 @@ function sendToBot(
           Effect.sync(() => {
             staged.sent()
             if (listed(registry, botId, message.id)) return drop()
-            const stop = registry.subscribe(threadAtom(botId), () => {
+            const stop = registry.subscribe(threadStructureAtom(botId), () => {
               if (!listed(registry, botId, message.id)) return
               stop()
               drop()
@@ -239,7 +239,7 @@ const pendingAtom = Atom.family((botId: string) =>
   Atom.readable((get) => {
     const pending = get(pendingMessagesAtom).get(botId) ?? noPending
     if (!pending.length) return pending
-    const state = get(threadAtom(botId))
+    const state = get(threadStructureAtom(botId))
     return pending.filter((message) => !hasMessage(state, message.id))
   }).pipe(Atom.withEquality(Equal.equals))
 )

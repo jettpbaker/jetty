@@ -22,7 +22,7 @@ import {
   useProject,
   useSendToBot,
   useModels,
-  useThread,
+  useThreadStructure,
   useThreadOverlay,
   useUpdateBot,
   withQuotes,
@@ -37,7 +37,7 @@ function ignore() {}
 
 // `overlayHost` is the page the bots' conversation opens over.
 export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLElement | null }) {
-  const thread = useThread(bot.id)
+  const thread = useThreadStructure(bot.id)
   const pending = usePendingBotMessages(bot.id)
   const bots = useBots()
   const [showQuiet] = useShowQuietTurns()

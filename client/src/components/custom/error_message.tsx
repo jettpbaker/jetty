@@ -6,7 +6,7 @@ import {
   useSendingIds,
   useSendToBot,
   useSendTurn,
-  useThread,
+  useThreadStructure,
   useThreadMeta,
 } from '@/state'
 import { useProviderUnavailable } from '@/state/models'
@@ -25,7 +25,7 @@ export function ErrorMessage({
   threadId: string
   turnId: string
 }) {
-  const thread = useThread(threadId)
+  const thread = useThreadStructure(threadId)
   const isBot = useBot(threadId) !== undefined
   const provider = useThreadMeta(threadId)?.provider
   const providerUnavailable = useProviderUnavailable(provider)

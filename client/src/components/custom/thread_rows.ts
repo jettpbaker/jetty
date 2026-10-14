@@ -1129,6 +1129,41 @@ export function threadRows(
   return reuseRows(allItems[0], groupPullRequestRows(rows))
 }
 
+export function streamRow(row: ThreadRow, item: ThreadItem, projectPath?: string): ThreadRow {
+  if (row.kind === 'assistant' && item.kind === 'assistant_message')
+    return row.item.text === item.text
+      ? row
+      : { ...row, item, ...(row.footer !== undefined && { footer: item.text }) }
+  if (row.kind === 'plan' && item.kind === 'plan')
+    return row.item.text === item.text
+      ? row
+      : { ...row, item, ...(row.footer !== undefined && { footer: item.text }) }
+  if (row.kind !== 'work') return row
+  const index = row.activities.findIndex((activity) => activity.id === item.id)
+  const activity = row.activities[index]
+  let next: WorkActivity | undefined
+  if (activity?.type === 'text' && item.kind === 'assistant_message' && activity.text !== item.text)
+    next = { ...activity, text: item.text }
+  else if (
+    activity?.type === 'thinking' &&
+    item.kind === 'reasoning' &&
+    (activity.summary !== item.text || activity.tokens !== item.tokens)
+  )
+    next = { ...activity, summary: item.text, tokens: item.tokens }
+  else if (
+    activity?.type === 'tool' &&
+    item.kind === 'tool_call' &&
+    activity.output !== item.output
+  ) {
+    const tool = toActivity(item, undefined, false, false, undefined, projectPath)
+    if (tool.type === 'tool') next = { ...tool, status: activity.status }
+  }
+  if (!next) return row
+  const activities = [...row.activities]
+  activities[index] = next
+  return { ...row, activities }
+}
+
 function groupPullRequestRows(rows: ThreadRow[]): ThreadRow[] {
   const grouped: ThreadRow[] = []
   for (let index = 0; index < rows.length;) {

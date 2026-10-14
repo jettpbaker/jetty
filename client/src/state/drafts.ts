@@ -14,7 +14,7 @@ import { useCallback, useContext, useEffect } from 'react'
 import { botsAtom } from './bots'
 import { createdThreadsAtom, liveAtom } from './chrome'
 import { without } from './mutations'
-import { threadAtom } from './threads'
+import { threadStructureAtom } from './threads'
 
 type Registry = AtomRegistry.AtomRegistry
 
@@ -413,7 +413,7 @@ export function useSettleUnsureSends() {
       else
         watches.push(
           registry.subscribe(
-            threadAtom(threadId),
+            threadStructureAtom(threadId),
             (state) => {
               if (state) settleUnsure(registry, key, entry, !hasMessage(state, messageId))
             },
