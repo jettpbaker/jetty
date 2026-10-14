@@ -1,12 +1,10 @@
 import type { ThreadEvent } from '@jetty/shared/events'
-import type { ThreadItem } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
 import { Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
 import type { Attachments } from './attachments'
-import type { BotRuleReviewer } from './bot-rule-review'
 import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
@@ -22,11 +20,6 @@ import {
 } from './agent'
 import { approvalChanges, type ApprovalChange } from './approval-changes'
 import { prepareBot } from './bot-preparation'
-import {
-  reviewBotApproval,
-  saveBotApprovalRule,
-  type BotApprovalRule,
-} from './bot-provider-approval'
 import {
   DEFAULT_CODEX_ARGS,
   object,
@@ -52,12 +45,9 @@ export type CodexOptions = CodexProcessOptions & {
   interruptGraceMs?: number
   mcp?: McpSessions
   attachments?: Attachments
-  reviewBotApproval?: BotRuleReviewer
 }
 type Pending = {
   id: RpcId
-  bot?: true
-  rule?: BotApprovalRule
   questions?: { id: string; question: string }[]
   mcpTool?: true
   permissions?: Record<string, unknown>
@@ -134,7 +124,7 @@ function threadOptions(
     model: input.model,
     serviceTier: input.fast ? 'fast' : 'default',
     approvalPolicy: full ? 'never' : 'on-request',
-    approvalsReviewer: 'user',
+    approvalsReviewer: full ? 'user' : 'auto_review',
     developerInstructions: instructions,
     sandbox: full ? 'danger-full-access' : 'workspace-write',
     ...(!full && writableRoots.length
@@ -164,41 +154,6 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
         session.pending.clear()
         session.asyncQuestions.clear()
         for (const event of session.translator.finish(session.stopped)) yield* session.emit(event)
-      })
-    }
-
-    function emitApproval(session: Session, item: Extract<ThreadItem, { kind: 'approval' }>) {
-      return Effect.gen(function* () {
-        const bot = yield* reviewBotApproval(
-          store,
-          session.input.threadId,
-          session.cwd,
-          item.toolName,
-          { ...object(item.input), ...(item.changes?.length ? { changes: item.changes } : {}) },
-          options.reviewBotApproval
-        )
-        const pending = session.pending.get(item.id)!
-        if (bot) {
-          pending.bot = true
-          if (bot.rule) pending.rule = { text: bot.rule, source: bot.title }
-          if (bot.covered) {
-            yield* session.connection!.respond(pending.id, approvalResponse(pending, 'allow'))
-            session.pending.delete(item.id)
-            return
-          }
-        }
-        yield* session.emit({
-          type: 'item.started',
-          item: {
-            ...item,
-            ...(bot
-              ? {
-                  title: bot.title,
-                  always: bot.rule ? { scope: 'user', patterns: [bot.rule] } : undefined,
-                }
-              : {}),
-          },
-        })
       })
     }
 
@@ -246,19 +201,22 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           })
           const toolCallId =
             string(params.itemId) && session.translator.toolItemId(string(params.itemId))
-          yield* emitApproval(session, {
-            ...base,
-            kind: 'approval',
-            title: string(params.reason) || string(params.command) || 'Apply file changes',
-            toolName:
-              method === 'item/fileChange/requestApproval' ? 'fileChange' : 'commandExecution',
-            ...(toolCallId ? { toolCallId } : {}),
-            input: params,
-            suggestions: [],
-            ...(changes.length ? { changes } : {}),
-            always: execpolicyAmendment
-              ? { scope: 'user', patterns: [execpolicyAmendment.join(' ')] }
-              : { scope: 'session', patterns: [] },
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'approval',
+              title: string(params.reason) || string(params.command) || 'Apply file changes',
+              toolName:
+                method === 'item/fileChange/requestApproval' ? 'fileChange' : 'commandExecution',
+              ...(toolCallId ? { toolCallId } : {}),
+              input: params,
+              suggestions: [],
+              ...(changes.length ? { changes } : {}),
+              always: execpolicyAmendment
+                ? { scope: 'user', patterns: [execpolicyAmendment.join(' ')] }
+                : { scope: 'session', patterns: [] },
+            },
           })
         } else if (method === 'item/permissions/requestApproval') {
           const permissions = Object.fromEntries(
@@ -267,15 +225,18 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             )
           )
           session.pending.set(itemId, { id, permissions })
-          yield* emitApproval(session, {
-            ...base,
-            kind: 'approval',
-            title: string(params.reason) || 'Grant additional permissions',
-            toolName: 'request_permissions',
-            toolCallId: session.translator.toolItemId(string(params.itemId)),
-            input: params,
-            suggestions: [],
-            always: { scope: 'session', patterns: [] },
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'approval',
+              title: string(params.reason) || 'Grant additional permissions',
+              toolName: 'request_permissions',
+              toolCallId: session.translator.toolItemId(string(params.itemId)),
+              input: params,
+              suggestions: [],
+              always: { scope: 'session', patterns: [] },
+            },
           })
         } else if (
           method === 'mcpServer/elicitation/request' &&
@@ -290,23 +251,29 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               ? `mcp__${server}__${name}`
               : name || 'mcpToolCall'
           session.pending.set(itemId, { id, mcpTool: true })
-          yield* emitApproval(session, {
-            ...base,
-            kind: 'approval',
-            title: string(params.message) || 'Run MCP tool',
-            toolName,
-            input: object(meta.tool_params),
-            suggestions: [],
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'approval',
+              title: string(params.message) || 'Run MCP tool',
+              toolName,
+              input: object(meta.tool_params),
+              suggestions: [],
+            },
           })
         } else if (method === 'mcpServer/elicitation/request' && params.mode === 'url') {
           session.pending.set(itemId, { id, mcpUrl: true })
-          yield* emitApproval(session, {
-            ...base,
-            kind: 'approval',
-            title: string(params.message) || 'Open MCP authorization URL',
-            toolName: `mcp__${string(params.serverName)}__elicitation`,
-            input: { url: params.url, message: params.message },
-            suggestions: [],
+          yield* session.emit({
+            type: 'item.started',
+            item: {
+              ...base,
+              kind: 'approval',
+              title: string(params.message) || 'Open MCP authorization URL',
+              toolName: `mcp__${string(params.serverName)}__elicitation`,
+              input: { url: params.url, message: params.message },
+              suggestions: [],
+            },
           })
         } else if (method === 'mcpServer/elicitation/request') {
           const form = object(params.requestedSchema)
@@ -944,8 +911,6 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               if (!session.accepting || !pending || !session.connection) return false
               const response = result(pending)
               if (!response) return false
-              if (patch.decision === 'always' && pending.rule)
-                yield* saveBotApprovalRule(store, threadId, itemId, pending.rule)
               yield* session.emit(
                 { type: 'item.completed', itemId, patch },
                 Effect.sync(() => {
@@ -1023,26 +988,25 @@ export function codexLayer(store: Store, options: CodexOptions = {}) {
 }
 
 function approvalResponse(pending: Pending, decision: 'allow' | 'always' | 'deny') {
-  const once = pending.bot && decision === 'always' ? 'allow' : decision
   if (pending.questions) return undefined
   if (pending.permissions)
     return {
-      permissions: once === 'deny' ? {} : pending.permissions,
-      scope: once === 'always' ? 'session' : 'turn',
+      permissions: decision === 'deny' ? {} : pending.permissions,
+      scope: decision === 'always' ? 'session' : 'turn',
     }
   if (pending.mcpUrl)
-    return { action: once === 'deny' ? 'decline' : 'accept', content: null, _meta: null }
+    return { action: decision === 'deny' ? 'decline' : 'accept', content: null, _meta: null }
   if (pending.mcpTool)
-    return once === 'deny'
+    return decision === 'deny'
       ? { action: 'decline', content: null }
       : { action: 'accept', content: {} }
   return {
     decision:
-      once === 'always'
+      decision === 'always'
         ? pending.execpolicyAmendment
           ? { acceptWithExecpolicyAmendment: { execpolicy_amendment: pending.execpolicyAmendment } }
           : 'acceptForSession'
-        : once === 'allow'
+        : decision === 'allow'
           ? 'accept'
           : 'decline',
   }

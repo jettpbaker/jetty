@@ -43,7 +43,6 @@ import {
 } from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
 import { botTiming } from './bot-lifecycle'
-import { createBotRuleReviewer } from './bot-rule-review'
 import { startBotScheduler } from './bot-scheduler'
 import { claudeLayer } from './claude'
 import { discoverClaudeModels } from './claude-models'
@@ -474,12 +473,6 @@ function createServer(opts: ServerOptions = {}) {
       copilot: opts.copilot,
       grok: opts.grok,
     })
-    const reviewBotApproval = createBotRuleReviewer({
-      // A bot can ask straight after a restart, before discovery has listed its provider.
-      catalog: () =>
-        (inFlight ? Deferred.await(inFlight) : Effect.void).pipe(Effect.map(() => models ?? [])),
-      prompt: modelPrompt,
-    })
     const registry =
       typeof agentKind !== 'string'
         ? singleAgentRegistry(agentKind)
@@ -500,12 +493,8 @@ function createServer(opts: ServerOptions = {}) {
                     attachmentsDir: join(home, 'attachments'),
                   })
                 ),
-                codex: yield* loadAgent(
-                  codexLayer(store, { ...opts.codex, mcp, attachments, reviewBotApproval })
-                ),
-                copilot: yield* loadAgent(
-                  copilotLayer(store, { ...opts.copilot, mcp, reviewBotApproval })
-                ),
+                codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp, attachments })),
+                copilot: yield* loadAgent(copilotLayer(store, { ...opts.copilot, mcp })),
                 grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp, hooks })),
               },
               agentKind

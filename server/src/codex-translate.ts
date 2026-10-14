@@ -100,6 +100,34 @@ export function createCodexTranslator(turnId: string) {
                 }
         events.push({ type: 'item.completed', itemId: item.id, patch })
       }
+    } else if (method === 'item/autoApprovalReview/completed') {
+      const review = object(params.review)
+      if (review.status !== 'denied' && review.status !== 'timedOut') return events
+      const target = items.get(string(params.targetItemId))
+      const action = object(params.action)
+      const input = target?.kind === 'tool_call' ? { ...action, ...object(target.input) } : action
+      const command = string(input.command)
+      const item: ThreadItem = {
+        id: newId(),
+        turnId,
+        createdAt: Date.now(),
+        kind: 'approval',
+        title: 'Codex approval review',
+        toolName:
+          target?.kind === 'tool_call'
+            ? target.toolName
+            : action.type === 'command'
+              ? 'Bash'
+              : string(action.type) || 'Tool',
+        input: command ? { ...input, command: reviewCommand(command) } : input,
+        suggestions: [],
+        decision: 'deny',
+        deniedReason:
+          review.status === 'timedOut' ? "Codex's review timed out" : string(review.rationale),
+        decidedBy: { name: 'Codex' },
+        ...(target?.kind === 'tool_call' ? { toolCallId: target.id } : {}),
+      }
+      events.push({ type: 'item.started', item })
     } else if (method === 'item/fileChange/patchUpdated') {
       const item = items.get(string(params.itemId))
       if (item?.kind === 'tool_call')
@@ -340,4 +368,9 @@ function textArray(value: unknown): string {
 
 function natural(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+}
+
+function reviewCommand(command: string) {
+  const wrapped = command.match(/^(?:\S*\/)?(?:zsh|bash|sh) -lc '([\s\S]*)'$/)
+  return wrapped ? wrapped[1]!.replaceAll("'\\''", "'") : command
 }

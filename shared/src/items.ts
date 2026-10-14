@@ -51,9 +51,9 @@ export type PullRequestActivity = Schema.Schema.Type<typeof PullRequestActivity>
 export const ApprovalDecision = Schema.Literals(['allow', 'always', 'deny'])
 export type ApprovalDecision = Schema.Schema.Type<typeof ApprovalDecision>
 
-// Set when a bot answered. Absent when Jett did: only Jett saves an "always" rule.
+// Set when a bot or provider answered. Absent when Jett did.
 export const ApprovalDecider = Schema.Struct({
-  botId: Schema.String,
+  botId: Schema.optional(Schema.String),
   name: Schema.String,
 })
 export type ApprovalDecider = Schema.Schema.Type<typeof ApprovalDecider>
