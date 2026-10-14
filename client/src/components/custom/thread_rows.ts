@@ -1,4 +1,5 @@
 import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
+import type { ThreadSummary, ThreadHistory } from '@jetty/shared/history'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { SESSION_GAP } from '@/lib/time'
@@ -376,6 +377,7 @@ function toActivity(
       elapsedSeconds: running ? undefined : elapsedSeconds([item], next),
     }
   }
+  const labelOutput = item.outputMeta?.fields ? JSON.stringify(item.outputMeta.fields) : item.output
   const input = typeof item.input === 'string' ? item.input : JSON.stringify(item.input, null, 2)
   const name = toolAction(item.toolName)
   const jetty = jettyTool(item.toolName)
@@ -386,7 +388,7 @@ function toActivity(
   const kind = toolKind(item.toolName)
   const answering = mcpTool(item.toolName)?.tool === 'answer_approval'
   const denying =
-    answering && (fields.decision === 'deny' || resultField(item.output, 'decision') === 'deny')
+    answering && (fields.decision === 'deny' || resultField(labelOutput, 'decision') === 'deny')
   const toolWords = answering
     ? words(denying ? 'Denying' : 'Allowing', denying ? 'Denied' : 'Allowed', 'approval')
     : jetty?.words
@@ -399,7 +401,7 @@ function toActivity(
       mcpTool(item.toolName)?.server === 'jetty' ? mcpTool(item.toolName)?.tool : undefined,
     words: toolWords,
     target: jetty
-      ? (jetty.target(fields, item.output) ?? toolWords?.singular ?? jetty.words.singular)
+      ? (jetty.target(fields, labelOutput) ?? toolWords?.singular ?? jetty.words.singular)
       : mcpTool(item.toolName)
         ? name
         : toolTarget(item.toolName, item.input, projectPath),
@@ -420,6 +422,7 @@ function toActivity(
             : 'interrupted',
     input,
     output: item.output,
+    outputBytes: item.outputBytes,
   }
 }
 
@@ -462,6 +465,8 @@ type ThreadRowsOptions = {
   agentId?: string
   settingUp?: boolean
   bot?: BotRows
+  summary?: ThreadSummary
+  history?: ThreadHistory
 }
 
 // A bot's chat is its thread with a few rows of its own. A turn another bot started folds into an
@@ -589,6 +594,13 @@ export function createThreadRows() {
         incremental = [...last.rows.slice(0, turn.row), ...threadRows(tail, options)]
     }
     let rows = incremental ?? threadRows(items, options)
+    if (last && !incremental && last.items[0]?.id !== items[0]?.id) {
+      const previous = new Map(last.rows.map((row) => [row.id, row]))
+      rows = rows.map((row) => {
+        const old = previous.get(row.id)
+        return old && same(old, row) ? old : row
+      })
+    }
     if (incremental && import.meta.env.DEV) {
       const full = threadRows(items, options)
       if (!same(incremental, full)) {
@@ -632,6 +644,8 @@ export function threadRows(
     agentId,
     settingUp = false,
     bot,
+    summary,
+    history,
   }: ThreadRowsOptions
 ): ThreadRow[] {
   // A subagent's requests for input also surface on the main timeline, attributed to it.
@@ -664,7 +678,9 @@ export function threadRows(
     })
   }
   const agentTitles = new Map(
-    agentId ? [] : threadSubagents(allItems).map((agent) => [agent.id, agent.title])
+    agentId
+      ? []
+      : threadSubagents(summary?.items ?? allItems).map((agent) => [agent.id, agent.title])
   )
   const waitingAgents = new Set(
     allItems.flatMap((item) => (item.agentId && awaitsInput(item) ? [item.agentId] : []))
@@ -766,7 +782,7 @@ export function threadRows(
         'variant' in item.input &&
         item.input.variant === 'Task' &&
         'prompt' in item.input &&
-        threadSubagents(allItems).some(
+        threadSubagents(summary?.items ?? allItems).some(
           (agent) =>
             agent.turnId === item.turnId &&
             agent.prompt === (item.input as { prompt: unknown }).prompt
@@ -1046,7 +1062,18 @@ export function threadRows(
     }
   }
   // The main agent's todo calls read as one line each; a subagent's stay ordinary tool calls.
-  const todos = agentId ? undefined : foldTodos(allItems).updates
+  const todos = agentId
+    ? undefined
+    : new Map([
+        ...Object.entries(history?.todoUpdates ?? {}).map(
+          ([id, update]) => [id, update ?? undefined] as const
+        ),
+        ...foldTodos(
+          summary?.items ?? allItems,
+          summary?.latestTurnId ?? undefined,
+          summary?.todoBase
+        ).updates,
+      ])
   // A turn's ending (a restart, a stop) is its last block's; a block before a mid-turn message
   // or a compaction just worked.
   const lastSegments = new Map<string, string>()
@@ -1068,7 +1095,9 @@ export function threadRows(
           ),
         ]
       const update = todos.get(item.id)
-      return update ? [{ type: 'todo', id: item.id, update }] : []
+      return update
+        ? [{ type: 'todo', id: item.id, update: { ...update, moves: [...update.moves] } }]
+        : []
     })
     const outcome =
       outcomes[row.turnId] && lastSegments.get(row.turnId) !== segment

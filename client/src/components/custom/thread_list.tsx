@@ -1,4 +1,5 @@
 import type { SessionStatus, TurnLoadout } from '@jetty/shared/events'
+import type { ThreadSummary, ThreadHistory } from '@jetty/shared/history'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
@@ -36,6 +37,7 @@ import { whenIdle } from '@/lib/preload'
 import { getSendMotionTransition } from '@/lib/send-motion'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
+import { useHistory } from '@/state/threads'
 import { pendingTurnId } from '@/state/turns'
 import {
   measureElement,
@@ -308,8 +310,12 @@ export function ThreadList({
   settingUp,
   bot,
   onOpenRoom,
+  history,
+  summary,
 }: {
   threadId: string
+  history?: ThreadHistory
+  summary?: ThreadSummary
   items: readonly ThreadItem[]
   status: SessionStatus
   running: boolean
@@ -336,6 +342,8 @@ export function ThreadList({
         agentId,
         settingUp,
         bot,
+        history,
+        summary,
       }),
     [
       buildRows,
@@ -349,8 +357,11 @@ export function ThreadList({
       agentId,
       settingUp,
       bot,
+      history,
+      summary,
     ]
   )
+  const historyActions = useHistory(threadId)
   const view = `${threadId}:${agentId ?? ''}`
   const messageIndices = useMemo(
     () =>
@@ -432,6 +443,15 @@ export function ThreadList({
     })
   }
 
+  const previousVirtualizer = useRef<Virtualizer<HTMLDivElement, Element>>(undefined)
+  const previousFirst = useRef(rows[0]?.id)
+  const previousCount = useRef(rows.length)
+  const movedStart = previousFirst.current !== rows[0]?.id || previousCount.current !== rows.length
+  const readingAnchor =
+    movedStart && previousVirtualizer.current && !pinned.current
+      ? anchorAt(previousVirtualizer.current)
+      : undefined
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
@@ -456,6 +476,23 @@ export function ThreadList({
       saved?.anchor && saved.index !== -1
         ? (virtualizer.measurementsCache[saved.index]?.start ?? 0) + saved.anchor.offset
         : Math.max(0, virtualizer.getTotalSize() - window.innerHeight),
+  })
+
+  const anchorIndex = readingAnchor ? rows.findIndex((row) => row.id === readingAnchor.key) : -1
+  const prependTop =
+    anchorIndex === -1
+      ? undefined
+      : (virtualizer.measurementsCache[anchorIndex]?.start ?? 0) + readingAnchor!.offset
+  if (prependTop !== undefined) virtualizer.scrollOffset = prependTop
+  useLayoutEffect(() => {
+    previousVirtualizer.current = virtualizer
+    previousFirst.current = rows[0]?.id
+    previousCount.current = rows.length
+    if (prependTop !== undefined && scroller.current) {
+      scroller.current.scrollTop = prependTop
+      shownTop.current = scroller.current.scrollTop
+    }
+    if (movedStart && pinned.current) landed.current.key = ''
   })
 
   useLayoutEffect(
@@ -625,12 +662,16 @@ export function ThreadList({
       } else if ((event.key === 'Home' && !meta) || (event.key === 'ArrowUp' && meta)) {
         event.preventDefault()
         pin(false)
-        virtualizer.scrollToOffset(0)
+        if (!history || history.ranges[0]?.start === 0) virtualizer.scrollToOffset(0)
+        else
+          void historyActions.seek().then((ok) => {
+            if (ok) setSeekFirst(true)
+          })
       }
     }
     element.addEventListener('keydown', jump)
     return () => element.removeEventListener('keydown', jump)
-  }, [pin, virtualizer])
+  }, [pin, virtualizer, history, historyActions])
   useLayoutEffect(() => {
     const element = scroller.current
     sendTarget.current = Math.max(0, scrollSize - (element?.clientHeight ?? 0))
@@ -722,7 +763,7 @@ export function ThreadList({
   // Something new at the end while the reader is up the thread puts a dot on the arrow; growth
   // below them can also carry them past the point where it shows.
   const tailRow = rows.at(-1)
-  const tail = tailRow ? `${rows.length}:${tailRow.id}:${rowStamp(tailRow)}` : ''
+  const tail = tailRow ? `${tailRow.id}:${rowStamp(tailRow)}` : ''
   const seenTail = useRef(tail)
   useEffect(() => {
     const element = scroller.current
@@ -748,17 +789,44 @@ export function ThreadList({
     gliderFor(element).start()
   }, [pin, virtualizer, gliderFor, stopSendGlide])
 
+  const [seekFirst, setSeekFirst] = useState(false)
+  useLayoutEffect(() => {
+    if (!seekFirst) return
+    setSeekFirst(false)
+    pin(false)
+    virtualizer.scrollToOffset(0)
+  }, [seekFirst, virtualizer, pin])
+
   const [revealId, clearReveal] = useRevealRow(threadId)
   useEffect(() => {
     if (!revealId || agentId) return
-    const index = rows.findIndex((row) => row.id === revealId)
-    if (index === -1) return
+    const target = items.find((item) => item.id === revealId)
+    const index = rows.findIndex(
+      (row) =>
+        row.id === revealId ||
+        (row.kind === 'work' &&
+          (row.activities.some((activity) => activity.id === revealId) ||
+            row.turnId === target?.turnId))
+    )
+    if (index === -1) {
+      if (!target) void historyActions.seek(revealId)
+      return
+    }
     clearReveal()
     pin(false)
     virtualizer.scrollToIndex(index, { align: 'center' })
-  }, [revealId, agentId, rows, virtualizer, clearReveal, pin])
+  }, [revealId, agentId, rows, items, virtualizer, clearReveal, pin, historyActions])
 
-  const turns = useTurns(rows)
+  const localTurns = useTurns(rows)
+  const turns = useMemo(
+    () =>
+      summary?.turns ??
+      localTurns.map((index) => {
+        const row = rows[index]!
+        return { id: row.id, itemId: row.id, title: row.kind === 'user' ? row.item.text : '' }
+      }),
+    [summary?.turns, localTurns, rows]
+  )
   const latestWidth = useRef(width)
   useLayoutEffect(() => {
     latestRows.current = rows
@@ -849,7 +917,14 @@ export function ThreadList({
   }, [rough, virtualizer])
 
   const jumpTo = useCallback(
-    (index: number) => {
+    (itemId: string) => {
+      const index = latestRows.current.findIndex((row) => row.id === itemId)
+      if (index === -1) {
+        void historyActions.seek(itemId).then((ok) => {
+          if (ok) setSeekItem(itemId)
+        })
+        return
+      }
       // A jump lands by estimate, so it needs the exact ones.
       finishRefining.current?.()
       const item = virtualizer.measurementsCache[index]
@@ -860,8 +935,41 @@ export function ThreadList({
         behavior: reduce ? 'auto' : 'smooth',
       })
     },
-    [virtualizer, pin]
+    [virtualizer, pin, historyActions]
   )
+  const [seekItem, setSeekItem] = useState<string>()
+  useLayoutEffect(() => {
+    if (!seekItem) return
+    setSeekItem(undefined)
+    jumpTo(seekItem)
+  }, [seekItem, jumpTo])
+
+  const virtualRows = virtualizer.getVirtualItems()
+  const firstVisible = virtualRows[0]?.key
+  const lastVisible = virtualRows.at(-1)?.key
+  const openedHistory = useRef(false)
+  useEffect(() => {
+    if (!history || agentId) return
+    const element = scroller.current
+    const firstOpen = !openedHistory.current
+    openedHistory.current = true
+    if (
+      history.ranges[0]?.start &&
+      (firstOpen || (element && element.scrollTop < element.clientHeight * 12))
+    )
+      void historyActions.older()
+  }, [history, agentId, firstVisible, historyActions])
+  useEffect(() => {
+    const ids = virtualizer.getVirtualItems().flatMap((entry) => {
+      const row = latestRows.current[entry.index]!
+      return row.kind === 'work'
+        ? row.activities
+            .filter((activity) => activity.type === 'tool')
+            .map((activity) => activity.id)
+        : []
+    })
+    historyActions.warm(ids)
+  }, [firstVisible, lastVisible, history, historyActions, virtualizer])
 
   return (
     <MediaLightboxProvider>
@@ -892,10 +1000,20 @@ export function ThreadList({
           }}
         >
           <div className='relative w-full' style={{ height: Math.max(scrollSize, scrollSpace) }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => (
+            {virtualRows.map((virtualRow) => (
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
+                data-history-row={rows[virtualRow.index]!.id}
+                onPointerEnter={() => {
+                  const row = rows[virtualRow.index]!
+                  if (row.kind === 'work')
+                    historyActions.warm(
+                      row.activities
+                        .filter((activity) => activity.type === 'tool')
+                        .map((activity) => activity.id)
+                    )
+                }}
                 ref={virtualizer.measureElement}
                 className='absolute top-0 left-0 w-full'
                 style={{ transform: `translateY(${virtualRow.start}px)` }}

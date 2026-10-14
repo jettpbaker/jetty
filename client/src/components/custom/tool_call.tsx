@@ -35,7 +35,7 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
         </h4>
         {call.output ? (
           <ToolOutput className={cn(failed && 'text-status-error')}>{call.output}</ToolOutput>
-        ) : (
+        ) : call.outputBytes !== undefined ? null : (
           <p className='text-muted-foreground'>
             {call.status === 'running'
               ? 'Waiting for output'

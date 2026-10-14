@@ -1,6 +1,9 @@
 import { useNow } from '@/hooks/use-now'
 import { formatDuration } from '@/lib/time'
 import { useThread } from '@/state'
+import { useHistory } from '@/state/threads'
+import { summaryItems } from '@jetty/shared/history'
+import { useEffect } from 'react'
 
 import { Disclosure } from './jetty_result_rows'
 import { Markdown } from './markdown'
@@ -20,7 +23,11 @@ export function SubagentView({
 }) {
   const thread = useThread(threadId)
   const items = thread?.items ?? []
-  const agent = threadSubagents(items).find((item) => item.id === agentId)
+  const history = useHistory(threadId)
+  useEffect(() => {
+    void history.seek(undefined, agentId)
+  }, [history, agentId])
+  const agent = threadSubagents(summaryItems(thread)).find((item) => item.id === agentId)
   const outcome = agent ? thread?.turnOutcomes[agent.turnId] : undefined
   // Stop can leave the item running. The transcript follows the spawn turn, so its tools stop too.
   const running =
@@ -65,6 +72,10 @@ export function SubagentView({
         key={agentId}
         threadId={threadId}
         items={items}
+        history={thread?.history}
+        summary={thread?.summary}
+        outcomes={thread?.turnOutcomes}
+        loadouts={thread?.turnLoadouts}
         status={running ? 'running' : 'idle'}
         running={false}
         projectPath={projectPath}

@@ -1,23 +1,29 @@
+import type { SequencedEvent } from '@jetty/shared/events'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { applyEvent, emptyThread, type ThreadState } from '@jetty/shared/reducer'
+import { summaryItems, type ThreadSnapshot as ThreadState } from '@jetty/shared/history'
+import { emptyThread } from '@jetty/shared/reducer'
+import { foldTodos } from '@jetty/shared/todos'
 import { backgroundStatus } from '@jetty/shared/wire'
 import { Effect, Stream } from 'effect'
-import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
-import { useContext, useEffect, useRef } from 'react'
+import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
+import { useContext, useEffect, useRef, useMemo } from 'react'
 
 import { threadMetaAtom } from './chrome'
-import { subscribe, useAction } from './connection'
+import { connectionAtom, subscribe, useAction } from './connection'
+import { foldHistoryEvent, mergeHistory } from './history_merge'
 import { createItemSelection, noteItemDelta, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
+
+const flights = new Map<string, Set<SequencedEvent[]>>()
 
 export function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
   if (update.type === 'snapshot') return { ...update.snapshot, lastSeq: update.seq }
   if (update.type === 'event') {
-    const next = applyEvent(state, update)
+    const next = foldHistoryEvent(state, update)
     if (update.event.type === 'item.delta')
       noteItemDelta(state.items, next.items, update.event.itemId)
     return next
@@ -58,13 +64,16 @@ const liveAtom = Atom.family((threadId: string) =>
       Stream.tap((update) =>
         Effect.sync(() => {
           perf.threadUpdate(threadId, update)
+          if (update.type === 'event')
+            for (const events of flights.get(threadId) ?? []) events.push(update)
           if (update.type !== 'event') live = true
           else if (live && update.event.type === 'item.completed')
             noteCompleted(update.event.itemId)
         })
       ),
-      Stream.scan(() => cached ?? emptyThread, foldUpdate),
-      Stream.drop(1),
+      Stream.map((update) =>
+        foldUpdate(get.once(resumeAtom(threadId)) ?? cached ?? emptyThread, update)
+      ),
       Stream.tap((state) => Effect.sync(() => get.set(resumeAtom(threadId), state)))
     )
   }).pipe(Atom.setIdleTTL('90 seconds'))
@@ -73,7 +82,8 @@ const liveAtom = Atom.family((threadId: string) =>
 export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
     const resume = get(resumeAtom(threadId))
-    const state = AsyncResult.getOrElse(get(liveAtom(threadId)), () => resume)
+    get(liveAtom(threadId))
+    const state = resume
     const thread = get(threadMetaAtom(threadId))
     if (!state) return state
     const status = backgroundStatus(
@@ -90,12 +100,7 @@ export function peekThread(
   registry: AtomRegistry.AtomRegistry,
   threadId: string
 ): ThreadState | undefined {
-  const nodes = registry.getNodes()
-  const live: AsyncResult.AsyncResult<ThreadState, unknown> | undefined = nodes
-    .get(liveAtom(threadId))
-    ?.value()
-  if (live && AsyncResult.isSuccess(live)) return live.value
-  return nodes.get(resumeAtom(threadId))?.value()
+  return registry.getNodes().get(resumeAtom(threadId))?.value()
 }
 
 function startThreadJourney(registry: AtomRegistry.AtomRegistry, threadId: string) {
@@ -113,6 +118,185 @@ export function useThreadJourney() {
 
 export function useThread(threadId: string): ThreadState | undefined {
   return useAtomValue(threadAtom(threadId))
+}
+
+const historyRequests = new Map<string, Promise<boolean>>()
+
+function recordFlight(threadId: string) {
+  const events: SequencedEvent[] = []
+  let active = flights.get(threadId)
+  if (!active) {
+    active = new Set()
+    flights.set(threadId, active)
+  }
+  active.add(events)
+  return {
+    events,
+    release() {
+      active.delete(events)
+      if (!active.size) flights.delete(threadId)
+    },
+  }
+}
+
+export function fetchHistory(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string,
+  params: { before?: string; target?: string; oldest?: boolean; agentId?: string } = {}
+) {
+  const key = `${threadId}:${JSON.stringify(params)}`
+  const existing = historyRequests.get(key)
+  if (existing) return existing
+  const flight = recordFlight(threadId)
+  const request = Effect.runPromise(
+    AtomRegistry.getResult(registry, connectionAtom).pipe(
+      Effect.flatMap((connection) => connection.request('thread.history', { threadId, ...params })),
+      Effect.tap((page) =>
+        Effect.sync(() => {
+          const state = registry.get(resumeAtom(threadId))
+          if (state) registry.set(resumeAtom(threadId), mergeHistory(state, page, flight.events))
+        })
+      )
+    )
+  )
+    .then(
+      () => true,
+      () => false
+    )
+    .finally(() => {
+      flight.release()
+      historyRequests.delete(key)
+    })
+  historyRequests.set(key, request)
+  return request
+}
+
+function olderHistory(registry: AtomRegistry.AtomRegistry, threadId: string) {
+  const state = peekThread(registry, threadId)
+  if (!state?.history || !state.history.ranges[0]?.start) return Promise.resolve(false)
+  return fetchHistory(registry, threadId, { before: state.items[0]!.id })
+}
+
+const gapRequests = new Set<string>()
+
+async function fillHistoryGaps(registry: AtomRegistry.AtomRegistry, threadId: string) {
+  if (gapRequests.has(threadId)) return
+  gapRequests.add(threadId)
+  try {
+    for (;;) {
+      const state = peekThread(registry, threadId)
+      if (!state?.history || state.history.ranges.length < 2) return
+      const ranges = state.history.ranges
+      const offset = ranges.slice(0, -1).reduce((sum, range) => sum + range.end - range.start, 0)
+      if (!(await fetchHistory(registry, threadId, { before: state.items[offset]!.id }))) return
+    }
+  } finally {
+    gapRequests.delete(threadId)
+  }
+}
+
+async function seekHistory(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string,
+  target?: string,
+  agentId?: string
+) {
+  const loaded = peekThread(registry, threadId)
+  if (target && loaded?.items.some((item) => item.id === target)) return true
+  const ok = await fetchHistory(
+    registry,
+    threadId,
+    agentId ? { agentId } : target ? { target } : { oldest: true }
+  )
+  if (ok) void fillHistoryGaps(registry, threadId)
+  return ok
+}
+
+const outputRequests = new Map<string, Set<string>>()
+const outputQueues = new Map<string, Set<string>>()
+
+function warmToolOutputs(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string,
+  itemIds: readonly string[]
+) {
+  const state = peekThread(registry, threadId)
+  if (!state) return
+  const omitted = new Set(
+    state.items.flatMap((item) =>
+      item.kind === 'tool_call' && item.outputBytes !== undefined ? [item.id] : []
+    )
+  )
+  let queue = outputQueues.get(threadId)
+  if (!queue) {
+    queue = new Set()
+    outputQueues.set(threadId, queue)
+    queueMicrotask(() => void flushToolOutputs(registry, threadId))
+  }
+  for (const id of itemIds)
+    if (omitted.has(id) && !outputRequests.get(threadId)?.has(id)) queue.add(id)
+}
+
+async function flushToolOutputs(registry: AtomRegistry.AtomRegistry, threadId: string) {
+  const queue = outputQueues.get(threadId)
+  outputQueues.delete(threadId)
+  if (!queue?.size) return
+  let active = outputRequests.get(threadId)
+  if (!active) {
+    active = new Set()
+    outputRequests.set(threadId, active)
+  }
+  const ids = [...queue].filter((id) => !active.has(id))
+  for (let start = 0; start < ids.length; start += 64) {
+    const batch = ids.slice(start, start + 64)
+    for (const id of batch) active.add(id)
+    const flight = recordFlight(threadId)
+    try {
+      const result = await Effect.runPromise(
+        AtomRegistry.getResult(registry, connectionAtom).pipe(
+          Effect.flatMap((connection) =>
+            connection.request('thread.toolOutputs', { threadId, itemIds: batch })
+          )
+        )
+      )
+      const state = registry.get(resumeAtom(threadId))
+      if (!state) continue
+      const outputs = new Map(result.outputs.map((output) => [output.itemId, output.output]))
+      let hydrated: ThreadState = {
+        ...state,
+        lastSeq: result.seq,
+        items: state.items.map((item) => {
+          const output = outputs.get(item.id)
+          if (item.kind !== 'tool_call' || item.outputBytes === undefined || output === undefined)
+            return item
+          const { outputBytes: _bytes, ...full } = item
+          return { ...full, output }
+        }),
+      }
+      for (const event of flight.events)
+        if (event.seq > result.seq && 'itemId' in event.event && outputs.has(event.event.itemId))
+          hydrated = { ...hydrated, ...foldHistoryEvent(hydrated, event) }
+      registry.set(resumeAtom(threadId), { ...state, items: hydrated.items })
+    } catch {
+      // The next viewport or hover warm retries a dropped request.
+    } finally {
+      flight.release()
+      for (const id of batch) active.delete(id)
+    }
+  }
+  if (!active.size) outputRequests.delete(threadId)
+}
+
+export function useHistory(threadId: string) {
+  const registry = useContext(RegistryContext)
+  return useMemo(
+    () => ({
+      older: () => olderHistory(registry, threadId),
+      seek: (target?: string, agentId?: string) => seekHistory(registry, threadId, target, agentId),
+      warm: (ids: readonly string[]) => warmToolOutputs(registry, threadId, ids),
+    }),
+    [registry, threadId]
+  )
 }
 
 // The context reading alone, so its readers skip the thread's other events.
@@ -140,20 +324,28 @@ const overviewItemsAtom = Atom.family((threadId: string) => {
       item.kind === 'workflow' ||
       (item.kind === 'tool_call' && !item.agentId && todoTools.has(item.toolName))
   )
-  return Atom.readable((get) => select(get(threadAtom(threadId))?.items ?? noItems)).pipe(
+  return Atom.readable((get) => select(summaryItems(get(threadAtom(threadId))))).pipe(
     Atom.withEquality(sameItems)
   )
 })
 
-// Todos finished in an earlier turn drop out, so the Overview needs the thread's last turn too.
-const lastTurnAtom = Atom.family((threadId: string) =>
-  Atom.readable((get) => get(threadAtom(threadId))?.items.at(-1)?.turnId)
+const todosAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => {
+    const state = get(threadAtom(threadId))
+    return state?.summary
+      ? foldTodos(
+          state.summary.items,
+          state.summary.latestTurnId ?? undefined,
+          state.summary.todoBase
+        ).todos
+      : foldTodos(state?.items ?? noItems).todos
+  }).pipe(Atom.withEquality((a, b) => JSON.stringify(a) === JSON.stringify(b)))
 )
 
 export function useOverviewItems(threadId: string) {
   return {
     items: useAtomValue(overviewItemsAtom(threadId)),
-    lastTurn: useAtomValue(lastTurnAtom(threadId)),
+    todos: useAtomValue(todosAtom(threadId)),
   }
 }
 

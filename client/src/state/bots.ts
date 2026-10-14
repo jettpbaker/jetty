@@ -4,6 +4,7 @@ import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty
 
 import { resendOnDrop } from '@/net/connection'
 import { useAtomValue } from '@effect/atom-react'
+import { hasMessage } from '@jetty/shared/history'
 import { Effect, Equal } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { toast } from 'sonner'
@@ -149,7 +150,7 @@ function dropPending(registry: Registry, botId: string, messageId: string) {
 }
 
 function listed(registry: Registry, botId: string, messageId: string) {
-  return !!registry.get(threadAtom(botId))?.items.some((item) => item.id === messageId)
+  return hasMessage(registry.get(threadAtom(botId)), messageId)
 }
 
 function sendToBot(
@@ -238,10 +239,8 @@ const pendingAtom = Atom.family((botId: string) =>
   Atom.readable((get) => {
     const pending = get(pendingMessagesAtom).get(botId) ?? noPending
     if (!pending.length) return pending
-    const items = get(threadAtom(botId))?.items
-    if (!items) return pending
-    const sent = new Set(items.map((item) => item.id))
-    return pending.filter((message) => !sent.has(message.id))
+    const state = get(threadAtom(botId))
+    return pending.filter((message) => !hasMessage(state, message.id))
   }).pipe(Atom.withEquality(Equal.equals))
 )
 

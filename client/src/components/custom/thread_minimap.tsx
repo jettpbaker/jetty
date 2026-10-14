@@ -1,4 +1,5 @@
 import type { ThreadRow } from '@/components/custom/thread_rows'
+import type { HistoryTurn } from '@jetty/shared/history'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { KeyboardEvent, MouseEvent, RefObject, WheelEvent } from 'react'
 
@@ -64,19 +65,27 @@ function search(low: number, high: number, passes: (index: number) => boolean) {
 function viewOf(
   element: HTMLElement,
   virtualizer: Virtualizer<HTMLDivElement, Element>,
-  turns: readonly number[]
+  turns: readonly HistoryTurn[],
+  rows: readonly ThreadRow[]
 ): View {
   const top = element.scrollTop
   const bottom = top + element.clientHeight
   const cache = virtualizer.measurementsCache
-  const at = (turn: number) => cache[turns[turn]!]!
-  // A row the virtualizer hasn't counted yet has no measurement.
-  const measured = search(0, turns.length, (turn) => turns[turn]! >= cache.length)
-  const first = search(0, measured, (turn) => at(turn).start + Math.max(1, at(turn).size) > top)
-  const end = search(first, measured, (turn) => at(turn).start >= bottom)
-  if (first < end) return { current: first, first, last: end - 1 }
-  const preceding = search(0, measured, (turn) => at(turn).start > top) - 1
-  return { current: preceding >= 0 ? preceding : null, first: -1, last: -1 }
+  const rowIndices = new Map(rows.map((row, index) => [row.id, index]))
+  const loaded = turns.flatMap((turn, index) => {
+    const row = rowIndices.get(turn.itemId)
+    return row !== undefined && cache[row] ? [{ index, measurement: cache[row]! }] : []
+  })
+  const first = search(0, loaded.length, (index) => loaded[index]!.measurement.end > top)
+  const end = search(first, loaded.length, (index) => loaded[index]!.measurement.start >= bottom)
+  if (first < end)
+    return {
+      current: loaded[first]!.index,
+      first: loaded[first]!.index,
+      last: loaded[end - 1]!.index,
+    }
+  const preceding = search(0, loaded.length, (index) => loaded[index]!.measurement.start > top) - 1
+  return { current: loaded[preceding]?.index ?? null, first: -1, last: -1 }
 }
 
 // Moves the ticks, fading each end of the rail as far as ticks hide past it, up to `fade`.
@@ -100,12 +109,12 @@ export const ThreadMinimap = memo(function ThreadMinimap({
   gutter,
   onSelect,
 }: {
-  turns: readonly number[]
+  turns: readonly HistoryTurn[]
   rows: RefObject<readonly ThreadRow[]>
   scroller: RefObject<HTMLElement | null>
   virtualizer: Virtualizer<HTMLDivElement, Element>
   gutter: number
-  onSelect: (row: number) => void
+  onSelect: (itemId: string) => void
 }) {
   const [view, setView] = useState(emptyView)
   const [active, setActive] = useState<number | null>(null)
@@ -120,7 +129,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
     if (!element || !box || !layer || !enough) return
     const length = (turns.length - 1) * tickSpacing
     const update = () => {
-      const next = viewOf(element, virtualizer, turns)
+      const next = viewOf(element, virtualizer, turns, rows.current)
       setView((view) =>
         view.current === next.current && view.first === next.first && view.last === next.last
           ? view
@@ -130,7 +139,13 @@ export const ThreadMinimap = memo(function ThreadMinimap({
       // conversation, clamped so uneven turns can't push the on-screen ticks out of the rail.
       const height = box.clientHeight
       const range = element.scrollHeight - element.clientHeight
-      const offset = (range > 0 ? element.scrollTop / range : 0) * (height - length)
+      const offset =
+        (next.current !== null
+          ? next.current / Math.max(1, turns.length - 1)
+          : range > 0
+            ? element.scrollTop / range
+            : 0) *
+        (height - length)
       place(
         layer,
         next.first === -1
@@ -147,7 +162,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
       resize.disconnect()
       element.removeEventListener('scroll', update)
     }
-  }, [scroller, virtualizer, turns, enough])
+  }, [scroller, virtualizer, turns, enough, rows])
 
   const activeIndex = active !== null && active < turns.length ? active : null
   const tick = activeIndex === null ? undefined : ticks.current?.children[activeIndex]
@@ -168,13 +183,22 @@ export const ThreadMinimap = memo(function ThreadMinimap({
 
   const persistent = gutter >= persistentGutter
   const stripWidth = Math.max(0, Math.min(stripMaxWidth, Math.floor(gutter) - stripLeft))
-  const preview = activeIndex === null ? null : turnPreview(rows.current, turns[activeIndex]!)
+  const preview =
+    activeIndex === null
+      ? null
+      : {
+          ...turnPreview(
+            rows.current,
+            rows.current.findIndex((row) => row.id === turns[activeIndex]!.itemId)
+          ),
+          title: turns[activeIndex]!.title,
+        }
   const current = view.current !== null && view.current < turns.length ? view.current : null
   const lastIndex = turns.length - 1
 
   function select(index: number | null) {
     const row = index === null ? undefined : turns[index]
-    if (row !== undefined) onSelect(row)
+    if (row !== undefined) onSelect(row.itemId)
   }
 
   function indexAt(event: MouseEvent<HTMLElement>) {
@@ -273,7 +297,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
                 const distance = activeIndex === null ? null : Math.abs(index - activeIndex)
                 return (
                   <span
-                    key={row}
+                    key={row.itemId}
                     aria-hidden='true'
                     data-in-view={(index >= view.first && index <= view.last) || undefined}
                     className={cn(

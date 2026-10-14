@@ -1,6 +1,5 @@
 import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { ApprovalDecision, Attachment, Reply, ThreadItem } from '@jetty/shared/items'
-import type { ThreadState } from '@jetty/shared/reducer'
 import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
 import { revokeBlobUrl } from '@/lib/blob_urls'
@@ -15,6 +14,7 @@ import {
 import { resendOnDrop } from '@/net/connection'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
+import { summaryItems, hasMessage, type ThreadSnapshot } from '@jetty/shared/history'
 import { awaitsInput, heldByRestarts } from '@jetty/shared/items'
 import { deliversQueue, newId } from '@jetty/shared/wire'
 import { Effect } from 'effect'
@@ -105,12 +105,6 @@ function threadMeta(registry: Registry, threadId: string) {
 function releasePrompts(prompts: readonly PendingPrompt[]) {
   for (const prompt of prompts)
     for (const attachment of prompt.attachments) revokeBlobUrl(attachment.id)
-}
-
-function unmatchedPrompts(pending: readonly PendingPrompt[], items: readonly ThreadItem[]) {
-  if (pending.length === 0) return pending
-  const sent = new Set(items.map((item) => item.id))
-  return pending.filter((prompt) => !sent.has(prompt.id))
 }
 
 function overlayItem(
@@ -485,7 +479,7 @@ export function useDismissQuestion() {
   return useAction(dismissQuestion)
 }
 
-export function useThreadOverlay(threadId: string, thread: ThreadState | undefined) {
+export function useThreadOverlay(threadId: string, thread: ThreadSnapshot | undefined) {
   const registry = useContext(RegistryContext)
   const prompts = useAtomValue(threadPromptsAtom(threadId))
   const resolutions = useAtomValue(pendingResolutionsAtom)
@@ -493,7 +487,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   const stopping = useAtomValue(stoppingWorkflowsAtom)
   const continuing = useAtomValue(threadContinuingAtom(threadId))
   const items = thread?.items ?? noItems
-  const pending = unmatchedPrompts(prompts, items)
+  const pending = prompts.filter((prompt) => !hasMessage(thread, prompt.id))
   // Nothing answered or stopping: the server's own array, so what reads it sees a delta as one.
   const overlaid =
     resolutions.size === 0 && stopping.size === 0
@@ -513,25 +507,25 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
 
   useEffect(() => {
     const current = registry.get(pendingPromptsAtom).get(threadId) ?? []
-    const left = unmatchedPrompts(current, items)
+    const left = current.filter((prompt) => !hasMessage(thread, prompt.id))
     if (left.length === current.length) return
     releasePrompts(current.filter((prompt) => !left.includes(prompt)))
     registry.update(pendingPromptsAtom, (map) => withPrompts(map, threadId, left))
-  }, [items, registry, threadId])
+  }, [items, registry, threadId, thread])
 
   useEffect(() => {
     if (resolutions.size === 0) return
-    const settledIds = items
+    const settledIds = summaryItems(thread)
       .filter(
         (item) => (item.kind === 'approval' || item.kind === 'question') && !awaitsInput(item)
       )
       .map((item) => item.id)
     registry.update(pendingResolutionsAtom, (map) => without(map, settledIds))
-  }, [items, registry, resolutions])
+  }, [items, registry, resolutions, thread])
 
   useEffect(() => {
     if (stopping.size === 0) return
-    const settled = items
+    const settled = summaryItems(thread)
       .filter((item) => item.kind === 'workflow' && item.status !== 'running')
       .map((item) => item.id)
     if (settled.some((id) => stopping.has(id)))
@@ -540,7 +534,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
         for (const id of settled) next.delete(id)
         return next
       })
-  }, [items, registry, stopping])
+  }, [items, registry, stopping, thread])
 
   useEffect(() => {
     if (optimistic && (live || (status && promptCount === 0)))
@@ -556,7 +550,12 @@ export function useThreadOverlay(threadId: string, thread: ThreadState | undefin
   return {
     items: pending.length > 0 ? [...overlaid, ...pendingUserItems(pending)] : overlaid,
     // the server's items with local answers applied, without optimistic prompts
-    serverItems: overlaid,
+    serverItems: [
+      ...summaryItems(thread)
+        .filter((item) => !overlaid.some((loaded) => loaded.id === item.id))
+        .map((item) => overlayItem(item, resolutions, stopping)),
+      ...overlaid,
+    ],
     empty: overlaid.length === 0 && pending.length === 0,
     running: optimistic || live || delivering || continuing,
   }

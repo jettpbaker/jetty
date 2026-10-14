@@ -34,6 +34,7 @@ export type ToolActivity = {
   status: ActivityStatus
   input?: string
   output?: string
+  outputBytes?: number
 }
 export type ThinkingActivity = {
   type: 'thinking'

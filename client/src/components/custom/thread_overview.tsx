@@ -23,7 +23,6 @@ import { PullRequestRow } from './pull_request_row'
 import { RunningTaskRow } from './running_task_row'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
 import { threadSubagents } from './thread_rows'
-import { currentTodos } from './todo_model'
 import { WorkflowLineGrid } from './workflow_lines'
 import { type Workflow } from './workflow_parts'
 
@@ -36,13 +35,13 @@ function threadWorkflows(items: readonly ThreadItem[]) {
 }
 
 export function useHasOverview(threadId: string, childThreads: readonly ChildThread[]) {
-  const { items, lastTurn } = useOverviewItems(threadId)
+  const { items, todos } = useOverviewItems(threadId)
   const meta = useThreadMeta(threadId)
   const pullRequests = meta?.pullRequests
   const hasItems =
     (meta?.backgroundTasks?.length ?? 0) > 0 ||
     items.some((item) => item.kind === 'subagent' || item.kind === 'workflow') ||
-    currentTodos(items, lastTurn).length > 0
+    todos.length > 0
   return hasItems || childThreads.length > 0 || (pullRequests?.length ?? 0) > 0
 }
 
@@ -103,7 +102,7 @@ export function ThreadOverview({
   onShowChat: () => void
   onShowChanges: () => void
 }) {
-  const { items, lastTurn } = useOverviewItems(threadId)
+  const { items, todos } = useOverviewItems(threadId)
   const meta = useThreadMeta(threadId)
   const openSubagent = useOpenSubagent()
   const agents = useSubagents(threadId)
@@ -113,7 +112,6 @@ export function ThreadOverview({
   const [revealing, clearReveal] = useRevealSection(threadId)
   const scroller = useRef<HTMLDivElement>(null)
 
-  const todos = currentTodos(items, lastTurn)
   const subagentItems = threadSubagents(items)
   const workflows = threadWorkflows(items)
   const files = useMemo(() => (diff ? changedFiles(diff.diff) : []), [diff])

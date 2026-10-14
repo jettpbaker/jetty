@@ -80,7 +80,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   )
   const turnId = thread?.activeTurnId
   // Only the bot's own card stops its turn; a worker waiting on Jett leaves it working.
-  const asking = overlay.items.some(awaitsInput)
+  const asking = overlay.serverItems.some(awaitsInput)
   // Stop lasts the whole turn, but not a turn Jetty started on its own until the bot speaks.
   const busy = turnId ? !asking && !quietTurn(items, turnId) : false
   const empty = !draft.text.trim() && attachments.items.length === 0
@@ -110,6 +110,8 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
       {thread || items.length > 0 ? (
         <ThreadList
           threadId={bot.id}
+          history={thread?.history}
+          summary={thread?.summary}
           items={items}
           status={thread?.status ?? 'idle'}
           running={overlay.running || pending.length > 0}
@@ -124,7 +126,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
         <div className='min-h-0 flex-1' />
       )}
       <div className='mx-auto flex w-full max-w-[873px] shrink-0 flex-col gap-2 px-6 pb-4'>
-        {overlay.items.map(
+        {overlay.serverItems.map(
           (item) =>
             (item.kind === 'approval' || item.kind === 'question') &&
             awaitsInput(item) && <BotDecisionCard key={item.id} item={item} bot={bot} />

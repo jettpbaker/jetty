@@ -4,6 +4,7 @@ import type { Loadout } from '@/lib/loadout'
 import { session, storage } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { EffortLevel } from '@jetty/shared/events'
+import { hasMessage } from '@jetty/shared/history'
 import { Reply } from '@jetty/shared/items'
 import { ProviderId } from '@jetty/shared/wire'
 import { Equal, Schema } from 'effect'
@@ -414,13 +415,7 @@ export function useSettleUnsureSends() {
           registry.subscribe(
             threadAtom(threadId),
             (state) => {
-              if (state)
-                settleUnsure(
-                  registry,
-                  key,
-                  entry,
-                  !state.items.some((item) => item.id === messageId)
-                )
+              if (state) settleUnsure(registry, key, entry, !hasMessage(state, messageId))
             },
             { immediate: true }
           )

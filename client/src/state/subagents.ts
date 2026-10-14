@@ -1,6 +1,7 @@
 import type { SubagentStatus, ThreadItem } from '@jetty/shared/items'
 
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
+import { summaryItems } from '@jetty/shared/history'
 import { awaitsInput } from '@jetty/shared/items'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext } from 'react'
@@ -52,7 +53,7 @@ function sameSummary(a: SubagentSummary, b: SubagentSummary) {
 
 // Only the fields the chat links and the pane read, so streaming deltas don't re-render them.
 const subagentsAtom = Atom.family((threadId: string) =>
-  Atom.readable((get) => summarise(get(threadAtom(threadId))?.items ?? [])).pipe(
+  Atom.readable((get) => summarise(summaryItems(get(threadAtom(threadId))))).pipe(
     Atom.withEquality<SubagentSummary[]>(
       (a, b) => a.length === b.length && a.every((agent, index) => sameSummary(agent, b[index]!))
     )
@@ -85,7 +86,7 @@ export function useSubagentOutcome(threadId: string | undefined) {
   return useCallback(
     (id: string): SubagentStatus | undefined => {
       if (!threadId) return undefined
-      const item = peekThread(registry, threadId)?.items.find((entry) => entry.id === id)
+      const item = summaryItems(peekThread(registry, threadId)).find((entry) => entry.id === id)
       return item?.kind === 'subagent' ? item.status : undefined
     },
     [registry, threadId]

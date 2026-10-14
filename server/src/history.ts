@@ -141,11 +141,27 @@ export function threadSnapshot(state: ThreadState): ThreadSnapshot {
   const latest = latestTurn(state)
   const firstLatest = state.items.findIndex((item) => item.turnId === latest)
   const allTodos = historyIndex(state.items).todos
+  const support = state.items.filter(
+    (item) => summaryItem(item) && (item.kind !== 'tool_call' || item.turnId === latest)
+  )
+  const summaryTurns = new Set(support.map((item) => item.turnId))
+  const summaryOutcomes = Object.fromEntries(
+    Object.entries(state.turnOutcomes).filter(([id]) => summaryTurns.has(id))
+  )
+  const summaryLoadouts = Object.fromEntries(
+    Object.entries(state.turnLoadouts).filter(([id]) => summaryTurns.has(id))
+  )
   return {
     ...state,
     items,
-    turnOutcomes: state.items.length <= pageItems ? state.turnOutcomes : page.turnOutcomes,
-    turnLoadouts: state.items.length <= pageItems ? state.turnLoadouts : page.turnLoadouts,
+    turnOutcomes:
+      state.items.length <= pageItems
+        ? state.turnOutcomes
+        : { ...page.turnOutcomes, ...summaryOutcomes },
+    turnLoadouts:
+      state.items.length <= pageItems
+        ? state.turnLoadouts
+        : { ...page.turnLoadouts, ...summaryLoadouts },
     history: {
       total: state.items.length,
       ranges: [
@@ -158,11 +174,7 @@ export function threadSnapshot(state: ThreadState): ThreadSnapshot {
     },
     summary: {
       latestTurnId: latest,
-      items: state.items
-        .filter(
-          (item) => summaryItem(item) && (item.kind !== 'tool_call' || item.turnId === latest)
-        )
-        .map((item) => projectItem(item, latest)),
+      items: support.map((item) => projectItem(item, latest)),
       todoBase: foldTodos(state.items.slice(0, Math.max(0, firstLatest))).tracked,
       turns: historyIndex(state.items).turns,
       messageIds: state.items.filter((item) => item.kind === 'user_message').map((item) => item.id),

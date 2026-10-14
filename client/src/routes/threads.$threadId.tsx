@@ -93,6 +93,8 @@ function Thread() {
               // thread's transcript behind.
               key={`${threadId}:list`}
               threadId={threadId}
+              history={thread?.history}
+              summary={thread?.summary}
               items={overlay.items}
               status={thread?.status ?? 'idle'}
               running={overlay.running}
