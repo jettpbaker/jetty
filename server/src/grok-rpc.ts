@@ -1,10 +1,13 @@
 import { Effect } from 'effect'
 
 import { AgentError } from './agent'
+import { providerCli } from './provider-cli'
 import { object, openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
 
 export function grokBin(options: StdioProcessOptions = {}) {
-  return options.command ?? process.env.JETTY_GROK_BIN ?? 'grok'
+  return (
+    options.command ?? process.env.JETTY_GROK_BIN ?? providerCli('grok', 'JETTY_GROK_LIVE_TEST')
+  )
 }
 
 export function openGrokConnection(

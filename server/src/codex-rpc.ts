@@ -1,5 +1,6 @@
 import { Effect } from 'effect'
 
+import { providerCli } from './provider-cli'
 import { openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
 export { object, string, type RpcId, type RpcMessage } from './stdio-rpc'
 export type CodexProcessOptions = StdioProcessOptions
@@ -13,7 +14,9 @@ export const DEFAULT_CODEX_ARGS = [
 ]
 
 export function codexBin(options: CodexProcessOptions = {}) {
-  return options.command ?? process.env.JETTY_CODEX_BIN ?? 'codex'
+  return (
+    options.command ?? process.env.JETTY_CODEX_BIN ?? providerCli('codex', 'JETTY_CODEX_LIVE_TEST')
+  )
 }
 
 export function openCodexConnection(cwd: string, options: CodexProcessOptions = {}) {

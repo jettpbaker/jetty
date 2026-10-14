@@ -4,12 +4,16 @@ import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
 
 import { AgentError } from './agent'
+import { providerCli } from './provider-cli'
 import { openStdioConnection, string, type StdioProcessOptions } from './stdio-rpc'
 
 export const COPILOT_ARGS = ['--acp', '--stdio', '--no-auto-update']
 
 export function copilotBin(options: StdioProcessOptions = {}) {
-  const command = options.command ?? process.env.JETTY_COPILOT_BIN ?? 'copilot'
+  const command =
+    options.command ??
+    process.env.JETTY_COPILOT_BIN ??
+    providerCli('copilot', 'JETTY_COPILOT_LIVE_TEST')
   const PATH = [
     options.env?.PATH ?? process.env.PATH,
     join(homedir(), '.local/bin'),
