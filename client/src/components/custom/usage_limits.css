@@ -1,4 +1,5 @@
-/* Provider colours, from T3 Code's usage page: Claude's clay, Codex in ink, Grok a step lighter. */
+/* Provider colours, from T3 Code's usage page: Claude's clay, Codex in ink, Grok a step lighter.
+   Copilot sits between, since purple means a merged PR here. */
 [data-usage-provider='claude'] {
   --usage-color: oklch(0.67 0.13 39);
 }
@@ -7,6 +8,9 @@
 }
 [data-usage-provider='grok'] {
   --usage-color: color-mix(in oklab, var(--foreground) 55%, var(--background));
+}
+[data-usage-provider='copilot'] {
+  --usage-color: color-mix(in oklab, var(--foreground) 78%, var(--background));
 }
 
 /* Stacked over another strip, the banner keeps the top corners. */
