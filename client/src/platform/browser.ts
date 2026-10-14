@@ -32,6 +32,17 @@ async function refreshSecret() {
 }
 
 export const browser: Platform = {
+  databases: {
+    open(name, version, upgrade) {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(name, version)
+        request.onupgradeneeded = () => upgrade(request.result)
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error)
+        request.onblocked = () => reject(new Error('Database blocked'))
+      })
+    },
+  },
   reload: () => window.location.reload(),
   async connectionUrl(reconnecting) {
     if (reconnecting) await refreshSecret()

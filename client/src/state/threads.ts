@@ -17,12 +17,18 @@ import { connectionAtom, subscribe, useAction } from './connection'
 import { foldHistoryEvent, mergeHistory, type ThreadView as ThreadState } from './history_merge'
 import { createItemSelection, noteItemDelta, sameItemStructure, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
+import { createThreadSaver, readThreadCache, touchThreadCache } from './thread_cache'
 import { toolOutputsAtom } from './tool_outputs'
 
 const flights = new Map<string, Set<SequencedEvent[]>>()
 
 export function foldUpdate(state: ThreadState, update: ThreadUpdate): ThreadState {
-  if (update.type === 'snapshot') return { ...update.snapshot, lastSeq: update.seq }
+  if (update.type === 'snapshot')
+    return {
+      ...update.snapshot,
+      lastSeq: update.seq,
+      newestStart: update.snapshot.history?.ranges[0]?.start ?? 0,
+    }
   if (update.type === 'event') {
     const next = foldHistoryEvent(state, update)
     if (update.event.type === 'item.delta') {
@@ -57,7 +63,23 @@ const resumeAtom = Atom.family((_threadId: string) =>
 const liveAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
     const cached = get.once(resumeAtom(threadId))
-    let current = cached ?? emptyThread
+    let current: ThreadState = cached ?? emptyThread
+    let loaded = cached !== undefined
+    let disposed = false
+    const saver = createThreadSaver(threadId)
+    get.addFinalizer(() => {
+      disposed = true
+      saver.dispose()
+    })
+    const hydration = cached
+      ? Promise.resolve()
+      : readThreadCache(threadId).then((state) => {
+          if (!state || disposed || loaded) return
+          current = { ...state, newestStart: state.history?.ranges[0]?.start ?? 0 }
+          loaded = true
+          get.set(resumeAtom(threadId), current)
+        })
+    void touchThreadCache(threadId)
     let outputs = get.once(toolOutputsAtom(threadId))
     get.subscribe(resumeAtom(threadId), (state) => {
       if (state) current = state
@@ -70,12 +92,19 @@ const liveAtom = Atom.family((threadId: string) =>
     return subscribe(get, (connection) => {
       live = false
       return Stream.unwrap(
-        Effect.as(awaitCreation(threadId), connection.subscribeThread(threadId, cached?.lastSeq))
+        Effect.promise(() => hydration).pipe(
+          Effect.andThen(awaitCreation(threadId)),
+          Effect.map(() =>
+            connection.subscribeThread(threadId, loaded ? current.lastSeq : undefined)
+          )
+        )
       )
     }).pipe(
       Stream.tap((update) =>
         Effect.sync(() => {
           perf.threadUpdate(threadId, update)
+          if (update.type === 'snapshot' && outputs.size)
+            get.set(toolOutputsAtom(threadId), new Map())
           if (update.type === 'event') {
             for (const events of flights.get(threadId) ?? []) events.push(update)
             const { event } = update
@@ -106,9 +135,15 @@ const liveAtom = Atom.family((threadId: string) =>
       ),
       Stream.map((update) => {
         current = foldUpdate(current, update)
+        loaded = true
         return current
       }),
-      Stream.tap((state) => Effect.sync(() => get.set(resumeAtom(threadId), state)))
+      Stream.tap((state) =>
+        Effect.sync(() => {
+          get.set(resumeAtom(threadId), state)
+          saver.update(state)
+        })
+      )
     )
   }).pipe(Atom.setIdleTTL('90 seconds'))
 )
@@ -138,6 +173,7 @@ export function peekThread(
 }
 
 function startThreadJourney(registry: AtomRegistry.AtomRegistry, threadId: string) {
+  void touchThreadCache(threadId)
   const live = registry.getNodes().get(liveAtom(threadId))?.value()
   perf.threadClick(
     threadId,

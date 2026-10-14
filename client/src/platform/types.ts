@@ -4,6 +4,13 @@ export type Platform = {
   // A desktop's viewer, proxied on Jetty's own origin.
   desktopUrl: (id: string) => string
   pickFiles: (options?: { accept?: string; multiple?: boolean }) => Promise<File[]>
+  databases: {
+    open: (
+      name: string,
+      version: number,
+      upgrade: (database: IDBDatabase) => void
+    ) => Promise<IDBDatabase>
+  }
   storage: {
     get: (key: string) => string | undefined
     set: (key: string, value: string) => boolean

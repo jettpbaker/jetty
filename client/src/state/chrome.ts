@@ -23,6 +23,7 @@ import { Equal, Stream } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 
 import { subscribe, useAction } from './connection'
+import { dropThreadCache, pruneThreadCache } from './thread_cache'
 
 export type ThreadPatch = {
   title?: string
@@ -76,6 +77,10 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
   switch (update.type) {
     case 'snapshot':
       observeServerTime(update.serverTime)
+      void pruneThreadCache([
+        ...update.threads.map((thread) => thread.id),
+        ...(update.bots ?? []).map((bot) => bot.id),
+      ])
       if (
         import.meta.env.PROD &&
         update.serverVersion &&
@@ -110,12 +115,18 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
     case 'thread.upserted':
       return { ...chrome, threads: upsert(chrome.threads, update.thread) }
     case 'project.removed':
+      void dropThreadCache(
+        chrome.threads
+          .filter((thread) => thread.projectId === update.projectId)
+          .map((thread) => thread.id)
+      )
       return {
         ...chrome,
         projects: chrome.projects.filter((project) => project.id !== update.projectId),
         threads: chrome.threads.filter((thread) => thread.projectId !== update.projectId),
       }
     case 'thread.removed':
+      void dropThreadCache([update.threadId])
       return {
         ...chrome,
         threads: chrome.threads.filter((thread) => thread.id !== update.threadId),

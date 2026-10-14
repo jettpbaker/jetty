@@ -129,14 +129,12 @@ function centralSvgs(): Plugin {
   }
 }
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(() => ({
   define: {
     'import.meta.env.JETTY_VERSION': JSON.stringify(
-      command === 'build'
-        ? execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: import.meta.dirname })
-            .toString()
-            .trim()
-        : ''
+      execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: import.meta.dirname })
+        .toString()
+        .trim()
     ),
   },
   resolve: {
