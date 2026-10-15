@@ -55,17 +55,11 @@ function ThreadCallRow({ call, result }: { call: ToolActivity; result?: ThreadRe
   }
   const id = result?.id ?? input.threadId
   const meta = useThreadMeta(id)
-  const status: Status | undefined = !workEnded(call.status)
-    ? call.status === 'waiting'
-      ? 'needs-attention'
-      : 'working'
-    : call.status === 'failed'
-      ? 'error'
-      : call.status === 'cancelled' || call.status === 'interrupted'
-        ? 'stopped'
-        : call.jettyTool === 'archive_thread' || meta?.archived
-          ? 'archived'
-          : undefined
+  // The glyph is the thread's own status; the call's progress and outcome are the heading's.
+  const status: Status | undefined =
+    meta?.archived || (call.jettyTool === 'archive_thread' && call.status === 'complete')
+      ? 'archived'
+      : undefined
   return (
     <ThreadRow
       result={{
