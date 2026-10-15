@@ -455,7 +455,12 @@ export function createOrchestrator({
       return Effect.gen(function* () {
         if (stopping) yield* stopTreeSetups(threadId)
         let root = yield* store.requireThread(threadId)
-        while (root.parentThreadId) root = yield* store.requireThread(root.parentThreadId)
+        // A deleted bot's workers keep its id as their parent.
+        while (root.parentThreadId) {
+          const parent = yield* store.getThread(root.parentThreadId)
+          if (!parent) break
+          root = parent
+        }
         return yield* state(root.id).lifecycle.withPermit(action)
       })
     }
