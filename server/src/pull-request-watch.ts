@@ -184,12 +184,14 @@ function pullRequestChanges(
       ].join(''),
     })
   }
-  if (next.mergeable === 'CONFLICTING' && previous.mergeable !== 'CONFLICTING')
+  // A draft's conflict only leaves a line; the agent hears about it once the draft is marked ready.
+  const undrafted = previous.pull.draft && !pull.draft
+  if (next.mergeable === 'CONFLICTING' && (previous.mergeable !== 'CONFLICTING' || undrafted))
     changes.push({
       activity: { type: 'conflict', detail: pull.base.ref },
-      keys: [`conflict:${head}:${pull.base.sha ?? ''}`],
+      keys: [`conflict:${head}:${pull.base.sha ?? ''}${undrafted ? ':ready' : ''}`],
       group: 'watchConflicts',
-      wakes: true,
+      wakes: !pull.draft,
       text: `- It has a merge conflict with ${pull.base.ref}.`,
     })
 
