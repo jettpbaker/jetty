@@ -7,6 +7,7 @@ import { useAtomValue } from '@effect/atom-react'
 import { hasMessage } from '@jetty/shared/history'
 import { Effect, Equal } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
+import { useMemo } from 'react'
 import { toast } from 'sonner'
 
 import { chromeAtom, serverChrome } from './chrome'
@@ -64,6 +65,18 @@ const archivedBotsAtom = Atom.readable((get) => get(botsAtom).filter((bot) => bo
 
 export function useBots() {
   return useAtomValue(activeBotsAtom)
+}
+
+const botIdsAtom = Atom.readable((get) =>
+  get(botsAtom)
+    .map((bot) => bot.id)
+    .sort()
+    .join('\0')
+)
+
+export function useBotIds() {
+  const ids = useAtomValue(botIdsAtom)
+  return useMemo(() => new Set(ids ? ids.split('\0') : []), [ids])
 }
 
 export function useArchivedBots() {

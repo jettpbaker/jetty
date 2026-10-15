@@ -39,12 +39,20 @@ export type PullRequestItem = Extract<ThreadItem, { kind: 'pull_request' }>
 
 export type ThreadRow =
   // steered: it went into a running turn; steering: on its way into one
-  | { kind: 'user'; id: string; item: UserItem; steered?: boolean; steering?: boolean }
+  | {
+      kind: 'user'
+      id: string
+      item: UserItem
+      steered?: boolean
+      steering?: boolean
+      sourceBot?: boolean
+    }
   | { kind: 'reports'; id: string; reports: readonly ChildReport[] }
   // Bot chats only. What woke the bot: a worker's report, or one of Jetty's own wakes.
   | {
       kind: 'wake'
       id: string
+      itemIds?: string[]
       reports?: readonly ChildReport[]
       wake?: 'check_in' | 'tidy'
     }
@@ -76,6 +84,7 @@ export type ThreadRow =
       kind: 'work'
       id: string
       turnId: string
+      turnIds?: string[]
       activities: WorkActivity[]
       status: ActivityStatus
       startedAt?: number
@@ -464,6 +473,7 @@ type ThreadRowsOptions = {
   agentId?: string
   settingUp?: boolean
   bot?: BotRows
+  botIds?: ReadonlySet<string>
   summary?: ThreadSummary
   history?: ThreadHistory
 }
@@ -644,6 +654,7 @@ export function threadRows(
     agentId,
     settingUp = false,
     bot,
+    botIds,
     summary,
     history,
   }: ThreadRowsOptions
@@ -975,6 +986,7 @@ export function threadRows(
                   kind: 'user',
                   id: item.id,
                   item,
+                  ...(item.from && botIds?.has(item.from.threadId) && { sourceBot: true }),
                   ...(steered && { steered }),
                   ...(steering && item.turnId === pendingTurnId && { steering }),
                 }
@@ -1126,7 +1138,40 @@ export function threadRows(
   if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
   stitchRuns(rows)
   if (bot?.tidying) rows.push({ kind: 'tidying', id: 'tidying' })
-  return reuseRows(allItems[0], groupPullRequestRows(rows))
+  return reuseRows(allItems[0], groupPullRequestRows(bot ? groupWakeRows(rows) : rows))
+}
+
+function groupWakeRows(rows: ThreadRow[]) {
+  const grouped: ThreadRow[] = []
+  let wake: Extract<ThreadRow, { kind: 'wake' }> | undefined
+  let work: WorkRow | undefined
+  for (const row of rows) {
+    if (row.kind === 'wake' && row.reports?.length && !row.wake) {
+      if (wake && (!work || work.status === 'complete')) {
+        wake.reports = [...wake.reports!, ...row.reports]
+        wake.itemIds = [...(wake.itemIds ?? [wake.id]), row.id]
+        continue
+      }
+      wake = row
+      work = undefined
+    } else if (wake && row.kind === 'work') {
+      if (work) {
+        work.activities.push(...row.activities)
+        work.turnIds = [...(work.turnIds ?? [work.turnId]), row.turnId]
+        work.turnId = row.turnId
+        work.elapsedSeconds = (work.elapsedSeconds ?? 0) + (row.elapsedSeconds ?? 0)
+        work.status = row.status
+        work.startedAt = row.startedAt
+        continue
+      }
+      work = row
+    } else {
+      wake = undefined
+      work = undefined
+    }
+    grouped.push(row)
+  }
+  return grouped
 }
 
 export function streamRow(row: ThreadRow, item: ThreadItem, projectPath?: string): ThreadRow {

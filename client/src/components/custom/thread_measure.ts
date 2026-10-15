@@ -3,6 +3,7 @@ import { layout, prepare, type PreparedText } from '@chenglou/pretext'
 import type { ThreadRow } from './thread_rows'
 
 import { isImageAttachment } from './attachment_files'
+import { botMarkerHeight, markerRuns, reportRuns } from './bot_marker_model'
 import {
   BUBBLE_THUMBNAIL_SIZE,
   fittedSize,
@@ -22,10 +23,10 @@ import { groupWorkActivities, previewCount, workEnded } from './work_model'
 const lineHeight = 13 * 1.625
 // The footer under a message, and the bubble's gap above it.
 const footerRow = 28
-// The quote a message carries, above its bubble, with its gap.
-const quoteRow = 29
-// A file a message carries, as a line above its bubble, with its gap.
-const fileRow = 30
+// A quote above the message's bubble, before the content gap.
+const quoteRow = 26
+// A file above the message's bubble, before the content gap.
+const fileRow = 26
 // Geist's mean advance at 14px, for rough line counts that skip text layout.
 const charWidth = 6.5
 type Measured = {
@@ -130,7 +131,7 @@ function markdownHeight(
 }
 
 function captionHeight(id: string, caption: string | undefined, width: number, rough: boolean) {
-  return caption ? textHeight(`${id}:caption`, caption, width, false, rough) + 8 : 0
+  return caption ? textHeight(`${id}:caption`, caption, width, false, rough, 20) + 8 : 0
 }
 
 const estimateSignatures = new WeakMap<ThreadRow, string>()
@@ -151,15 +152,17 @@ function estimateSignature(row: ThreadRow) {
         ? true
         : groupWorkActivities(row.activities, false)
             .slice(-previewCount)
-            .map((entry) => [
-              entry.type,
-              entry.id,
-              entry.type === 'thinking' && entry.status === 'running',
-              entry.type === 'text' && entry.text.length,
-            ])
+            .map((entry) => [entry.type, entry.id, entry.type === 'text' && entry.text])
       break
     case 'user':
-      inputs = [row.item.text, row.item.attachments, !!row.item.from, row.item.replies?.length]
+      inputs = [
+        row.item.text,
+        row.item.skill,
+        row.item.attachments,
+        !!row.item.from,
+        !!row.sourceBot,
+        row.item.replies?.length,
+      ]
       break
     case 'reports':
       inputs = row.reports.map((report) => report.question)
@@ -174,10 +177,10 @@ function estimateSignature(row: ThreadRow) {
       inputs = [row.item.video, row.item.caption]
       break
     case 'wake':
-      inputs = row.reports?.length
+      inputs = [reportRuns(row.reports ?? []).length, !!row.wake]
       break
     case 'markers':
-      inputs = row.markers.length
+      inputs = markerRuns(row.markers).length
       break
     case 'workflow':
       inputs = [row.item.status, row.item.phases.length, row.item.agents.length]
@@ -205,28 +208,31 @@ export function rowEstimateChanged(previous: ThreadRow, row: ThreadRow) {
 export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {
     case 'subagentDone':
-      return 29
+      return lineHeight + 6
     case 'reports': {
-      let height = 4 + 25 * row.reports.length
+      let height = 2 + (lineHeight + 4) * row.reports.length
       for (const [index, report] of row.reports.entries())
         if (report.question)
           height += textHeight(`${row.id}:${index}`, report.question, width, true, rough) + 4
       return height
     }
     case 'user': {
-      const { text, attachments } = row.item
+      const { text, skill, attachments, from, replies } = row.item
       const images = attachments.some(isImageAttachment)
-      const full = text ? textHeight(row.id, text, width * 0.8, true, rough) : 0
+      const prose = skill ? `/${skill} ${text}` : text
+      const full = prose ? textHeight(row.id, prose, width * 0.8 - 22, true, rough) : 0
       let height =
-        (text || images ? 26 : 0) +
-        footerRow +
+        12 +
+        (prose || images ? 14 + footerRow : 24) +
         (full > collapseAfterHeight
           ? (expandedMessages.has(row.item.id) ? full : collapsedTextHeight) + 28
           : full)
-      if (row.item.from) height += 22
-      height += quoteRow * (row.item.replies?.length ?? 0)
-      if (images) height += BUBBLE_THUMBNAIL_SIZE + (text ? 8 : 0)
-      height += fileRow * attachments.filter((attachment) => !isImageAttachment(attachment)).length
+      const gap = from ? (row.sourceBot ? 4 : 6) : replies ? 3 : 10
+      if (from) height += 16 + gap
+      height += (quoteRow + gap) * (replies?.length ?? 0)
+      if (images) height += BUBBLE_THUMBNAIL_SIZE + (prose ? 8 : 0)
+      const files = attachments.filter((attachment) => !isImageAttachment(attachment)).length
+      if (files) height += fileRow * files + 4 * (files - 1) + gap
       return height
     }
     case 'assistant':
@@ -234,27 +240,23 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       // A streaming reply would be laid out again on every delta; it's measured once on screen.
       return (
         markdownHeight(row.id, row.item.text, width, rough || row.streaming, 13 * 1.625, 13) +
-        8 +
+        2 +
+        (row.kind === 'plan' ? 20 : 0) +
         (row.footer === undefined ? 4 : footerRow)
       )
     case 'work': {
-      if (workEnded(row.status)) return 30
+      if (workEnded(row.status)) return 28
       let height = 32
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
         height +=
           entry.type === 'text'
             ? markdownHeight(entry.id, entry.text, width - 8, rough, 20, 13) + 8
             : 28
-        if (entry.type === 'thinking' && entry.summary && entry.status === 'running')
-          height += Math.min(
-            72,
-            textHeight(entry.id, entry.summary, width, true, rough, 13 * 1.625, 13)
-          )
       }
       return height
     }
     case 'error':
-      return textHeight(row.id, row.message, width * 0.8, true, rough) + 4
+      return textHeight(row.id, row.message, width, false, rough, 20)
     case 'gallery':
       return (
         (row.item.images.length === 1
@@ -269,21 +271,25 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       )
     case 'workflow':
       return row.item.status === 'running'
-        ? 72 + 32 * row.item.phases.length + 28 * row.item.agents.length
-        : 36
+        ? 74 +
+            28 * row.item.phases.length +
+            Math.max(0, row.item.phases.length - 1) * 4 +
+            28 * row.item.agents.length
+        : 38
     case 'wake':
-      return 4 + 24 * Math.max(1, row.reports?.length ?? 0)
+      return botMarkerHeight(reportRuns(row.reports ?? []).length + Number(!!row.wake))
     case 'markers':
-      return 4 + 24 * row.markers.length
+      return botMarkerHeight(markerRuns(row.markers).length)
     case 'exchange':
     case 'tidying':
+    case 'pullRequest':
+    case 'pullRequestGroup':
+      return 20
     case 'compaction':
     case 'restart':
     case 'backgroundStopped':
     case 'background':
     case 'restartLimit':
-    case 'pullRequest':
-    case 'pullRequestGroup':
       return 24
   }
 }

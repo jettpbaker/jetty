@@ -42,6 +42,7 @@ import { whenIdle } from '@/lib/preload'
 import { getSendMotionTransition } from '@/lib/send-motion'
 import { cn } from '@/lib/utils'
 import { chatComposer, completedAgo, useRevealRow } from '@/state'
+import { useBotIds } from '@/state/bots'
 import { useStreamingRows } from '@/state/streaming_rows'
 import { useHistory } from '@/state/threads'
 import { pendingTurnId } from '@/state/turns'
@@ -146,7 +147,12 @@ function messagesBelow(
 function rowContains(row: ThreadRow, id: string, item?: ThreadItem) {
   if (row.id === id) return true
   if (row.kind === 'work')
-    return row.activities.some((activity) => activity.id === id) || row.turnId === item?.turnId
+    return (
+      row.activities.some((activity) => activity.id === id) ||
+      row.turnId === item?.turnId ||
+      (item !== undefined && !!row.turnIds?.includes(item.turnId))
+    )
+  if (row.kind === 'wake') return !!row.itemIds?.includes(id)
   if (row.kind === 'markers') return row.markers.some((marker) => marker.id === id)
   if (row.kind === 'exchange') return row.entries.some((entry) => entry.id === id)
   if (item?.kind === 'pull_request') {
@@ -421,6 +427,7 @@ export function ThreadList({
     [bot, revealedTurn]
   )
   const [buildRows] = useState(createThreadRows)
+  const botIds = useBotIds()
   const rows = useMemo(
     () =>
       buildRows(items, {
@@ -433,6 +440,7 @@ export function ThreadList({
         agentId,
         settingUp,
         bot: rowBot,
+        botIds,
         history,
         summary,
       }),
@@ -448,6 +456,7 @@ export function ThreadList({
       agentId,
       settingUp,
       rowBot,
+      botIds,
       history,
       summary,
     ]

@@ -1,4 +1,4 @@
-import type { ChildReport, ThreadItem } from '@jetty/shared/items'
+import type { ChildReport } from '@jetty/shared/items'
 import type { ThreadMeta } from '@jetty/shared/wire'
 
 import { reportOutcomes } from '@/components/custom/child_reports'
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { useChildThreadMetas, useProject, useThreadMeta } from '@/state'
 import { Link } from '@tanstack/react-router'
 
-type Marker = Extract<ThreadItem, { kind: 'thread_marker' }>
+import { markerRuns, reportRuns, type ThreadMarker as Marker } from './bot_marker_model'
 
 // A thread with no meta was deleted: its marker keeps the title, unlinked and without a status.
 function MarkerLink({
@@ -42,13 +42,23 @@ function MarkerLink({
 const menuEntryClass =
   'flex h-7.5 min-w-0 items-center gap-2 rounded-menu-item px-2 text-xs text-foreground outline-none'
 
-function MarkerMenuEntry({ marker }: { marker: Marker }) {
+function MarkerMenuEntry({
+  marker,
+  outcome,
+}: {
+  marker: Pick<Marker, 'threadId' | 'title'>
+  outcome?: Status
+}) {
   const meta = useThreadMeta(marker.threadId)
   const project = useProject(meta?.projectId)
   if (!meta)
     return (
       <div className={menuEntryClass}>
-        <span aria-hidden='true' className='size-3.5 shrink-0' />
+        {outcome ? (
+          <StatusGlyph status={outcome} className='size-3.5' />
+        ) : (
+          <span aria-hidden='true' className='size-3.5 shrink-0' />
+        )}
         <span className='min-w-0 flex-1 truncate'>{marker.title}</span>
       </div>
     )
@@ -58,7 +68,10 @@ function MarkerMenuEntry({ marker }: { marker: Marker }) {
       params={{ threadId: marker.threadId }}
       className={cn(menuEntryClass, 'hover:bg-accent focus-visible:bg-accent')}
     >
-      <StatusGlyph status={threadStatus(meta.status, meta.readyForReview)} className='size-3.5' />
+      <StatusGlyph
+        status={outcome ?? threadStatus(meta.status, meta.readyForReview)}
+        className='size-3.5'
+      />
       <span className='min-w-0 flex-1 truncate'>{meta.title}</span>
       <span className='shrink-0 text-muted-foreground'>{project?.title}</span>
     </Link>
@@ -131,17 +144,12 @@ function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly 
 }
 
 const rowClass = 'flex flex-col items-center gap-1 text-xs text-muted-foreground'
-const lineClass = 'flex min-w-0 items-center justify-center py-0.5'
+const lineClass = 'flex h-5 max-w-full min-w-0 items-center justify-center whitespace-nowrap'
 
 // The threads a bot started or messaged since its last words, a line for each run of one kind.
 export function ThreadMarkers({ botId, markers }: { botId: string; markers: Marker[] }) {
   const metas = useChildThreadMetas(botId)
-  const groups: Marker[][] = []
-  for (const marker of markers) {
-    const previous = groups.at(-1)
-    if (previous?.[0]?.action === marker.action) previous.push(marker)
-    else groups.push([marker])
-  }
+  const groups = markerRuns(markers)
   return (
     <div className={rowClass}>
       {groups.map((group) => (
@@ -153,7 +161,43 @@ export function ThreadMarkers({ botId, markers }: { botId: string; markers: Mark
   )
 }
 
-// What woke the bot: each report of a worker, or one of Jetty's own wakes.
+const pluralReportVerbs: Partial<Record<ChildReport['outcome'], string>> = {
+  asked: 'ask',
+  approval: 'need approval',
+  interrupted: 'were stopped',
+}
+
+function ReportRun({ reports }: { reports: readonly ChildReport[] }) {
+  const outcome = reports[0]!.outcome
+  const { status, verb } = reportOutcomes[outcome]
+  return (
+    <div className={cn(lineClass, 'gap-[5px]')}>
+      {reports.length >= 3 ? (
+        <Popover>
+          <PopoverTrigger className='rounded-sm text-foreground hover:underline'>
+            {reports.length} threads
+          </PopoverTrigger>
+          <PopoverContent className='w-75 gap-0 rounded-sm p-1'>
+            <PopoverTitle className='sr-only'>Thread reports</PopoverTitle>
+            {reports.map((report) => (
+              <MarkerMenuEntry key={report.threadId} marker={report} outcome={status} />
+            ))}
+          </PopoverContent>
+        </Popover>
+      ) : (
+        reports.map((report, index) => (
+          <span key={report.threadId} className='inline-flex min-w-0 items-center gap-[5px]'>
+            {index > 0 && 'and'}
+            <MarkerLink marker={report} outcome={status} />
+          </span>
+        ))
+      )}
+      {reports.length > 1 ? (pluralReportVerbs[outcome] ?? verb) : verb}
+    </div>
+  )
+}
+
+// What woke the bot: runs of worker outcomes, or one of Jetty's own wakes.
 export function WakeMarker({
   reports,
   wake,
@@ -163,18 +207,9 @@ export function WakeMarker({
 }) {
   return (
     <div className={rowClass}>
-      {reports?.map((report, index) => {
-        const { status, verb } = reportOutcomes[report.outcome]
-        return (
-          <div key={`${report.threadId}:${index}`} className={cn(lineClass, 'gap-[5px]')}>
-            <MarkerLink
-              marker={{ threadId: report.threadId, title: report.title }}
-              outcome={status}
-            />
-            {verb}
-          </div>
-        )
-      })}
+      {reportRuns(reports ?? []).map((reports) => (
+        <ReportRun key={reports[0]!.threadId} reports={reports} />
+      ))}
       {wake && (
         <div className={lineClass}>{wake === 'tidy' ? 'Tidied its notes' : 'Checked in'}</div>
       )}

@@ -363,7 +363,7 @@ export function WorkBlock({
     runningSeconds !== undefined && runningSeconds >= 1 ? (
       <span className='inline-flex items-baseline whitespace-pre'>
         {' for '}
-        <RollingDuration seconds={runningSeconds} />
+        <RollingDuration seconds={runningSeconds + (elapsedSeconds ?? 0)} />
       </span>
     ) : duration ? (
       <>
