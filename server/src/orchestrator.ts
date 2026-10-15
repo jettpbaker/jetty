@@ -240,7 +240,6 @@ export function createOrchestrator({
   return Effect.gen(function* () {
     const scope = yield* Effect.scope
     let closing = false
-    const lifecycle = Semaphore.makeUnsafe(1)
     const upkeep = new Map<string, { fiber?: Fiber.Fiber<void> }>()
     const backgroundCompactions = new Map<
       string,
@@ -262,6 +261,7 @@ export function createOrchestrator({
       string,
       {
         admission: Semaphore.Semaphore
+        lifecycle: Semaphore.Semaphore
         publication: Semaphore.Semaphore
         turnId: string | null
         ready: boolean
@@ -281,6 +281,7 @@ export function createOrchestrator({
       if (!value) {
         value = {
           admission: Semaphore.makeUnsafe(1),
+          lifecycle: Semaphore.makeUnsafe(1),
           publication: Semaphore.makeUnsafe(1),
           turnId: null,
           ready: true,
@@ -448,12 +449,15 @@ export function createOrchestrator({
       })
     }
 
-    // Archive and Delete stop the tree's setups before queueing for the permit, which a group
-    // Resume holds through every member's setup.
+    // Ancestors and descendants share a lifecycle permit. Admission still rereads the tree
+    // under each parent's permit, so children created while we were waiting are included.
     function withLifecycle<A, E>(threadId: string, stopping: boolean, action: Effect.Effect<A, E>) {
-      return (stopping ? stopTreeSetups(threadId) : Effect.void).pipe(
-        Effect.andThen(lifecycle.withPermit(action))
-      )
+      return Effect.gen(function* () {
+        if (stopping) yield* stopTreeSetups(threadId)
+        let root = yield* store.requireThread(threadId)
+        while (root.parentThreadId) root = yield* store.requireThread(root.parentThreadId)
+        return yield* state(root.id).lifecycle.withPermit(action)
+      })
     }
 
     function archiveThread(threadId: string, archived: boolean) {
