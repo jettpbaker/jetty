@@ -193,9 +193,12 @@ function estimateSignature(row: ThreadRow) {
 export function estimatesChanged(previous: readonly ThreadRow[], rows: readonly ThreadRow[]) {
   if (previous.length !== rows.length) return true
   for (const [index, row] of rows.entries())
-    if (row !== previous[index] && estimateSignature(row) !== estimateSignature(previous[index]!))
-      return true
+    if (rowEstimateChanged(previous[index]!, row)) return true
   return false
+}
+
+export function rowEstimateChanged(previous: ThreadRow, row: ThreadRow) {
+  return previous !== row && estimateSignature(previous) !== estimateSignature(row)
 }
 
 // Rough estimates count lines from text length instead of laying the text out.

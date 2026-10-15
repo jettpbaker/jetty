@@ -15,7 +15,12 @@ import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { AgentMessageFooter } from '@/components/custom/message_footer'
 import { ScrollToBottom } from '@/components/custom/scroll_to_bottom'
 import { useLayoutCheck } from '@/components/custom/thread_list_check'
-import { clearTextMeasure, estimateRow, estimatesChanged } from '@/components/custom/thread_measure'
+import {
+  clearTextMeasure,
+  estimateRow,
+  estimatesChanged,
+  rowEstimateChanged,
+} from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import { createThreadRows, type BotRows, type ThreadRow } from '@/components/custom/thread_rows'
 import {
@@ -500,9 +505,21 @@ export function ThreadList({
 
   // A new key function makes the virtualizer re-estimate every unmeasured row, so it changes only
   // when an estimate can: a streamed delta leaves the rows' estimates as they were.
+  const previousVirtualizer = useRef<Virtualizer<HTMLDivElement, Element>>(undefined)
   const estimated = useRef(rows)
-  if (rows !== estimated.current && estimatesChanged(estimated.current, rows))
+  if (rows !== estimated.current && estimatesChanged(estimated.current, rows)) {
+    const instance = previousVirtualizer.current
+    if (instance) {
+      const previous = new Map(estimated.current.map((row) => [row.id, row]))
+      for (const row of rows) {
+        const old = previous.get(row.id)
+        // An offscreen row cannot report its new height, such as work that finished and closed.
+        if (old && rowEstimateChanged(old, row) && !instance.elementsCache.get(row.id)?.isConnected)
+          instance.itemSizeCache.delete(row.id)
+      }
+    }
     estimated.current = rows
+  }
   const estimatedRows = estimated.current
   const { getItemKey, estimateSize } = useMemo(
     () => ({
@@ -529,7 +546,6 @@ export function ThreadList({
     })
   }
 
-  const previousVirtualizer = useRef<Virtualizer<HTMLDivElement, Element>>(undefined)
   const previousFirst = useRef(rows[0]?.id)
   const previousCount = useRef(rows.length)
   const movedStart = previousFirst.current !== rows[0]?.id || previousCount.current !== rows.length
