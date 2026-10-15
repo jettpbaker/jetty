@@ -2,7 +2,18 @@ import type { Branch, ThreadMeta } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { cp, lstat, mkdir, readFile, realpath, stat } from 'node:fs/promises'
+import {
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rename as move,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import type { Store, WorktreeRecord } from './store'
@@ -133,21 +144,104 @@ export function createWorktrees(
 ) {
   let closing = false
   const locks = new Map<string, Promise<unknown>>()
+  const fetches = new Map<string, Promise<unknown>>()
   const setups = new Set<ChildProcess>()
   const preparations = new Map<string, { pending: Promise<string>; stop: AbortController }>()
+  const trash = join(home, 'worktrees', '.trash')
+  const discarded = new Set<string>()
+  let deletion: ChildProcess | undefined
   const run = <A>(effect: Effect.Effect<A, StoreError>) => Effect.runPromise(effect)
 
-  // One git mutation at a time per repository, shared by its main checkout and worktrees.
-  async function serialized<A>(cwd: string, action: () => Promise<A>) {
+  async function trashFolder() {
+    await mkdir(trash, { recursive: true })
+    if (!(await lstat(trash)).isDirectory()) throw new Error('Worktree trash is not a directory')
+    return trash
+  }
+
+  function deleteDiscarded() {
+    if (closing || deletion) return
+    const entry = discarded.values().next().value
+    if (!entry) return
+    discarded.delete(entry)
+    // Recursive traversal runs in a separate process, never on Bun's event loop.
+    const child = spawn('rm', ['-rf', '--', join(trash, entry)], { stdio: 'ignore' })
+    deletion = child
+    child.once('error', (error) => console.warn('Worktree trash deletion failed:', error))
+    child.once('close', (code) => {
+      deletion = undefined
+      if (code !== 0 && !closing) console.warn(`Worktree trash deletion exited ${code}: ${entry}`)
+      deleteDiscarded()
+    })
+  }
+
+  function discard(entry: string) {
+    discarded.add(entry)
+    deleteDiscarded()
+  }
+
+  async function discardWorktree(projectId: string, threadId: string, projectPath: string) {
+    const folder = folderOf(projectId, threadId)
+    const entry = await mkdtemp(join(await trashFolder(), 'worktree-'))
+    await writeFile(join(entry, 'recovery.json'), JSON.stringify({ projectId, threadId }))
+    const checkout = join(entry, 'checkout')
+    try {
+      await move(folder, checkout)
+    } catch (error) {
+      discard(basename(entry))
+      throw error
+    }
+    try {
+      // The missing original path makes Git remove only this worktree's metadata.
+      await git(projectPath, 'worktree', 'remove', '--', folder)
+    } catch (error) {
+      await move(checkout, folder)
+      discard(basename(entry))
+      throw error
+    }
+    discard(basename(entry))
+  }
+
+  async function recoverTrash() {
+    for (const entry of await readdir(await trashFolder(), { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^worktree-[a-zA-Z0-9]+$/.test(entry.name)) continue
+      const path = join(trash, entry.name)
+      try {
+        if (!(await isFolder(join(path, 'checkout')))) {
+          discard(entry.name)
+          continue
+        }
+        const recovery = (await readJson(join(path, 'recovery.json'))) as
+          | { projectId: string; threadId: string }
+          | undefined
+        if (recovery) {
+          const folder = folderOf(recovery.projectId, recovery.threadId)
+          const project = await run(store.getProject(recovery.projectId))
+          if (project && !(await isFolder(folder))) {
+            await serialized(project.path, async () => {
+              const listed = await git(project.path, 'worktree', 'list', '--porcelain', '-z')
+              if (listed.includes(`worktree ${folder}\0`))
+                await git(project.path, 'worktree', 'remove', '--', folder)
+            })
+          }
+        }
+        discard(entry.name)
+      } catch (error) {
+        console.warn(`Worktree trash recovery failed: ${entry.name}`, error)
+      }
+    }
+  }
+
+  // Worktree/branch mutations share a repository permit; network fetches have their own.
+  async function serialized<A>(cwd: string, action: () => Promise<A>, pendingByRepo = locks) {
     const repo = await realpath(
       await git(cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir')
     )
-    const pending = (locks.get(repo) ?? Promise.resolve()).catch(() => {}).then(action)
-    locks.set(repo, pending)
+    const pending = (pendingByRepo.get(repo) ?? Promise.resolve()).catch(() => {}).then(action)
+    pendingByRepo.set(repo, pending)
     try {
       return await pending
     } finally {
-      if (locks.get(repo) === pending) locks.delete(repo)
+      if (pendingByRepo.get(repo) === pending) pendingByRepo.delete(repo)
     }
   }
 
@@ -221,7 +315,7 @@ export function createWorktrees(
     const currentBranch = await git(cwd, 'branch', '--show-current')
     const remote = !localOnly && (await hasOrigin(cwd))
     const base = localOnly ? currentBranch : await defaultRef(cwd)
-    if (remote) await serialized(cwd, () => git(cwd, 'fetch', 'origin', '--prune'))
+    if (remote) await serialized(cwd, () => git(cwd, 'fetch', 'origin', '--prune'), fetches)
     const checkedOut = localOnly ? new Set<string>() : await worktreeBranches(cwd)
     const refs = await git(
       cwd,
@@ -585,14 +679,7 @@ export function createWorktrees(
           record.branch = current
           record.temporaryBranch = null
         }
-        await git(
-          project.path,
-          'worktree',
-          'remove',
-          ...(deleting ? ['--force'] : []),
-          '--',
-          folder
-        )
+        await discardWorktree(project.id, threadId, project.path)
       }
       await git(project.path, 'worktree', 'prune')
       if (deleting && record.branch && (await mergedAway(project.path, record.branch, thread)))
@@ -616,15 +703,17 @@ export function createWorktrees(
     const { thread, project } = await locate(threadId)
     if (thread.environment !== 'worktree') return
     const folder = folderOf(project.id, threadId)
+    const initial = await run(store.getWorktree(threadId))
+    if (!initial?.temporaryBranch || initial.branch !== initial.temporaryBranch) return
+    const remoteHeads = (await hasOrigin(project.path))
+      ? (await git(project.path, 'ls-remote', '--heads', 'origin'))
+          .split('\n')
+          .map((line) => line.split('\t')[1]?.replace('refs/heads/', ''))
+      : []
     await serialized(project.path, async () => {
       const record = await run(store.getWorktree(threadId))
       const temporary = record?.temporaryBranch
       if (!record || !temporary || record.branch !== temporary) return
-      const remoteHeads = (await hasOrigin(project.path))
-        ? (await git(project.path, 'ls-remote', '--heads', 'origin'))
-            .split('\n')
-            .map((line) => line.split('\t')[1]?.replace('refs/heads/', ''))
-        : []
       // Local and read after the remote round trip, so an agent's `git push -u` that finished
       // meanwhile still stops the rename.
       const current = await git(folder, 'branch', '--show-current')
@@ -663,6 +752,7 @@ export function createWorktrees(
   }
 
   async function reconcile() {
+    await recoverTrash()
     for (const { threadId, record } of await run(store.listWorktrees())) {
       // An unarchived thread's removed worktree that was never recreated: a restart cut its Resume.
       const stranded =
@@ -692,6 +782,12 @@ export function createWorktrees(
 
   async function shutdown() {
     closing = true
+    const child = deletion
+    if (child)
+      await new Promise<void>((resolve) => {
+        child.once('close', () => resolve())
+        child.kill('SIGKILL')
+      })
     for (const child of setups) killSetup(child)
     await Promise.allSettled([...preparations.values()].map(({ pending }) => pending))
   }
@@ -706,7 +802,7 @@ export function createWorktrees(
     defaultEnvironment,
     resolveRef: async (cwd: string, ref?: string) => {
       await requireGit(cwd)
-      return serialized(cwd, () => resolveRef(cwd, ref))
+      return serialized(cwd, () => resolveRef(cwd, ref), fetches)
     },
     root,
     prepare,
