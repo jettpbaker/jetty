@@ -27,6 +27,14 @@ export function checkCounts(pr: PrPull) {
 export function countLabel(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
+// GitHub lets anyone with write access edit a pull request; Jetty leaves its title, description,
+// status and reviewers to whoever opened it. Merging stays with GitHub's permission.
+export function editable(pr: PrPull) {
+  const viewer = pr.data.viewer?.login.toLowerCase()
+  return (
+    !!pr.data.viewerCanUpdate && (viewer === undefined || viewer === pr.author.login.toLowerCase())
+  )
+}
 export function mergeReason(pr: PrPull) {
   const data = pr.data
   if (pr.state === 'draft') return 'Draft · publish when ready for review.'

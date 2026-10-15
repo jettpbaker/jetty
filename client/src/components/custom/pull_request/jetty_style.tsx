@@ -115,6 +115,7 @@ import {
   checkCounts,
   countLabel,
   duration,
+  editable,
   excerpt,
   filePatch,
   failed,
@@ -653,7 +654,7 @@ function StatusMenu({ pr }: { pr: PrPull }) {
             variant='ghost'
             size='sm'
             className='h-7 rounded-sm px-0.75 font-normal'
-            disabled={!pr.data.viewerCanUpdate}
+            disabled={!editable(pr)}
             aria-label={`Status: ${prPresentation[pr.state].label}`}
           />
         }
@@ -789,9 +790,11 @@ function Properties({ pr }: { pr: PrPull }) {
       requested={pr.data.pull.requested_reviewers}
       suggested={pr.data.suggestedReviewers}
       disabledReason={
-        pr.data.viewerCanRequestReviews
-          ? undefined
-          : "You can't request reviewers for this pull request"
+        !pr.data.viewerCanRequestReviews
+          ? "You can't request reviewers for this pull request"
+          : editable(pr)
+            ? undefined
+            : `Only ${personName(pr.author)} can request reviewers`
       }
       onToggle={(user, request) => setReviewRequest(ref, user, request)}
     />
@@ -2178,7 +2181,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       <Button
                         size='sm'
                         className='rounded-sm'
-                        disabled={!pr.data.viewerCanUpdate}
+                        disabled={!editable(pr)}
                         onClick={() => setState('open')}
                       >
                         Ready for review
@@ -2221,7 +2224,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             <h2 className='text-2xl font-medium'>
                               <TitleEditor
                                 title={pr.title}
-                                disabled={!pr.data.viewerCanUpdate}
+                                disabled={!editable(pr)}
                                 onSave={(next) => void actions.title(next)}
                               />
                             </h2>
@@ -2258,11 +2261,9 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             <DescriptionEditor
                               attachSlot={attachSlot}
                               identity={`${ref.repo}#${ref.number}`}
-                              onSave={
-                                pr.data.viewerCanUpdate ? (body) => actions.body(body) : undefined
-                              }
-                              onUpload={pr.data.viewerCanUpdate ? actions.upload : undefined}
-                              disabled={!pr.data.viewerCanUpdate}
+                              onSave={editable(pr) ? (body) => actions.body(body) : undefined}
+                              onUpload={editable(pr) ? actions.upload : undefined}
+                              disabled={!editable(pr)}
                               body={pr.body}
                               references={{
                                 repo: repoPath(pr),
