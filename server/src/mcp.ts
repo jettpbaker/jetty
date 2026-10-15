@@ -1500,48 +1500,45 @@ export function createMcpHandler(
             })
           )
       )
-      if (!bot) {
-        const media = await run(
-          Effect.gen(function* () {
-            const caller = yield* accessible(identity, identity.threadId)
-            const project = yield* store.getProject(caller.projectId)
-            if (!project)
-              return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
-            const host = {
-              attachments,
-              resolveAttachment: (id: string, kind: 'image' | 'video') =>
-                Effect.gen(function* () {
-                  const found = yield* store.reserveAttachment(caller.id, id, kind)
-                  if (yield* attachments.resolve(id)) return found
-                  return yield* Effect.fail(
-                    new StoreError('not_found', `No ${kind} attachment ${id} in this project`)
-                  )
-                }),
-              projectPath: worktrees
-                ? yield* Effect.promise(() => worktrees.root(caller.id))
-                : project.path,
-              turnId: () => orch.currentTurn(caller.id) ?? '',
-              emit: (
-                event: Parameters<typeof orch.emitMedia>[2],
-                turnId: string,
-                onCommit: Effect.Effect<void>
-              ) => orch.emitMedia(caller.id, turnId, event, onCommit),
-            }
-            return [yield* createSendImagesTool(host), yield* createSendVideoTool(host)] as const
-          })
-        )
-        const [images, video] = media
-        server.registerTool(
-          images.name,
-          { description: images.description, inputSchema: images.inputSchema },
-          images.handler
-        )
-        server.registerTool(
-          video.name,
-          { description: video.description, inputSchema: video.inputSchema },
-          video.handler
-        )
-      }
+      const media = await run(
+        Effect.gen(function* () {
+          const caller = yield* accessible(identity, identity.threadId)
+          const project = yield* store.getProject(caller.projectId)
+          if (!project) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
+          const host = {
+            attachments,
+            resolveAttachment: (id: string, kind: 'image' | 'video') =>
+              Effect.gen(function* () {
+                const found = yield* store.reserveAttachment(caller.id, id, kind)
+                if (yield* attachments.resolve(id)) return found
+                return yield* Effect.fail(
+                  new StoreError('not_found', `No ${kind} attachment ${id} in this project`)
+                )
+              }),
+            projectPath: worktrees
+              ? yield* Effect.promise(() => worktrees.root(caller.id))
+              : project.path,
+            turnId: () => orch.currentTurn(caller.id) ?? '',
+            emit: (
+              event: Parameters<typeof orch.emitMedia>[2],
+              turnId: string,
+              onCommit: Effect.Effect<void>
+            ) => orch.emitMedia(caller.id, turnId, event, onCommit),
+          }
+          return [yield* createSendImagesTool(host), yield* createSendVideoTool(host)] as const
+        })
+      )
+      const [images, video] = media
+      server.registerTool(
+        images.name,
+        { ...toolMeta, description: images.description, inputSchema: images.inputSchema },
+        images.handler
+      )
+      server.registerTool(
+        video.name,
+        { ...toolMeta, description: video.description, inputSchema: video.inputSchema },
+        video.handler
+      )
       if (!bot && desktops)
         server.registerTool(
           'desktop_session',

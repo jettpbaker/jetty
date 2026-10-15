@@ -203,7 +203,7 @@ test('bots only receive their own safe tools', async () => {
   )
   expect(workerTools).not.toContain('search_wiki')
   expect(workerTools).not.toContain('search_threads')
-  for (const forbidden of ['link_pull_request', 'ask_parent', 'send_images', 'send_video'])
+  for (const forbidden of ['link_pull_request', 'ask_parent'])
     expect(names).not.toContain(forbidden)
 })
 
