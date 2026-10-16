@@ -186,10 +186,10 @@ test('bots only receive their own safe tools', async () => {
   expect(names).not.toContain('say')
   expect(names).not.toContain('react')
   expect(SEARCH_WIKI_DESCRIPTION).toBe(
-    'Hybrid search over your wiki home (pages, logs, brief): BM25 keyword scores merged with EmbeddingGemma embedding similarity. Returns the top k chunks (default 5), each with its path and line range.'
+    'Keyword search over your wiki home (pages, logs, brief), ranked by BM25. Returns the top k chunks (default 5), each with its path and line range.'
   )
   expect(SEARCH_THREADS_DESCRIPTION).toBe(
-    "Hybrid search over your chat and your workers' threads: BM25 keyword scores merged with EmbeddingGemma embedding similarity. Returns the top k message chunks (default 5), each with its thread, author and date. Older results may since have changed."
+    "Keyword search over your chat and your workers' threads, ranked by BM25. Returns the top k message chunks (default 5), each with its thread, author and date. Older results may since have changed."
   )
   expect(names).toContain('search_wiki')
   expect(names).toContain('search_threads')

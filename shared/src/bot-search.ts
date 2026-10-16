@@ -2,10 +2,10 @@
 // agent and never the client. The descriptions are Jett's wording, verbatim.
 
 export const SEARCH_WIKI_DESCRIPTION =
-  'Hybrid search over your wiki home (pages, logs, brief): BM25 keyword scores merged with EmbeddingGemma embedding similarity. Returns the top k chunks (default 5), each with its path and line range.'
+  'Keyword search over your wiki home (pages, logs, brief), ranked by BM25. Returns the top k chunks (default 5), each with its path and line range.'
 
 export const SEARCH_THREADS_DESCRIPTION =
-  "Hybrid search over your chat and your workers' threads: BM25 keyword scores merged with EmbeddingGemma embedding similarity. Returns the top k message chunks (default 5), each with its thread, author and date. Older results may since have changed."
+  "Keyword search over your chat and your workers' threads, ranked by BM25. Returns the top k message chunks (default 5), each with its thread, author and date. Older results may since have changed."
 
 export const SEARCH_DEFAULT_K = 5
 export const SEARCH_MAX_K = 20
@@ -19,7 +19,7 @@ export type WikiSearchHit = {
   path: string
   startLine: number
   endLine: number
-  // 0.7 × cosine + 0.3 × squashed BM25, rounded to 3 places.
+  // Squashed BM25 score, rounded to 3 places.
   score: number
   text: string
 }

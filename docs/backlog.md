@@ -243,9 +243,7 @@ Everything below is for one combined review of the chat, not separate ports.
   - tagging or grouping threads that are about the same thing;
   - a daily lint pass that archives threads agents forgot to (merged PR, done,
     idle);
-  - bot memory tidy passes;
-  - embedding search over threads with a local model (EmbeddingGemma ran on
-    CPU at about 35ms a query in the bot sandbox).
+  - bot memory tidy passes.
 
   Ground rules: these run in the background and are cached, never on the
   critical path of a click. They're reversible (undo, not confirm) and start
