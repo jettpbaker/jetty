@@ -1,5 +1,7 @@
 import { Schema } from 'effect'
 
+import type { PullRequestListItem } from './wire'
+
 export const GitHubUser = Schema.Struct({
   login: Schema.String,
   avatar_url: Schema.String,
@@ -295,3 +297,43 @@ export const PullRequestData = Schema.Struct({
   viewerDefaultMergeMethod: Schema.Literals(['MERGE', 'SQUASH', 'REBASE']),
 })
 export type PullRequestData = Schema.Schema.Type<typeof PullRequestData>
+
+export function patchPullRequestListItem(
+  item: PullRequestListItem,
+  data: PullRequestData
+): PullRequestListItem {
+  const { pull } = data
+  const patched: PullRequestListItem = {
+    ...item,
+    state: pull.merged
+      ? 'merged'
+      : pull.state === 'closed'
+        ? 'closed'
+        : pull.draft
+          ? 'draft'
+          : 'open',
+    title: pull.title,
+    url: pull.html_url,
+    author: {
+      login: pull.user.login,
+      avatar_url: pull.user.avatar_url,
+      ...(pull.user.name ? { name: pull.user.name } : {}),
+    },
+    checks:
+      rollupChecks[
+        displayedRollupState(
+          checkSummary(data.checkRuns),
+          data.checkRollupState,
+          data.truncatedConnections?.includes('checkRuns')
+        )
+      ],
+    reviewDecision: data.reviewDecision,
+    mergeable: data.mergeable,
+    mergeStateStatus: data.mergeStateStatus,
+    additions: pull.additions,
+    deletions: pull.deletions,
+    headSha: pull.head.sha,
+    updatedAt: Date.parse(pull.updated_at) || 0,
+  }
+  return JSON.stringify(item) === JSON.stringify(patched) ? item : patched
+}

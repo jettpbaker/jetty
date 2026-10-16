@@ -11,7 +11,7 @@ import type {
   ThreadMeta,
 } from '@jetty/shared/wire'
 
-import { PullRequestData, rollupChecks } from '@jetty/shared/pull-request'
+import { PullRequestData, patchPullRequestListItem, rollupChecks } from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { PullRequestReference } from './pull-request-graphql'
@@ -1904,6 +1904,9 @@ export function createPullRequests(store: Store, hub: Hub) {
   let linksCursor: PullRequestRef | undefined
   let observer: PullRequestObserver | undefined
 
+  let listObserver: (snapshot: PullRequestSnapshot) => Effect.Effect<void, StoreError> = () =>
+    Effect.void
+
   function revision(key: string) {
     return revisions.get(key) ?? 0
   }
@@ -2063,7 +2066,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     return promise
   }
 
-  // Saves a fetch and pushes it to the PR view and to every thread linking it (sidebar marks).
+  // Saves a fetch and pushes it to the PR view, lists, and every thread linking it.
   // The PR watcher compares it with the read before it.
   function publish(ref: PullRequestRef, fetched: PullRequestSnapshot, fetchedRevision: number) {
     return publication.withPermit(
@@ -2085,6 +2088,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         )
         // The stored snapshot keeps the last good data when this read failed.
         const snapshot = decorate(yield* store.getPullRequest(ref.repo, ref.number))
+        if (fetched.status === 'ready' && fetched.data) yield* listObserver(snapshot)
         hub.pushPullRequest(snapshot)
         if (snapshot.data && watches.has(prKey(ref))) markGeneratedHeads(ref, snapshot.data)
         for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
@@ -2515,6 +2519,7 @@ export function createPullRequests(store: Store, hub: Hub) {
                     .pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
               })
             )
+            yield* listObserver(decorate(snapshot))
             hub.pushPullRequest(decorate(snapshot))
             for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
               const thread = yield* store.requireThread(threadId)
@@ -2937,6 +2942,9 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   return {
+    observeLists(next: typeof listObserver) {
+      listObserver = next
+    },
     observe(next: PullRequestObserver) {
       observer = next
     },
@@ -3025,13 +3033,14 @@ function listItem(value: unknown): PullRequestListItem | null {
     headSha: string(node.headRefOid),
     title: string(node.title),
     url: string(node.url),
-    state: node.merged
-      ? 'merged'
-      : node.state === 'CLOSED'
-        ? 'closed'
-        : node.isDraft
-          ? 'draft'
-          : 'open',
+    state:
+      node.merged || node.state === 'MERGED'
+        ? 'merged'
+        : node.state === 'CLOSED'
+          ? 'closed'
+          : node.isDraft
+            ? 'draft'
+            : 'open',
     ...(checks ? { checks } : {}),
     author: { login, avatar_url, ...(name ? { name } : {}) },
     additions: Number(node.additions) || 0,
@@ -3103,6 +3112,10 @@ function listSignature(value: unknown, tabs: readonly PullRequestListTab[], tabI
             return [
               node.id,
               node.number,
+              node.title,
+              node.additions,
+              node.deletions,
+              node.merged,
               record(node.repository).nameWithOwner,
               node.headRefOid,
               node.updatedAt,
@@ -3133,7 +3146,8 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
       query:${JSON.stringify(search.query)},type:ISSUE,first:${listLimit}
     ) {
       issueCount nodes { ... on PullRequest {
-        id number repository { nameWithOwner } headRefOid updatedAt closedAt state isDraft
+        id number title additions deletions merged repository { nameWithOwner }
+        headRefOid updatedAt closedAt state isDraft
         reviewDecision mergeStateStatus mergeable
       } }
     }`
@@ -3312,10 +3326,12 @@ export function createPullRequestLists(
 
   const inFlight = new Map<PullRequestListTab, Promise<PullRequestList>>()
 
-  const publication = {
+  const refreshing = {
     'for-you': Semaphore.makeUnsafe(1),
     created: Semaphore.makeUnsafe(1),
   }
+  const publication = Semaphore.makeUnsafe(1)
+  const publishedAt = new Map<string, number>()
   const queued = new Map<PullRequestListTab, (list: PullRequestList) => void>()
   let flushQueued = false
 
@@ -3331,6 +3347,33 @@ export function createPullRequestLists(
       rateLimit: githubRateLimitHealth(interval && interval * cadenceMultiplier()),
     }
   }
+
+  pulls.observeLists((snapshot) =>
+    Effect.gen(function* () {
+      const data = snapshot.data
+      if (!data) return
+      publishedAt.set(prKey(snapshot), Date.now())
+      for (const tab of ['for-you', 'created'] as const) {
+        const list = yield* store.getPullRequestList(tab)
+        let changed = false
+        const items = list.items?.map((item) => {
+          if (
+            prKey(item) !== prKey(snapshot) ||
+            (!snapshot.pendingOperation && Date.parse(data.pull.updated_at) < item.updatedAt)
+          )
+            return item
+          const patched = patchPullRequestListItem(item, data)
+          if (patched === item) return item
+          changed = true
+          return patched
+        })
+        if (!changed) continue
+        const patched = { ...list, items }
+        yield* store.savePullRequestList(patched)
+        hub.pushPullRequestList(decorate(patched))
+      }
+    }).pipe(publication.withPermit)
+  )
 
   // A list that never loaded can't while GitHub backs off, so it says why instead of loading.
   function get(tab: PullRequestListTab) {
@@ -3382,7 +3425,9 @@ export function createPullRequestLists(
 
   function refresh(tab: PullRequestListTab, maxAge = 0) {
     return Effect.gen(function* () {
+      const startedAt = Date.now()
       const cached = yield* get(tab)
+      let unchanged = false
       if (backingOff()) return cached
       if (cached.refreshedAt && Date.now() - cached.refreshedAt < maxAge * cadenceMultiplier())
         return cached
@@ -3393,18 +3438,42 @@ export function createPullRequestLists(
         Effect.matchEffect({
           onFailure: (error) => Effect.succeed(failedList(tab, error, 'probe')),
           onSuccess: (signature) => {
-            const unchanged =
-              cached.status === 'ready' && cached.items && signatures.get(tab) === signature
+            unchanged =
+              cached.status === 'ready' && !!cached.items && signatures.get(tab) === signature
             return unchanged
               ? Effect.succeed({ ...cached, refreshedAt: Date.now() })
               : Effect.promise(() => load(tab))
           },
         })
       )
-      yield* store.savePullRequestList(loaded)
-      // The stored list keeps the last good items when this read failed.
-      const list = yield* store.getPullRequestList(tab)
-      const decorated = decorate(list)
+      const decorated = yield* publication.withPermit(
+        Effect.gen(function* () {
+          // A PR can publish while the probe or full search is in flight.
+          const latest = yield* store.getPullRequestList(tab)
+          const next = unchanged ? { ...latest, refreshedAt: loaded.refreshedAt } : loaded
+          const items = yield* Effect.forEach(next.items ?? [], (item) =>
+            Effect.gen(function* () {
+              const snapshot = yield* pulls.get(item)
+              if (
+                snapshot.data &&
+                (snapshot.pendingOperation ||
+                  Date.parse(snapshot.data.pull.updated_at) > item.updatedAt ||
+                  (publishedAt.get(prKey(item)) ?? 0) >= startedAt)
+              )
+                return patchPullRequestListItem(item, snapshot.data)
+              return item
+            })
+          )
+          yield* store.savePullRequestList({
+            ...next,
+            ...(next.items ? { items } : {}),
+          })
+          const list = decorate(yield* store.getPullRequestList(tab))
+          hub.pushPullRequestList(list)
+          return list
+        })
+      )
+      const list = decorated
       if (list.status === 'ready') {
         if (tab === 'for-you')
           yield* guides.prefetch(list.items ?? []).pipe(
@@ -3421,9 +3490,8 @@ export function createPullRequestLists(
             Effect.forkIn(scope)
           )
       }
-      hub.pushPullRequestList(decorated)
       return decorated
-    }).pipe(publication[tab].withPermit)
+    }).pipe(refreshing[tab].withPermit)
   }
 
   // Every focus change runs this, so it catches up only lists older than the blurred cadence.
