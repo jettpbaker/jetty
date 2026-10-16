@@ -12,6 +12,7 @@ import type {
 
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
+import { patchPullRequestListItem } from '@jetty/shared/pull-request'
 import { useNavigate } from '@tanstack/react-router'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
@@ -38,12 +39,35 @@ const cacheAtom = Atom.family((_key: string) =>
   Atom.make<PullRequestSnapshot | undefined>(undefined).pipe(Atom.setIdleTTL('30 minutes'))
 )
 
+function cachePullRequest(registry: Registry, snapshot: PullRequestSnapshot) {
+  registry.set(cacheAtom(pullRequestKey(snapshot)), snapshot)
+  const data = snapshot.data
+  if (!data || (snapshot.status !== 'ready' && !snapshot.pendingOperation)) return
+  for (const tab of ['for-you', 'created'] as const) {
+    const atom = listCacheAtom(tab)
+    const list = registry.get(atom)
+    if (!list?.items) continue
+    let changed = false
+    const items = list.items.map((item) => {
+      if (
+        pullRequestKey(item) !== pullRequestKey(snapshot) ||
+        (!snapshot.pendingOperation && Date.parse(data.pull.updated_at) < item.updatedAt)
+      )
+        return item
+      const patched = patchPullRequestListItem(item, data)
+      if (patched !== item) changed = true
+      return patched
+    })
+    if (changed) registry.set(atom, { ...list, items })
+  }
+}
+
 // Mounted only while a PR view is on screen; the server re-checks GitHub while subscribed.
 const liveAtom = Atom.family((key: string) =>
   Atom.make((get) => {
     const { repo, number } = parseKey(key)
     return subscribe(get, (connection) => connection.subscribePullRequest(repo, number)).pipe(
-      Stream.tap((snapshot) => Effect.sync(() => get.set(cacheAtom(key), snapshot)))
+      Stream.tap((snapshot) => Effect.sync(() => cachePullRequest(get.registry, snapshot)))
     )
   }).pipe(Atom.setIdleTTL('5 seconds'))
 )
@@ -68,7 +92,7 @@ const fetchedAtom = Atom.family((key: string) =>
   Atom.make((get) =>
     get.result(connectionAtom).pipe(
       Effect.flatMap((connection) => connection.request('pullRequest.prefetch', parseKey(key))),
-      Effect.tap((snapshot) => Effect.sync(() => get.set(cacheAtom(key), snapshot)))
+      Effect.tap((snapshot) => Effect.sync(() => cachePullRequest(get.registry, snapshot)))
     )
   ).pipe(Atom.setIdleTTL('1 minute'))
 )
@@ -193,7 +217,7 @@ function refreshPullRequest(registry: Registry, ref: PullRequestRef) {
   setRefreshing(registry, key, true)
   run(registry, (connection) =>
     connection.request('pullRequest.refresh', ref).pipe(
-      Effect.tap((snapshot) => Effect.sync(() => registry.set(cacheAtom(key), snapshot))),
+      Effect.tap((snapshot) => Effect.sync(() => cachePullRequest(registry, snapshot))),
       Effect.ensuring(Effect.sync(() => setRefreshing(registry, key, false)))
     )
   )
@@ -298,7 +322,7 @@ function setReviewRequest(
       ),
       Effect.match({
         onSuccess: (snapshot) => {
-          registry.set(cacheAtom(key), snapshot)
+          cachePullRequest(registry, snapshot)
           clearWhenShown()
         },
         onFailure: (error) => {
@@ -336,8 +360,8 @@ const liveListAtom = Atom.family((tab: PullRequestListTab) =>
 
 const listAtom = Atom.family((tab: PullRequestListTab) =>
   Atom.readable((get) => {
-    const cached = get(listCacheAtom(tab))
-    return AsyncResult.getOrElse(get(liveListAtom(tab)), () => cached)
+    get(liveListAtom(tab))
+    return get(listCacheAtom(tab))
   })
 )
 
@@ -356,7 +380,7 @@ function prefetchPullRequestList(registry: Registry, tab: PullRequestListTab) {
           for (const snapshot of snapshots) {
             const cache = cacheAtom(pullRequestKey(snapshot))
             if ((registry.get(cache)?.refreshedAt ?? 0) < (snapshot.refreshedAt ?? 0))
-              registry.set(cache, snapshot)
+              cachePullRequest(registry, snapshot)
           }
         })
       )
@@ -578,7 +602,7 @@ function requestPullRequest<E>(
   return Effect.runPromise(
     AtomRegistry.getResult(registry, connectionAtom).pipe(
       Effect.flatMap(request),
-      Effect.tap((snapshot) => Effect.sync(() => registry.set(cacheAtom(key), snapshot)))
+      Effect.tap((snapshot) => Effect.sync(() => cachePullRequest(registry, snapshot)))
     )
   )
     .then(
