@@ -34,7 +34,7 @@ const BINARY_EXT = new Set([
 
 const TEXT_EXT = new Set(['.md', '.txt', '.csv', '.json', '.yaml', '.yml', '.log', '.tsv'])
 
-export type MemoryFile = { rel: string; abs: string; bytes: Uint8Array }
+export type MemoryFile = { rel: string; abs: string; bytes: Uint8Array; modifiedAt: number }
 
 export function hashBytes(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
@@ -100,13 +100,16 @@ async function readTextFile(
     if (ext && !TEXT_EXT.has(ext)) return null
   }
   let bytes: Uint8Array
+  let modifiedAt: number
   try {
-    if (!(await lstat(abs)).isFile()) return null
+    const metadata = await lstat(abs)
+    if (!metadata.isFile()) return null
+    modifiedAt = metadata.mtimeMs
     bytes = new Uint8Array(await readFile(abs))
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw err
   }
   if (isBinary(rel, bytes)) return null
-  return { rel, abs, bytes }
+  return { rel, abs, bytes, modifiedAt }
 }

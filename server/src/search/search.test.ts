@@ -4,45 +4,17 @@ import { Database } from 'bun:sqlite'
 import { expect, test } from 'bun:test'
 import { Effect } from 'effect'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
-import type { EmbedClient } from './types'
 
 import { botStamp } from '../orchestrator'
 import { openTestStore } from '../store-fixture'
-import { tokenize } from './bm25'
 import { recall, reindex } from './lib'
 import { reindexThreads, recallThreads, threadCursors, searchableMessages } from './threads'
-import { l2 } from './vec'
-
-function hashEmbedder(): EmbedClient & { docs: number } {
-  const embed = (text: string) => {
-    const vector = new Float32Array(32)
-    for (const token of tokenize(text)) {
-      let hash = 2166136261
-      for (let i = 0; i < token.length; i++) hash = Math.imul(hash ^ token.charCodeAt(i), 16777619)
-      vector[Math.abs(hash) % vector.length] = vector[Math.abs(hash) % vector.length]! + 1
-    }
-    return l2(vector)
-  }
-  return {
-    id: 'hash-test',
-    docs: 0,
-    async embedDocuments(items) {
-      this.docs += items.length
-      return items.map((item) => embed(`${item.title}\n${item.text}`))
-    },
-    async embedQuery(query) {
-      return embed(query)
-    },
-  }
-}
 
 test('reindex is incremental and skips binary files', async () => {
-  await mkdir(join(import.meta.dir, '.tmp'), { recursive: true })
-  const home = await mkdtemp(join(import.meta.dir, '.tmp', 'home-'))
+  const home = await mkdtemp(join(tmpdir(), 'jetty-search-home-'))
   const db = join(home, 'recall.sqlite')
-  const embedder = hashEmbedder()
   try {
     await mkdir(join(home, 'pages'), { recursive: true })
     await mkdir(join(home, 'log'), { recursive: true })
@@ -71,27 +43,25 @@ Ordinary notes about a checklist, a staging host, and a Tuesday meeting. Nothing
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00])
     )
 
-    const first = await reindex(home, db, { embed: embedder })
-    expect(first.embedded).toBe(4)
+    const first = await reindex(home, db)
+    expect(first.indexed).toBe(4)
     expect(first.removed).toBe(0)
-    const callsAfterFirst = embedder.docs
 
-    const hits = await recall(db, 'where is the zephyr quartz mnemonic', 3, { embed: embedder })
+    const hits = await recall(db, 'where is the zephyr quartz mnemonic', 3)
     expect(hits[0]?.path).toBe('pages/alpha.md')
     expect(hits[0]?.text).toContain('zephyr quartz mnemonic')
 
-    const second = await reindex(home, db, { embed: embedder })
-    expect(second.embedded).toBe(0)
+    const second = await reindex(home, db)
+    expect(second.indexed).toBe(0)
     expect(second.unchanged).toBe(4)
-    expect(embedder.docs).toBe(callsAfterFirst)
 
     await writeFile(join(home, 'pages/alpha.md'), alpha + '\nAdded a trailing decision.\n')
-    const third = await reindex(home, db, { embed: embedder })
-    expect(third.embedded).toBe(1)
+    const third = await reindex(home, db)
+    expect(third.indexed).toBe(1)
     expect(third.unchanged).toBe(3)
 
     await rm(join(home, 'pages/beta.md'))
-    const fourth = await reindex(home, db, { embed: embedder })
+    const fourth = await reindex(home, db)
     expect(fourth.removed).toBe(1)
 
     const stored = new Database(db)
@@ -106,24 +76,29 @@ Ordinary notes about a checklist, a staging host, and a Tuesday meeting. Nothing
 })
 
 test('thread indexing persists message ids and drops threads outside scope', async () => {
-  const home = await mkdtemp('/private/tmp/jetty-search-')
+  const home = await mkdtemp(join(tmpdir(), 'jetty-search-'))
   const path = join(home, 'search.sqlite')
-  const embed = hashEmbedder()
   const thread = { id: 'worker', title: 'Zephyr quartz worker', archived: true, lastSeq: 1 }
   const message = {
     id: 'one',
     threadId: thread.id,
     author: thread.title,
+    assistant: true,
     date: 'Thu, 8 Oct 2026, 15:41',
     createdAt: 1,
     text: 'The zephyr quartz error code is ZQ-77.',
   }
   try {
     expect(
-      (await reindexThreads(path, [thread], [{ ...thread, messages: [message] }], embed)).embedded
+      (
+        await reindexThreads(
+          path,
+          [thread],
+          [{ ...thread, changedIds: ['one'], messages: [message] }]
+        )
+      ).indexed
     ).toBe(1)
-    const count = embed.docs
-    expect(threadCursors(path, embed.id)).toEqual({ worker: { lastSeq: 1, messageIds: ['one'] } })
+    expect(threadCursors(path)).toEqual({ worker: { lastSeq: 1 } })
     expect(
       (
         await reindexThreads(
@@ -133,27 +108,26 @@ test('thread indexing persists message ids and drops threads outside scope', asy
             {
               ...thread,
               lastSeq: 2,
-              messages: [message, { ...message, id: 'two', text: 'The follow-up fixed ZQ-77.' }],
+              changedIds: ['two'],
+              messages: [{ ...message, id: 'two', text: 'The follow-up fixed ZQ-77.' }],
             },
-          ],
-          embed
+          ]
         )
-      ).embedded
+      ).indexed
     ).toBe(1)
-    expect(embed.docs).toBe(count + 1)
-    expect((await recallThreads(path, 'zephyr quartz', 5, embed))[0]?.messageId).toBe('one')
+    expect((await recallThreads(path, 'zephyr quartz', 5))[0]?.messageId).toBe('one')
     expect(
-      (await recallThreads(path, 'zephyr quartz', 1, embed, ['one'])).map((hit) => hit.messageId)
-    ).toEqual(['two'])
-    await reindexThreads(path, [], [], embed)
-    expect(await recallThreads(path, 'zephyr quartz', 5, embed)).toEqual([])
+      (await recallThreads(path, 'zephyr quartz', 1, ['one'])).map((hit) => hit.messageId)
+    ).toEqual([])
+    await reindexThreads(path, [], [])
+    expect(await recallThreads(path, 'zephyr quartz', 5)).toEqual([])
   } finally {
     await rm(home, { recursive: true, force: true })
   }
 })
 
 test('thread search excludes other bots, user threads, private notes and reports', async () => {
-  const home = await mkdtemp('/private/tmp/jetty-search-scope-')
+  const home = await mkdtemp(join(tmpdir(), 'jetty-search-scope-'))
   const { store, close } = await openTestStore(home)
   try {
     for (const id of ['bot-a', 'bot-b']) {

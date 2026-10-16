@@ -1,24 +1,22 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
-import { Database } from 'bun:sqlite'
+import { setImmediate } from 'node:timers/promises'
 
-import type { EmbedClient } from './types'
-
-import { bm25Scores } from './bm25'
+import { bm25Scores, squashBm25 } from './bm25'
 import { chunkProseText } from './chunk'
-import { hybridScore } from './lib'
-import { blobToFloats, dot, floatsToBlob } from './vec'
+import { openSearchDb } from './db'
 
 export type SearchMessage = {
   id: string
   threadId: string
   author: string
+  assistant: boolean
   date: string
   createdAt: number
   text: string
 }
 export type SearchThread = { id: string; title: string; archived: boolean; lastSeq: number }
-export type ThreadUpdate = SearchThread & { messages: SearchMessage[] }
+export type ThreadUpdate = SearchThread & { changedIds: string[]; messages: SearchMessage[] }
 
 export function searchableMessages(
   items: readonly ThreadItem[],
@@ -46,6 +44,7 @@ export function searchableMessages(
       id: item.id,
       threadId: thread.id,
       author,
+      assistant: item.kind === 'assistant_message',
       date: stamp(new Date(item.createdAt)).slice(1, -1),
       createdAt: item.createdAt,
       text: item.text,
@@ -71,94 +70,30 @@ export function archivedMessageText(items: readonly ThreadItem[], threadId: stri
   return text.length > ARCHIVED_MESSAGE_TEXT_MAX ? text.slice(0, ARCHIVED_MESSAGE_TEXT_MAX) : text
 }
 
-function openThreads(path: string) {
-  const db = new Database(path, { create: true })
-  db.exec(`PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS search_threads (id TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS search_messages (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, author TEXT NOT NULL, date TEXT NOT NULL, created_at INTEGER NOT NULL, embedder TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS message_chunks (id INTEGER PRIMARY KEY, message_id TEXT NOT NULL, text TEXT NOT NULL, embedding BLOB NOT NULL);
-    CREATE INDEX IF NOT EXISTS message_chunks_by_message ON message_chunks(message_id);
-    CREATE INDEX IF NOT EXISTS search_messages_by_thread ON search_messages(thread_id);`)
-  return db
-}
+export type ThreadCursor = { lastSeq: number }
 
-export type ThreadCursor = { lastSeq: number; messageIds: string[] }
-
-export function threadCursors(path: string, embedder: string): Record<string, ThreadCursor> {
-  const db = openThreads(path)
+export function threadCursors(path: string): Record<string, ThreadCursor> {
+  const db = openSearchDb(path)
   try {
-    if (db.query('SELECT 1 FROM search_messages WHERE embedder != ? LIMIT 1').get(embedder)) {
-      db.transaction(() => {
-        db.run('DELETE FROM message_chunks')
-        db.run('DELETE FROM search_messages')
-        db.run('DELETE FROM search_threads')
-      })()
-    }
     return Object.fromEntries(
       db
         .query<{ id: string; last_seq: number }, []>('SELECT * FROM search_threads')
         .all()
-        .map((row) => [
-          row.id,
-          {
-            lastSeq: row.last_seq,
-            messageIds: db
-              .query<{ id: string }, [string]>('SELECT id FROM search_messages WHERE thread_id = ?')
-              .all(row.id)
-              .map((message) => message.id),
-          },
-        ])
+        .map((row) => [row.id, { lastSeq: row.last_seq }])
     )
   } finally {
     db.close()
   }
 }
 
-export async function reindexThreads(
-  path: string,
-  scope: SearchThread[],
-  updates: ThreadUpdate[],
-  embed: EmbedClient
-) {
-  const db = openThreads(path)
-  const started = performance.now()
+export async function reindexThreads(path: string, scope: SearchThread[], updates: ThreadUpdate[]) {
+  const db = openSearchDb(path)
   try {
     const ids = new Set(scope.map((thread) => thread.id))
     const removed = db
       .query<{ id: string }, []>('SELECT id FROM search_threads')
       .all()
       .filter((row) => !ids.has(row.id))
-    const jobs: { message: SearchMessage; text: string; title: string }[] = []
-    const messages: SearchMessage[] = []
-    let unchanged = 0
-    for (const thread of updates) {
-      for (const message of thread.messages) {
-        if (
-          db
-            .query('SELECT 1 FROM search_messages WHERE id = ? AND embedder = ?')
-            .get(message.id, embed.id)
-        ) {
-          unchanged++
-          continue
-        }
-        messages.push(message)
-        for (const chunk of chunkProseText(message.text))
-          jobs.push({ message, text: chunk.text, title: thread.title })
-      }
-    }
-    const vectors: Float32Array[] = []
-    for (let i = 0; i < jobs.length; i += 8) {
-      vectors.push(
-        ...(await embed.embedDocuments(
-          jobs.slice(i, i + 8).map((job) => ({
-            title: job.title,
-            text: `From ${job.message.author}, ${job.message.date}\n\n${job.text}`,
-          }))
-        ))
-      )
-    }
-    if (vectors.length !== jobs.length)
-      throw new Error('embedder returned the wrong number of vectors')
     db.transaction(() => {
       for (const thread of removed) {
         db.run(
@@ -168,75 +103,77 @@ export async function reindexThreads(
         db.run('DELETE FROM search_messages WHERE thread_id = ?', [thread.id])
         db.run('DELETE FROM search_threads WHERE id = ?', [thread.id])
       }
-      for (const message of messages) {
-        db.run('DELETE FROM message_chunks WHERE message_id = ?', [message.id])
-        db.run('INSERT OR REPLACE INTO search_messages VALUES (?, ?, ?, ?, ?, ?)', [
-          message.id,
-          message.threadId,
-          message.author,
-          message.date,
-          message.createdAt,
-          embed.id,
-        ])
-      }
-      for (const [i, job] of jobs.entries())
-        db.run('INSERT INTO message_chunks (message_id, text, embedding) VALUES (?, ?, ?)', [
-          job.message.id,
-          job.text,
-          floatsToBlob(vectors[i]!),
-        ])
-      for (const thread of updates)
-        db.run('INSERT OR REPLACE INTO search_threads VALUES (?, ?)', [thread.id, thread.lastSeq])
     })()
-    const chunks = db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM message_chunks').get()!.n
-    console.error(
-      `[search threads] embedded=${messages.length} unchanged=${unchanged} removed=${removed.length} chunks=${chunks} ms=${Math.round(performance.now() - started)}`
-    )
-    return { embedded: messages.length, unchanged, removed: removed.length, chunks }
+    for (const thread of updates) {
+      db.transaction(() => {
+        // Changed items can become ineligible (private or blank), so remove their old chunks too.
+        for (const id of thread.changedIds) {
+          db.run('DELETE FROM message_chunks WHERE message_id = ?', [id])
+          db.run('DELETE FROM search_messages WHERE id = ?', [id])
+        }
+        for (const message of thread.messages) {
+          db.run('INSERT OR REPLACE INTO search_messages VALUES (?, ?, ?, ?, ?, ?)', [
+            message.id,
+            message.threadId,
+            message.author,
+            Number(message.assistant),
+            message.date,
+            message.createdAt,
+          ])
+          for (const chunk of chunkProseText(message.text))
+            db.run('INSERT INTO message_chunks (message_id, text) VALUES (?, ?)', [
+              message.id,
+              chunk.text,
+            ])
+        }
+        db.run('INSERT OR REPLACE INTO search_threads VALUES (?, ?)', [thread.id, thread.lastSeq])
+      })()
+      await setImmediate()
+    }
+    return {
+      indexed: updates.reduce((n, thread) => n + thread.messages.length, 0),
+      removed: removed.length,
+    }
   } finally {
     db.close()
   }
 }
 
-export async function recallThreads(
+export function recallThreads(
   path: string,
   query: string,
   k: number,
-  embed: EmbedClient,
   excludeMessageIds: readonly string[] = []
 ) {
-  const db = openThreads(path)
+  const db = openSearchDb(path)
   try {
     const excluded = new Set(excludeMessageIds)
     const rows = db
-      .query<SearchMessage & { embedding: Uint8Array }, []>(
-        `SELECT m.id, m.thread_id AS threadId, m.author, m.date, m.created_at AS createdAt, c.text, c.embedding FROM message_chunks c JOIN search_messages m ON m.id = c.message_id`
+      .query<SearchMessage, []>(
+        `SELECT m.id, m.thread_id AS threadId, m.author, m.assistant, m.date, m.created_at AS createdAt, c.text FROM message_chunks c JOIN search_messages m ON m.id = c.message_id`
       )
       .all()
       .filter((row) => !excluded.has(row.id))
-    if (!rows.length) return []
-    const vector = await embed.embedQuery(query.trim())
     const keyword = bm25Scores(
       query,
       rows.map((row) => row.text)
     )
     return rows
-      .map((row, i) => {
-        const embeddingScore = dot(vector, blobToFloats(row.embedding))
-        return {
-          messageId: row.id,
-          threadId: row.threadId,
-          author: row.author,
-          date: row.date,
-          text: row.text,
-          embeddingScore,
-          score: hybridScore(embeddingScore, keyword[i]!),
-        }
-      })
+      .map((row, i) => ({
+        messageId: row.id,
+        threadId: row.threadId,
+        author: row.author,
+        assistant: Boolean(row.assistant),
+        date: row.date,
+        text: row.text,
+        createdAt: row.createdAt,
+        score: squashBm25(keyword[i]!),
+      }))
+      .filter((hit) => hit.score > 0)
       .sort(
         (a, b) =>
           b.score - a.score ||
-          b.embeddingScore - a.embeddingScore ||
+          b.createdAt - a.createdAt ||
           a.threadId.localeCompare(b.threadId) ||
           a.messageId.localeCompare(b.messageId)
       )

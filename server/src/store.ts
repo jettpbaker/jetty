@@ -2646,6 +2646,62 @@ export function createStore() {
       },
       getThreadState,
       getBotConversation,
+      getThreadSearchItems(threadId: string, afterSeq: number) {
+        return Effect.gen(function* () {
+          if (afterSeq === 0) {
+            const state = yield* getThreadState(threadId)
+            return { items: state.items, lastSeq: state.lastSeq }
+          }
+          const events = yield* eventsAfter(threadId, afterSeq)
+          const ids = new Set<string>()
+          const settledAt = new Set<number>()
+          for (const { event, ts } of events) {
+            if (event.type === 'item.started') ids.add(event.item.id)
+            else if ('itemId' in event) ids.add(event.itemId)
+            if (event.type === 'turn.completed' || event.type === 'turn.failed') settledAt.add(ts)
+          }
+          const cached = loaded.get(threadId)
+          if (cached) {
+            return {
+              items: cached.state.items.filter(
+                (item) =>
+                  ids.has(item.id) ||
+                  ('completedAt' in item && settledAt.has(item.completedAt ?? -1))
+              ),
+              lastSeq: cached.state.lastSeq,
+            }
+          }
+          const [snapshot] = yield* sql<{
+            thread_id: string
+            state_json: string
+            items_stored: number
+          }>`
+            SELECT thread_id, state_json, items_stored FROM thread_states WHERE thread_id = ${threadId}`
+          if (!snapshot?.items_stored) {
+            const state = yield* getThreadState(threadId)
+            return {
+              items: state.items.filter(
+                (item) =>
+                  ids.has(item.id) ||
+                  ('completedAt' in item && settledAt.has(item.completedAt ?? -1))
+              ),
+              lastSeq: state.lastSeq,
+            }
+          }
+          const metadata = yield* Schema.decodeUnknownEffect(MetadataJson)(snapshot.state_json)
+          const rows = yield* sql<{ item_json: string }>`SELECT item_json FROM thread_items
+            WHERE thread_id = ${threadId} AND (item_id IN ${sql.in([...ids])}
+              OR (${settledAt.size ? 1 : 0} = 1 AND (json_extract(item_json, '$.streaming') = 1
+                OR json_extract(item_json, '$.completedAt') IN ${sql.in([...settledAt])}))) ORDER BY item_index`
+          let state: ThreadState = {
+            ...metadata,
+            items: rows.map((row) => decodeItem(row.item_json)),
+          }
+          for (const event of yield* eventsAfter(threadId, metadata.lastSeq))
+            state = yield* Effect.try({ try: () => applyEvent(state, event), catch: storeError })
+          return { items: state.items, lastSeq: state.lastSeq }
+        }).pipe(sql.withTransaction, Effect.mapError(storeError))
+      },
       getThreadTurnItemIds(threadId: string, turnId?: string | null) {
         return Effect.gen(function* () {
           const cached = loaded.get(threadId)

@@ -75,7 +75,6 @@ import { createPullRequestWatch } from './pull-request-watch'
 import { createPullRequestLinks, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
-import { createSearchClient } from './search/client'
 import { createSearchService } from './search/service'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
@@ -686,8 +685,6 @@ function createServer(opts: ServerOptions = {}) {
       Effect.provide(RpcSerialization.layerJson),
       Effect.provideService(Scope.Scope, transportScope)
     )
-    const searchClient = createSearchClient(home)
-    yield* Effect.addFinalizer(() => Effect.promise(() => searchClient.stop()))
     const handleMcp = yield* createMcpHandler(
       mcp,
       store,
@@ -697,7 +694,7 @@ function createServer(opts: ServerOptions = {}) {
       pullRequestLinks,
       (threadId) => handlers['thread.archive']({ threadId, archived: true }),
       worktrees,
-      createSearchService(searchClient, store),
+      createSearchService(home, store),
       desktops
     )
     registerClaudeMcp = handleMcp.register
