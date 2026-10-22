@@ -29,4 +29,5 @@ export const THREAD_TOOLS = [
   'send_message',
   'stop_thread',
   'archive_thread',
+  'adopt_thread',
 ] as const

@@ -1421,6 +1421,49 @@ export function createMcpHandler(
               })
             )
         )
+        server.registerTool(
+          'adopt_thread',
+          {
+            ...toolMeta,
+            description:
+              "Make a thread that has no parent one of your workers, with everything under it. As with a worker you created, when it's done with work you gave it, Jetty sends you its final message. Not a bot, and only in your projects. Safe to repeat.",
+            inputSchema: { threadId: z.string() },
+          },
+          ({ threadId }) =>
+            invoke(
+              Effect.gen(function* () {
+                const { title, added } = yield* store.transaction(
+                  Effect.gen(function* () {
+                    const caller = yield* accessible(identity, identity.threadId)
+                    const target = yield* accessible(identity, threadId)
+                    if (target.parentThreadId === caller.id)
+                      return { title: target.title, added: false }
+                    if (target.botId === target.id)
+                      return yield* Effect.fail(
+                        new StoreError('invalid_params', "Bots can't be adopted")
+                      )
+                    if (target.parentThreadId)
+                      return yield* Effect.fail(
+                        new StoreError('invalid_params', `${target.title} already has a parent`)
+                      )
+                    if (bot.projectId && target.projectId !== bot.projectId)
+                      return yield* Effect.fail(
+                        new StoreError(
+                          'invalid_params',
+                          `${target.title} is in a project you don't cover`
+                        )
+                      )
+                    yield* store.adoptThread(target.id, caller.id)
+                    return { title: target.title, added: true }
+                  })
+                )
+                if (added)
+                  for (const thread of yield* store.threadTree(threadId))
+                    yield* orch.publishQueuedThread(thread.id)
+                return { threadId, title, adopted: true }
+              })
+            )
+        )
       }
       if (parentId)
         server.registerTool(

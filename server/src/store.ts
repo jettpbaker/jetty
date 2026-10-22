@@ -2078,6 +2078,15 @@ export function createStore() {
           Effect.mapError(storeError)
         )
       },
+      adoptThread(threadId: string, parentThreadId: string) {
+        return Effect.gen(function* () {
+          yield* sql`WITH RECURSIVE tree AS (
+            SELECT id FROM threads WHERE id = ${threadId}
+            UNION ALL SELECT t.id FROM threads t JOIN tree p ON t.parent_thread_id = p.id
+          ) UPDATE threads SET lineage_depth = lineage_depth + (SELECT lineage_depth + 1 FROM threads WHERE id = ${parentThreadId}), bot_id = (SELECT bot_id FROM threads WHERE id = ${parentThreadId}) WHERE id IN (SELECT id FROM tree)`
+          yield* sql`UPDATE threads SET parent_thread_id = ${parentThreadId}, created_by = 'agent', notify_parent = 1 WHERE id = ${threadId}`
+        }).pipe(Effect.asVoid, Effect.mapError(storeError))
+      },
       countCreation(turnId: string) {
         return sql`UPDATE orchestration_turns SET created_count = created_count + 1 WHERE turn_id = ${turnId}`.pipe(
           Effect.asVoid,
