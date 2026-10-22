@@ -1023,6 +1023,8 @@ export function createClaudeAdapter(
                     // A resumed session's first turn otherwise starts before claude.ai connectors
                     // reconnect, and the model sees them all removed, then added back.
                     CLAUDE_CODE_MCP_STARTUP_WAIT_MS: '10000',
+                    // SDK sessions leave the Artifact tool off unless asked.
+                    CLAUDE_CODE_ARTIFACT: '1',
                     // A quiet bot turn needs no visible reply.
                     ...(bot && {
                       CLAUDE_CODE_SILENT_TURN_REMINDER: '0',
