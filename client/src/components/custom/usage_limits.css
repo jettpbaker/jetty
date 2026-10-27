@@ -12,6 +12,9 @@
 [data-usage-provider='copilot'] {
   --usage-color: color-mix(in oklab, var(--foreground) 78%, var(--background));
 }
+[data-usage-provider='opencode'] {
+  --usage-color: color-mix(in oklab, var(--foreground) 66%, var(--background));
+}
 
 /* Stacked over another strip, the banner keeps the top corners. */
 [data-strip] + [data-strip] {

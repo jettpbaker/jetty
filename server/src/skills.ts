@@ -110,6 +110,10 @@ export function listSkills(opts: SkillSources = {}) {
 export function listProviderSkills(opts: SkillSources = {}) {
   if (!opts.provider || opts.provider === 'claude' || opts.provider === 'grok')
     return listSkills(opts)
+  if (opts.provider === 'opencode')
+    return listSkillFolders(opts).pipe(
+      Effect.map((skills) => skills.sort((a, b) => a.name.localeCompare(b.name)))
+    )
   const cwd = opts.projectPath ?? opts.userHome ?? homedir()
   const discover = opts.provider === 'codex' ? discoverCodexSkills : discoverCopilotSkills
   return discover(cwd).pipe(
@@ -124,9 +128,18 @@ function listSkillFolders(opts: SkillSources) {
     const path = yield* Path.Path
     const into = new Map<string, Skill>()
     const userHome = opts.userHome ?? homedir()
-    const projectRoots = opts.provider === 'codex' ? ['.agents'] : ['.github', '.claude', '.agents']
+    const projectRoots =
+      opts.provider === 'codex'
+        ? ['.agents']
+        : opts.provider === 'opencode'
+          ? ['.opencode', '.claude', '.agents']
+          : ['.github', '.claude', '.agents']
     const personalRoots =
-      opts.provider === 'codex' ? ['.codex', '.agents'] : ['.copilot', '.agents']
+      opts.provider === 'codex'
+        ? ['.codex', '.agents']
+        : opts.provider === 'opencode'
+          ? ['.config/opencode', '.claude', '.agents']
+          : ['.copilot', '.agents']
     if (opts.projectPath)
       for (const root of projectRoots)
         yield* loadSkillDirs(into, path.join(opts.projectPath, root, 'skills'), true)

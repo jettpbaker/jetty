@@ -24,6 +24,7 @@ export const providerNames: Record<UsageProvider, string> = {
   codex: 'Codex',
   grok: 'Grok',
   copilot: 'GitHub Copilot',
+  opencode: 'OpenCode',
 }
 
 const minute = 60_000

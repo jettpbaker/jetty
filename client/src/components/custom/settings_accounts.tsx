@@ -57,6 +57,13 @@ const providers = [
     login: 'copilot login',
     install: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
   },
+  {
+    id: 'opencode',
+    name: 'OpenCode',
+    cli: 'opencode',
+    login: 'opencode auth login',
+    install: 'https://opencode.ai/docs/',
+  },
 ] as const
 
 type Status = 'connected' | 'signed-out' | 'missing' | 'error' | 'checking' | 'off'

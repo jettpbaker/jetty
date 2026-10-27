@@ -194,6 +194,14 @@ export const ECHO_MODELS: ProviderModel[] = [
     fast: false,
     autoMode: true,
   },
+  {
+    provider: 'opencode',
+    id: 'opencode/big-pickle',
+    name: 'Big Pickle',
+    efforts: [],
+    fast: false,
+    autoMode: true,
+  },
 ]
 
 export function echoUsage(provider: ProviderUsage['provider']): ProviderUsage {
@@ -250,6 +258,12 @@ export function echoUsage(provider: ProviderUsage['provider']): ProviderUsage {
       provider: 'copilot',
       connected: true,
       account: 'you@example.com',
+      asOf: now,
+      windows: [],
+    },
+    opencode: {
+      provider: 'opencode',
+      connected: true,
       asOf: now,
       windows: [],
     },

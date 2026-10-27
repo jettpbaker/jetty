@@ -239,7 +239,7 @@ export function SettingsIntelligence() {
               <JobModelSelect
                 label='Tidy model'
                 catalog={tidying.catalog}
-                disabledProviders={['grok']}
+                disabledProviders={['grok', 'opencode']}
                 value={tidying.value}
                 onChange={tidying.set}
               />

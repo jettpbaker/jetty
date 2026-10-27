@@ -45,7 +45,13 @@ import { listProviderSkills } from './skills'
 import { StoreError } from './store'
 import { NUMBERED } from './titler'
 
-const providerNames = { claude: 'Claude', codex: 'Codex', grok: 'Grok', copilot: 'GitHub Copilot' }
+const providerNames = {
+  claude: 'Claude',
+  codex: 'Codex',
+  grok: 'Grok',
+  copilot: 'GitHub Copilot',
+  opencode: 'OpenCode',
+}
 const modelKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 function modelOptions(catalog: readonly ProviderModel[]) {
@@ -337,7 +343,7 @@ const createInput = z.object({
       "Create the thread in this project (name, case-insensitive). Defaults to yours. If it doesn't match or is ambiguous, the error lists the available names."
     ),
   provider: z
-    .enum(['claude', 'codex', 'grok', 'copilot'])
+    .enum(['claude', 'codex', 'grok', 'copilot', 'opencode'])
     .optional()
     .describe('Required when the model is offered by more than one provider.'),
   model: z
@@ -677,7 +683,12 @@ export function createMcpHandler(
                 )
           if (!skills.some((skill) => skill.name === input.skill)) {
             const supported: string[] = []
-            for (const candidate of ['claude', 'codex', 'copilot'] satisfies ProviderId[]) {
+            for (const candidate of [
+              'claude',
+              'codex',
+              'copilot',
+              'opencode',
+            ] satisfies ProviderId[]) {
               if (candidate === provider) continue
               const available = yield* listProviderSkills({
                 projectPath: target.path,

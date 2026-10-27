@@ -224,7 +224,13 @@ function rowToProject(row: ProjectRow): Project {
 }
 
 function publicProvider(value: string | null): ProviderId | undefined {
-  if (value === 'claude' || value === 'codex' || value === 'grok' || value === 'copilot')
+  if (
+    value === 'claude' ||
+    value === 'codex' ||
+    value === 'grok' ||
+    value === 'copilot' ||
+    value === 'opencode'
+  )
     return value
   return undefined
 }
@@ -950,7 +956,9 @@ export function createStore() {
               ? { type: 'finished' }
               : event.error === 'interrupted'
                 ? { type: 'interrupted', user }
-                : (thread.provider === 'grok' || thread.provider === 'copilot') &&
+                : (thread.provider === 'grok' ||
+                      thread.provider === 'copilot' ||
+                      thread.provider === 'opencode') &&
                     deniedTitle &&
                     (event.error === 'approval_denied' || /cancelled|canceled/.test(event.error))
                   ? {

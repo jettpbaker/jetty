@@ -106,6 +106,7 @@ export function createRpcHandlers(
     codex: 'loading',
     grok: 'loading',
     copilot: 'loading',
+    opencode: 'loading',
   }),
   getProviderUsage: (provider: ProviderUsage['provider']) => Effect.Effect<ProviderUsage> = (
     provider
@@ -779,6 +780,10 @@ export function createRpcHandlers(
             if (params.provider === 'grok')
               return yield* Effect.fail(
                 new StoreError('invalid_params', 'Grok bots are not available')
+              )
+            if (params.provider === 'opencode')
+              return yield* Effect.fail(
+                new StoreError('invalid_params', 'OpenCode bots are not available')
               )
             if (params.effort === 'max')
               return yield* Effect.fail(

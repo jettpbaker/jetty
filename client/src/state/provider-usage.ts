@@ -13,7 +13,13 @@ export type UsageProvider = ProviderUsage['provider']
 const UsageRead = Schema.Struct({ usage: ProviderUsage, at: Schema.Finite })
 type UsageRead = Schema.Schema.Type<typeof UsageRead>
 type UsageReads = Partial<Record<UsageProvider, UsageRead>>
-export const allUsageProviders: readonly UsageProvider[] = ['claude', 'codex', 'grok', 'copilot']
+export const allUsageProviders: readonly UsageProvider[] = [
+  'claude',
+  'codex',
+  'grok',
+  'copilot',
+  'opencode',
+]
 
 // The providers Usage shows: those not switched off in Settings.
 export function usageProviders() {

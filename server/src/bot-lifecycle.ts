@@ -17,6 +17,7 @@ function readTiming() {
       claude: { ms: 55 * MINUTE, requiresItems: false },
       codex: { ms: 25 * MINUTE, requiresItems: false },
       copilot: { ms: 25 * MINUTE, requiresItems: false },
+      opencode: { ms: 25 * MINUTE, requiresItems: false },
       grok: { ms: 55 * MINUTE, requiresItems: true },
     },
     userActiveMs: 3 * 60 * MINUTE,

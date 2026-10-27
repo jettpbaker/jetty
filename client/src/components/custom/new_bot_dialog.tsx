@@ -51,10 +51,15 @@ function swatchStyle(id: BotColor) {
 function firstBotLoadout(slots: readonly LoadoutSlot[], catalog: ReturnType<typeof useModels>) {
   for (const slot of slots) {
     const loadout = slotLoadout(slot)
-    if (loadout && loadout.provider !== 'grok' && findModel(catalog, loadout))
+    if (
+      loadout &&
+      loadout.provider !== 'grok' &&
+      loadout.provider !== 'opencode' &&
+      findModel(catalog, loadout)
+    )
       return botLoadout(loadout)
   }
-  const model = catalog.find((item) => item.provider !== 'grok')
+  const model = catalog.find((item) => item.provider !== 'grok' && item.provider !== 'opencode')
   return (
     model && {
       provider: model.provider,
@@ -143,7 +148,12 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   }, [loadedProjects])
 
   function submit() {
-    if (!chosenLoadout || chosenLoadout.provider === 'grok') return
+    if (
+      !chosenLoadout ||
+      chosenLoadout.provider === 'grok' ||
+      chosenLoadout.provider === 'opencode'
+    )
+      return
     const id = createBot({
       name: name.trim() || 'Bot',
       shape,
@@ -364,8 +374,9 @@ export function BotLoadoutPicker({
       onChange={(next) => onChange(botLoadout(next))}
       onReorder={setLoadouts}
       onOpenSettings={onOpenSettings}
-      disabledProviders={(['claude', 'codex', 'grok', 'copilot'] as const).filter(
-        (item) => item === 'grok' || (provider !== undefined && item !== provider)
+      disabledProviders={(['claude', 'codex', 'grok', 'copilot', 'opencode'] as const).filter(
+        (item) =>
+          item === 'grok' || item === 'opencode' || (provider !== undefined && item !== provider)
       )}
       allowedEfforts={BOT_EFFORTS}
       hotkeys={false}

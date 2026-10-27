@@ -15,6 +15,7 @@ import { claudePrompt } from './claude-prompt'
 import { createCodexPrompt } from './codex-prompt'
 import { createCopilotPrompt } from './copilot-prompt'
 import { createGrokPrompt } from './grok-prompt'
+import { createOpencodePrompt } from './opencode-prompt'
 
 export type ModelPrompt = (
   model: ProviderModel,
@@ -30,6 +31,7 @@ export function createModelPrompt(options: {
   codex?: StdioProcessOptions
   copilot?: StdioProcessOptions
   grok?: StdioProcessOptions
+  opencode?: StdioProcessOptions
 }) {
   return Effect.gen(function* () {
     const prompts: Record<ProviderId, ModelPrompt> = {
@@ -37,6 +39,7 @@ export function createModelPrompt(options: {
       codex: yield* createCodexPrompt(options.codex),
       claude: claudePrompt,
       grok: yield* createGrokPrompt(options.grok),
+      opencode: yield* createOpencodePrompt(options.opencode),
     }
     const prompt: ModelPrompt = (model, effort, fast, instructions, text) =>
       prompts[model.provider](model, effort, fast, instructions, text)
@@ -48,6 +51,7 @@ export function createTitlePrompt(options: {
   codex?: StdioProcessOptions
   copilot?: StdioProcessOptions
   grok?: StdioProcessOptions
+  opencode?: StdioProcessOptions
   prompt?: ModelPrompt
   catalog: () => Effect.Effect<readonly ProviderModel[]>
   choice: () => Effect.Effect<JobModel>

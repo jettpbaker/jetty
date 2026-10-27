@@ -1714,7 +1714,7 @@ export function createOrchestrator({
       },
       providerCapabilities() {
         return Object.fromEntries(
-          (['claude', 'codex', 'grok', 'copilot'] as const).map((provider) => [
+          (['claude', 'codex', 'grok', 'copilot', 'opencode'] as const).map((provider) => [
             provider,
             { compaction: registry.agent(provider)?.supportsCompaction === true },
           ])
@@ -2419,7 +2419,7 @@ export function createOrchestrator({
           if (
             decision === 'deny' &&
             message?.trim() &&
-            (provider === 'grok' || provider === 'copilot')
+            (provider === 'grok' || provider === 'copilot' || provider === 'opencode')
           )
             yield* agent.steer(threadId, deniedApprovalNote(message.trim()))
         })

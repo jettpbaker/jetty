@@ -63,6 +63,9 @@ import { createHub } from './hub'
 import { linkedTitles } from './linked-titles'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
+import { opencodeLayer, type OpencodeOptions } from './opencode'
+import { discoverOpencodeModels } from './opencode-models'
+import { readOpencodeProviderUsage } from './opencode-usage'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
 import { createPerfSink } from './perf-sink'
 import {
@@ -88,9 +91,10 @@ export type ServerOptions = {
   home?: string
   port?: number
   hostname?: string
-  agent?: 'echo' | 'claude' | 'codex' | 'grok' | 'copilot' | Agent
+  agent?: 'echo' | 'claude' | 'codex' | 'grok' | 'copilot' | 'opencode' | Agent
   titler?: Titler | null
   copilot?: CopilotOptions
+  opencode?: OpencodeOptions
   grok?: GrokOptions
   codex?: CodexOptions
 }
@@ -394,7 +398,11 @@ function createServer(opts: ServerOptions = {}) {
     const envAgent = process.env.JETTY_AGENT
     const agentKind =
       opts.agent ??
-      (envAgent === 'copilot' || envAgent === 'grok' || envAgent === 'codex' || envAgent === 'echo'
+      (envAgent === 'copilot' ||
+      envAgent === 'opencode' ||
+      envAgent === 'grok' ||
+      envAgent === 'codex' ||
+      envAgent === 'echo'
         ? envAgent
         : 'claude')
 
@@ -459,8 +467,20 @@ function createServer(opts: ServerOptions = {}) {
     const discovers = typeof agentKind === 'string' && agentKind !== 'echo'
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
     let modelDiscovery: ModelDiscovery = discovers
-      ? { claude: 'loading', codex: 'loading', grok: 'loading', copilot: 'loading' }
-      : { claude: 'ready', codex: 'ready', grok: 'ready', copilot: 'ready' }
+      ? {
+          claude: 'loading',
+          codex: 'loading',
+          grok: 'loading',
+          copilot: 'loading',
+          opencode: 'loading',
+        }
+      : {
+          claude: 'ready',
+          codex: 'ready',
+          grok: 'ready',
+          copilot: 'ready',
+          opencode: 'ready',
+        }
     let registerClaudeMcp:
       | ((
           server: McpSdkServerConfigWithInstance['instance'],
@@ -470,6 +490,7 @@ function createServer(opts: ServerOptions = {}) {
     const modelPrompt = yield* createModelPrompt({
       codex: opts.codex,
       copilot: opts.copilot,
+      opencode: opts.opencode,
       grok: opts.grok,
     })
     const registry =
@@ -494,6 +515,7 @@ function createServer(opts: ServerOptions = {}) {
                 ),
                 codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp, attachments })),
                 copilot: yield* loadAgent(copilotLayer(store, { ...opts.copilot, mcp })),
+                opencode: yield* loadAgent(opencodeLayer(store, { ...opts.opencode, mcp })),
                 grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp, hooks })),
               },
               agentKind
@@ -516,7 +538,7 @@ function createServer(opts: ServerOptions = {}) {
           const done = Deferred.makeUnsafe<void>()
           inFlight = done
           const lists = new Map<ProviderId, readonly ProviderModel[]>(
-            (['claude', 'codex', 'grok', 'copilot'] as const).map((provider) => [
+            (['claude', 'codex', 'grok', 'copilot', 'opencode'] as const).map((provider) => [
               provider,
               models?.filter((model) => model.provider === provider) ?? [],
             ])
@@ -539,6 +561,7 @@ function createServer(opts: ServerOptions = {}) {
             codex: 'loading',
             grok: 'loading',
             copilot: 'loading',
+            opencode: 'loading',
           }
           function probe<E, R>(
             provider: ProviderId,
@@ -559,6 +582,7 @@ function createServer(opts: ServerOptions = {}) {
             probe('codex', discoverCodexModels(home, opts.codex)),
             probe('grok', discoverGrokModels(home, opts.grok)),
             probe('copilot', discoverCopilotModels(home, opts.copilot)),
+            probe('opencode', discoverOpencodeModels(home, opts.opencode)),
           ]
           return publishStatus()
             .pipe(
@@ -653,6 +677,10 @@ function createServer(opts: ServerOptions = {}) {
         if (agentKind === 'echo') return Effect.succeed(echoUsage(provider))
         if (provider === 'copilot')
           return readCopilotProviderUsage(home, opts.copilot).pipe(
+            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+          )
+        if (provider === 'opencode')
+          return readOpencodeProviderUsage(home, opts.opencode).pipe(
             Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
           )
         if (provider === 'codex')

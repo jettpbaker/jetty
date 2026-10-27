@@ -53,6 +53,7 @@ const providers = [
   { id: 'codex', name: 'Codex' },
   { id: 'grok', name: 'Grok' },
   { id: 'copilot', name: 'GitHub Copilot' },
+  { id: 'opencode', name: 'OpenCode' },
 ] as const
 
 const sensors = [

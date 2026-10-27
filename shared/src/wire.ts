@@ -29,7 +29,7 @@ export const PermissionMode = Schema.Literals(['auto', 'full_access'])
 export type PermissionMode = Schema.Schema.Type<typeof PermissionMode>
 
 // Echo stays off this list: it is the test double, not a choice.
-export const ProviderId = Schema.Literals(['claude', 'codex', 'grok', 'copilot'])
+export const ProviderId = Schema.Literals(['claude', 'codex', 'grok', 'copilot', 'opencode'])
 export type ProviderId = Schema.Schema.Type<typeof ProviderId>
 
 export const ProviderCapabilities = Schema.Record(
@@ -79,6 +79,7 @@ const DEFAULT_TITLE_MODELS: readonly ModelRef[] = [
   { provider: 'codex', id: 'gpt-6-luna' },
   { provider: 'grok', id: 'grok-4.7' },
   { provider: 'copilot', id: 'gpt-5-mini' },
+  { provider: 'opencode', id: 'opencode/big-pickle' },
 ]
 
 export function resolveTitleModel(
@@ -116,6 +117,7 @@ export function resolveTidyModel(
       (model) =>
         model.provider === choice.model?.provider &&
         model.provider !== 'grok' &&
+        model.provider !== 'opencode' &&
         (model.provider === 'claude' || model.id === choice.model.id)
     )
   if (selected && choice?.model)
@@ -130,7 +132,7 @@ export function resolveTidyModel(
   if (bot && bot.provider !== 'claude')
     return { model: { provider: bot.provider, id: bot.model }, effort: bot.effort }
   if (!bot && !models.some((model) => model.provider === 'claude')) {
-    const model = models.find((model) => model.provider !== 'grok')
+    const model = models.find((model) => model.provider !== 'grok' && model.provider !== 'opencode')
     if (model)
       return { model: { provider: model.provider, id: model.id }, effort: model.defaultEffort }
   }
