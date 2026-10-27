@@ -61,7 +61,7 @@ export function openOpencodeConnection(cwd: string, options: StdioProcessOptions
   }).pipe(Effect.mapError((error) => opencodeError(error.message)))
 }
 
-// Runs an OpenCode subcommand and returns stdout without colour codes.
+// Runs an OpenCode subcommand and returns stdout without colour codes or Windows line endings.
 export function runOpencode(
   args: string[],
   cwd: string,
@@ -84,8 +84,7 @@ export function runOpencode(
         proc.exited,
       ])
       if (code !== 0) throw new Error(stderr.trim() || `opencode ${args[0]} exited with ${code}`)
-      // oxlint-disable-next-line no-control-regex
-      return stdout.replace(/\x1b\[[0-9;]*m/g, '')
+      return Bun.stripANSI(stdout).replaceAll('\r\n', '\n')
     },
     catch: (error) => new AgentError(error instanceof Error ? error.message : String(error)),
   })
