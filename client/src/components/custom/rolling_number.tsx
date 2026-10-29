@@ -61,8 +61,13 @@ export function RollingNumber({
       }
     })
   }
+  // A digit rolls the height of its line, so the line hugs the glyphs: a taller one leaves the
+  // outgoing digit showing below the text. torph's default edge fade would then dim their tops.
   return (
-    <span ref={digitsRef} className={cn('inline-block tabular-nums', className)}>
+    <span
+      ref={digitsRef}
+      className={cn('inline-block leading-none tabular-nums [--torph-fade:0.1em]', className)}
+    >
       <TextMorph
         onAnimationStart={animateDigits}
         as='span'
