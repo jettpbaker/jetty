@@ -213,13 +213,10 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
   const threadAction = tool === 'create_thread' || tool === 'archive_thread'
   const unsettled = batch.calls.some((call) => !workEnded(call.status))
   const autoOpen = threadAction && (!batch.sealed || unsettled)
-  const active =
-    unsettled ||
-    (!config.list && !batch.sealed && batch.calls.every((call) => call.status === 'complete'))
   const failed = batch.calls.every((call) => call.status === 'failed')
   const cancelled = batch.calls.every((call) => call.status === 'cancelled')
   const stopped = batch.calls.every((call) => call.status === 'interrupted')
-  const verb = active
+  const verb = unsettled
     ? config.active
     : failed
       ? `Failed to ${config.action}`
@@ -232,7 +229,7 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
     ? parsed.some((rows) => rows !== undefined)
       ? results.length
       : undefined
-    : active
+    : unsettled
       ? batch.calls.length
       : batch.calls.filter((call) => call.status === 'complete').length || batch.calls.length
   const notices = describeToolBatch(batch)
@@ -241,7 +238,7 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
       verb={verb}
       count={count}
       noun={config.noun}
-      active={active}
+      active={unsettled}
       autoOpen={autoOpen}
       noticeText={notices.noticeText}
       notice={
@@ -285,7 +282,7 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
         : results.map((result) => (
             <ResultRow key={jettyResultKey(result)} result={result} tool={tool} />
           ))}
-      {config.list && count === 0 && !active && (
+      {config.list && count === 0 && !unsettled && (
         <p className='py-1 text-13 leading-5 text-muted-foreground'>No {config.noun}s returned.</p>
       )}
     </CountedResults>
