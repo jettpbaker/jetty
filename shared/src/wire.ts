@@ -1280,6 +1280,9 @@ export type WireError = Schema.Schema.Type<typeof WireError>
 
 export const JettyUpdate = Schema.Struct({
   status: Schema.Literals(['available', 'updating', 'restarting', 'failed']),
+  step: Schema.optional(Schema.Literals(['backup', 'pull', 'install', 'build'])),
+  // How far through the step, for the steps that can tell.
+  percent: Schema.optional(Schema.Int),
   error: Schema.optional(Schema.String),
 })
 export type JettyUpdate = Schema.Schema.Type<typeof JettyUpdate>

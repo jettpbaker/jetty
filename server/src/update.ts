@@ -1,19 +1,34 @@
 import type { JettyUpdate } from '@jetty/shared/wire'
 
-import { Database } from 'bun:sqlite'
 import { existsSync, renameSync } from 'node:fs'
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 const checkout = resolve(import.meta.dir, '../..')
 
-async function command(args: string[], signal?: AbortSignal, cwd = checkout) {
+async function readOutput(stream: ReadableStream<Uint8Array>, onOutput?: (text: string) => void) {
+  const decoder = new TextDecoder()
+  let text = ''
+  for await (const chunk of stream) {
+    const part = decoder.decode(chunk, { stream: true })
+    text += part
+    onOutput?.(part)
+  }
+  return text
+}
+
+async function command(
+  args: string[],
+  signal?: AbortSignal,
+  cwd = checkout,
+  { env: extra, onOutput }: { env?: Record<string, string>; onOutput?: (text: string) => void } = {}
+) {
   // A git that wants a login fails rather than waiting on a prompt nobody sees.
-  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', ...extra }
   const child = Bun.spawn(args, { cwd, env, stdout: 'pipe', stderr: 'pipe', signal })
   const [stdout, stderr, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
+    readOutput(child.stdout, onOutput),
+    readOutput(child.stderr, onOutput),
     child.exited,
   ])
   const output = Bun.stripANSI(`${stdout}\n${stderr}`).trim()
@@ -38,9 +53,22 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
   const { signal } = controller
 
   function set(next: JettyUpdate | undefined) {
-    if (state?.status === next?.status && state?.error === next?.error) return
+    if (
+      state?.status === next?.status &&
+      state?.error === next?.error &&
+      state?.step === next?.step &&
+      state?.percent === next?.percent
+    )
+      return
     state = next
     publish(next)
+  }
+
+  // Only climbs, and only the next step says this one's done.
+  function progress(percent: number) {
+    if (state?.status !== 'updating') return
+    const next = Math.min(99, Math.round(percent))
+    if (next > (state.percent ?? 0)) set({ ...state, percent: next })
   }
 
   async function eligible() {
@@ -70,12 +98,19 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
     await mkdir(directory, { recursive: true })
     const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
     const path = join(directory, `update-${sha}-${timestamp}.db`)
-    const db = new Database(join(home, 'jetty.db'))
+    const source = join(home, 'jetty.db')
+    const size = Bun.file(source).size
+    const growth = setInterval(() => progress((Bun.file(path).size / size) * 100), 200)
     try {
-      db.exec('PRAGMA busy_timeout = 5000')
-      db.query('VACUUM INTO ?').run(path)
+      await command(
+        [process.execPath, join(import.meta.dir, 'update-backup.ts'), source, path],
+        signal
+      )
+    } catch (error) {
+      await rm(path, { force: true })
+      throw error
     } finally {
-      db.close()
+      clearInterval(growth)
     }
     const files = []
     for (const name of await readdir(directory)) {
@@ -95,23 +130,52 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
     const dist = join(checkout, 'client/dist')
     const next = join(checkout, 'client/dist-next')
     const previous = join(checkout, 'client/dist-previous')
+    const modulesFile = join(home, 'update-build-modules')
+    let modules = ''
     try {
       oldHead = await eligible()
       if (!oldHead) throw new Error('Jetty is already up to date')
       step = 'Database backup'
+      set({ status: 'updating', step: 'backup' })
       await backup(await command(['git', 'rev-parse', '--short', oldHead], signal))
       step = 'git pull'
-      await command(['git', 'pull', '--ff-only', 'origin', 'main'], signal)
+      set({ status: 'updating', step: 'pull' })
+      await command(
+        ['git', 'pull', '--progress', '--ff-only', 'origin', 'main'],
+        signal,
+        checkout,
+        {
+          onOutput: (text) => {
+            for (const match of text.matchAll(/Receiving objects:\s+(\d+)%/g))
+              progress(Number(match[1]))
+          },
+        }
+      )
       pulled = true
       step = 'bun install'
+      set({ status: 'updating', step: 'install' })
       await command([process.execPath, 'install'], signal)
       step = 'Client build'
+      set({ status: 'updating', step: 'build' })
       await rm(next, { recursive: true, force: true })
       await command(
         [process.execPath, 'run', 'build', '--outDir', 'dist-next'],
         signal,
-        join(checkout, 'client')
+        join(checkout, 'client'),
+        {
+          env: {
+            JETTY_BUILD_PROGRESS: '1',
+            JETTY_BUILD_MODULES: await Bun.file(modulesFile)
+              .text()
+              .catch(() => ''),
+          },
+          onOutput: (text) => {
+            for (const match of text.matchAll(/^jetty-build (\d+)$/gm)) progress(Number(match[1]))
+            modules = text.match(/^jetty-build-modules (\d+)$/m)?.[1] ?? modules
+          },
+        }
       )
+      if (modules) await Bun.write(modulesFile, modules)
       step = 'Client swap'
       await rm(previous, { recursive: true, force: true })
       if (existsSync(dist)) renameSync(dist, previous)

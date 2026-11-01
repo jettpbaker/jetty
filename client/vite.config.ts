@@ -26,6 +26,32 @@ function websocketSecret(): Plugin {
   }
 }
 
+// Tells Jetty's updater how far its build has got, from the module count of its last build. Modules
+// are about two thirds of a build; what follows reports nothing until it's nearly done.
+function updateProgress(): Plugin {
+  const total = Number(process.env.JETTY_BUILD_MODULES)
+  let modules = 0
+  let shown = 0
+  return {
+    name: 'jetty-update-progress',
+    apply: 'build',
+    moduleParsed() {
+      modules++
+      const percent = Math.min(70, Math.round((modules / total) * 70))
+      if (total && percent > shown) {
+        shown = percent
+        console.log(`jetty-build ${percent}`)
+      }
+    },
+    generateBundle() {
+      if (total) console.log('jetty-build 90')
+    },
+    writeBundle() {
+      console.log(`jetty-build-modules ${modules}`)
+    },
+  }
+}
+
 type IconifyIcon = { body: string; width?: number; height?: number }
 type IconifySet = {
   icons: Record<string, IconifyIcon>
@@ -149,6 +175,7 @@ export default defineConfig(({ command }) => ({
     fluentEmoji(),
     centralSvgs(),
     websocketSecret(),
+    ...(process.env.JETTY_BUILD_PROGRESS ? [updateProgress()] : []),
   ],
   // The code highlighter worker loads its grammars on demand.
   worker: { format: 'es' },

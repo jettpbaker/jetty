@@ -12,6 +12,13 @@ import { useState } from 'react'
 
 import { threadStatus } from './thread_status'
 
+const STEP_LABELS = {
+  backup: 'Backing up…',
+  pull: 'Pulling…',
+  install: 'Installing…',
+  build: 'Building…',
+} as const
+
 function requestUpdate(registry: AtomRegistry.AtomRegistry, failed: (reason: string) => void) {
   return run(registry, (connection) =>
     connection
@@ -62,12 +69,21 @@ export function SidebarUpdate() {
           : state.status === 'restarting'
             ? 'Restarting…'
             : busy
-              ? 'Updating…'
+              ? state.step
+                ? STEP_LABELS[state.step]
+                : 'Updating…'
               : 'Update Jetty'}
       </span>
-      {(failed || (!busy && working > 0)) && (
+      {(failed || (!busy && working > 0) || (busy && state.percent)) && (
         <span className='ml-auto shrink-0 text-xs leading-4 font-normal text-muted-foreground'>
-          {failed ? 'Try again' : `${working} working`}
+          {failed ? (
+            'Try again'
+          ) : busy ? (
+            // Too fast to roll: a build can pass several percent in the time a digit takes.
+            <span className='font-mono tabular-nums'>{state.percent}%</span>
+          ) : (
+            `${working} working`
+          )}
         </span>
       )}
     </Button>
