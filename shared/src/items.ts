@@ -160,6 +160,8 @@ export const ThreadItem = Schema.Union([
       })
     ),
     status: Schema.Literals(['running', 'succeeded', 'failed']),
+    // Written by the model, but still waiting behind the call before it.
+    queued: Schema.optional(Schema.Boolean),
     fileChange: Schema.optional(
       Schema.Struct({
         path: Schema.String,

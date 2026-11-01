@@ -17,6 +17,8 @@ const HIDDEN_TOOLS: ReadonlySet<string> = new Set([
 // `Task` is the Agent tool's name in older Claude Code releases.
 const AGENT_TOOLS: ReadonlySet<string> = new Set(['Agent', 'Task'])
 
+type ToolCallState = { started: boolean; queuedItemId?: string | undefined }
+
 export type TranslateCtx = {
   turnId: string
   agentId: string | null
@@ -34,6 +36,8 @@ export type TranslateCtx = {
   currentAssistantId: string | null
   currentReasoningId: string | null
   toolUseToItemId: Map<string, string>
+  // tool_use id → a call the model wrote and hasn't had answered; shared like agents
+  toolCalls: Map<string, ToolCallState>
   blockKinds: Map<number, 'text' | 'thinking' | 'tool_use'>
   toolBlocks: Map<number, { id: string; name: string; json: string }>
   // a thinking block's estimated_tokens is a running total; deltas carry the increment
@@ -63,6 +67,7 @@ export function createTranslateCtx(
     currentAssistantId: null,
     currentReasoningId: null,
     toolUseToItemId: new Map(),
+    toolCalls: shared?.toolCalls ?? new Map(),
     blockKinds: new Map(),
     toolBlocks: new Map(),
     thinkingTokens: new Map(),
@@ -448,6 +453,25 @@ export function toolCallItemId(
   return itemId
 }
 
+function toolCallState(ctx: TranslateCtx, toolUseId: string) {
+  const known = ctx.toolCalls.get(toolUseId)
+  if (known) return known
+  const call: ToolCallState = { started: false }
+  ctx.toolCalls.set(toolUseId, call)
+  return call
+}
+
+// Claude Code runs a message's calls in order, one at a time unless they're read-only, so a call
+// can wait a long time after the model writes it. Its PreToolUse hook says when it really starts.
+export function toolCallStarted(ctx: TranslateCtx, toolUseId: string): ThreadEvent[] {
+  const call = toolCallState(ctx, toolUseId)
+  call.started = true
+  const itemId = call.queuedItemId
+  if (!itemId) return []
+  call.queuedItemId = undefined
+  return [{ type: 'item.updated', itemId, patch: { queued: false } }]
+}
+
 function handback(ctx: TranslateCtx, input: unknown): ThreadEvent[] {
   const message = record(input).message
   if (!ctx.agentId || typeof message !== 'string' || !message) return []
@@ -483,6 +507,9 @@ function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unk
       ctx.launches.set(toolUseId, { task: 'command', label: command })
   }
   const itemId = (toolUseId && toolCallItemId(ctx, toolUseId, name)) || newId()
+  const call = toolUseId ? toolCallState(ctx, toolUseId) : undefined
+  const queued = !!call && !call.started && ctx.toolCalls.size > 1
+  if (call && queued) call.queuedItemId = itemId
   return {
     id: itemId,
     ...itemBase(ctx),
@@ -491,6 +518,7 @@ function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unk
     input,
     output: '',
     status: 'running',
+    ...(queued ? { queued } : {}),
   }
 }
 
@@ -520,6 +548,7 @@ function translateStreamEvent(event: StreamEvent | undefined, ctx: TranslateCtx)
         // block.input is a `{}` placeholder; the real input arrives via input_json_delta.
         const tool = { id: block.id ?? '', name: block.name ?? 'tool', json: '' }
         ctx.toolBlocks.set(index, tool)
+        if (tool.id) toolCallState(ctx, tool.id)
         if (tool.name === 'mcp__jetty__message_user')
           out.push({ type: 'item.started', item: toolItem(ctx, tool.id, tool.name, {}) })
       }
@@ -735,6 +764,7 @@ function translateUser(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
       is_error?: boolean
     }
     if (b.type !== 'tool_result' || !b.tool_use_id) continue
+    ctx.toolCalls.delete(b.tool_use_id)
     const workflowId = ctx.workflowTools.get(b.tool_use_id) ?? word(workflowResult.taskId)
     if (workflowId && ctx.workflows.has(workflowId)) {
       out.push({

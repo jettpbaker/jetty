@@ -800,6 +800,7 @@ export function threadRows(
             agent.prompt === (item.input as { prompt: unknown }).prompt
         )) ||
       (item.kind === 'tool_call' && item.status !== 'succeeded' && deniedTools.has(item.id)) ||
+      (item.kind === 'tool_call' && item.status === 'running' && item.queued) ||
       (item.kind === 'tool_call' &&
         ['ToolSearch', 'mcp__jetty__add_instruction'].includes(item.toolName)) ||
       (turns !== undefined &&

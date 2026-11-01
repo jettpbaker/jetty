@@ -57,6 +57,7 @@ import {
   createTranslateCtx,
   subagentOf,
   toolCallItemId,
+  toolCallStarted,
   translate,
   type SdkLikeMessage,
   type TranslateCtx,
@@ -165,6 +166,8 @@ type WarmSession = {
   done: Deferred.Deferred<void, AgentError>
   contextPoller: ContextPoller
   publication: Semaphore.Semaphore
+  // Keeps a message's translation and publishing together, so a hook's event can't overtake them.
+  translation: Semaphore.Semaphore
 }
 
 function thinkingOnly(message: SessionMessage) {
@@ -678,45 +681,53 @@ export function createClaudeAdapter(
                 })
               )
             }
-            const translated = yield* Effect.try({
-              try: () => translate(message as SdkLikeMessage, session.ctx),
-              catch: (error) => new AgentError(String(error)),
-            })
-            config.capture?.translation(
-              session.threadId,
-              session.activeTurnId,
-              sourceSeq,
-              translated
+            yield* session.translation.withPermit(
+              Effect.gen(function* () {
+                const translated = yield* Effect.try({
+                  try: () => translate(message as SdkLikeMessage, session.ctx),
+                  catch: (error) => new AgentError(String(error)),
+                })
+                config.capture?.translation(
+                  session.threadId,
+                  session.activeTurnId,
+                  sourceSeq,
+                  translated
+                )
+                const events: ThreadEvent[] = []
+                for (const original of translated) {
+                  if (
+                    !session.awaitingResult &&
+                    original.type === 'item.completed' &&
+                    (session.runningAgents.has(original.itemId) ||
+                      session.runningWorkflows.has(original.itemId))
+                  )
+                    session.wakePending = true
+                  const event =
+                    original.type === 'item.completed' &&
+                    session.stoppedWorkflows.has(original.itemId)
+                      ? { ...original, patch: { ...original.patch, stopReason: 'you' } }
+                      : original
+                  events.push(event)
+                  if (event.type === 'item.started' && event.item.kind === 'workflow')
+                    session.runningWorkflows.add(event.item.id)
+                  if (event.type === 'item.completed' && session.runningWorkflows.has(event.itemId))
+                    session.runningWorkflows.delete(event.itemId)
+                  if (
+                    event.type === 'item.completed' &&
+                    session.stoppedWorkflows.has(event.itemId)
+                  ) {
+                    session.stoppedWorkflows.delete(event.itemId)
+                  }
+                }
+                if (session.ctx.sessionId) {
+                  yield* store
+                    .setThreadSessionId(session.threadId, session.ctx.sessionId)
+                    .pipe(Effect.mapError((error) => new AgentError(error.message)))
+                  session.ctx.sessionId = null
+                }
+                for (const event of events) yield* publish(session, event, sourceSeq)
+              })
             )
-            const events: ThreadEvent[] = []
-            for (const original of translated) {
-              if (
-                !session.awaitingResult &&
-                original.type === 'item.completed' &&
-                (session.runningAgents.has(original.itemId) ||
-                  session.runningWorkflows.has(original.itemId))
-              )
-                session.wakePending = true
-              const event =
-                original.type === 'item.completed' && session.stoppedWorkflows.has(original.itemId)
-                  ? { ...original, patch: { ...original.patch, stopReason: 'you' } }
-                  : original
-              events.push(event)
-              if (event.type === 'item.started' && event.item.kind === 'workflow')
-                session.runningWorkflows.add(event.item.id)
-              if (event.type === 'item.completed' && session.runningWorkflows.has(event.itemId))
-                session.runningWorkflows.delete(event.itemId)
-              if (event.type === 'item.completed' && session.stoppedWorkflows.has(event.itemId)) {
-                session.stoppedWorkflows.delete(event.itemId)
-              }
-            }
-            if (session.ctx.sessionId) {
-              yield* store
-                .setThreadSessionId(session.threadId, session.ctx.sessionId)
-                .pipe(Effect.mapError((error) => new AgentError(error.message)))
-              session.ctx.sessionId = null
-            }
-            for (const event of events) yield* publish(session, event, sourceSeq)
             if (message.type === 'result' && config.capture)
               yield* Effect.promise(() => config.capture!.flush())
             const sdk = message as SdkLikeMessage
@@ -969,6 +980,21 @@ export function createClaudeAdapter(
             { signal: options.signal }
           ).catch(() => ({ behavior: 'deny' as const, message: 'Session closed' }))
 
+        const toolStartedHook: HookCallback = async (hookInput) => {
+          const started = session
+          if (hookInput.hook_event_name === 'PreToolUse' && started)
+            await run(
+              started.translation.withPermit(
+                Effect.suspend(() =>
+                  Effect.forEach(toolCallStarted(started.ctx, hookInput.tool_use_id), (event) =>
+                    publish(started, event)
+                  )
+                )
+              )
+            ).catch(() => {})
+          return {}
+        }
+
         const sdkMcp = config.mcp
           ? yield* Effect.tryPromise({
               try: () => config.mcp!({ threadId: input.threadId, provider: 'claude' }),
@@ -1060,12 +1086,12 @@ export function createClaudeAdapter(
                   perTaskStopAffordance: true,
                   canUseTool,
                   hooks: {
-                    ...(bot
-                      ? {
-                          PreToolUse: [
+                    PreToolUse: [
+                      ...(bot
+                        ? [
                             {
                               hooks: [
-                                async (hookInput) => {
+                                async (hookInput: Parameters<HookCallback>[0]) => {
                                   if (hookInput.hook_event_name !== 'PreToolUse') return {}
                                   if (
                                     ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(
@@ -1119,9 +1145,10 @@ export function createClaudeAdapter(
                                 },
                               ],
                             },
-                          ],
-                        }
-                      : {}),
+                          ]
+                        : []),
+                      { hooks: [toolStartedHook] },
+                    ],
                     PostToolUse: [{ matcher: 'Agent|Task', hooks: [subagentLinkHook] }],
                   },
                   resume: resume ?? undefined,
@@ -1195,6 +1222,7 @@ export function createClaudeAdapter(
           done,
           contextPoller: poller,
           publication: yield* Semaphore.make(1),
+          translation: yield* Semaphore.make(1),
         }
         const created = session
         sessions.set(input.threadId, created)
