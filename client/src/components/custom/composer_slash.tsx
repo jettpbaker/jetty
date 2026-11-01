@@ -680,7 +680,7 @@ export function SlashMirror({ slash, className }: { slash: Slash; className?: st
     >
       {parts}
       {/* Gives a trailing newline its line, as the textarea does, so the two scroll alike. */}
-      {'​'}
+      {shown.endsWith('\n') ? '\u200b' : null}
     </div>
   )
 }

@@ -27,12 +27,11 @@
   color: transparent;
 }
 
-/* The mirror has to wrap where the textarea does, so it overflows the same way, behind an
-   invisible scrollbar that takes the same width when scrollbars take space. */
+/* The mirror has to wrap where the textarea does, so like the textarea it scrolls without a
+   scrollbar, which would narrow it when scrollbars take space. */
 .skill-chip-mirror {
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-width: none;
 }
 
 .skill-chip {
