@@ -194,6 +194,9 @@ volumes, files under `~` or `/tmp`), add an `archive` script that removes it, ke
 `docker compose down` on a project that isn't running), since a failing archive script
 blocks archiving. If setup only touches the worktree folder, there's nothing to clean up.
 
+Don't delete the folder or make it writable in the script. Archiving waits for the script,
+and Jetty deletes the folder in the background, read-only folders included.
+
 ## Check it works
 
 Run the setup the way Jetty will, in a scratch worktree. Roughly:

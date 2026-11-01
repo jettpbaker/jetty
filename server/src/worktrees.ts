@@ -137,6 +137,11 @@ const dirtyArchive = 'Commit or discard uncommitted changes before archiving thi
 const detachedArchive =
   "Put the commits on this worktree's detached HEAD on a branch before archiving it"
 
+// rm can't empty a read-only folder, and build tools' caches leave them behind. Files can stay as
+// they are: rm doesn't need them writable, and they may be hard links into another worktree.
+const DELETE_FOLDER =
+  'find "$1" -type d ! -perm -u+rwx -exec chmod u+rwx {} \\; ; exec rm -rf -- "$1"'
+
 export function createWorktrees(
   store: Store,
   home: string,
@@ -164,7 +169,7 @@ export function createWorktrees(
     if (!entry) return
     discarded.delete(entry)
     // Recursive traversal runs in a separate process, never on Bun's event loop.
-    const child = spawn('rm', ['-rf', '--', join(trash, entry)], { stdio: 'ignore' })
+    const child = spawn('sh', ['-c', DELETE_FOLDER, 'sh', join(trash, entry)], { stdio: 'ignore' })
     deletion = child
     child.once('error', (error) => console.warn('Worktree trash deletion failed:', error))
     child.once('close', (code) => {
