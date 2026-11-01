@@ -285,10 +285,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const files = ['read', 'edit', 'write'].includes(first.kind)
   const counted = files || first.kind === 'terminal'
   const words = first.words ?? vocabulary[first.kind]
-  const active =
-    running.length > 0 ||
-    held.length > 0 ||
-    (counted && !sealed && failed + cancelled + interrupted === 0)
+  const active = running.length > 0 || held.length > 0
   const outcome = !active && !completed ? latest.status : undefined
   const itemCount = files
     ? countToolFiles(
