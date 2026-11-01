@@ -164,6 +164,25 @@ function agentText(
   )
 }
 
+// Roughly 50,000 tokens of English or code, comfortably inside what the title model does cheaply.
+const MAX_TITLE_CHARACTERS = 200_000
+
+// A long paste arrives as a text attachment, so the titler reads those as part of the message.
+function titleText(text: string, meta: readonly Attachment[], attachments: Attachments | null) {
+  return Effect.gen(function* () {
+    const parts = text ? [text] : []
+    for (const attachment of meta) {
+      if (!attachments || !attachment.mimeType.startsWith('text/')) continue
+      const found = yield* attachments.resolve(attachment.id)
+      if (found?.file)
+        parts.push(
+          yield* Effect.tryPromise(() => Bun.file(found.path).slice(0, MAX_TITLE_CHARACTERS).text())
+        )
+    }
+    return parts.join('\n\n').slice(0, MAX_TITLE_CHARACTERS)
+  }).pipe(Effect.catch(() => Effect.succeed(text)))
+}
+
 export function botStamp(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-AU', {
     weekday: 'short',
@@ -1403,8 +1422,10 @@ export function createOrchestrator({
                 }
                 cwd = prepared.success
               }
-              if (input.text && (yield* store.needsGeneratedTitle(input.threadId)))
-                yield* maybeTitle(input.threadId, chosen.provider, input.text)
+              if (yield* store.needsGeneratedTitle(input.threadId)) {
+                const opener = yield* titleText(input.text, saved.meta, attachments)
+                if (opener) yield* maybeTitle(input.threadId, chosen.provider, opener)
+              }
               let text = yield* agentText(input, fromCreator, saved.meta, attachments)
               for (const reply of (input.replies ?? []).toReversed())
                 text = `> ${reply.text.slice(0, 500).replaceAll('\n', '\n> ')}\n\n${text}`
