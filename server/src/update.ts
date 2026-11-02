@@ -132,13 +132,22 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
     const previous = join(checkout, 'client/dist-previous')
     const modulesFile = join(home, 'update-build-modules')
     let modules = ''
+    const started = Date.now()
+    let stepStarted = started
+    const times: string[] = []
+    // Ends the step before and starts the next, for the update's line in the server log.
+    function begin(next: string) {
+      times.push(`${step} ${((Date.now() - stepStarted) / 1000).toFixed(1)}s`)
+      step = next
+      stepStarted = Date.now()
+    }
     try {
       oldHead = await eligible()
       if (!oldHead) throw new Error('Jetty is already up to date')
-      step = 'Database backup'
+      begin('Database backup')
       set({ status: 'updating', step: 'backup' })
       await backup(await command(['git', 'rev-parse', '--short', oldHead], signal))
-      step = 'git pull'
+      begin('git pull')
       set({ status: 'updating', step: 'pull' })
       await command(
         ['git', 'pull', '--progress', '--ff-only', 'origin', 'main'],
@@ -152,10 +161,10 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
         }
       )
       pulled = true
-      step = 'bun install'
+      begin('bun install')
       set({ status: 'updating', step: 'install' })
       await command([process.execPath, 'install'], signal)
-      step = 'Client build'
+      begin('Client build')
       set({ status: 'updating', step: 'build' })
       await rm(next, { recursive: true, force: true })
       await command(
@@ -176,7 +185,7 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
         }
       )
       if (modules) await Bun.write(modulesFile, modules)
-      step = 'Client swap'
+      begin('Client swap')
       await rm(previous, { recursive: true, force: true })
       if (existsSync(dist)) renameSync(dist, previous)
       try {
@@ -187,12 +196,19 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
         throw error
       }
       await rm(previous, { recursive: true, force: true })
-      step = 'Restart'
+      begin('Restart')
+      console.log(
+        `[update] took ${((Date.now() - started) / 1000).toFixed(1)}s: ${times.join(', ')}`
+      )
       set({ status: 'restarting' })
       await new Promise<void>((resolve) => setImmediate(resolve))
       process.send!('restart')
       process.kill(process.pid, 'SIGTERM')
     } catch (error) {
+      begin(step)
+      console.log(
+        `[update] failed after ${((Date.now() - started) / 1000).toFixed(1)}s: ${times.join(', ')}`
+      )
       if (swapped) {
         await rm(dist, { recursive: true, force: true })
         if (existsSync(previous)) renameSync(previous, dist)
