@@ -408,6 +408,33 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
     })
   }
 
+  // Who hears when a PR merges. A thread can't archive itself, so a worker's parent does, unless it
+  // asked not to hear from that worker. A bot hears about its own, and a thread of yours stays quiet.
+  function mergeListener(threadId: string) {
+    return Effect.gen(function* () {
+      if (yield* store.isBot(threadId)) return threadId
+      const thread = yield* store.getThread(threadId)
+      if (thread?.createdBy !== 'agent' || !thread.parentThreadId) return undefined
+      if (!(yield* store.notifiesParent(threadId))) return undefined
+      const parent = yield* store.getThread(thread.parentThreadId)
+      return parent && !parent.archived ? parent.id : undefined
+    })
+  }
+
+  function mergedNews(
+    threadId: string,
+    listener: string,
+    title: string,
+    data: PullRequestData,
+    actor?: string
+  ) {
+    const by = actor ? ` by ${actor}` : ''
+    const pullRequest = `[#${data.pull.number} ${data.pull.title.replace(/[[\]]/g, '\\$&')}](${data.pull.html_url})`
+    return listener === threadId
+      ? `Your pull request ${pullRequest} was merged${by}.`
+      : `[${title.replace(/[[\]]/g, '\\$&')}](jetty://threads/${threadId})'s pull request ${pullRequest} was merged${by}. If that finishes its work, you can archive it.`
+  }
+
   // Runs inside the transaction that tells the thread, so the news leaves the PR rows exactly
   // when it reaches the chat. Switches turned off while it waited drop their part, a PR unlinked
   // from the thread meanwhile drops all of it, and one closed or merged meanwhile wakes no one.
@@ -444,6 +471,16 @@ export function createPullRequestWatch(store: Store, orchestrator: Orchestrator)
             (open || !told.wakes)
           )
             changes.push(told)
+        }
+        const merged = changes.find((change) => change.activity.type === 'merged')
+        if (merged && data && settings.watchMerges) {
+          const listener = yield* mergeListener(threadId)
+          const thread = yield* store.getThread(threadId)
+          if (listener && thread)
+            yield* store.queuePullRequestNews(
+              listener,
+              mergedNews(threadId, listener, thread.title, data, merged.activity.actor)
+            )
         }
         const recent = (memory.wakes ?? []).filter((at) => now - at < HOUR_MS)
         const wakeful = changes.some((change) => change.wakes)

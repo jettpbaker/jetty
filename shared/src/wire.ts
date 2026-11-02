@@ -219,6 +219,12 @@ export const agentBehaviours = [
     label: 'Merge when ready',
     defaultEnabled: false,
   },
+  {
+    key: 'watchMerges',
+    parent: 'watchPullRequests',
+    label: 'Merged',
+    defaultEnabled: false,
+  },
 ] as const
 
 export const AgentBehaviourKey = Schema.Literals(agentBehaviours.map((behaviour) => behaviour.key))

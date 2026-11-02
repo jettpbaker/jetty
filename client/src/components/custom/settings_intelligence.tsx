@@ -391,13 +391,20 @@ export function SettingsGuidedReviews() {
   )
 }
 
-const watchKeys = ['watchReviews', 'watchChecks', 'watchConflicts', 'mergeWhenReady'] as const
+const watchKeys = [
+  'watchReviews',
+  'watchChecks',
+  'watchConflicts',
+  'mergeWhenReady',
+  'watchMerges',
+] as const
 
 const watchDescriptions: Record<(typeof watchKeys)[number], string> = {
   watchReviews: 'A review or a comment on the pull request',
   watchChecks: 'A check fails on the latest push',
   watchConflicts: 'The pull request can no longer merge cleanly',
   mergeWhenReady: 'When GitHub says it’s ready to merge, the agent merges it',
+  watchMerges: 'A worker’s pull request merges, so the thread above it can archive it',
 }
 
 export function SettingsPullRequestActivity() {
