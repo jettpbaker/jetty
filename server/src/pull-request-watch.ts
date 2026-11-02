@@ -263,7 +263,7 @@ function pullRequestChanges(
         activity: { type: 'approved', actor: login },
         keys: [key],
         group: 'watchReviews',
-        wakes: own.length > 0 || named,
+        wakes: true,
         text: `- ${login} approved it (${review.html_url})${details}`,
       })
     else if (review.state === 'COMMENTED' && details)
@@ -299,7 +299,7 @@ function pullRequestChanges(
         version('issue-comment', issueComment.id, seenIssueComments, issueComment.last_edited_at),
         `- ${issueComment.user.login} commented (${issueComment.html_url})${quote(issueComment.body, '  ')}`
       )
-  changes.push(...reviewChanges.filter((change) => change.wakes))
+  changes.push(...reviewChanges)
   for (const [actor, entry] of commented)
     changes.push({
       activity: { type: 'commented', actor, count: entry.count },
@@ -308,7 +308,6 @@ function pullRequestChanges(
       wakes: true,
       text: entry.text.join('\n'),
     })
-  changes.push(...reviewChanges.filter((change) => !change.wakes))
 
   const ready =
     pull.state === 'open' &&
