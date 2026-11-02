@@ -5,6 +5,7 @@ import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 const checkout = resolve(import.meta.dir, '../..')
+const SCHEMA = 'server/src/db.ts'
 
 async function readOutput(stream: ReadableStream<Uint8Array>, onOutput?: (text: string) => void) {
   const decoder = new TextDecoder()
@@ -93,25 +94,10 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
     }
   }
 
-  async function backup(sha: string) {
+  // Only the restart touches the database, so this runs alongside the rest of the update.
+  async function startBackup(sha: string) {
     const directory = join(home, 'backups')
     await mkdir(directory, { recursive: true })
-    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
-    const path = join(directory, `update-${sha}-${timestamp}.db`)
-    const source = join(home, 'jetty.db')
-    const size = Bun.file(source).size
-    const growth = setInterval(() => progress((Bun.file(path).size / size) * 100), 200)
-    try {
-      await command(
-        [process.execPath, join(import.meta.dir, 'update-backup.ts'), source, path],
-        signal
-      )
-    } catch (error) {
-      await rm(path, { force: true })
-      throw error
-    } finally {
-      clearInterval(growth)
-    }
     const files = []
     for (const name of await readdir(directory)) {
       if (!name.startsWith('update-')) continue
@@ -119,7 +105,16 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
       const info = await stat(path)
       if (info.isFile()) files.push({ path, time: info.mtimeMs })
     }
-    for (const file of files.toSorted((a, b) => b.time - a.time).slice(3)) await rm(file.path)
+    for (const file of files.toSorted((a, b) => b.time - a.time).slice(2)) await rm(file.path)
+    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
+    const path = join(directory, `update-${sha}-${timestamp}.db`)
+    const source = join(home, 'jetty.db')
+    const child = Bun.spawn(
+      [process.execPath, join(import.meta.dir, 'update-backup.ts'), source, path],
+      { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' }
+    )
+    child.unref()
+    return { child, path, size: Bun.file(source).size }
   }
 
   async function update() {
@@ -144,9 +139,9 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
     try {
       oldHead = await eligible()
       if (!oldHead) throw new Error('Jetty is already up to date')
-      begin('Database backup')
-      set({ status: 'updating', step: 'backup' })
-      await backup(await command(['git', 'rev-parse', '--short', oldHead], signal))
+      const backup = await startBackup(
+        await command(['git', 'rev-parse', '--short', oldHead], signal)
+      )
       begin('git pull')
       set({ status: 'updating', step: 'pull' })
       await command(
@@ -185,6 +180,27 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
         }
       )
       if (modules) await Bun.write(modulesFile, modules)
+      // A new layout migrates at the restart, so it needs its backup first. Otherwise the backup
+      // carries on by itself and reports to the server log.
+      if (await command(['git', 'diff', '--name-only', oldHead, 'HEAD', '--', SCHEMA], signal)) {
+        begin('Database backup')
+        set({ status: 'updating', step: 'backup' })
+        const growth = setInterval(
+          () => progress((Bun.file(`${backup.path}.partial`).size / backup.size) * 100),
+          200
+        )
+        try {
+          const code = await Promise.race([
+            backup.child.exited,
+            new Promise<never>((_, reject) => {
+              signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+            }),
+          ])
+          if (code !== 0) throw new Error(`exit ${code}`)
+        } finally {
+          clearInterval(growth)
+        }
+      }
       begin('Client swap')
       await rm(previous, { recursive: true, force: true })
       if (existsSync(dist)) renameSync(dist, previous)

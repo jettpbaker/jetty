@@ -61,11 +61,14 @@ the command above in a detached `tmux` session.
 When `origin/main` has newer commits and the checkout is a clean `main`, the sidebar shows
 **Update Jetty**. Clicking it:
 
-1. backs up the database to `$JETTY_HOME/backups/`, keeping the newest three `update-*.db` files
-2. fast-forwards the checkout
-3. runs `bun install`
-4. builds the client
-5. restarts Jetty
+1. fast-forwards the checkout
+2. runs `bun install`
+3. builds the client
+4. restarts Jetty
+
+Alongside those steps it backs up the database to `$JETTY_HOME/backups/`, keeping the newest three
+`update-*.db` files. Jetty waits for the backup only when the update changes `server/src/db.ts`, the
+database's layout. Otherwise it can finish after the restart, and says how it went in the server log.
 
 Open windows reload once it's back. If a step fails, the checkout goes back to where it was, Jetty
 keeps running, and the row says what went wrong.
