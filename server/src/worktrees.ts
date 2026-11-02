@@ -660,20 +660,36 @@ export function createWorktrees(
     return false
   }
 
-  async function remove(threadId: string, deleting = false, cleanedUp = false) {
+  async function remove(
+    threadId: string,
+    deleting = false,
+    cleanedUp = false,
+    timing?: (stage: string, ms: number) => void
+  ) {
     const { thread, project } = await locate(threadId)
     if (thread.environment !== 'worktree') return
     if (preparations.has(threadId)) throw new StoreError('conflict', 'Worktree setup is running')
     const folder = folderOf(project.id, threadId)
-    async function checkArchivable() {
-      if (await changes(folder)) throw new StoreError('conflict', dirtyArchive)
-      if (await strandsCommits(folder)) throw new StoreError('conflict', detachedArchive)
+    async function timed<A>(stage: string, task: () => Promise<A>) {
+      const start = Date.now()
+      try {
+        return await task()
+      } finally {
+        timing?.(stage, Date.now() - start)
+      }
     }
+    const checkArchivable = () =>
+      timed('clean', async () => {
+        if (await changes(folder)) throw new StoreError('conflict', dirtyArchive)
+        if (await strandsCommits(folder)) throw new StoreError('conflict', detachedArchive)
+      })
     if (!deleting) {
       if (await exists(folder)) await checkArchivable()
       if (!cleanedUp) await cleanUp(threadId)
     }
+    const asked = Date.now()
     await serialized(project.path, async () => {
+      timing?.('lock', Date.now() - asked)
       const record = await run(store.getWorktree(threadId))
       if (!record) return
       if (await exists(folder)) {
@@ -684,9 +700,9 @@ export function createWorktrees(
           record.branch = current
           record.temporaryBranch = null
         }
-        await discardWorktree(project.id, threadId, project.path)
+        await timed('move', () => discardWorktree(project.id, threadId, project.path))
       }
-      await git(project.path, 'worktree', 'prune')
+      await timed('move', () => git(project.path, 'worktree', 'prune'))
       if (deleting && record.branch && (await mergedAway(project.path, record.branch, thread)))
         await git(project.path, 'branch', '-D', '--', record.branch)
       record.slot = null

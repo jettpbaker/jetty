@@ -203,6 +203,40 @@ function toAgentError(error: Error) {
 }
 
 // A worktree failure reaches the user with its own message, such as an archive script's output.
+// A line in the server log per archive, so a slow one shows where its time went. "wait" is for
+// other work on the thread's tree, "lock" for other worktree work in its repo.
+function archiveTiming(threadId: string) {
+  const started = Date.now()
+  const stages = new Map<string, number>()
+  function add(stage: string, ms: number) {
+    stages.set(stage, (stages.get(stage) ?? 0) + ms)
+  }
+  return {
+    add,
+    begin() {
+      add('wait', Date.now() - started)
+    },
+    stage<A, E>(name: string, effect: Effect.Effect<A, E>) {
+      return Effect.suspend(() => {
+        const start = Date.now()
+        return effect.pipe(Effect.ensuring(Effect.sync(() => add(name, Date.now() - start))))
+      })
+    },
+    report<A, E>(effect: Effect.Effect<A, E>) {
+      return effect.pipe(
+        Effect.onExit((exit) =>
+          Effect.sync(() => {
+            const parts = [...stages].map(([stage, ms]) => `${stage} ${(ms / 1000).toFixed(1)}s`)
+            console.log(
+              `[archive] ${threadId} ${exit._tag === 'Success' ? 'took' : 'failed after'} ${((Date.now() - started) / 1000).toFixed(1)}s: ${parts.join(', ')}`
+            )
+          })
+        )
+      )
+    },
+  }
+}
+
 function worktreeTask<A>(task: (signal: AbortSignal) => Promise<A>) {
   return Effect.tryPromise({
     try: task,
@@ -485,11 +519,13 @@ export function createOrchestrator({
     }
 
     function archiveThread(threadId: string, archived: boolean) {
+      const timing = archiveTiming(threadId)
       return withLifecycle(
         threadId,
         archived,
         Effect.gen(function* () {
-          if (archived) yield* stopTreeSetups(threadId)
+          timing.begin()
+          if (archived) yield* timing.stage('setups', stopTreeSetups(threadId))
           const resumed = !archived && worktrees ? yield* store.archiveGroup(threadId) : []
           for (const thread of resumed) resuming.set(thread.id, new AbortController())
           yield* withTreeAdmission(
@@ -499,17 +535,23 @@ export function createOrchestrator({
                 if (tree[0]!.archived === archived) return
                 const group = archived ? tree.filter((thread) => !thread.archived) : tree
                 if (archived) {
-                  yield* checkTreeClean(tree)
-                  for (const thread of tree) yield* stopAdmittedThread(thread.id)
-                  yield* checkTreeClean(tree)
+                  yield* timing.stage('clean', checkTreeClean(tree))
+                  for (const thread of tree)
+                    yield* timing.stage('stop', stopAdmittedThread(thread.id))
+                  yield* timing.stage('clean', checkTreeClean(tree))
                   if (worktrees) {
                     for (const thread of group)
-                      yield* worktreeTask(() => worktrees.cleanUp(thread.id))
-                    yield* checkTreeClean(tree)
+                      yield* timing.stage(
+                        'script',
+                        worktreeTask(() => worktrees.cleanUp(thread.id))
+                      )
+                    yield* timing.stage('clean', checkTreeClean(tree))
                     for (const thread of [...group].reverse())
-                      yield* worktreeTask(() => worktrees.remove(thread.id, false, true))
+                      yield* worktreeTask(() =>
+                        worktrees.remove(thread.id, false, true, timing.add)
+                      )
                   }
-                  for (const thread of group) yield* stopDesktop(thread.id)
+                  for (const thread of group) yield* timing.stage('stop', stopDesktop(thread.id))
                 }
                 yield* hub.withChromePublication(
                   store
@@ -570,7 +612,7 @@ export function createOrchestrator({
             )
           )
         })
-      )
+      ).pipe(archived ? timing.report : (effect) => effect)
     }
 
     function checkTreeClean(tree: readonly ThreadMeta[]) {
