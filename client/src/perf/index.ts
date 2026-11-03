@@ -281,6 +281,43 @@ function socketMessage(event: MessageEvent) {
         : (data as ArrayBuffer).byteLength
 }
 
+// Consecutive closes since the socket was last open: the drop, then each failed reconnect.
+let closes = 0
+let outage: { at: number; code: number; reason: string } | undefined
+
+function socketRecord(n: 'open' | 'close', a: Record<string, number | string | boolean>) {
+  push({ v: 1, t: epoch(), sid, k: 'ws', n, a })
+}
+
+function socketOpened() {
+  if (outage)
+    socketRecord('open', {
+      attempts: closes,
+      downMs: Math.round(performance.now() - outage.at),
+      code: outage.code,
+      reason: outage.reason,
+    })
+  closes = 0
+  outage = undefined
+}
+
+// A browser reports every refused upgrade as an unclean 1006. A server refusal is in its log as
+// `[ws] refused`, so one missing from there was turned away before reaching it, by a proxy say.
+function socketClosed(event: CloseEvent, openedAt: number | undefined) {
+  closes++
+  outage ??= { at: performance.now(), code: event.code, reason: event.reason }
+  socketRecord('close', {
+    code: event.code,
+    reason: event.reason,
+    clean: event.wasClean,
+    attempt: closes,
+    opened: openedAt !== undefined,
+    ...(openedAt !== undefined && { openMs: Math.round(performance.now() - openedAt) }),
+    online: navigator.onLine,
+    visible: document.visibilityState === 'visible',
+  })
+}
+
 export const perf = {
   start(name: JourneyName, ids: Ids = {}) {
     return startAt(name, ids, performance.now())
@@ -337,7 +374,14 @@ export const perf = {
     if (stream) awaitingCommit.push(stream)
   },
   watchSocket(socket: WebSocket) {
-    if (enabled) socket.addEventListener('message', socketMessage)
+    if (!enabled) return socket
+    let openedAt: number | undefined
+    socket.addEventListener('message', socketMessage)
+    socket.addEventListener('open', () => {
+      openedAt = performance.now()
+      socketOpened()
+    })
+    socket.addEventListener('close', (event) => socketClosed(event, openedAt))
     return socket
   },
 }

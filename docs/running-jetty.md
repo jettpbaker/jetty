@@ -37,6 +37,11 @@ HOST=127.0.0.1 PORT=8787 JETTY_ALLOWED_ORIGINS=<url> bun run start
 Run it somewhere that outlives the shell, such as a detached `tmux` session. Logs go to stdout and
 stderr.
 
+If a browser keeps showing "Reconnecting", its `ws` records in `$JETTY_HOME/perf/*.ndjson` give the
+close code and attempt count, and the server log says `[ws] refused` with the cause, at most once a
+minute per kind. Failed connects with no refusal in the log never reached Jetty, so look at any
+proxy in front of it.
+
 With Codex only, check `codex login status` on the server host and start Jetty normally. In the
 browser, add a project and choose a Codex model in the composer. Settings → Connected accounts
 shows which providers are signed in; Settings → Intelligence chooses models for titles and PR

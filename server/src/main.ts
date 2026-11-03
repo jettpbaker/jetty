@@ -14,6 +14,7 @@ import { JettyRpcs } from '@jetty/shared/rpc'
 import { MAX_TURN_ATTACHMENT_BYTES, newId } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import {
+  Cause,
   Context,
   Deferred,
   Effect,
@@ -396,6 +397,14 @@ function createServer(opts: ServerOptions = {}) {
     const secretMatches = (supplied: string | null) =>
       supplied?.length === wsSecret.length &&
       timingSafeEqual(Buffer.from(supplied), Buffer.from(wsSecret))
+    // A refused tab retries every few seconds for as long as it stays open.
+    const lastRefusals = new Map<string, number>()
+    function logRefusal(kind: 'origin' | 'secret' | 'upgrade', detail: string) {
+      const now = Date.now()
+      if (now - (lastRefusals.get(kind) ?? 0) < 60_000) return Effect.void
+      lastRefusals.set(kind, now)
+      return Effect.logWarning(`[ws] refused: ${detail}`)
+    }
     const envAgent = process.env.JETTY_AGENT
     const agentKind =
       opts.agent ??
@@ -750,15 +759,26 @@ function createServer(opts: ServerOptions = {}) {
         return HttpServerResponse.fromWeb(yield* Effect.promise(() => handleMcp(web)))
       }
       if (url.pathname === '/ws') {
-        if (!originAllowed(request.headers.origin)) {
+        const { origin, upgrade } = request.headers
+        if (!originAllowed(origin)) {
+          yield* logRefusal('origin', `origin ${origin ?? '(none)'} isn't allowed`)
           return HttpServerResponse.text('Forbidden origin', { status: 403 })
         }
-        if (!secretMatches(url.searchParams.get('secret')))
+        const secret = url.searchParams.get('secret')
+        if (!secretMatches(secret)) {
+          yield* logRefusal('secret', secret ? "secret doesn't match" : 'no secret')
           return HttpServerResponse.text('Forbidden', { status: 403 })
-        if (request.headers.upgrade?.toLowerCase() !== 'websocket') {
+        }
+        if (upgrade?.toLowerCase() !== 'websocket') {
+          yield* logRefusal('upgrade', `not an upgrade request (upgrade: ${upgrade ?? '(none)'})`)
           return HttpServerResponse.text('WebSocket upgrade failed', { status: 400 })
         }
-        return yield* websocket
+        // Not the cause itself: its message carries the URL, and with it the secret.
+        return yield* websocket.pipe(
+          Effect.tapCause((cause) =>
+            Cause.hasInterruptsOnly(cause) ? Effect.void : logRefusal('upgrade', 'upgrade failed')
+          )
+        )
       }
       // A desktop's viewer page and socket, as strict as /ws. The page loads as a frame
       // navigation, which carries no Origin, so its fetch metadata stands in.
