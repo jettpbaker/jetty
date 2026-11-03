@@ -24,7 +24,7 @@ import {
   useThreadContext,
   useThreadLoadout,
 } from '@/state'
-import { useProviderCapabilities, useThreadMeta } from '@/state/chrome'
+import { useChatThread, useProviderCapabilities } from '@/state/chrome'
 import { useSkills } from '@/state/skills'
 import { useCompactThread } from '@/state/turns'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
@@ -135,7 +135,7 @@ export function useComposerSlash(
   const capabilities = useProviderCapabilities()
   const compactThread = useCompactThread()
   const chatId = threadId ?? botId
-  const thread = useThreadMeta(chatId)
+  const thread = useChatThread(chatId)
   const context = useThreadContext(chatId)
   const bumpDraft = useBumpDraft()
   const navigate = useNavigate()

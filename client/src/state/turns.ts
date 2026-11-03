@@ -23,7 +23,7 @@ import { useCallback, useContext, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
 import { accessModeAtom } from './access_mode'
-import { chromeAtom, modelsAtom, useThreadMeta } from './chrome'
+import { chromeAtom, modelsAtom, useChatThread, useThreadMeta } from './chrome'
 import { run, useAction } from './connection'
 import {
   resetDraftTarget,
@@ -547,7 +547,7 @@ export function useThreadOverlay(threadId: string, thread: ThreadSnapshot | unde
     status === 'starting' ||
     status === 'awaiting_approval'
   // A queue about to send its next message keeps the composer busy into that message's turn.
-  const meta = useThreadMeta(threadId)
+  const meta = useChatThread(threadId)
   const delivering = meta !== undefined && deliversQueue(meta)
 
   useEffect(() => {

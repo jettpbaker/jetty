@@ -30,12 +30,14 @@ export function ThreadFooter({
   return (
     <div
       className='relative z-10 flex h-7 items-center justify-between gap-1 px-2.5'
-      aria-label='Environment and branch'
+      aria-label={place || branch ? 'Environment and branch' : undefined}
     >
       {note ? (
         <div className='flex min-w-0 items-center px-2.25 text-xs text-muted-foreground'>
           {note}
         </div>
+      ) : !place && !branch ? (
+        <span />
       ) : (
         <Tooltip disabled={!place && !path}>
           <TooltipTrigger

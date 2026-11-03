@@ -185,7 +185,10 @@ export function createHub() {
       lastBotPush.set(data.bot.id, serialized)
     } else if (data.type === 'thread.upserted') {
       rememberThread(data.thread)
-      if (data.thread.id === data.thread.botId) return
+      if (data.thread.id === data.thread.botId) {
+        offerChrome({ type: 'bot.thread', thread: data.thread })
+        return
+      }
       parentId = data.thread.parentThreadId
       data = { ...data, thread: decorateThread(data.thread) }
     } else if (data.type === 'thread.removed') {

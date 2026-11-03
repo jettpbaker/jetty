@@ -352,6 +352,7 @@ export function createRpcHandlers(
               const projects = yield* store.listProjects()
               const threads = yield* store.listThreads()
               const bots = yield* store.listBots()
+              const botThreads = yield* Effect.forEach(bots, (bot) => store.getThread(bot.id))
               hub.setThreads(threads)
               const models = getModels()
               const modelDiscovery = getModelDiscovery()
@@ -372,6 +373,7 @@ export function createRpcHandlers(
                 projects,
                 threads: threads.map(hub.decorateThread),
                 bots,
+                botThreads: botThreads.filter((thread) => thread !== null),
                 ...(models ? { models } : {}),
                 modelDiscovery,
                 providerCapabilities: orch.providerCapabilities(),

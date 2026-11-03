@@ -8,10 +8,12 @@ import {
   Pencil2Icon,
   PauseIcon,
 } from '@/components/custom/central_icons'
+import { BotMentions } from '@/components/custom/entity_link'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { MediaLightboxProvider, useOpenMedia } from '@/components/custom/media_lightbox'
 import { RepliedTo } from '@/components/custom/reply_quote'
 import { Button } from '@/components/ui/button'
+import { Kbd } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { serverNow } from '@/lib/server_time'
 import { cn } from '@/lib/utils'
@@ -44,6 +46,61 @@ const fade = 'linear-gradient(to bottom, black calc(100% - 1.75rem), transparent
 // Clamped harder than a sent message (four lines, not 240px) so the live work above stays in view.
 function clampsQueued(text: string) {
   return text.split('\n').length > 4 || text.length > 280
+}
+
+export function showsQueue(queue: ComposerQueueState | undefined) {
+  return Boolean(
+    queue &&
+    (queue.own.length || queue.removed || (!queue.held && queue.paused && queue.unsent.length))
+  )
+}
+
+// A message being edited can leave the queue under the composer: removed in another window, or
+// delivered once its hold lapsed. The edit stays as an ordinary draft, and the footer says why.
+export function useEditLeftQueue(
+  editing: string | undefined,
+  gone: boolean,
+  empty: boolean,
+  update: (patch: { editing: undefined }) => void
+) {
+  const [left, setLeft] = useState<string>()
+  useEffect(() => {
+    if (!gone || !editing) return
+    setLeft(editing)
+    update({ editing: undefined })
+  }, [gone, editing, update])
+  if (left !== undefined && empty) setLeft(undefined)
+  return [left, setLeft] as const
+}
+
+export function QueuedEditNote({ left, items }: { left?: string; items: readonly ThreadItem[] }) {
+  if (left === undefined)
+    return (
+      <span className='flex min-w-0 items-center gap-1.5'>
+        <span className='truncate'>Editing a queued message</span>
+        <Kbd>Esc</Kbd>
+      </span>
+    )
+  return (
+    <span className='truncate'>
+      {items.some((entry) => entry.id === left)
+        ? 'Already sent, so this is a new message'
+        : 'No longer queued, so this is a new message'}
+    </span>
+  )
+}
+
+export function QueueOrSteerHint() {
+  return (
+    <span className='flex flex-col gap-1'>
+      <span className='flex items-center justify-between gap-3'>
+        Queue <Kbd>↵</Kbd>
+      </span>
+      <span className='flex items-center justify-between gap-3'>
+        Steer now <Kbd>⌘↵</Kbd>
+      </span>
+    </span>
+  )
 }
 
 export function useComposerQueue(
@@ -128,7 +185,7 @@ function QueuedText({ entry, muted }: { entry: QueuedMessage; muted: boolean }) 
           )}
           style={clamped ? { maxHeight: '4lh', maskImage: fade, WebkitMaskImage: fade } : undefined}
         >
-          {entry.text}
+          <BotMentions text={entry.text} />
         </p>
       )}
       {long && (

@@ -57,6 +57,14 @@ export function linkMentions(text: string, bots: readonly MentionBot[]) {
   return linked + text.slice(at)
 }
 
+// Back to what was typed, for a message that returns to the composer.
+export function unlinkMentions(text: string) {
+  return text.replace(
+    /\[@((?:\\.|[^\]\\])*)\]\(jetty:\/\/bots\/[\w-]+\)/g,
+    (_, label: string) => `@${label.replace(/\\(.)/g, '$1')}`
+  )
+}
+
 export function slashTokens(text: string): SlashToken[] {
   return [...text.matchAll(/(^|\s)\/([\w:-]+)(?=\s|$)/g)].map((match) => {
     const [, lead = '', name = ''] = match

@@ -1320,10 +1320,13 @@ export const ChromePushData = Schema.Union([
     agentBehaviours: Schema.optional(AgentBehaviours),
     // Oldest first.
     bots: Schema.optional(Schema.Array(Bot)),
+    // Each bot's own thread, kept apart so it isn't listed with the others.
+    botThreads: Schema.optional(Schema.Array(ThreadMeta)),
   }),
   Schema.Struct({ type: Schema.Literal('jettyUpdate'), state: Schema.optional(JettyUpdate) }),
   Schema.Struct({ type: Schema.Literal('bot.upserted'), bot: Bot }),
   Schema.Struct({ type: Schema.Literal('bot.removed'), botId: Schema.String }),
+  Schema.Struct({ type: Schema.Literal('bot.thread'), thread: ThreadMeta }),
   Schema.Struct({ type: Schema.Literal('project.upserted'), project: Project }),
   Schema.Struct({ type: Schema.Literal('project.removed'), projectId: Schema.String }),
   Schema.Struct({ type: Schema.Literal('thread.upserted'), thread: ThreadMeta }),

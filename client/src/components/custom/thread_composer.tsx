@@ -15,7 +15,14 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { pendingItems } from '@/components/custom/composer_strip_model'
-import { ComposerQueue, useComposerQueue } from '@/components/custom/queued_messages'
+import {
+  ComposerQueue,
+  QueuedEditNote,
+  QueueOrSteerHint,
+  showsQueue,
+  useComposerQueue,
+  useEditLeftQueue,
+} from '@/components/custom/queued_messages'
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
@@ -138,12 +145,7 @@ export function ThreadComposer({
   const composerQueue = useComposerQueue(threadId, items)
   const queue = composerQueue?.own ?? []
   const unsent = composerQueue?.unsent ?? []
-  const hasQueue = Boolean(
-    composerQueue &&
-    (queue.length ||
-      composerQueue.removed ||
-      (!composerQueue.held && composerQueue.paused && unsent.length))
-  )
+  const hasQueue = showsQueue(composerQueue)
   const editingEntry = queue.find((entry) => entry.id === editing)
   const attachments = useAttachments(draftKey, { editing: editingEntry !== undefined })
   const { loadouts, usable, catalog, setLoadouts } = useLoadouts()
@@ -203,16 +205,12 @@ export function ThreadComposer({
     lockedProvider && providerUnavailable && !running && !meta?.botId
       ? `Connect ${providerNames[lockedProvider]} in Settings to continue this thread`
       : undefined
-  // A message being edited can leave the queue under the composer: removed in another window, or
-  // delivered once its hold lapsed. The edit stays as an ordinary draft, and the footer says why.
-  const [left, setLeft] = useState<string>()
-  const editingLeft = Boolean(threadId && editing && chromeReady && !editingEntry)
-  useEffect(() => {
-    if (!editingLeft || !editing) return
-    setLeft(editing)
-    update({ editing: undefined })
-  }, [editingLeft, editing, update])
-  if (left !== undefined && !draft.trim()) setLeft(undefined)
+  const [left, setLeft] = useEditLeftQueue(
+    editing,
+    Boolean(threadId && editing && chromeReady && !editingEntry),
+    !draft.trim(),
+    update
+  )
   const retrySetup = useRetrySetup()
   // Resume on a waiting message is the control, and it reruns setup. Retry is only there when
   // nothing is waiting, so it just sets the worktree up.
@@ -637,14 +635,7 @@ export function ThreadComposer({
               'Connect a coding agent in Settings, then choose a model'
             )
           ) : steers ? (
-            <span className='flex flex-col gap-1'>
-              <span className='flex items-center justify-between gap-3'>
-                Queue <Kbd>↵</Kbd>
-              </span>
-              <span className='flex items-center justify-between gap-3'>
-                Steer now <Kbd>⌘↵</Kbd>
-              </span>
-            </span>
+            <QueueOrSteerHint />
           ) : threadId ? undefined : (
             <span className='flex flex-col gap-1'>
               <span className='flex items-center justify-between gap-3'>
@@ -708,16 +699,9 @@ export function ThreadComposer({
                   unavailable ? (
                     <span className='truncate'>{unavailable}</span>
                   ) : editingEntry ? (
-                    <span className='flex min-w-0 items-center gap-1.5'>
-                      <span className='truncate'>Editing a queued message</span>
-                      <Kbd>Esc</Kbd>
-                    </span>
+                    <QueuedEditNote items={items} />
                   ) : left !== undefined ? (
-                    <span className='truncate'>
-                      {items.some((entry) => entry.id === left)
-                        ? 'Already sent, so this is a new message'
-                        : 'No longer queued, so this is a new message'}
-                    </span>
+                    <QueuedEditNote left={left} items={items} />
                   ) : undefined
                 }
               />

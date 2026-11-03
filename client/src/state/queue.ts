@@ -11,7 +11,7 @@ import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 
-import { chromeAtom, threadMetaAtom } from './chrome'
+import { chatThreadAtom, chromeAtom } from './chrome'
 import { run, useAction } from './connection'
 import { editingDrafts, stageSend } from './drafts'
 import { unarchiveFirst, without } from './mutations'
@@ -73,11 +73,7 @@ function track(
   }
   function dropWhenShown() {
     const shown = () =>
-      shows(
-        registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)
-          ?.pendingMessages ?? noMessages,
-        op
-      )
+      shows(registry.get(chatThreadAtom(threadId))?.pendingMessages ?? noMessages, op)
     if (shown()) return drop()
     const timer = setTimeout(done, 5000)
     const stop = registry.subscribe(chromeAtom, () => {
@@ -126,7 +122,7 @@ function awaitFiber(fiber: Fiber.Fiber<unknown, unknown> | undefined) {
 }
 
 function isArchived(registry: Registry, threadId: string) {
-  return registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.archived
+  return registry.get(chatThreadAtom(threadId))?.archived
 }
 
 function addQueued(
@@ -207,8 +203,7 @@ function addQueued(
 
 function currentQueue(registry: Registry, threadId: string) {
   return applyOps(
-    registry.get(chromeAtom)?.threads.find((thread) => thread.id === threadId)?.pendingMessages ??
-      noMessages,
+    registry.get(chatThreadAtom(threadId))?.pendingMessages ?? noMessages,
     registry.get(queueOpsAtom).get(threadId) ?? []
   )
 }
@@ -325,11 +320,10 @@ export function useRenewQueueHolds() {
     for (const [threadId, messageId] of editingDrafts(registry))
       holdQueued(registry, threadId, messageId)
     function renew() {
-      const threads = registry.get(chromeAtom)?.threads
       for (const [threadId, messageId] of editingDrafts(registry))
         if (
-          threads
-            ?.find((thread) => thread.id === threadId)
+          registry
+            .get(chatThreadAtom(threadId))
             ?.pendingMessages?.some((message) => message.id === messageId)
         )
           holdQueued(registry, threadId, messageId)
@@ -349,7 +343,7 @@ export function useRenewQueueHolds() {
 // Per thread and by value, so a chrome update that leaves this thread's queue as it was (each
 // status change brings a fresh copy) doesn't rebuild the chat's rows.
 const pendingMessagesAtom = Atom.family((threadId: string) =>
-  Atom.make((get) => get(threadMetaAtom(threadId))?.pendingMessages).pipe(
+  Atom.make((get) => get(chatThreadAtom(threadId))?.pendingMessages).pipe(
     Atom.withEquality<readonly QueuedMessage[] | undefined>(
       (a, b) => (!a?.length && !b?.length) || Equal.equals(a, b)
     )
@@ -357,7 +351,7 @@ const pendingMessagesAtom = Atom.family((threadId: string) =>
 )
 const queueHeldAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
-    const thread = get(threadMetaAtom(threadId))
+    const thread = get(chatThreadAtom(threadId))
     return Boolean(thread?.queuePaused || thread?.archived)
   })
 )

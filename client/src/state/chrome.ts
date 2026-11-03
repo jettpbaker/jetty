@@ -63,9 +63,10 @@ export type Chrome = {
   agentBehaviours?: AgentBehaviours
   jettyUpdate?: JettyUpdate
   bots: readonly Bot[]
+  botThreads: readonly ThreadMeta[]
 }
 
-const emptyChrome: Chrome = { projects: [], threads: [], bots: [] }
+const emptyChrome: Chrome = { projects: [], threads: [], bots: [], botThreads: [] }
 
 function upsert<T extends { id: string }>(list: readonly T[], item: T) {
   return list.some((entry) => entry.id === item.id)
@@ -103,13 +104,20 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         jobModels: update.jobModels,
         agentBehaviours: update.agentBehaviours,
         bots: update.bots ?? [],
+        botThreads: update.botThreads ?? [],
       }
     case 'jettyUpdate':
       return { ...chrome, jettyUpdate: update.state }
     case 'bot.upserted':
       return { ...chrome, bots: upsert(chrome.bots, update.bot) }
     case 'bot.removed':
-      return { ...chrome, bots: chrome.bots.filter((bot) => bot.id !== update.botId) }
+      return {
+        ...chrome,
+        bots: chrome.bots.filter((bot) => bot.id !== update.botId),
+        botThreads: chrome.botThreads.filter((thread) => thread.id !== update.botId),
+      }
+    case 'bot.thread':
+      return { ...chrome, botThreads: upsert(chrome.botThreads, update.thread) }
     case 'project.upserted':
       return { ...chrome, projects: upsert(chrome.projects, update.project) }
     case 'thread.upserted':
@@ -264,6 +272,20 @@ export const threadMetaAtom = Atom.family((threadId: string) =>
 
 export function useThreadMeta(threadId: string | undefined) {
   return useAtomValue(threadMetaAtom(threadId ?? ''))
+}
+
+// A chat's thread, whichever kind: a bot's own isn't in the thread list, so `threadMetaAtom` and
+// everything that treats it as a listed thread leave it out.
+export const chatThreadAtom = Atom.family((threadId: string) =>
+  Atom.readable(
+    (get) =>
+      get(threadMetaAtom(threadId)) ??
+      get(chromeAtom)?.botThreads.find((thread) => thread.id === threadId)
+  ).pipe(Atom.withEquality(Equal.equals))
+)
+
+export function useChatThread(threadId: string | undefined) {
+  return useAtomValue(chatThreadAtom(threadId ?? ''))
 }
 
 const projectsAtom = Atom.readable((get) => get(chromeAtom)?.projects).pipe(

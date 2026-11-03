@@ -2,6 +2,7 @@ import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { Attachment, Reply } from '@jetty/shared/items'
 import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
+import { unlinkMentions } from '@/components/custom/slash_model'
 import { resendOnDrop } from '@/net/connection'
 import { useAtomValue } from '@effect/atom-react'
 import { hasMessage } from '@jetty/shared/history'
@@ -195,7 +196,7 @@ function sendToBot(
     sentAt: Date.now(),
   }
   const staged = stageSend(registry, fromDraft, {
-    text,
+    text: unlinkMentions(text),
     attachments,
     quotes: replies,
     sent: { threadId: botId, messageId: message.id },
