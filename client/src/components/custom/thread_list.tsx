@@ -597,6 +597,9 @@ export function ThreadList({
         : Math.max(0, virtualizer.getTotalSize() - window.innerHeight),
   })
 
+  // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
+  // Asked before anything reads `measurementsCache`, which holds the last rows' places until then.
+  const totalSize = virtualizer.getTotalSize()
   const exactAnchor = readingAnchor ? rows.findIndex((row) => row.id === readingAnchor.key) : -1
   const anchorItem =
     readingAnchor && exactAnchor === -1
@@ -611,7 +614,7 @@ export function ThreadList({
   const prependTop =
     anchorIndex === -1
       ? undefined
-      : (virtualizer.measurementsCache[anchorIndex]?.start ?? 0) + readingAnchor!.offset
+      : virtualizer.measurementsCache[anchorIndex]!.start + readingAnchor!.offset
   if (prependTop !== undefined) virtualizer.scrollOffset = prependTop
   useLayoutEffect(() => {
     previousVirtualizer.current = virtualizer
@@ -639,8 +642,6 @@ export function ThreadList({
   const latestRows = useRef<readonly ThreadRow[]>(rows)
 
   const stamp = useMemo(() => rows.map(rowStamp).join('|'), [rows])
-  // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
-  const totalSize = virtualizer.getTotalSize()
   const sentIndex = send.anchor ? rows.findIndex((row) => row.id === send.anchor) : -1
   const sentStart = virtualizer.measurementsCache[sentIndex]?.start
   // The previous answer stays in view above the sent message: from its top when that leaves the
