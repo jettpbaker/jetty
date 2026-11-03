@@ -71,7 +71,9 @@ export async function prepareTree(
   }
   try {
     await run(['bun', 'install', '--frozen-lockfile'], dir)
-    await buildClient(dir, opts.profiling)
+    // The working tree's copy has no .git, and the client's build stamps itself with HEAD.
+    const env = ref ? undefined : { ...process.env, GIT_DIR: join(repoRoot, '.git') }
+    await buildClient(dir, opts.profiling, env)
   } catch (error) {
     await dispose()
     throw error
@@ -100,9 +102,13 @@ function copyWorkingTree(dir: string) {
   }
 }
 
-async function buildClient(dir: string, profiling = false) {
+async function buildClient(
+  dir: string,
+  profiling = false,
+  env?: Record<string, string | undefined>
+) {
   const args = ['bun', join(perfDir, 'build-client.ts'), ...(profiling ? ['--profiling'] : [])]
-  await run(args, join(dir, 'client'))
+  await run(args, join(dir, 'client'), env)
 }
 
 // The lab's committed output (fixtures, baseline, budgets) is left as the formatter would.
