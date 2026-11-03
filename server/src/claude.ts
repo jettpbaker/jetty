@@ -87,6 +87,7 @@ export type ClaudeOptions = {
   supportsAutoMode?: (model: string) => boolean
   // Where Jett's attached files live; every session may read them without asking.
   attachmentsDir?: string
+  secretsDir?: string
 }
 
 type PendingApproval = {
@@ -1033,6 +1034,7 @@ export function createClaudeAdapter(
                   cwd: projectPath,
                   additionalDirectories: [
                     ...(config.attachmentsDir ? [config.attachmentsDir] : []),
+                    ...(config.secretsDir ? [config.secretsDir] : []),
                     ...(bot
                       ? [
                           join(projectPath, '..'),

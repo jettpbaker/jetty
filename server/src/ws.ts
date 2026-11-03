@@ -742,8 +742,20 @@ export function createRpcHandlers(
       'turn.start': (params) =>
         Effect.gen(function* () {
           yield* store.noteUserMessage()
+          const open = (yield* store.getThreadState(params.threadId)).items.filter(
+            (item) => item.kind === 'secret_request' && !item.outcome
+          )
           const fiber = yield* Effect.forkIn(orch.startTurnEffect(params), admissionScope)
-          return yield* Fiber.join(fiber)
+          const result = yield* Fiber.join(fiber)
+          for (const item of open)
+            yield* orch
+              .respondSecret(params.threadId, item.id, null, true)
+              .pipe(
+                Effect.catch((error) =>
+                  error.code === 'not_found' ? Effect.void : Effect.fail(error)
+                )
+              )
+          return result
         }).pipe(Effect.mapError(wireError)),
       'turn.interrupt': (params) =>
         orch.interrupt(params.threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
@@ -758,6 +770,10 @@ export function createRpcHandlers(
       'approval.respond': (params) =>
         orch
           .respondApproval(params.threadId, params.itemId, params.decision, params.message)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
+      'secret.respond': (params) =>
+        orch
+          .respondSecret(params.threadId, params.itemId, params.secret)
           .pipe(Effect.as(null), Effect.mapError(wireError)),
       'question.respond': (params) =>
         orch

@@ -331,6 +331,29 @@ function respondQuestion(
   )
 }
 
+function respondSecret(
+  registry: Registry,
+  threadId: string,
+  itemId: string,
+  secret: string | null
+) {
+  const resolution = { threadId, outcome: secret === null ? 'declined' : 'saved' }
+  registry.update(pendingResolutionsAtom, (map) => new Map(map).set(itemId, resolution))
+  run(
+    registry,
+    (connection) =>
+      connection
+        .request('secret.respond', { threadId, itemId, secret })
+        .pipe(Effect.catchCause(() => Effect.fail(new Error('Could not send secret response')))),
+    () => {
+      registry.update(pendingResolutionsAtom, (map) =>
+        map.get(itemId) === resolution ? without(map, [itemId]) : map
+      )
+      toast.error("Couldn't send your answer")
+    }
+  )
+}
+
 function dismissQuestion(
   registry: Registry,
   threadId: string,
@@ -472,6 +495,10 @@ export function useRespondApproval() {
   return useAction(respondApproval)
 }
 
+export function useRespondSecret() {
+  return useAction(respondSecret)
+}
+
 export function useRespondQuestion() {
   return useAction(respondQuestion)
 }
@@ -535,7 +562,11 @@ export function useThreadOverlay(threadId: string, thread: ThreadSnapshot | unde
     if (resolutions.size === 0) return
     const settledIds = summaryItems(thread)
       .filter(
-        (item) => (item.kind === 'approval' || item.kind === 'question') && !awaitsInput(item)
+        (item) =>
+          (item.kind === 'approval' ||
+            item.kind === 'question' ||
+            item.kind === 'secret_request') &&
+          !awaitsInput(item)
       )
       .map((item) => item.id)
     if (thread?.summary) {

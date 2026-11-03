@@ -896,11 +896,12 @@ export function createStore() {
           !userWorked &&
           state.items.some(
             (item) =>
-              item.kind === 'question' &&
               item.turnId === turn.turn_id &&
-              item.delivery === 'async' &&
-              !item.answers &&
-              !item.dismissed
+              ((item.kind === 'secret_request' && !item.outcome) ||
+                (item.kind === 'question' &&
+                  item.delivery === 'async' &&
+                  !item.answers &&
+                  !item.dismissed))
           )
         )
           return { delivered: false }
@@ -2008,7 +2009,8 @@ export function createStore() {
             carriesOn ||
             message?.carriesOn ||
             message?.kind === 'continuation' ||
-            message?.kind === 'pull_request'
+            message?.kind === 'pull_request' ||
+            message?.kind === 'secret'
           const previous =
             continues || message?.kind === 'report'
               ? yield* latestFinishedTurn(threadId)

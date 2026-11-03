@@ -394,7 +394,7 @@ export const QueuedMessage = Schema.Struct({
   // Jetty's own messages: a restart continuation, a child's report, the PR watcher's news, or a
   // bot's check-in or tidy-pass review, which its user_message carries on as `wake`.
   kind: Schema.optional(
-    Schema.Literals(['continuation', 'report', 'pull_request', 'check_in', 'tidy'])
+    Schema.Literals(['continuation', 'report', 'pull_request', 'secret', 'check_in', 'tidy'])
   ),
   // an answer to the turn's async question, kept while its setup ran: it carries that turn on
   carriesOn: Schema.optional(Schema.Literal(true)),
@@ -1156,6 +1156,14 @@ export const methods = {
       itemId: Schema.String,
       decision: ApprovalDecision,
       message: Schema.optional(Schema.String),
+    }),
+    result: Schema.Null,
+  },
+  'secret.respond': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      itemId: Schema.String,
+      secret: Schema.NullOr(Schema.String),
     }),
     result: Schema.Null,
   },

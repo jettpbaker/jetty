@@ -11,6 +11,7 @@ export const SELF_TOOLS = [
   'send_video',
   'desktop_session',
   'ask_parent',
+  'request_secret',
   'message_user',
   'answer_approval',
   'add_instruction',

@@ -29,6 +29,7 @@ import { Cause, Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from
 import type { Attachments, PersistedAttachments } from './attachments'
 import type { Desktops } from './desktops'
 import type { Hub } from './hub'
+import type { Secrets } from './secrets'
 import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
@@ -49,6 +50,7 @@ import {
   CHILD_REPORT_INSTRUCTION,
   deniedApprovalNote,
   relayedMessage,
+  secretAnswer,
   userAnswers,
 } from './jetty-instructions'
 import {
@@ -262,6 +264,7 @@ type OrchestratorOptions = {
   worktrees?: Worktrees
   desktops?: Desktops
   titler?: ProviderTitler | null
+  secrets?: Secrets
   attachments?: Attachments | null
   onPullRequestOutput?: (
     threadId: string,
@@ -283,6 +286,7 @@ export function createOrchestrator({
   desktops,
   titler = null,
   attachments = null,
+  secrets,
   onPullRequestOutput,
   onBranchPushed,
   onPullRequestWritten,
@@ -2032,6 +2036,73 @@ export function createOrchestrator({
             )
             if (!appended.length) return
             for (const event of appended) yield* publish(threadId, event)
+            hub.pushChrome({
+              type: 'thread.upserted',
+              thread: yield* store.requireThread(threadId),
+            })
+          })
+        )
+      },
+      requestSecret(threadId: string, label: string, reason: string) {
+        return locked(
+          threadId,
+          Effect.gen(function* () {
+            yield* flushDelta(threadId)
+            yield* store.requireThread(threadId)
+            const turnId = state(threadId).turnId
+            if (!turnId) return yield* Effect.fail(new StoreError('conflict', 'No current turn'))
+            const item: ThreadItem = {
+              id: newId(),
+              turnId,
+              createdAt: Date.now(),
+              kind: 'secret_request',
+              label,
+              reason,
+            }
+            yield* commit(threadId, { type: 'item.started', item })
+          })
+        )
+      },
+      respondSecret(
+        threadId: string,
+        itemId: string,
+        secret: string | null,
+        answeredInChat = false
+      ) {
+        return locked(
+          threadId,
+          Effect.gen(function* () {
+            yield* flushDelta(threadId)
+            const current = yield* store.getThreadState(threadId)
+            const item = current.items.find((candidate) => candidate.id === itemId)
+            if (item?.kind !== 'secret_request' || item.outcome)
+              return yield* Effect.fail(new StoreError('not_found', 'No pending secret request'))
+            const value = secret?.trim()
+            if (value === '')
+              return yield* Effect.fail(new StoreError('invalid_params', 'Secret is empty'))
+            if (value !== undefined && !secrets)
+              return yield* Effect.fail(new StoreError('internal', 'Secret storage unavailable'))
+            const path = value !== undefined && secrets ? yield* secrets.save(value) : null
+            const appended = yield* store.transaction(
+              Effect.gen(function* () {
+                const appended = yield* store.appendEvent(threadId, {
+                  type: 'item.completed',
+                  itemId,
+                  patch: { outcome: path === null ? 'declined' : 'saved' },
+                })
+                if (!answeredInChat)
+                  yield* store.enqueue(threadId, {
+                    id: newId(),
+                    text: secretAnswer(item.label, path),
+                    createdAt: Date.now(),
+                    hop: 0,
+                    from: { threadId, title: 'Jetty' },
+                    kind: 'secret',
+                  })
+                return appended
+              })
+            )
+            yield* publish(threadId, appended)
             hub.pushChrome({
               type: 'thread.upserted',
               thread: yield* store.requireThread(threadId),

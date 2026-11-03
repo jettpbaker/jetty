@@ -116,6 +116,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('workflow.stop'),
   unary('background.stop'),
   unary('approval.respond'),
+  unary('secret.respond'),
   unary('question.respond'),
   unary('question.dismiss'),
   unary('bot.create'),

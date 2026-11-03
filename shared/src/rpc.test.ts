@@ -183,6 +183,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'background.stop': () => Effect.succeed(null),
           'workflow.stop': () => Effect.succeed(null),
           'approval.respond': () => Effect.succeed(null),
+          'secret.respond': () => Effect.succeed(null),
           'question.respond': () => Effect.succeed(null),
           'question.dismiss': () => Effect.succeed(null),
           'bot.create': (params) =>

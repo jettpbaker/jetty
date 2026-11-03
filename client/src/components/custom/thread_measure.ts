@@ -282,6 +282,8 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       return botMarkerHeight(markerRuns(row.markers).length)
     case 'exchange':
     case 'tidying':
+    case 'secret':
+      return 32
     case 'pullRequest':
     case 'pullRequestGroup':
       return 20

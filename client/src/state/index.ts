@@ -142,6 +142,7 @@ export {
   useInterruptTurn,
   useRespondApproval,
   useRespondQuestion,
+  useRespondSecret,
   useSendingIds,
   useSendTurn,
   useStopWorkflow,

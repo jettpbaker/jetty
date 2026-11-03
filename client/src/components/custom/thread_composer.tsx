@@ -10,6 +10,7 @@ import {
   ApprovalStrip,
   PendingHeader,
   QuestionStrip,
+  SecretStrip,
   useApproval,
   useQuestion,
 } from '@/components/custom/composer_strip'
@@ -40,6 +41,7 @@ import {
   useQueueActions,
   useRespondApproval,
   useRespondQuestion,
+  useRespondSecret,
   useSendTurn,
   useThreadLoadout,
   useThreadMeta,
@@ -65,7 +67,11 @@ const noticeMs = 1000
 // Requests for input and the subagents that ask them: a streamed reply leaves them, and the strip
 // built from them, alone.
 const requestItems = createItemSelection(
-  (item) => item.kind === 'approval' || item.kind === 'question' || item.kind === 'subagent'
+  (item) =>
+    item.kind === 'approval' ||
+    item.kind === 'question' ||
+    item.kind === 'secret_request' ||
+    item.kind === 'subagent'
 )
 
 // The project a new-thread draft pinned itself to when it was started, rather than one picked.
@@ -149,6 +155,7 @@ export function ThreadComposer({
   const createThread = useCreateThread()
   const respondApproval = useRespondApproval()
   const respondQuestion = useRespondQuestion()
+  const respondSecret = useRespondSecret()
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
   const navigate = useNavigate()
@@ -362,7 +369,9 @@ export function ThreadComposer({
       if (!text) return
       queueActions.edit(threadId, editingEntry.id, text)
     } else if (!text && attachments.items.length === 0) return
-    else if (threadId && running) queueActions.add(threadId, text, attachments.take(), takeQuotes())
+    // A message sent over an open secret request closes it, which only turn.start does.
+    else if (threadId && running && item?.kind !== 'secret_request')
+      queueActions.add(threadId, text, attachments.take(), takeQuotes())
     else return startTurn(text, background)
     clearDraft()
   }
@@ -500,9 +509,31 @@ export function ThreadComposer({
             onSubmit: question.next,
             onKeyDown: keyHandler(question.onKey),
           }
-        : undefined
+        : item?.kind === 'secret_request'
+          ? {
+              strip: (
+                <SecretStrip
+                  key={item.id}
+                  item={item}
+                  composerHasText={typed}
+                  header={header}
+                  hideSource={Boolean(header)}
+                  respond={(secret) => {
+                    if (!threadId) return
+                    respondSecret(threadId, item.id, secret)
+                    settled(item)
+                  }}
+                />
+              ),
+              placeholder: 'Tell the agent what to do instead',
+              sendLabel: 'Send',
+              sendDisabled: !typed && attachments.items.length === 0,
+              onSubmit: () => submit(),
+              onKeyDown: keyHandler(() => false),
+            }
+          : undefined
   const mode =
-    answer && answering
+    answer && (answering || item?.kind === 'secret_request')
       ? answer
       : {
           strip: answer?.strip,

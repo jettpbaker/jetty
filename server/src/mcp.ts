@@ -252,6 +252,13 @@ function turnCounts(items: readonly ThreadItem[]) {
   return Object.keys(did).length > 0 ? did : undefined
 }
 
+function secretSummary(items: readonly ThreadItem[]) {
+  const secrets = items
+    .filter((item) => item.kind === 'secret_request')
+    .map((item) => `Asked the user for ${item.label}: ${item.outcome ?? 'waiting'}`)
+  return secrets.length ? { secrets } : {}
+}
+
 function outlineTurn(items: readonly ThreadItem[]) {
   const asked = items.find((item) => item.kind === 'user_message')
   const answered = items.findLast((item) => item.kind === 'assistant_message')
@@ -271,6 +278,7 @@ function outlineTurn(items: readonly ThreadItem[]) {
       ? { answered: { id: answered.id, text: firstLine(answered.text, OUTLINE_CHARS) } }
       : {}),
     ...(did ? { did } : {}),
+    ...secretSummary(items),
   }
 }
 
@@ -1476,6 +1484,30 @@ export function createMcpHandler(
             )
         )
       }
+      if (!bot)
+        server.registerTool(
+          'request_secret',
+          {
+            ...toolMeta,
+            description:
+              'Ask the user for a secret, such as an API key, in a private field. Use this instead of asking for secrets in chat. You get a private file path as your next message, not the value, so end your turn after calling. Asked how to provide a secret: call this now, do not explain instead.',
+            inputSchema: {
+              label: text.describe('What the secret is.'),
+              reason: text.describe(
+                'What it is for and where to get it, with a full https URL when there is one.'
+              ),
+            },
+          },
+          ({ label, reason }) =>
+            invoke(
+              orch.requestSecret(identity.threadId, label, reason).pipe(
+                Effect.as({
+                  detail:
+                    "End your turn now. The private file's path, or the user's decline, arrives as your next message.",
+                })
+              )
+            )
+        )
       if (parentId)
         server.registerTool(
           'ask_parent',

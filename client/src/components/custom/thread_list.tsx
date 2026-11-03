@@ -192,6 +192,8 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'compaction':
       return `${row.state}:${row.reason ?? ''}`
+    case 'secret':
+      return `${row.item.outcome}:${row.item.label}`
     case 'pullRequest':
       return row.item.activity.length
     case 'pullRequestGroup':
@@ -317,6 +319,12 @@ const ThreadItemRow = memo(function ThreadItemRow({
   if (row.kind === 'workflow') return <WorkflowGroup threadId={threadId} workflow={row.item} />
   if (row.kind === 'subagentDone') return <SubagentDone threadId={threadId} agent={row.agent} />
   if (row.kind === 'compaction') return <CompactionSeam state={row.state} reason={row.reason} />
+  if (row.kind === 'secret')
+    return (
+      <div className='flex h-8 items-center text-sm text-muted-foreground'>
+        {row.item.outcome === 'saved' ? 'Saved' : 'Declined'} {row.item.label}
+      </div>
+    )
   if (row.kind === 'pullRequest') return <PullRequestSeam item={row.item} />
   if (row.kind === 'pullRequestGroup') return <PullRequestGroupSeam items={row.items} />
   if (row.kind === 'restart') return <RestartSeam />

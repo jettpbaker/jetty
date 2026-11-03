@@ -79,6 +79,7 @@ import { createPullRequestLinks, createPullRequests } from './pull-requests'
 import { rangeResponse } from './range'
 import { agentRegistry, singleAgentRegistry, type AgentProvider } from './registry'
 import { createSearchService } from './search/service'
+import { createSecrets } from './secrets'
 import { SkillsLive } from './skills'
 import { Store, storeLayer } from './store'
 import { createModelPrompt, createTitlePrompt, type TitlePrompt } from './title-model'
@@ -439,6 +440,14 @@ function createServer(opts: ServerOptions = {}) {
       )
     )
     const attachments = Context.get(io, Attachments)
+    const secrets = createSecrets(home)
+    yield* secrets.sweep().pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+    yield* Effect.sleep('1 hour').pipe(
+      Effect.andThen(secrets.sweep()),
+      Effect.catchCause((cause) => Effect.logWarning(cause)),
+      Effect.repeat(Schedule.forever),
+      Effect.forkScoped
+    )
     yield* store.heldAttachments().pipe(
       Effect.flatMap(attachments.sweep),
       Effect.catchCause((cause) => Effect.logWarning(cause))
@@ -511,6 +520,7 @@ function createServer(opts: ServerOptions = {}) {
                     supportsAutoMode: (id) =>
                       findProviderModel(models ?? [], 'claude', id)?.autoMode !== false,
                     attachmentsDir: join(home, 'attachments'),
+                    secretsDir: join(home, 'secrets'),
                   })
                 ),
                 codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp, attachments })),
@@ -639,6 +649,7 @@ function createServer(opts: ServerOptions = {}) {
         hub,
         titler,
         attachments,
+        secrets,
         agent: registry,
         onPullRequestOutput: pullRequestLinks.linkFound,
         onBranchPushed: pullRequestLinks.linkPushed,

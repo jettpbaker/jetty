@@ -35,6 +35,7 @@ type WorkRow = Extract<ThreadRow, { kind: 'work' }>
 export type SubagentItem = Extract<ThreadItem, { kind: 'subagent' }>
 type WorkflowItem = Extract<ThreadItem, { kind: 'workflow' }>
 export type BackgroundItem = Extract<ThreadItem, { kind: 'background' }>
+export type SecretItem = Extract<ThreadItem, { kind: 'secret_request' }>
 export type PullRequestItem = Extract<ThreadItem, { kind: 'pull_request' }>
 
 export type ThreadRow =
@@ -94,6 +95,7 @@ export type ThreadRow =
       restarted?: boolean
     }
   | { kind: 'compaction'; id: string; state: CompactionState; reason?: string }
+  | { kind: 'secret'; id: string; item: SecretItem }
   | { kind: 'pullRequest'; id: string; item: PullRequestItem }
   | { kind: 'pullRequestGroup'; id: string; items: PullRequestItem[] }
   | { kind: 'restart'; id: string }
@@ -802,7 +804,9 @@ export function threadRows(
       (item.kind === 'tool_call' && item.status !== 'succeeded' && deniedTools.has(item.id)) ||
       (item.kind === 'tool_call' && item.status === 'running' && item.queued) ||
       (item.kind === 'tool_call' &&
-        ['ToolSearch', 'mcp__jetty__add_instruction'].includes(item.toolName)) ||
+        ['ToolSearch', 'mcp__jetty__add_instruction', 'mcp__jetty__request_secret'].includes(
+          item.toolName
+        )) ||
       (turns !== undefined &&
         item.kind === 'tool_call' &&
         item.toolName === messageUserTool &&
@@ -1028,6 +1032,9 @@ export function threadRows(
         if (item.message === RESTART_LIMIT_NOTE) heldTurns.add(item.turnId)
         else if (failedCompactTurns.has(item.turnId) && compactFailureDetail(item.message)) break
         else rows.push({ kind: 'error', id: item.id, message: item.message, turnId: item.turnId })
+        break
+      case 'secret_request':
+        if (item.outcome) rows.push({ kind: 'secret', id: item.id, item })
         break
       case 'pull_request':
         rows.push({ kind: 'pullRequest', id: item.id, item })

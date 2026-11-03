@@ -210,6 +210,11 @@ export function refusalNote(lines: readonly string[]) {
     : ''
 }
 
+export function secretAnswer(label: string, path: string | null) {
+  if (path === null) return `The user declined to share ${label}.`
+  return `${label} is saved at ${path}. Use it only inside commands, for example TOKEN="$(cat ${path})" some-command. Never print it or open it with a file tool, or it lands in this chat. Jetty deletes it after 24 hours.`
+}
+
 export function userAnswers(lines: readonly string[]) {
   return ['Answers from the user:', ...lines].join('\n')
 }

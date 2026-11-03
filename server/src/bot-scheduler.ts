@@ -42,7 +42,8 @@ function checkInItems(
         .filter(
           (item) =>
             (item.kind === 'approval' && !item.decision && !item.withdrawn) ||
-            (item.kind === 'question' && !item.answers && !item.dismissed && !item.skipped)
+            (item.kind === 'question' && !item.answers && !item.dismissed && !item.skipped) ||
+            (item.kind === 'secret_request' && !item.outcome)
         )
         .sort((a, b) => a.createdAt - b.createdAt)[0]
       if (waiting && now - waiting.createdAt >= timing.workerStaleMs) {

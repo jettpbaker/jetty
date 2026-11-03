@@ -25,9 +25,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
-import { Suspense, useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react'
+import {
+  Suspense,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react'
 
-import type { Approval, Question, Source } from './composer_strip_model'
+import type { Approval, Question, Secret, Source } from './composer_strip_model'
 
 import { DiffCounts } from './diff/file_card'
 import { loadDiffWorkerPool } from './diff_worker_pool'
@@ -84,6 +92,105 @@ function FlushShell({ children, className }: { children: ReactNode; className?: 
     >
       {children}
     </div>
+  )
+}
+
+// Agent text: links are the only markup it gets.
+function withLinks(text: string) {
+  return text.split(/(https:\/\/[^\s)]*[^\s).,;:!?])/).map((part, index) =>
+    index % 2 ? (
+      <a
+        key={part}
+        href={part}
+        target='_blank'
+        rel='noreferrer'
+        className='text-primary hover:underline'
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  )
+}
+
+export function SecretStrip({
+  item,
+  respond,
+  composerHasText,
+  header,
+  hideSource,
+}: {
+  item: Secret
+  respond: (secret: string | null) => void
+  composerHasText: boolean
+  header?: ReactNode
+  hideSource?: boolean
+}) {
+  const fieldRef = useRef<HTMLTextAreaElement>(null)
+  const [hasValue, setHasValue] = useState(false)
+  const shouldFocusRef = useRef(!composerHasText)
+  useEffect(() => {
+    const field = fieldRef.current
+    if (shouldFocusRef.current) field?.focus({ preventScroll: true })
+    return () => {
+      if (field) field.value = ''
+    }
+  }, [])
+  function save() {
+    const value = fieldRef.current?.value
+    if (value?.trim()) respond(value)
+  }
+  return (
+    <FlushShell className='p-3'>
+      {header}
+      {!hideSource && <RequestSource source={item.source} />}
+      <div className='flex min-w-0 items-start gap-2'>
+        <span className='flex h-5 shrink-0 items-center'>
+          <Attention />
+        </span>
+        <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+          <p className='text-sm leading-5 font-medium'>{item.label}</p>
+          <p className='text-xs leading-4 whitespace-pre-line text-muted-foreground wrap-anywhere'>
+            {withLinks(item.reason)}
+          </p>
+        </div>
+        <Button
+          variant='ghost-text'
+          size='xs'
+          className='-mt-1 -mr-2'
+          onClick={() => respond(null)}
+        >
+          Decline
+        </Button>
+      </div>
+      <div className='flex min-w-0 items-center gap-2'>
+        <textarea
+          ref={fieldRef}
+          rows={1}
+          aria-label={item.label}
+          className='field-sizing-content max-h-40 min-h-7 min-w-0 flex-1 resize-none rounded-sm bg-foreground/8 px-2.5 py-1 font-mono text-sm leading-5 outline-none [-webkit-text-security:disc] placeholder:font-sans'
+          autoComplete='off'
+          autoCorrect='off'
+          autoCapitalize='off'
+          spellCheck={false}
+          data-1p-ignore
+          data-lpignore='true'
+          data-bwignore
+          placeholder='Paste the secret'
+          onChange={(event) => setHasValue(Boolean(event.currentTarget.value.trim()))}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+            event.preventDefault()
+            event.stopPropagation()
+            save()
+          }}
+        />
+        <StripButton disabled={!hasValue} onClick={save}>
+          Save
+        </StripButton>
+      </div>
+    </FlushShell>
   )
 }
 

@@ -215,6 +215,13 @@ export const ThreadItem = Schema.Union([
   }),
   Schema.Struct({
     ...itemBase,
+    kind: Schema.Literal('secret_request'),
+    label: Schema.String,
+    reason: Schema.String,
+    outcome: Schema.optional(Schema.Literals(['saved', 'declined'])),
+  }),
+  Schema.Struct({
+    ...itemBase,
     kind: Schema.Literal('image_gallery'),
     images: Schema.Array(Attachment)
       .check(Schema.isMinLength(1))
@@ -307,10 +314,11 @@ export const RESTART_LIMIT = 3
 export const RESTART_WINDOW_MS = 10 * 60_000
 export const RESTART_LIMIT_NOTE = `Jetty restarted ${RESTART_LIMIT} times in ${RESTART_WINDOW_MS / 60_000} minutes, so it didn't resume automatically.`
 
-// An approval or question still waiting on the user's answer.
+// An approval, question or secret request still waiting on the user's answer.
 export function awaitsInput(item: ThreadItem) {
   if (item.kind === 'approval') return !item.decision && !item.withdrawn
   if (item.kind === 'question') return !item.answers && !item.skipped && !item.dismissed
+  if (item.kind === 'secret_request') return !item.outcome
   return false
 }
 

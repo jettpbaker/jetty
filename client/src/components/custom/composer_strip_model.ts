@@ -38,7 +38,15 @@ export type ProposedChanges = { files: ProposedFile[]; patch: string; numbered: 
 
 export type Question = { id: string; kind: 'question'; source: Source; questions: QuestionSpec[] }
 
-export type Pending = Approval | Question
+export type Secret = {
+  id: string
+  kind: 'secret_request'
+  source: Source
+  label: string
+  reason: string
+}
+
+export type Pending = Approval | Question | Secret
 
 const runTools = new Set(['bash', 'shell', 'commandexecution', 'execute'])
 const editTools = new Set(['edit', 'multiedit', 'write', 'notebookedit', 'filechange'])
@@ -328,6 +336,8 @@ export function pendingItems(
         source,
         ...approvalView(item, projectPath, projectTitle),
       })
+    else if (item.kind === 'secret_request')
+      pending.push({ id: item.id, kind: item.kind, source, label: item.label, reason: item.reason })
     else if (item.kind === 'question')
       pending.push({ id: item.id, kind: 'question', source, questions: [...item.questions] })
   }
