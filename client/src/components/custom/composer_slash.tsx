@@ -67,8 +67,8 @@ export type SlashScope = {
   projectId?: string
   provider?: ProviderId
   onUsage?: () => void
-  // A bot's chat lists only skills: the commands act on a thread.
-  bot?: boolean
+  // A bot's chat lists only Compact and skills: the other commands act on a thread.
+  botId?: string
   // The bots @ can mention. Without any, @ is just a character.
   mentions?: readonly Bot[]
 }
@@ -110,14 +110,7 @@ export function useComposerSlash(
   text: string,
   onTextChange: (text: string) => void,
   textarea: RefObject<HTMLTextAreaElement | null>,
-  {
-    threadId,
-    projectId,
-    provider: scopedProvider,
-    onUsage,
-    bot = false,
-    mentions = [],
-  }: SlashScope = {}
+  { threadId, projectId, provider: scopedProvider, onUsage, botId, mentions = [] }: SlashScope = {}
 ) {
   const field = useRef<HTMLDivElement>(null)
   const mirror = useRef<HTMLDivElement>(null)
@@ -141,8 +134,9 @@ export function useComposerSlash(
   const { accessMode, setAccessMode } = useAccessMode()
   const capabilities = useProviderCapabilities()
   const compactThread = useCompactThread()
-  const thread = useThreadMeta(threadId)
-  const context = useThreadContext(threadId)
+  const chatId = threadId ?? botId
+  const thread = useThreadMeta(chatId)
+  const context = useThreadContext(chatId)
   const bumpDraft = useBumpDraft()
   const navigate = useNavigate()
   const model = loadout && findModel(catalog, loadout)
@@ -325,6 +319,24 @@ export function useComposerSlash(
         : !capabilities?.[thread.provider].compaction
           ? 'This provider can’t compact'
           : ''
+    const compact =
+      context && context.usedTokens > 0
+        ? [
+            command(
+              'compact',
+              'Compact',
+              compactReason,
+              <ContextRing context={context} />,
+              false,
+              () => {
+                consume(range)
+                if (chatId) compactThread(chatId)
+              },
+              Boolean(compactReason)
+            ),
+          ]
+        : []
+    if (botId) return compact
     const unset = 'Choose a model first'
     const efforts = model?.efforts.length ?? 0
     const choosable = model?.autoMode !== false
@@ -360,22 +372,7 @@ export function useComposerSlash(
         picker('access'),
         !choosable
       ),
-      ...(context && context.usedTokens > 0
-        ? [
-            command(
-              'compact',
-              'Compact',
-              compactReason,
-              <ContextRing context={context} />,
-              false,
-              () => {
-                consume(range)
-                if (threadId) compactThread(threadId)
-              },
-              Boolean(compactReason)
-            ),
-          ]
-        : []),
+      ...compact,
       ...(onUsage
         ? [
             command(
@@ -402,7 +399,7 @@ export function useComposerSlash(
 
   function itemEntries(range: SlashQuery): Entry[] {
     return [
-      ...(bot ? [] : commandEntries(range)),
+      ...commandEntries(range),
       ...skills.map(
         (skill): Entry => ({
           id: `skill:${skill.name}`,
@@ -453,7 +450,7 @@ export function useComposerSlash(
           range.query
         ),
       ]
-    if (range.query || bot) return rank(items, range.query)
+    if (range.query || botId) return rank(items, range.query)
     const skills = items.filter((entry) => entry.group === 'Skills')
     return [
       ...items.filter((entry) => entry.group === 'Commands'),

@@ -5,6 +5,7 @@ import { botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
 import { Composer } from '@/components/custom/composer'
+import { ThreadContextRing } from '@/components/custom/context_ring'
 import { BotLoadoutPicker, botLoadoutChanges } from '@/components/custom/new_bot_dialog'
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { linkMentions } from '@/components/custom/slash_model'
@@ -125,7 +126,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
       ) : (
         <div className='min-h-0 flex-1' />
       )}
-      <div className='mx-auto flex w-full max-w-[873px] shrink-0 flex-col gap-2 px-6 pb-4'>
+      <div className='mx-auto flex w-full max-w-[873px] shrink-0 flex-col gap-2 px-6 pb-1'>
         {overlay.serverItems.map(
           (item) =>
             (item.kind === 'approval' || item.kind === 'question') &&
@@ -167,13 +168,17 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
           accessMode={bot.permissionMode}
           onAccessModeChange={(permissionMode) => updateBot(bot.id, { permissionMode })}
           attachments={attachments}
-          context={null}
+          context={
+            <div className='relative z-10 flex h-7 items-center justify-end px-2.5'>
+              <ThreadContextRing threadId={bot.id} provider={bot.provider} />
+            </div>
+          }
           rows={1}
           inputRef={fieldRef}
           slash={{
             projectId: bot.projectId ?? undefined,
             provider: bot.provider,
-            bot: true,
+            botId: bot.id,
             mentions: others,
           }}
         />

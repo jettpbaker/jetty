@@ -114,6 +114,8 @@ export const ThreadItem = Schema.Union([
     ),
     // Set when a compaction fails and the chat should say why. Absent on a stop.
     error: Schema.optional(Schema.String),
+    // Jett asked for it, so a bot's chat shows it. A bot's automatic one is a quiet turn.
+    manual: Schema.optional(Schema.Literal(true)),
   }),
   Schema.Struct({
     ...itemBase,

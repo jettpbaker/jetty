@@ -1903,7 +1903,13 @@ export function createOrchestrator({
                     return onCommit ?? Effect.void
                   }
                 }
-                return append(threadId, event, onCommit).pipe(Effect.mapError(toAgentError))
+                return append(
+                  threadId,
+                  !background && event.type === 'item.started' && event.item.kind === 'compaction'
+                    ? { ...event, item: { ...event.item, manual: true } }
+                    : event,
+                  onCommit
+                ).pipe(Effect.mapError(toAgentError))
               }
               const lifecycle = agent
                 .startTurn(

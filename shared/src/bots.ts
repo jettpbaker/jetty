@@ -50,7 +50,7 @@ export function quietTurn(items: readonly ThreadItem[], turnId: string) {
   }
   return opening?.kind === 'user_message'
     ? opening.wake !== undefined
-    : opening?.kind === 'compaction'
+    : opening?.kind === 'compaction' && !opening.manual
 }
 
 // What a bot is visibly doing in a turn. A public message goes quiet until another tool starts.

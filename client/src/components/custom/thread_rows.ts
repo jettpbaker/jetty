@@ -512,8 +512,8 @@ function botTurns(items: readonly ThreadItem[], { others }: BotRows) {
     if (!turn) {
       turn = {
         opener: 'other',
-        quiet: item.kind === 'compaction',
-        joined: false,
+        quiet: item.kind === 'compaction' && !item.manual,
+        joined: item.kind === 'compaction' && item.manual === true,
         messaged: false,
         opened: false,
       }
