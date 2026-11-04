@@ -280,6 +280,18 @@ export function SettingsIntelligence() {
               onCheckedChange={(value) => set('archiveCompletedThreads', value)}
             />
           </SettingsRow>
+          <SettingsRow
+            id='idle-compaction'
+            icon={Minimize45Icon}
+            title='Compact idle threads'
+            description='Summarise threads over 200k tokens just before their cache expires, so coming back costs less.'
+          >
+            <Switch
+              aria-label='Compact idle threads'
+              checked={enabled('compactIdleThreads')}
+              onCheckedChange={(value) => set('compactIdleThreads', value)}
+            />
+          </SettingsRow>
           <SettingsLinkRow
             id='check-ins'
             page='bots'

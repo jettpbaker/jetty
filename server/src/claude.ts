@@ -267,6 +267,8 @@ export function createClaudeAdapter(
     const ttlMs = config.ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
     const makeQuery = config.query ?? query
     const supportsAutoMode = config.supportsAutoMode ?? (() => true)
+    const modelUsage = new Map<string, NonNullable<SdkLikeMessage['modelUsage']>>()
+    const compactTokens = new Map<string, NonNullable<SdkLikeMessage['compact_metadata']>>()
     let usageInFlight = false
 
     function toSdkPermissionMode(input: TurnInput, bot: boolean): PermissionMode {
@@ -732,6 +734,30 @@ export function createClaudeAdapter(
             if (message.type === 'result' && config.capture)
               yield* Effect.promise(() => config.capture!.flush())
             const sdk = message as SdkLikeMessage
+            if (sdk.subtype === 'compact_boundary')
+              compactTokens.set(session.threadId, sdk.compact_metadata ?? {})
+            if (sdk.type === 'result' && sdk.modelUsage) {
+              const previous = modelUsage.get(session.threadId)
+              const tokens = compactTokens.get(session.threadId)
+              if (tokens) {
+                const delta = {
+                  cacheReadInputTokens: 0,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  costUSD: 0,
+                }
+                for (const [model, usage] of Object.entries(sdk.modelUsage)) {
+                  const before = previous?.[model]
+                  for (const key of Object.keys(delta) as (keyof typeof delta)[])
+                    delta[key] += Math.max(0, usage[key] - (before?.[key] ?? 0))
+                }
+                yield* Effect.logInfo(
+                  `compacted ${session.threadId}: tokens ${tokens.pre_tokens ?? '?'} -> ${tokens.post_tokens ?? '?'}, cacheReadInputTokens=${delta.cacheReadInputTokens} inputTokens=${delta.inputTokens} outputTokens=${delta.outputTokens} costUSD=${delta.costUSD}`
+                )
+                compactTokens.delete(session.threadId)
+              }
+              modelUsage.set(session.threadId, { ...previous, ...sdk.modelUsage })
+            }
             if (
               sdk.type === 'system' &&
               sdk.subtype === 'status' &&

@@ -135,6 +135,8 @@ function newestWindow(state: ThreadView): ThreadSnapshot {
     activeTurnId: state.activeTurnId,
     lastSeq: state.lastSeq,
     context: state.context,
+    cacheLifetime: state.cacheLifetime,
+    automaticCompactionTurnId: state.automaticCompactionTurnId,
     lastTurnOutcome: state.lastTurnOutcome,
     turnOutcomes: Object.fromEntries(
       Object.entries(state.turnOutcomes).filter(([id]) => turns.has(id))

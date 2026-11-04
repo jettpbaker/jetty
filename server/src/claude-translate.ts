@@ -22,6 +22,7 @@ type ToolCallState = { started: boolean; queuedItemId?: string | undefined }
 export type TranslateCtx = {
   turnId: string
   agentId: string | null
+  cacheLifetime?: '1h' | '5m'
   // shared by the main ctx and every subagent ctx: subagent streams stay separate
   agents: Map<string, TranslateCtx>
   // the SDK's task id (canUseTool's agentID) → the subagent item id
@@ -58,6 +59,7 @@ export function createTranslateCtx(
   return {
     turnId,
     agentId,
+    cacheLifetime: shared?.cacheLifetime,
     agents: shared?.agents ?? new Map(),
     tasks: shared?.tasks ?? new Map(),
     workflows: shared?.workflows ?? new Map(),
@@ -89,6 +91,7 @@ export type SdkLikeMessage = {
     id?: string
     content?: unknown
     model?: string
+    usage?: SdkLikeMessage['usage']
   }
   parent_tool_use_id?: string | null
   tool_use_id?: string
@@ -100,7 +103,13 @@ export type SdkLikeMessage = {
     output_tokens?: number
     total_tokens?: number
     duration_ms?: number
+    cache_creation?: { ephemeral_1h_input_tokens?: number; ephemeral_5m_input_tokens?: number }
   }
+  compact_metadata?: { pre_tokens?: number; post_tokens?: number }
+  modelUsage?: Record<
+    string,
+    { cacheReadInputTokens: number; inputTokens: number; outputTokens: number; costUSD: number }
+  >
   total_cost_usd?: number
   errors?: string[]
   is_error?: boolean
@@ -144,6 +153,20 @@ export function translate(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[]
     return translate({ ...msg, parent_tool_use_id: null }, owner ?? agentCtx(ctx, parent))
   }
 
+  const cache = (msg.message?.usage ?? msg.usage)?.cache_creation
+  const lifetime = cache?.ephemeral_1h_input_tokens
+    ? '1h'
+    : cache?.ephemeral_5m_input_tokens
+      ? '5m'
+      : undefined
+  const events = translateMessage(msg, ctx)
+  // Subagents cache for 5 minutes whatever the main conversation does.
+  if (!lifetime || ctx.agentId || lifetime === ctx.cacheLifetime) return events
+  ctx.cacheLifetime = lifetime
+  return [{ type: 'cache.lifetime', lifetime }, ...events]
+}
+
+function translateMessage(msg: SdkLikeMessage, ctx: TranslateCtx): ThreadEvent[] {
   switch (msg.type) {
     case 'system':
       return translateSystem(msg, ctx)

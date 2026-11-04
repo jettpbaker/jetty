@@ -45,7 +45,7 @@ import {
   restoreManagedBotFiles,
   writeBotTasks,
 } from './bot-home'
-import { botTiming } from './bot-lifecycle'
+import { botTiming, warmCompactionCandidate, warmCompactionDue } from './bot-lifecycle'
 import {
   CHILD_REPORT_INSTRUCTION,
   deniedApprovalNote,
@@ -372,11 +372,11 @@ export function createOrchestrator({
             yield* detachProjectApprovals(threadId, turnId)
           })
         )
+        const compact = backgroundCompactions.get(threadId)
+        if (compact?.turnId === turnId) backgroundCompactions.delete(threadId)
         if (yield* store.isBot(threadId)) {
           yield* store.updateBotLifecycle(threadId, { turnEndedAt: Date.now() })
-          const compact = backgroundCompactions.get(threadId)
           if (compact?.turnId === turnId) {
-            backgroundCompactions.delete(threadId)
             if (!compact.interrupted) {
               yield* store.updateBotLifecycle(threadId, {
                 compactRetryAt: Date.now() + botTiming.retryMs,
@@ -766,7 +766,7 @@ export function createOrchestrator({
         if (event.type === 'turn.completed' || event.type === 'turn.failed') {
           live.turnId = null
           yield* detachProjectApprovals(threadId, event.turnId)
-          if (worktrees)
+          if (worktrees && !backgroundCompactions.has(threadId))
             yield* Effect.tryPromise(() => worktrees.refresh(threadId)).pipe(Effect.ignore)
         }
       })
@@ -1261,7 +1261,7 @@ export function createOrchestrator({
         Effect.suspend(() =>
           state(input.threadId).admission.withPermit(
             Effect.gen(function* () {
-              if (!input.queued && (yield* store.isBot(input.threadId))) {
+              if (!input.queued) {
                 yield* interruptUpkeep(input.threadId)
                 const compact = backgroundCompactions.get(input.threadId)
                 if (compact && state(input.threadId).turnId === compact.turnId) {
@@ -1323,6 +1323,10 @@ export function createOrchestrator({
                 const queued = yield* store.claimQueued(thread.id, input.queued.id)
                 if (!queued) return { turnId: '' }
                 yield* Effect.addFinalizer(() => store.releaseQueued(queued.id))
+                if ((queued.kind === 'check_in' || queued.kind === 'tidy') && !bot?.checkIns) {
+                  yield* store.editQueued(thread.id, queued.id)
+                  return { turnId: '' }
+                }
                 // PR news the user switched off after it queued doesn't wake the agent.
                 if (
                   queued.kind === 'pull_request' &&
@@ -1821,8 +1825,12 @@ export function createOrchestrator({
               const thread = yield* store.requireThread(threadId)
               const agent = yield* agentForThread(threadId)
               const live = state(threadId)
+              const bot = yield* store.isBot(threadId)
               if (background) {
-                if (!(yield* store.isBot(threadId)) || !botIdle(thread)) return false
+                if (!botIdle(thread)) return false
+                if (!bot && !(yield* store.getAgentBehaviours()).compactIdleThreads) return false
+              }
+              if (background && bot) {
                 const record = yield* store.getBotLifecycle(threadId)
                 const presence = hub.botPresence(threadId)
                 if (
@@ -1846,7 +1854,16 @@ export function createOrchestrator({
                 snapshot.context && snapshot.context.maxTokens > 0
                   ? snapshot.context.usedTokens / snapshot.context.maxTokens
                   : 0
-              if (background && fraction < botTiming.compactAt) return false
+              if (background) {
+                const warm = thread.provider === 'claude' && snapshot.cacheLifetime === '1h'
+                if (warm) {
+                  if (
+                    !warmCompactionCandidate(hub.decorateThread(thread), Date.now()) ||
+                    !warmCompactionDue(snapshot, bot)
+                  )
+                    return false
+                } else if (!bot || fraction < botTiming.compactAt) return false
+              }
               if (!snapshot.items.length)
                 return yield* Effect.fail(new StoreError('conflict', 'Send a message first'))
               if (thread.archived)
@@ -1863,10 +1880,16 @@ export function createOrchestrator({
               if (background) {
                 backgroundCompactions.set(threadId, { turnId, interrupted: false, failed: false })
                 yield* Effect.logInfo(`compacting ${threadId} at ${Math.round(fraction * 100)}%`)
+                yield* append(threadId, {
+                  type: 'turn.started',
+                  turnId,
+                  automaticCompaction: true,
+                }).pipe(Effect.onError(() => settleTurn(threadId, turnId)))
               }
               let compactNoted = false
               let compactionItemId: string | undefined
               const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) => {
+                if (background && event.type === 'turn.started') return onCommit ?? Effect.void
                 if (
                   event.type === 'item.started' &&
                   event.item.kind === 'compaction' &&
@@ -2476,6 +2499,7 @@ export function createOrchestrator({
           hub.withChromePublication(
             Effect.gen(function* () {
               const bot = yield* store.updateBot(input, model)
+              if (!bot.checkIns) yield* interruptUpkeep(bot.id)
               const agent = yield* agentForThread(input.botId)
               if (agent.updateBot) yield* agent.updateBot(bot)
               hub.pushChrome({ type: 'bot.upserted', bot })

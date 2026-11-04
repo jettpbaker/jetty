@@ -402,22 +402,38 @@ export function BotNameInput({
   )
 }
 
-export function FullAccessLabel() {
+function InfoLabel({ label, info }: { label: string; info: string }) {
   return (
     <span className='flex items-start gap-0.5'>
-      Full access
+      {label}
       <Tooltip>
         <TooltipTrigger
-          aria-label='About full access'
+          aria-label={`About ${label.toLowerCase()}`}
           className='relative -mt-0.5 flex rounded-full text-muted-foreground before:absolute before:-inset-1.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
         >
           <CircleInfoIcon className='size-2.5' />
         </TooltipTrigger>
-        <TooltipContent className='max-w-56'>
-          Never stops to ask. Off, it stops before anything risky.
-        </TooltipContent>
+        <TooltipContent className='max-w-56'>{info}</TooltipContent>
       </Tooltip>
     </span>
+  )
+}
+
+export function FullAccessLabel() {
+  return (
+    <InfoLabel
+      label='Full access'
+      info='Never stops to ask. Off, it stops before anything risky.'
+    />
+  )
+}
+
+export function CheckInsLabel() {
+  return (
+    <InfoLabel
+      label='Check-ins'
+      info="Looks over its work about hourly while you're around. Off, it only wakes when something reaches it."
+    />
   )
 }
 

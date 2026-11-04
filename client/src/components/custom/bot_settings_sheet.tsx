@@ -8,6 +8,7 @@ import {
   botLoadoutChanges,
   BotNameInput,
   FacePicker,
+  CheckInsLabel,
   FullAccessLabel,
   Row,
 } from '@/components/custom/new_bot_dialog'
@@ -105,6 +106,13 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
                 onCheckedChange={(on) =>
                   update(bot.id, { permissionMode: on ? 'full_access' : 'auto' })
                 }
+              />
+            </Row>
+            <Row label={<CheckInsLabel />}>
+              <Switch
+                aria-label='Check-ins'
+                checked={bot.checkIns}
+                onCheckedChange={(checkIns) => update(bot.id, { checkIns })}
               />
             </Row>
           </div>

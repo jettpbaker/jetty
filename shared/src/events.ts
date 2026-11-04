@@ -50,6 +50,7 @@ export const ThreadEvent = Schema.Union([
     type: Schema.Literal('turn.started'),
     turnId: Schema.String,
     loadout: Schema.optional(TurnLoadout),
+    automaticCompaction: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({
     type: Schema.Literal('turn.completed'),
@@ -83,6 +84,10 @@ export const ThreadEvent = Schema.Union([
   }),
   Schema.Struct({ type: Schema.Literal('session.status'), status: SessionStatus }),
   Schema.Struct({ type: Schema.Literal('context.updated'), usage: ContextUsage }),
+  Schema.Struct({
+    type: Schema.Literal('cache.lifetime'),
+    lifetime: Schema.Literals(['1h', '5m']),
+  }),
 ])
 export type ThreadEvent = Schema.Schema.Type<typeof ThreadEvent>
 

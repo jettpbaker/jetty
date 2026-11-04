@@ -190,6 +190,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Effect.succeed({
               bot: {
                 ...params,
+                checkIns: true,
                 createdAt: 0,
                 activity: 'typing' as const,
                 needsYou: false,

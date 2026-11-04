@@ -112,6 +112,7 @@ function createBot(registry: Registry, bot: NewBot) {
       failed: false,
       unread: false,
       archived: false,
+      checkIns: true,
       tasks: [],
     })
   )

@@ -307,6 +307,10 @@ const migrations = SqliteMigrator.fromRecord({
       PRIMARY KEY (thread_id, item_index)
     )`
   }),
+  '041_bot_check_ins': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`ALTER TABLE bots ADD COLUMN check_ins INTEGER NOT NULL DEFAULT 1`
+  }),
 })
 
 export function databaseLayer(home: string) {

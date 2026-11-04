@@ -1,4 +1,4 @@
-import { Schema, SchemaTransformation } from 'effect'
+import { Effect, Schema, SchemaTransformation } from 'effect'
 import { uuidv7 } from 'uuidv7'
 
 import { EffortLevel, SessionStatus } from './events'
@@ -170,6 +170,11 @@ export function resolveTitleEffort(model: ProviderModel, effort: EffortLevel | u
 }
 
 export const agentBehaviours = [
+  {
+    key: 'compactIdleThreads',
+    label: 'Compact idle threads',
+    defaultEnabled: true,
+  },
   {
     key: 'guidedReviews',
     label: 'Show a Guide tab on pull requests',
@@ -559,6 +564,7 @@ export type BotAllowRule = Schema.Schema.Type<typeof BotAllowRule>
 export const Bot = Schema.Struct({
   id: BotId,
   name: Schema.String,
+  checkIns: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   allowRules: Schema.optional(Schema.Array(BotAllowRule)),
   shape: BotShape,
   color: BotColor,
@@ -1199,6 +1205,7 @@ export const methods = {
   'bot.update': {
     params: Schema.Struct({
       botId: BotId,
+      checkIns: Schema.optional(Schema.Boolean),
       name: Schema.optional(
         Schema.String.check(Schema.isMinLength(1)).check(Schema.isMaxLength(BOT_NAME_MAX))
       ),

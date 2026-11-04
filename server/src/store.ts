@@ -82,6 +82,7 @@ export type AppendedEvent = {
   ts: number
   event: ThreadEvent
   state: ThreadState
+  prevAutomaticCompaction: boolean
   prevStatus: SessionStatus
   thread: ThreadMeta
 }
@@ -129,6 +130,7 @@ type ThreadRow = {
 }
 
 type BotRow = {
+  check_ins: number
   id: string
   name: string
   shape: Bot['shape']
@@ -1120,15 +1122,28 @@ export function createStore() {
             yield* sql`INSERT OR IGNORE INTO attachment_refs (thread_id, attachment_id, metadata_json)
               VALUES (${threadId}, ${attachment.id}, ${JSON.stringify(attachment)})`
         }
+        const automaticCompaction = Boolean(
+          prev.automaticCompactionTurnId ||
+          (validated.type === 'turn.started' && validated.automaticCompaction)
+        )
+        const updatedAt =
+          automaticCompaction ||
+          validated.type === 'context.updated' ||
+          validated.type === 'cache.lifetime'
+            ? thread.updatedAt
+            : ts
         const turnStartedAt =
-          validated.type === 'turn.started' ? ts : (thread.turnStartedAt ?? null)
-        const turnEndedAt =
-          validated.type === 'turn.started'
+          !automaticCompaction && validated.type === 'turn.started'
+            ? ts
+            : (thread.turnStartedAt ?? null)
+        const turnEndedAt = automaticCompaction
+          ? (thread.turnEndedAt ?? null)
+          : validated.type === 'turn.started'
             ? null
             : validated.type === 'turn.completed' || validated.type === 'turn.failed'
               ? ts
               : (thread.turnEndedAt ?? null)
-        yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${ts},
+        yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${updatedAt},
           turn_started_at = ${turnStartedAt}, turn_ended_at = ${turnEndedAt} WHERE id = ${threadId}`
         return {
           seq,
@@ -1136,10 +1151,11 @@ export function createStore() {
           event: validated,
           state,
           prevStatus: prev.status,
+          prevAutomaticCompaction: Boolean(prev.automaticCompactionTurnId),
           thread: {
             ...thread,
             status: state.status,
-            updatedAt: ts,
+            updatedAt,
             turnStartedAt: turnStartedAt ?? undefined,
             turnEndedAt: turnEndedAt ?? undefined,
           },
@@ -1236,8 +1252,9 @@ export function createStore() {
         // The bot's own card stops its turn; a worker waiting on the user leaves it working.
         const asking = state.items.some(awaitsInput)
         const needsYou = asking || (waiting?.count ?? 0) > 0
-        const active = state.activeTurnId !== null
-        const current = state.items.filter((item) => item.turnId === state.activeTurnId)
+        const turnId = state.activeTurnId ?? state.automaticCompactionTurnId ?? null
+        const active = turnId !== null
+        const current = state.items.filter((item) => item.turnId === turnId)
         const compaction = current.findLast(
           (item) => !item.agentId && item.kind === 'compaction' && item.status === 'running'
         )
@@ -1257,7 +1274,7 @@ export function createStore() {
         const lastConversation = Object.entries(state.turnOutcomes).findLast(([turnId]) =>
           conversationTurns.get(turnId)
         )
-        const turn = state.activeTurnId && botTurnActivity(current, state.activeTurnId)
+        const turn = turnId && botTurnActivity(current, turnId)
         const activity: Bot['activity'] =
           active && waitingOnCompact
             ? 'tidying'
@@ -1267,6 +1284,7 @@ export function createStore() {
         return {
           id: row.id,
           name: row.name,
+          checkIns: row.check_ins !== 0,
           allowRules: yield* readBotAllowRules(threadId),
           shape: row.shape,
           color: row.color,
@@ -1421,6 +1439,7 @@ export function createStore() {
           const next = {
             ...bot,
             name: input.name ?? bot.name,
+            checkIns: input.checkIns ?? bot.checkIns,
             shape: input.shape ?? bot.shape,
             color: input.color ?? bot.color,
             model: input.model ?? bot.model,
@@ -1434,7 +1453,7 @@ export function createStore() {
             fast: input.fast ?? (model ? bot.fast && model.fast : bot.fast),
             permissionMode: input.permissionMode ?? bot.permissionMode,
           }
-          yield* sql`UPDATE bots SET name = ${next.name}, shape = ${next.shape},
+          yield* sql`UPDATE bots SET check_ins = ${next.checkIns ? 1 : 0}, name = ${next.name}, shape = ${next.shape},
             color = ${next.color}, model = ${next.model}, effort = ${next.effort ?? null},
             fast = ${next.fast ? 1 : 0}, permission_mode = ${next.permissionMode}
             WHERE id = ${input.botId}`
@@ -2746,8 +2765,8 @@ export function createStore() {
       },
       appendEvent(threadId: string, event: ThreadEvent) {
         return append(threadId, event).pipe(
-          Effect.tap(() =>
-            event.type === 'turn.completed'
+          Effect.tap((appended) =>
+            event.type === 'turn.completed' && !appended.prevAutomaticCompaction
               ? reportSettledChild(threadId, { userTurnOnly: true })
               : Effect.void
           ),

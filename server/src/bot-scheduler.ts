@@ -10,7 +10,14 @@ import type { AgentRegistry } from './registry'
 import type { Store } from './store'
 
 import { botUserName } from './bot-home'
-import { botTiming, type BotLifecycle } from './bot-lifecycle'
+import {
+  botTiming,
+  inWarmWindow,
+  nextCheckInAt,
+  warmCompactionCandidate,
+  warmCompactionDue,
+  type BotLifecycle,
+} from './bot-lifecycle'
 import { tidyBotHome } from './bot-tidy'
 
 function duration(ms: number) {
@@ -99,7 +106,29 @@ export function startBotScheduler(
     const now = Date.now()
     const lastMessage = yield* store.getLastUserMessageAt()
     const threads = yield* store.listThreads(true)
-    for (const bot of yield* store.listBots()) {
+    const bots = yield* store.listBots()
+    const botIds = new Set(bots.map((bot) => bot.id))
+    const warmThreads = threads.filter(
+      (thread) =>
+        !botIds.has(thread.id) &&
+        inWarmWindow(thread, now, timing) &&
+        warmCompactionCandidate(hub.decorateThread(thread), now, timing)
+    )
+    if (warmThreads.length && (yield* store.getAgentBehaviours()).compactIdleThreads) {
+      for (const thread of warmThreads) {
+        if (!(yield* orch.botIdle(thread.id))) continue
+        const state = yield* store.getThreadState(thread.id)
+        if (warmCompactionDue(state, false, timing))
+          yield* orch
+            .compact(thread.id, true)
+            .pipe(
+              Effect.catchCause((cause) =>
+                Effect.logWarning(`idle compaction for ${thread.id}: ${cause}`)
+              )
+            )
+      }
+    }
+    for (const bot of bots) {
       yield* Effect.gen(function* () {
         if (bot.archived) return
         if (!(yield* orch.botIdle(bot.id))) return
@@ -114,19 +143,33 @@ export function startBotScheduler(
           state.context && state.context.maxTokens > 0
             ? state.context.usedTokens / state.context.maxTokens
             : 0
+        const project = yield* store.getProject(bot.id)
+        if (!project) return
+        const home = project.path
+        const readBrief = Effect.promise(() =>
+          readFile(join(home, 'brief.md'), 'utf8').catch(() => '')
+        )
+        const checkInAt = nextCheckInAt(bot, record, endedAt, lastMessage, timing, now)
+        const warm = bot.provider === 'claude' && state.cacheLifetime === '1h'
         const compactDue =
           away &&
           registry.agent(bot.provider)?.supportsCompaction &&
-          fraction >= timing.compactAt &&
-          now >= (record.compactRetryAt ?? 0)
+          (warm
+            ? warmCompactionCandidate(hub.decorateThread(thread), now, timing) &&
+              warmCompactionDue(state, true, timing) &&
+              // A check-in keeps the cache warm, so compacting ahead of one loses context for nothing.
+              !(
+                checkInAt !== null &&
+                checkInAt <= endedAt + timing.cacheLifetimeMs &&
+                (yield* readBrief).trim()
+              )
+            : fraction >= timing.compactAt && now >= (record.compactRetryAt ?? 0))
         if (compactDue) {
           yield* orch.compact(bot.id, true)
           return
         }
-        const project = yield* store.getProject(bot.id)
-        if (!project) return
-        const home = project.path
         if (
+          bot.checkIns &&
           allowTidy &&
           !tidying &&
           away &&
@@ -141,6 +184,7 @@ export function startBotScheduler(
                 const latest = yield* store.getBotLifecycle(bot.id)
                 const presence = hub.botPresence(bot.id)
                 if (
+                  !(yield* store.getBot(bot.id))?.checkIns ||
                   presence.draft ||
                   (presence.open &&
                     Date.now() - (latest.turnEndedAt ?? endedAt) < timing.awayIdleMs)
@@ -168,16 +212,8 @@ export function startBotScheduler(
           if (started) return
         }
         const checkIn = timing.checkInMs[bot.provider]
-        if (
-          !lastMessage ||
-          now - lastMessage > timing.userActiveMs ||
-          now - endedAt < checkIn.ms ||
-          now - (record.checkedInAt ?? 0) < checkIn.ms
-        )
-          return
-        const brief = yield* Effect.promise(() =>
-          readFile(join(home, 'brief.md'), 'utf8').catch(() => '')
-        )
+        if (checkInAt === null || now < checkInAt) return
+        const brief = yield* readBrief
         if (!brief.trim()) return
         const user = yield* Effect.promise(botUserName)
         const list = yield* checkInItems(bot, record, threads, store, hub, timing, now, user)
@@ -186,13 +222,18 @@ export function startBotScheduler(
           bot.id,
           Effect.gen(function* () {
             if (!(yield* orch.botIdle(bot.id))) return
+            const currentBot = yield* store.getBot(bot.id)
+            if (!currentBot) return
             const latest = yield* store.getBotLifecycle(bot.id)
             const current = yield* store.requireThread(bot.id)
-            if (
-              now - (latest.turnEndedAt ?? current.updatedAt) < checkIn.ms ||
-              now - (latest.checkedInAt ?? 0) < checkIn.ms
+            const due = nextCheckInAt(
+              currentBot,
+              latest,
+              latest.turnEndedAt ?? current.updatedAt,
+              yield* store.getLastUserMessageAt(),
+              timing
             )
-              return
+            if (due === null || Date.now() < due) return
             yield* store.transaction(
               Effect.gen(function* () {
                 yield* store.enqueue(bot.id, {

@@ -22,6 +22,8 @@ export const ThreadState = Schema.Struct({
   status: SessionStatus,
   activeTurnId: Schema.NullOr(Schema.String),
   lastSeq: Schema.Natural,
+  cacheLifetime: Schema.optional(Schema.Literals(['1h', '5m'])),
+  automaticCompactionTurnId: Schema.optional(Schema.String),
   context: Schema.NullOr(ContextUsage).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   turnOutcomes: Schema.Record(Schema.String, TurnOutcome).pipe(
     Schema.withDecodingDefault(Effect.succeed({}))
@@ -54,8 +56,10 @@ export function applyEvent(state: ThreadState, { seq, ts, event }: SequencedEven
 function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState {
   switch (event.type) {
     case 'turn.started':
+      if (event.automaticCompaction) return { ...state, automaticCompactionTurnId: event.turnId }
       return {
         ...state,
+        automaticCompactionTurnId: undefined,
         activeTurnId: event.turnId,
         lastTurnOutcome: null,
         status: 'running',
@@ -66,6 +70,13 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
     case 'turn.completed':
     case 'turn.failed':
       const outcome = turnOutcome(event)
+      if (state.automaticCompactionTurnId === event.turnId)
+        return {
+          ...state,
+          automaticCompactionTurnId: undefined,
+          turnOutcomes: { ...state.turnOutcomes, [event.turnId]: outcome },
+          items: settleTurnStreams(state.items, ts),
+        }
       return deriveStatus({
         ...state,
         turnOutcomes: {
@@ -108,9 +119,11 @@ function reduce(state: ThreadState, event: ThreadEvent, ts: number): ThreadState
         )
       )
     case 'session.status':
-      return { ...state, status: event.status }
+      return state.automaticCompactionTurnId ? state : { ...state, status: event.status }
     case 'context.updated':
       return { ...state, context: event.usage }
+    case 'cache.lifetime':
+      return { ...state, cacheLifetime: event.lifetime }
   }
 }
 

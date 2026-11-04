@@ -224,6 +224,7 @@ function reconcileOnStartup(store: Store) {
           }
           // A turn that ended waiting on stopped background work was cut short too.
           const cutTurnId =
+            state.automaticCompactionTurnId ??
             state.activeTurnId ??
             (stoppedNames.length && !thread.archived ? state.items.at(-1)?.turnId : undefined)
           // A note an earlier start queued to resume its cut turn, and never sent, still counts
@@ -237,9 +238,9 @@ function reconcileOnStartup(store: Store) {
           const onlyCompact =
             opening?.kind === 'compaction' &&
             !state.items.some((item) => item.turnId === turnId && item.kind === 'user_message')
-          if (onlyCompact) {
+          if (onlyCompact || state.automaticCompactionTurnId) {
             for (const message of unsent) yield* store.editQueued(thread.id, message.id)
-            if (state.activeTurnId)
+            if (state.activeTurnId || state.automaticCompactionTurnId)
               yield* store.appendEvent(thread.id, {
                 type: 'turn.failed',
                 turnId,
