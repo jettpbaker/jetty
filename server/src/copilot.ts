@@ -383,6 +383,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           const dirs =
             options.env?.COPILOT_CUSTOM_INSTRUCTIONS_DIRS ??
             process.env.COPILOT_CUSTOM_INSTRUCTIONS_DIRS
+          const env = { ...options.env, JETTY_THREAD_ID: session.input.threadId }
           const { connection, init } = yield* openCopilotConnection(
             cwd,
             instructions
@@ -403,13 +404,13 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                       : []),
                   ],
                   env: {
-                    ...options.env,
+                    ...env,
                     COPILOT_CUSTOM_INSTRUCTIONS_DIRS: [dirs, instructions]
                       .filter(Boolean)
                       .join(','),
                   },
                 }
-              : options
+              : { ...options, env }
           ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'copilot')

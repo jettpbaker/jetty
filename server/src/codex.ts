@@ -405,6 +405,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             env: {
               ...process.env,
               ...options.env,
+              JETTY_THREAD_ID: session.input.threadId,
               ...(binding ? { JETTY_MCP_TOKEN: binding.token } : {}),
             },
           }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))

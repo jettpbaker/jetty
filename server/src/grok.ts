@@ -436,7 +436,12 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             )
           // Folder trust gates project AGENTS.md, skills, hooks and MCP; the user chose this project.
           // The env var lifts it for this process only, where --trust would save a grant per worktree.
-          const env = { ...process.env, ...options.env, GROK_FOLDER_TRUST: '0' }
+          const env = {
+            ...process.env,
+            ...options.env,
+            JETTY_THREAD_ID: session.input.threadId,
+            GROK_FOLDER_TRUST: '0',
+          }
           const { connection, init } = yield* openGrokConnection(cwd, args, {
             ...options,
             env,

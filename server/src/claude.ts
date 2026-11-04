@@ -1074,6 +1074,7 @@ export function createClaudeAdapter(
                   pathToClaudeCodeExecutable: claudeBin,
                   env: {
                     ...process.env,
+                    JETTY_THREAD_ID: input.threadId,
                     // A resumed session's first turn otherwise starts before claude.ai connectors
                     // reconnect, and the model sees them all removed, then added back.
                     CLAUDE_CODE_MCP_STARTUP_WAIT_MS: '10000',

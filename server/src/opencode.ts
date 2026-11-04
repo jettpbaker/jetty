@@ -362,7 +362,11 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
           }
           const { connection, init } = yield* openOpencodeConnection(cwd, {
             ...options,
-            env: { ...options.env, ...opencodeConfigEnv(config) },
+            env: {
+              ...options.env,
+              JETTY_THREAD_ID: session.input.threadId,
+              ...opencodeConfigEnv(config),
+            },
           }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
           session.connection = connection
           const resume = yield* store.getProviderSessionId(session.input.threadId, 'opencode')
