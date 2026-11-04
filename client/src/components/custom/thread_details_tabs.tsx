@@ -327,19 +327,12 @@ export function ThreadDetailsTabs({
           <DesktopTab key={id} id={id} canClose={canClose} onClose={() => closeDesktop(id)} />
         ))}
         {subagents.visible.map((agent) => (
-          <TabsTrigger
+          <SubagentTab
             key={agent.id}
-            value={subagentTabId(agent.id)}
-            className='details-header-tab h-auto max-w-48 min-w-0 flex-none rounded-sm px-1 py-1 text-xs'
-            title={agent.title}
-          >
-            <TabLabel
-              label={agent.title}
-              icon={<AgentGlyph agent={agent} className='details-tab-kind' />}
-              canClose={canClose}
-              onClose={() => closeSubagent(agent)}
-            />
-          </TabsTrigger>
+            agent={agent}
+            canClose={canClose}
+            onClose={() => closeSubagent(agent)}
+          />
         ))}
         {file && (
           <TabsTrigger
@@ -461,9 +454,13 @@ export function ThreadDetailsTabs({
 // A bot's pane has Overview, and Chat while it's full width: nothing to close, move or add.
 export function BotDetailsTabs({
   chat,
+  subagents,
+  onCloseSubagent,
   file,
 }: {
   chat: boolean
+  subagents: readonly SubagentSummary[]
+  onCloseSubagent: (id: string) => void
   // an attached file open read-only, or the bot's instructions
   file?: { name: string; dirty?: boolean; onClose: () => void }
 }) {
@@ -488,6 +485,14 @@ export function BotDetailsTabs({
           </TabsTrigger>
         )
       })}
+      {subagents.map((agent) => (
+        <SubagentTab
+          key={agent.id}
+          agent={agent}
+          canClose
+          onClose={() => onCloseSubagent(agent.id)}
+        />
+      ))}
       {file && (
         <TabsTrigger
           value='file'
@@ -549,6 +554,31 @@ function AgentGlyph({ agent, className }: { agent: SubagentSummary; className?: 
       state={subagentGlyphState(agent.status, agent.waiting)}
       className={cn('size-3.25', className)}
     />
+  )
+}
+
+function SubagentTab({
+  agent,
+  canClose,
+  onClose,
+}: {
+  agent: SubagentSummary
+  canClose: boolean
+  onClose: () => void
+}) {
+  return (
+    <TabsTrigger
+      value={subagentTabId(agent.id)}
+      className='details-header-tab h-auto max-w-48 min-w-0 flex-none rounded-sm px-1 py-1 text-xs'
+      title={agent.title}
+    >
+      <TabLabel
+        label={agent.title}
+        icon={<AgentGlyph agent={agent} className='details-tab-kind' />}
+        canClose={canClose}
+        onClose={onClose}
+      />
+    </TabsTrigger>
   )
 }
 

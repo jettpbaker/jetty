@@ -17,6 +17,7 @@ import {
   useBotThreadMetas,
   useModels,
   useProjects,
+  useSubagents,
   useThreadRowPrefetch,
 } from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
@@ -26,7 +27,7 @@ import { BotSettingsSheet } from './bot_settings_sheet'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { sidebarThread } from './sidebar_thread_groups'
-import { Section, useCollapsedSections } from './thread_overview'
+import { Section, SubagentList, useCollapsedSections } from './thread_overview'
 import { quietStatus, StatusGlyph, statusPresentation } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
@@ -38,6 +39,7 @@ export function BotOverview({
   onOpenInstructions: () => void
 }) {
   const threads = useBotThreadMetas(bot.id)
+  const agents = useSubagents(bot.id)
   const { sectionProps } = useCollapsedSections('jetty.bot-overview.collapsed')
   return (
     <div className='scrollbar-subtle h-full overflow-auto'>
@@ -58,6 +60,12 @@ export function BotOverview({
         {threads.length > 0 && (
           <Section label='Threads' count={threads.length} {...sectionProps('threads')}>
             <BotThreadList threads={threads} />
+          </Section>
+        )}
+        {agents.length > 0 && (
+          <Section label='Subagents' count={agents.length} {...sectionProps('subagents')}>
+            {/* A bot's chat runs for weeks, so its latest come first. */}
+            <SubagentList threadId={bot.id} agents={agents.toReversed()} />
           </Section>
         )}
       </div>

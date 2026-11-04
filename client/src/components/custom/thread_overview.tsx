@@ -13,6 +13,7 @@ import {
   useOpenSubagent,
   useSubagents,
   useThreadMeta,
+  type SubagentSummary,
 } from '@/state'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
@@ -104,7 +105,6 @@ export function ThreadOverview({
 }) {
   const { items, todos } = useOverviewItems(threadId)
   const meta = useThreadMeta(threadId)
-  const openSubagent = useOpenSubagent()
   const agents = useSubagents(threadId)
   const reveal = useRequestReveal()
   const { diff } = useThreadDiff(threadId)
@@ -176,23 +176,7 @@ export function ThreadOverview({
         )}
         {subagentItems.length > 0 && (
           <Section label='Subagents' count={subagentItems.length} {...sectionProps('subagents')}>
-            <div className='flex flex-col gap-0.5'>
-              {agents.map((agent) => (
-                <Button
-                  key={agent.id}
-                  variant='ghost'
-                  size='sm'
-                  className='w-full justify-start gap-2 rounded-sm px-2.5 text-13 font-normal'
-                  onClick={() => openSubagent(threadId, agent.id)}
-                >
-                  <SubagentGlyph
-                    state={subagentGlyphState(agent.status, agent.waiting)}
-                    className='size-3.25'
-                  />
-                  <span className='truncate'>{agent.title}</span>
-                </Button>
-              ))}
-            </div>
+            <SubagentList threadId={threadId} agents={agents} />
           </Section>
         )}
         {workflows.length > 0 && (
@@ -247,6 +231,35 @@ export function ThreadOverview({
           </Section>
         )}
       </div>
+    </div>
+  )
+}
+
+export function SubagentList({
+  threadId,
+  agents,
+}: {
+  threadId: string
+  agents: readonly SubagentSummary[]
+}) {
+  const open = useOpenSubagent()
+  return (
+    <div className='flex flex-col gap-0.5'>
+      {agents.map((agent) => (
+        <Button
+          key={agent.id}
+          variant='ghost'
+          size='sm'
+          className='w-full justify-start gap-2 rounded-sm px-2.5 text-13 font-normal'
+          onClick={() => open(threadId, agent.id)}
+        >
+          <SubagentGlyph
+            state={subagentGlyphState(agent.status, agent.waiting)}
+            className='size-3.25'
+          />
+          <span className='truncate'>{agent.title}</span>
+        </Button>
+      ))}
     </div>
   )
 }

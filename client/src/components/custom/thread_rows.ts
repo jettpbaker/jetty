@@ -744,6 +744,7 @@ export function threadRows(
       (item.kind === 'user_message' ||
         item.kind === 'reasoning' ||
         item.kind === 'tool_call' ||
+        item.kind === 'subagent' ||
         item.kind === 'question' ||
         item.kind === 'approval' ||
         item.kind === 'assistant_message')
@@ -966,10 +967,11 @@ export function threadRows(
       else rows.push({ kind: 'exchange', id: item.id, entries: [entry] })
       continue
     }
-    if (dropped(item) || (bot && item.kind === 'subagent')) continue
+    if (dropped(item)) continue
     // A finish line sits where the subagent finished, ahead of the turn it woke.
     flushFinished(item.createdAt)
-    if (item.kind === 'subagent') launched.push(item)
+    // In a bot's chat, only turns Jett is part of get a finish line.
+    if (item.kind === 'subagent' && (!turns || turns.get(item.turnId)?.joined)) launched.push(item)
     if (item.kind === 'assistant_message')
       for (const agent of launched)
         if ((agent.completedAt ?? Infinity) > item.createdAt) talkedPast.add(agent.id)

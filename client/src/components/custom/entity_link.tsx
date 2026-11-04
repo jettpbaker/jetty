@@ -227,7 +227,9 @@ export function ThreadLink({
 // A subagent the thread started, named by its id or title: it opens in the details pane. Click, not
 // pointer-down: the link sits in a scrollable chat.
 function SubagentLink({ name, fallback }: { name: string; fallback: ReactNode }) {
-  const threadId = use(OpenPullLink)
+  const { botId } = useParams({ strict: false })
+  // A bot's chat is a thread with the bot's id.
+  const threadId = use(OpenPullLink) ?? botId
   const agent = useSubagent(threadId, name)
   const open = useOpenSubagent()
   if (!threadId || !agent) return fallback
