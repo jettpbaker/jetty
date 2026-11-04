@@ -9,7 +9,10 @@ import { cn } from '@/lib/utils'
 import { useChildThreadMetas, useProject, useThreadMeta } from '@/state'
 import { Link } from '@tanstack/react-router'
 
+import type { MessageSource } from './source_label'
+
 import { markerRuns, reportRuns, type ThreadMarker as Marker } from './bot_marker_model'
+import { Markdown } from './markdown'
 
 // A thread with no meta was deleted: its marker keeps the title, unlinked and without a status.
 function MarkerLink({
@@ -213,6 +216,26 @@ export function WakeMarker({
       {wake && (
         <div className={lineClass}>{wake === 'tidy' ? 'Tidied its notes' : 'Checked in'}</div>
       )}
+    </div>
+  )
+}
+
+// A worker's message to its bot, on a line like its reports, with the text a click away.
+export function WorkerMessage({ from, text }: { from: MessageSource; text: string }) {
+  return (
+    <div className={rowClass}>
+      <div className={cn(lineClass, 'gap-[5px]')}>
+        <MarkerLink marker={from} />
+        <Popover>
+          <PopoverTrigger className='rounded-sm text-foreground hover:underline'>
+            messaged
+          </PopoverTrigger>
+          <PopoverContent className='scrollbar-subtle max-h-80 w-96 overflow-y-auto rounded-sm p-3'>
+            <PopoverTitle className='sr-only'>Message from {from.title}</PopoverTitle>
+            <Markdown className='thread-reply text-13 leading-relaxed'>{text}</Markdown>
+          </PopoverContent>
+        </Popover>
+      </div>
     </div>
   )
 }

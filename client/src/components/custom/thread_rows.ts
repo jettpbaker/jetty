@@ -57,6 +57,8 @@ export type ThreadRow =
       reports?: readonly ChildReport[]
       wake?: 'check_in' | 'tidy'
     }
+  // Bot chats only. A message a worker sent the bot.
+  | { kind: 'workerMessage'; id: string; from: { threadId: string; title: string }; text: string }
   // Bot chats only. Messages with other bots, gathered into one line.
   | { kind: 'exchange'; id: string; entries: ExchangeEntry[] }
   // Bot chats only. A tidy of the bot's notes holds Jett's message, and the chat hides it.
@@ -564,7 +566,9 @@ function lastTurn(
   const first = items[start]!
   if (first.kind !== 'user_message') return undefined
   const row = rows.findLastIndex(
-    (row) => (row.kind === 'user' || row.kind === 'wake') && row.id === first.id
+    (row) =>
+      (row.kind === 'user' || row.kind === 'wake' || row.kind === 'workerMessage') &&
+      row.id === first.id
   )
   return row === -1 ? undefined : { start, row }
 }
@@ -987,14 +991,16 @@ export function threadRows(
             ? { kind: 'wake', id: item.id, reports: item.reports, wake: item.wake }
             : item.reports?.length
               ? { kind: 'reports', id: item.id, reports: item.reports }
-              : {
-                  kind: 'user',
-                  id: item.id,
-                  item,
-                  ...(item.from && botIds?.has(item.from.threadId) && { sourceBot: true }),
-                  ...(steered && { steered }),
-                  ...(steering && item.turnId === pendingTurnId && { steering }),
-                }
+              : bot && item.from && !bot.others.has(item.from.threadId)
+                ? { kind: 'workerMessage', id: item.id, from: item.from, text: item.text }
+                : {
+                    kind: 'user',
+                    id: item.id,
+                    item,
+                    ...(item.from && botIds?.has(item.from.threadId) && { sourceBot: true }),
+                    ...(steered && { steered }),
+                    ...(steering && item.turnId === pendingTurnId && { steering }),
+                  }
         )
         break
       case 'assistant_message':
@@ -1267,6 +1273,7 @@ function stitchRuns(rows: ThreadRow[]) {
     if (
       row.kind === 'user' ||
       row.kind === 'wake' ||
+      row.kind === 'workerMessage' ||
       row.kind === 'markers' ||
       row.kind === 'exchange'
     )
