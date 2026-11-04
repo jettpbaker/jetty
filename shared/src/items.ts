@@ -131,6 +131,8 @@ export const ThreadItem = Schema.Union([
     // Bot chats: Jetty's own wake, a check-in or its tidy pass's changes to review. Its turn shows
     // nothing in the chat unless the bot speaks.
     wake: Schema.optional(Schema.Literals(['check_in', 'tidy'])),
+    // Jetty's message passing on the user's answer to request_secret, so a bot's reply to it shows.
+    secretAnswer: Schema.optional(Schema.Literal(true)),
   }),
   Schema.Struct({
     ...itemBase,

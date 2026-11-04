@@ -687,7 +687,8 @@ export function createOrchestrator({
             (item) => item.turnId === turnId && !item.agentId && item.kind === 'user_message'
           )
           const fromUser =
-            firstMessage?.kind === 'user_message' && !firstMessage.from && !firstMessage.wake
+            firstMessage?.kind === 'user_message' &&
+            (firstMessage.secretAnswer || (!firstMessage.from && !firstMessage.wake))
           event = { ...event, item: { ...event.item, private: !fromUser } }
         }
         // A bad value in an item (a negative count, a malformed patch) loses that update, not the turn.
@@ -940,6 +941,7 @@ export function createOrchestrator({
           ...(queued?.reports && { reports: queued.reports }),
           ...(queued?.skill && { skill: queued.skill }),
           ...((queued?.kind === 'check_in' || queued?.kind === 'tidy') && { wake: queued.kind }),
+          ...(queued?.kind === 'secret' && { secretAnswer: true as const }),
           text,
           attachments: meta,
           ...(replies?.length ? { replies } : {}),

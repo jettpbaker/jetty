@@ -1,3 +1,4 @@
+import type { SecretItem } from '@/components/custom/thread_rows'
 import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { Bot, QueuedMessage } from '@jetty/shared/wire'
 
@@ -5,6 +6,7 @@ import { botColorStyle } from '@/components/custom/bot_avatar'
 import { BotConversation, type Room } from '@/components/custom/bot_conversation'
 import { BotDecisionCard } from '@/components/custom/bot_decision_card'
 import { Composer } from '@/components/custom/composer'
+import { SecretStrip } from '@/components/custom/composer_strip'
 import { BotLoadoutPicker, botLoadoutChanges } from '@/components/custom/new_bot_dialog'
 import {
   ComposerQueue,
@@ -31,6 +33,7 @@ import {
   usePendingBotMessages,
   useProject,
   useQueueActions,
+  useRespondSecret,
   useSendToBot,
   useModels,
   useThreadStructure,
@@ -59,6 +62,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const [room, setRoom] = useState<Room>()
   const project = useProject(bot.projectId ?? undefined)
   const sendToBot = useSendToBot()
+  const respondSecret = useRespondSecret()
   const interrupt = useInterruptTurn()
   const updateBot = useUpdateBot()
   const navigate = useNavigate()
@@ -98,8 +102,13 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const stoppable = turnId ? !asking && !quietTurn(items, turnId) : false
   // A message goes straight in while the bot looks idle, even mid check-in. Otherwise it queues,
   // including behind messages already waiting.
+  const secret = overlay.serverItems.find(
+    (item): item is SecretItem => item.kind === 'secret_request' && awaitsInput(item)
+  )
+  // A message sent over an open secret request closes it, so it never queues.
   const busy =
-    stoppable || pending.length > 0 || Boolean(composerQueue?.own.length && !composerQueue.paused)
+    !secret &&
+    (stoppable || pending.length > 0 || Boolean(composerQueue?.own.length && !composerQueue.paused))
   const typed = draft.text.trim()
   const empty = !typed && attachments.items.length === 0
   useBotPresence(bot.id, !empty)
@@ -212,11 +221,35 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
           onInterrupt={() => interrupt(bot.id)}
           running={busy && !editingEntry}
           strip={
-            showsQueue(composerQueue) && composerQueue ? (
-              <ComposerQueue threadId={bot.id} queue={composerQueue} running={busy} />
+            (showsQueue(composerQueue) && composerQueue) || secret ? (
+              <>
+                {showsQueue(composerQueue) && composerQueue && (
+                  <ComposerQueue threadId={bot.id} queue={composerQueue} running={busy} />
+                )}
+                {secret && (
+                  <SecretStrip
+                    key={secret.id}
+                    item={{
+                      id: secret.id,
+                      kind: secret.kind,
+                      source: { kind: 'main' },
+                      label: secret.label,
+                      reason: secret.reason,
+                    }}
+                    composerHasText={Boolean(typed)}
+                    respond={(value) => respondSecret(bot.id, secret.id, value)}
+                  />
+                )}
+              </>
             ) : undefined
           }
-          placeholder={busy ? `Queue a follow-up while ${bot.name} works` : `Message ${bot.name}`}
+          placeholder={
+            secret
+              ? `Tell ${bot.name} what to do instead`
+              : busy
+                ? `Queue a follow-up while ${bot.name} works`
+                : `Message ${bot.name}`
+          }
           sendLabel={editingEntry ? 'Save' : busy ? 'Queue' : 'Send'}
           sendDisabled={editingEntry && !typed ? true : undefined}
           sendHint={steers ? <QueueOrSteerHint /> : undefined}

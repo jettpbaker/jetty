@@ -132,6 +132,32 @@ export function createRpcHandlers(
         .pipe(Effect.mapError(wireError))
     }
 
+    function openSecrets(threadId: string) {
+      return store
+        .getThreadState(threadId)
+        .pipe(
+          Effect.map((state) =>
+            state.items.filter((item) => item.kind === 'secret_request' && !item.outcome)
+          )
+        )
+    }
+
+    // A message sent over an open secret request closes it, once the message is in.
+    function closeSecrets(threadId: string, open: readonly { id: string }[]) {
+      return Effect.forEach(
+        open,
+        (item) =>
+          orch
+            .respondSecret(threadId, item.id, null, true)
+            .pipe(
+              Effect.catch((error) =>
+                error.code === 'not_found' ? Effect.void : Effect.fail(error)
+              )
+            ),
+        { discard: true }
+      )
+    }
+
     function wakeBot(id: string) {
       return Effect.gen(function* () {
         const queued = {
@@ -744,19 +770,10 @@ export function createRpcHandlers(
       'turn.start': (params) =>
         Effect.gen(function* () {
           yield* store.noteUserMessage()
-          const open = (yield* store.getThreadState(params.threadId)).items.filter(
-            (item) => item.kind === 'secret_request' && !item.outcome
-          )
+          const open = yield* openSecrets(params.threadId)
           const fiber = yield* Effect.forkIn(orch.startTurnEffect(params), admissionScope)
           const result = yield* Fiber.join(fiber)
-          for (const item of open)
-            yield* orch
-              .respondSecret(params.threadId, item.id, null, true)
-              .pipe(
-                Effect.catch((error) =>
-                  error.code === 'not_found' ? Effect.void : Effect.fail(error)
-                )
-              )
+          yield* closeSecrets(params.threadId, open)
           return result
         }).pipe(Effect.mapError(wireError)),
       'turn.interrupt': (params) =>
@@ -964,6 +981,7 @@ export function createRpcHandlers(
               !item.skipped &&
               !item.completedAt
           )
+          const secrets = yield* openSecrets(params.botId)
           yield* mutation(store.markBotSeen(params.botId))
           const fiber = yield* Effect.forkIn(
             orch.startTurnEffect({
@@ -982,6 +1000,7 @@ export function createRpcHandlers(
             yield* orch
               .respondQuestion(params.botId, question.id, null, true)
               .pipe(Effect.catchCause((cause) => Effect.logWarning(cause)))
+          yield* closeSecrets(params.botId, secrets)
           yield* mutation(
             Effect.gen(function* () {
               const updated = yield* store.getBot(params.botId)
