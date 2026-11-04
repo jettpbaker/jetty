@@ -340,6 +340,8 @@ export function WorkBlock({
     status === 'running' && !settingUp ? startedAt : undefined
   )
   const ended = workEnded(status)
+  // Only a block that began a moment ago is arriving; an older one is its thread being opened.
+  const [arrived] = useState(() => startedAt !== undefined && Date.now() - startedAt < 1000)
   const [groupEntries] = useState(createWorkEntries)
   const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
   // Under a second, a bare heading beats "for 0s", as a thought's does.
@@ -376,7 +378,7 @@ export function WorkBlock({
   return (
     <ActivityDisclosure
       flushHeader
-      animateHeader={!ended}
+      animateHeader={arrived && !ended}
       title={<span className={cn(status === 'running' && 'shimmer')}>{heading}</span>}
       titleSuffix={timing}
       ended={ended}
