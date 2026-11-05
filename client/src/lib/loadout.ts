@@ -18,6 +18,14 @@ const isEffort = Schema.is(EffortLevel)
 
 export { effortLabels } from '@jetty/shared/model-name'
 
+export const effortDescriptions: Record<EffortLevel, string> = {
+  low: 'Less reasoning for quick, focused changes.',
+  medium: 'Balances reasoning depth and response time.',
+  high: 'More reasoning for complex changes; takes longer.',
+  xhigh: 'Extended reasoning for difficult problems; takes more time.',
+  max: 'Most reasoning available; allow the most time.',
+}
+
 export function modelKey(model: { provider: ProviderId; id: string }) {
   return `${model.provider}:${model.id}`
 }

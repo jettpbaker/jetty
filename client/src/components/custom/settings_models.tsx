@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   clearSlot,
   effortLabels,
+  effortDescriptions,
   equipModel,
   findModel,
   modelKey,
@@ -168,7 +169,7 @@ function SlotRow({
               {slot.effort && effortLabels[slot.effort]}
               <ChevronDownSmallIcon />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' className='min-w-44'>
+            <DropdownMenuContent align='end' className='w-80'>
               {model.efforts.length > 0 && (
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>Effort</DropdownMenuLabel>
@@ -182,7 +183,12 @@ function SlotRow({
                   >
                     {model.efforts.map((effort) => (
                       <DropdownMenuRadioItem key={effort} value={effort}>
-                        {effortLabels[effort]}
+                        <span className='flex flex-col gap-0.5 py-0.5'>
+                          <span>{effortLabels[effort]}</span>
+                          <span className='text-xs leading-4 text-muted-foreground'>
+                            {effortDescriptions[effort]}
+                          </span>
+                        </span>
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>

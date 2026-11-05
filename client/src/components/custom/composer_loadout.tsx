@@ -31,6 +31,7 @@ import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   effortLabels,
+  effortDescriptions,
   equipModel,
   findModel,
   modelKey,
@@ -479,6 +480,11 @@ export function ComposerLoadout({
           ) : (
             <p className='text-xs text-muted-foreground'>
               {value ? `${name} doesn’t support effort levels` : 'Choose a model first'}
+            </p>
+          )}
+          {efforts.length > 0 && value?.effort && (
+            <p className='text-xs leading-5 text-muted-foreground'>
+              {effortDescriptions[value.effort]}
             </p>
           )}
           <div className='flex min-h-8 items-center justify-between gap-3 text-xs'>
