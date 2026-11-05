@@ -22,7 +22,13 @@ import {
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 
-import { ArrowRotateClockwiseIcon, BugIcon, PeopleIcon, PullRequestIcon } from './central_icons'
+import {
+  ArrowRotateClockwiseIcon,
+  CircleCheckIcon,
+  CircleXIcon,
+  Progress50Icon,
+  PullRequestIcon,
+} from './central_icons'
 import { ListFilterMenu, ListFilterSection, ListGroupMenu } from './grouped_list_controls'
 import {
   GroupedTable,
@@ -147,6 +153,8 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               defaultCollapsed: group === 'closed' || group === 'merged',
             }))
             .filter((group) => group.rows.length)
+  const singleRepo = new Set(rows.map((pull) => pull.repo)).size === 1
+  const shortIdentifier = singleRepo || groupBy === 'repo'
   const columns: GroupedColumn<PullRequestListItem>[] = [
     {
       id: 'state',
@@ -158,14 +166,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'identifier',
       priority: 30,
-      width: groupBy === 'repo' ? 64 : 104,
+      width: shortIdentifier ? 48 : 104,
       // A long repo name gives way before the number does.
       render: (pull) => (
         <span
           className='flex min-w-0 font-mono text-xs text-muted-foreground'
           title={`${pull.repo}#${pull.number}`}
         >
-          {groupBy !== 'repo' && <span className='truncate'>{repoName(pull.repo)}</span>}
+          {!shortIdentifier && <span className='truncate'>{repoName(pull.repo)}</span>}
           <span className='shrink-0'>#{pull.number}</span>
         </span>
       ),
@@ -184,20 +192,47 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       ),
     },
     {
-      id: 'diff',
-      priority: 20,
-      width: 108,
+      id: 'checks',
+      priority: 60,
+      width: 30,
+      render: (pull) => <PullRequestChecks checks={pull.checks} />,
+    },
+    {
+      id: 'review',
+      priority: 50,
+      width: 136,
       render: (pull) => (
         <span
-          className='grid w-full grid-cols-2 gap-2 text-right font-mono text-xs tabular-nums'
+          className={cn(
+            'truncate text-xs',
+            pull.reviewDecision === 'CHANGES_REQUESTED'
+              ? 'text-destructive'
+              : 'text-muted-foreground'
+          )}
+          title={reviewLabel(pull.reviewDecision)}
+        >
+          {reviewLabel(pull.reviewDecision)}
+        </span>
+      ),
+    },
+    {
+      id: 'diff',
+      priority: 20,
+      width: 88,
+      render: (pull) => (
+        <span
+          className='flex w-full items-center justify-end gap-1.5 font-mono text-xs tabular-nums'
           title={`+${pull.additions ?? '—'} −${pull.deletions ?? '—'}`}
         >
-          <span className={pull.additions ? 'text-pr-open' : 'text-muted-foreground'}>
-            +{formatLines(pull.additions)}
-          </span>
-          <span className={pull.deletions ? 'text-destructive' : 'text-muted-foreground'}>
-            −{formatLines(pull.deletions)}
-          </span>
+          {!!pull.additions && <span className='text-pr-open'>+{formatLines(pull.additions)}</span>}
+          {!!pull.deletions && (
+            <span className='text-destructive'>−{formatLines(pull.deletions)}</span>
+          )}
+          {!pull.additions && !pull.deletions && (
+            <span className='text-muted-foreground'>
+              {pull.additions === undefined || pull.deletions === undefined ? '—' : '0'}
+            </span>
+          )}
         </span>
       ),
     },
@@ -253,6 +288,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               </Button>
             ))}
           </nav>
+          {singleRepo && (
+            <span
+              className='hidden truncate text-xs text-muted-foreground @lg:inline'
+              title={rows[0]?.repo}
+            >
+              {rows[0]?.repo}
+            </span>
+          )}
         </div>
         <div className='flex items-center gap-1'>
           {failure && list.items && (
@@ -340,6 +383,8 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 pull.title,
                 `by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`,
                 linkPresentation(pull).label,
+                checksLabel(pull.checks),
+                reviewLabel(pull.reviewDecision),
               ].join(', ')
             }
             onSelect={onSelect}
@@ -420,10 +465,9 @@ const listColor = {
 
 function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
   const look = linkPresentation(pull)
-  const group = pullRequestListGroup(pull)
   const { label } = look
-  const Icon = group === 'needs-you' ? BugIcon : group === 'in-review' ? PeopleIcon : look.icon
-  const color = group === 'in-review' ? 'text-muted-foreground' : look.color
+  const Icon = look.icon
+  const color = look.color
   return (
     <Tooltip>
       <TooltipTrigger
@@ -436,5 +480,42 @@ function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+function reviewLabel(review: PullRequestListItem['reviewDecision']) {
+  if (review === 'APPROVED') return 'Approved'
+  if (review === 'CHANGES_REQUESTED') return 'Changes requested'
+  if (review === 'REVIEW_REQUIRED') return 'Review needed'
+  return 'No review'
+}
+
+function checksLabel(checks: PullRequestListItem['checks']) {
+  return checks === 'success'
+    ? 'Checks passed'
+    : checks === 'failure'
+      ? 'Checks failed'
+      : checks === 'pending'
+        ? 'Checks running'
+        : 'No checks reported'
+}
+
+function PullRequestChecks({ checks }: { checks: PullRequestListItem['checks'] }) {
+  const label = checksLabel(checks)
+  return (
+    <span className='flex' title={label}>
+      {checks === 'success' ? (
+        <CircleCheckIcon filled className='size-3.5 text-pr-open' />
+      ) : checks === 'failure' ? (
+        <CircleXIcon filled className='size-3.5 text-destructive' />
+      ) : checks === 'pending' ? (
+        <Progress50Icon className='size-3.5 text-muted-foreground' />
+      ) : (
+        <span className='text-xs text-muted-foreground' aria-hidden='true'>
+          —
+        </span>
+      )}
+      <span className='sr-only'>{label}</span>
+    </span>
   )
 }
