@@ -17,7 +17,7 @@
 .sidebar-thread-list {
   mask-image: none;
   animation: none;
-  scroll-padding-block: 12px;
+  scroll-padding-block: 36px 12px;
 }
 
 .sidebar-thread-scroll-edge::before,
@@ -45,4 +45,11 @@
 
 .app-sidebar {
   container: thread-sidebar / inline-size;
+}
+
+.sidebar-thread-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sidebar);
 }

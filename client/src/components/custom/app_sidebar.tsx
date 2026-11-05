@@ -536,7 +536,7 @@ export const AppSidebar = memo(function AppSidebar() {
                       </>
                     )
                     return item.archived ? (
-                      <h3 key={item.id} className='mt-3 flex first:mt-0'>
+                      <h3 key={item.id} className='sidebar-thread-heading mt-3 flex first:mt-0'>
                         <Button
                           variant='ghost-text'
                           className='h-6 w-full justify-start gap-1.5 rounded-sm border-0 px-2.5 py-0 text-xs font-medium text-muted-foreground'
@@ -549,7 +549,7 @@ export const AppSidebar = memo(function AppSidebar() {
                     ) : (
                       <h3
                         key={item.id}
-                        className='mt-3 flex h-6 items-center gap-1.5 px-2.75 text-xs font-medium text-muted-foreground first:mt-0'
+                        className='sidebar-thread-heading mt-3 flex h-6 items-center gap-1.5 px-2.75 text-xs font-medium text-muted-foreground first:mt-0'
                       >
                         {heading}
                       </h3>
