@@ -255,7 +255,10 @@ function WorkHistory({
   return (
     <div
       ref={scroller}
-      className={cn('work-scroll no-scrollbar', entries.length > previewCount && 'overflow-y-auto')}
+      className={cn(
+        'work-scroll no-scrollbar pl-3',
+        entries.length > previewCount && 'overflow-y-auto'
+      )}
       onScroll={onScroll}
       onTouchStart={unpin}
     >

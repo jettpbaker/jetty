@@ -174,6 +174,9 @@ export function ToolCall({
             </>
           )}
         </span>
+        {call.kind === 'terminal' && call.status === 'complete' && (
+          <span className='ml-auto shrink-0 text-xs text-status-success'>Completed</span>
+        )}
         <ActivityChevron />
       </CollapsibleTrigger>
       <CollapsibleContent>{toolCallDetails(call, threadId)}</CollapsibleContent>
