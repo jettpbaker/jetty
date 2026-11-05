@@ -1,5 +1,6 @@
 .app-workspace {
   --page-header-inset: 16px;
+  --toast-sidebar-width: 0px;
 }
 
 .app-thread-bar {
@@ -16,5 +17,19 @@
 @media (prefers-reduced-motion: reduce) {
   .app-shell-navigation {
     transition: none;
+  }
+}
+
+.app-workspace[data-sidebar-open='true'] {
+  --toast-sidebar-width: var(--sidebar-width);
+}
+
+@media (min-width: 601px) {
+  .app-toaster[data-sonner-toaster][data-x-position='center'] {
+    left: calc((100vw + var(--toast-sidebar-width)) / 2);
+    width: min(var(--width), calc(100vw - var(--toast-sidebar-width) - 32px));
+  }
+  .app-toaster[data-sonner-toaster] [data-sonner-toast] {
+    max-width: 100%;
   }
 }

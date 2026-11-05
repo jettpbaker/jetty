@@ -606,6 +606,7 @@ views.push(
   {
     area: 'Overlays',
     state: 'archive undo toast',
+    settleMs: 600,
     route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
     selector: 'body',
     ready: prompt,

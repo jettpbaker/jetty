@@ -1,4 +1,5 @@
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
+import { Toaster } from '@/components/ui/sonner'
 import { storage } from '@/platform'
 import {
   useBumpDraft,
@@ -104,9 +105,18 @@ function Workspace({
   )
 
   return (
-    <div className='app-workspace relative flex h-full min-w-0 flex-1 flex-col'>
+    <div
+      className='app-workspace relative flex h-full min-w-0 flex-1 flex-col'
+      data-sidebar-open={open && !isMobile}
+    >
       {!(onSettings && open && !isMobile) && <ShellNavigation />}
       <header className='app-thread-bar shrink-0 bg-sidebar' />
+      <Toaster
+        className='app-toaster'
+        position='top-center'
+        offset={{ top: 64 }}
+        mobileOffset={{ top: 64 }}
+      />
       <div className='flex min-h-0 flex-1'>
         {onSettings ? <SettingsSidebar /> : <AppSidebar />}
         <SidebarResizeHandle width={sidebarWidth} onWidthChange={onSidebarWidthChange} />
