@@ -29,7 +29,6 @@ import {
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  SettingsSelect,
   cardClass,
 } from './settings_layout'
 
@@ -160,7 +159,7 @@ export function SettingsBots() {
           </div>
           <pre className='scrollbar-subtle max-h-60 overflow-auto px-4 pt-3 pb-3.5 text-xs leading-5 whitespace-pre-wrap'>
             {info?.sharedPreferences.trim() || (
-              <span className='text-muted-foreground'>
+              <span className='font-sans text-muted-foreground'>
                 Nothing yet. Bots add what they learn about how you work.
               </span>
             )}
@@ -188,12 +187,7 @@ export function SettingsBots() {
             title='Check-ins'
             description="A quiet bot looks over its area while you're around. About hourly on Claude, every 25 minutes on Codex and Copilot."
           >
-            <SettingsSelect
-              label='Check-ins'
-              value='automatic'
-              options={[{ value: 'automatic', label: 'Automatic' }]}
-              disabled
-            />
+            <span className='text-13 text-foreground'>Automatic</span>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
