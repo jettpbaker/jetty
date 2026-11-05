@@ -7,6 +7,14 @@ import {
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+} from '@/components/ui/empty'
 import { useNow } from '@/hooks/use-now'
 import { effortLabels } from '@/lib/loadout'
 import { formatDuration } from '@/lib/time'
@@ -30,9 +38,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { environments } from './composer_environment'
 import { TodoList } from './composer_strip'
-import { ContentEmpty } from './content_empty'
 import { CopyButton } from './copy_button'
 import { DiffCounts } from './diff/file_card'
+import { LinkPullRequestDialog } from './pull_request_link'
 import { PullRequestRow } from './pull_request_row'
 import { RunningTaskRow } from './running_task_row'
 import { subagentGlyphLabel, subagentGlyphState } from './subagent_glyph'
@@ -124,6 +132,7 @@ export function ThreadOverview({
   const { setCollapsed, sectionProps } = useCollapsedSections('jetty.overview.collapsed')
   const [revealing, clearReveal] = useRevealSection(threadId)
   const scroller = useRef<HTMLDivElement>(null)
+  const [linking, setLinking] = useState(false)
 
   const subagentItems = threadSubagents(items)
   const workflows = threadWorkflows(items)
@@ -166,11 +175,22 @@ export function ThreadOverview({
       <div className='flex flex-col gap-5 p-2 text-13'>
         <ThreadProperties threadId={threadId} />
         {empty && (
-          <ContentEmpty
-            icon={ListBulletsIcon}
-            title='No activity yet'
-            description='Plans, subagents and linked pull requests will appear here as work progresses.'
-          />
+          <Empty className='min-h-80 px-5'>
+            <EmptyHeader>
+              <EmptyMedia variant='icon' className='border border-border bg-transparent'>
+                <ListBulletsIcon className='size-5 text-muted-foreground' />
+              </EmptyMedia>
+              <EmptyTitle className='text-sm tracking-normal'>No activity yet</EmptyTitle>
+              <EmptyDescription>
+                Plans, subagents and linked pull requests will appear here as work progresses.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button size='sm' onClick={() => setLinking(true)}>
+                Link pull request
+              </Button>
+            </EmptyContent>
+          </Empty>
         )}
         {running.length > 0 && (
           <Section label='Running' count={running.length} {...sectionProps('running')}>
@@ -245,6 +265,7 @@ export function ThreadOverview({
           </Button>
         )}
       </div>
+      <LinkPullRequestDialog threadId={threadId} open={linking} onOpenChange={setLinking} />
     </div>
   )
 }
