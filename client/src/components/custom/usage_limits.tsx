@@ -3,14 +3,17 @@ import type { ReactNode } from 'react'
 
 import {
   ArrowUpRightIcon,
+  ChevronRightSmallIcon,
   CrossSmallIcon,
   ArrowRotateClockwiseIcon,
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { Link } from '@tanstack/react-router'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { ProviderGlyph } from './provider_glyph'
@@ -84,20 +87,16 @@ function resetIn(window: UsageWindow, now: number) {
 function UsageBar({ window, className }: { window: UsageWindow; className?: string }) {
   const left = percentLeft(window)
   return (
-    <span
-      aria-hidden='true'
-      className={cn('relative overflow-hidden rounded-full bg-accent', className)}
-    >
-      {left > 0 && (
-        <span
-          className={cn(
-            'absolute inset-y-0 left-0 rounded-full',
-            left <= 10 ? 'bg-destructive' : 'bg-foreground'
-          )}
-          style={{ width: `${left}%` }}
-        />
+    <progress
+      aria-label={`${window.label} usage`}
+      value={100 - left}
+      max={100}
+      className={cn(
+        'usage-bar w-full',
+        left <= 10 ? 'text-destructive' : 'text-primary',
+        className
       )}
-    </span>
+    />
   )
 }
 
@@ -163,7 +162,13 @@ function UsageRow({
       <span
         className={cn('text-right text-xs', left <= 10 ? 'text-destructive' : 'text-foreground')}
       >
-        <span className='font-mono tabular-nums'>{left}%</span> left
+        <span className='font-mono tabular-nums'>{100 - left}%</span> used
+        {!compact && (
+          <span className='text-muted-foreground'>
+            {' '}
+            · <span className='font-mono tabular-nums'>{left}%</span> left
+          </span>
+        )}
       </span>
       <span
         className={cn(
@@ -178,7 +183,9 @@ function UsageRow({
           </>
         )}
       </span>
-      {pace && <span className='col-[2/-1] text-xs text-muted-foreground'>{pace}</span>}
+      {(!compact || pace) && (
+        <span className='col-[2/-1] min-h-4 text-xs text-muted-foreground'>{pace}</span>
+      )}
     </WindowTip>
   )
 }
@@ -186,7 +193,7 @@ function UsageRow({
 function windowsGrid(compact: boolean) {
   return compact
     ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_4.5rem_7.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] @max-md:gap-x-3'
+    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_9.5rem_7.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_9.5rem_6.5rem] @max-md:gap-x-3'
 }
 
 // Why a provider shows no windows, when it doesn't.
@@ -291,7 +298,7 @@ export function UsagePage({
         </div>
       </header>
       <div className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-        <div className='@container mx-auto flex w-full max-w-[708px] flex-col gap-10 px-6 py-8'>
+        <div className='@container mx-auto flex w-full max-w-160 flex-col gap-10 px-4 py-8'>
           {providers.map((provider) => {
             const item = usage[provider]
             return (
@@ -469,8 +476,8 @@ function LimitLine({
         <span className='flex min-w-0 items-center gap-1.5'>{label}</span>
         <span className='flex shrink-0 items-center gap-2.5'>
           <ResetLabel window={window} now={now} />
-          <span className={cn('w-14 text-right', left <= 10 && 'text-destructive')}>
-            <Mono>{left}%</Mono> left
+          <span className={cn('w-16 text-right', left <= 10 && 'text-destructive')}>
+            <Mono>{100 - left}%</Mono> used
           </span>
         </span>
       </div>
@@ -552,32 +559,58 @@ export function RingLimits({
       {connected.length > 0 && (
         <>
           <Rule />
-          <div className='flex flex-col gap-3'>
-            {connected.map((item) => {
-              const window = tightest(item.windows)
-              return (
-                <LimitLine
-                  key={item.provider}
-                  usage={item}
-                  window={window}
-                  now={now}
-                  pace={false}
-                  label={
-                    <>
-                      <ProviderGlyph
-                        provider={item.provider}
-                        className='size-3 shrink-0 text-muted-foreground'
-                      />
-                      <span>{providerNames[item.provider]}</span>
-                      <span className='truncate text-muted-foreground'>{windowName(window)}</span>
-                    </>
-                  }
+          <Collapsible>
+            <CollapsibleTrigger
+              render={
+                <Button
+                  variant='ghost-text'
+                  size='sm'
+                  className='group h-8 w-full justify-start px-0 font-normal'
                 />
-              )
-            })}
-          </div>
+              }
+            >
+              <ChevronRightSmallIcon className='group-aria-expanded:rotate-90' />
+              Other accounts
+              <span className='ml-auto font-mono text-muted-foreground'>{connected.length}</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className='flex flex-col gap-3 pt-2'>
+                {connected.map((item) => {
+                  const window = tightest(item.windows)
+                  return (
+                    <LimitLine
+                      key={item.provider}
+                      usage={item}
+                      window={window}
+                      now={now}
+                      pace={false}
+                      label={
+                        <>
+                          <ProviderGlyph
+                            provider={item.provider}
+                            className='size-3 shrink-0 text-muted-foreground'
+                          />
+                          <span>{providerNames[item.provider]}</span>
+                          <span className='truncate text-muted-foreground'>
+                            {windowName(window)}
+                          </span>
+                        </>
+                      }
+                    />
+                  )
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </>
       )}
+      <Link
+        to='/usage'
+        className='flex h-8 items-center gap-1 text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring'
+      >
+        All usage
+        <ArrowUpRightIcon className='size-3' />
+      </Link>
     </>
   )
 }
