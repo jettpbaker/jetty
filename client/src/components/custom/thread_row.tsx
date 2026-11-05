@@ -55,15 +55,15 @@ export function ThreadRow({
           <Button
             render={trigger}
             variant='ghost-text'
-            className='thread-row-button h-auto min-h-7.5 w-full min-w-0 justify-start gap-1.5 rounded-sm px-2.5 py-0.75 text-left font-normal text-foreground'
+            className='thread-row-button h-auto min-h-7.5 w-full min-w-0 justify-start gap-1 rounded-sm px-2.5 py-0.75 text-left font-normal text-foreground'
             aria-pressed={selected}
             onClick={onSelect}
           >
             <HeldKeybind binding={shortcut}>
-              <StatusGlyph status={status} idleDot className='size-4' />
+              <StatusGlyph status={status} className='size-3.5' />
             </HeldKeybind>
             {!nested && (showProject || (bot && !bot.archived)) && (
-              <span className='flex size-4 shrink-0 items-center justify-center' title={project}>
+              <span className='flex size-3.5 shrink-0 items-center justify-center' title={project}>
                 {bot && !bot.archived ? (
                   <JettyBot shape={bot.shape} color={bot.color} size={14} />
                 ) : (
@@ -80,7 +80,7 @@ export function ThreadRow({
               )}
             </span>
             <span
-              className='thread-row-age w-12.5 shrink-0 text-right font-mono text-xs text-muted-foreground'
+              className='thread-row-age w-7 shrink-0 text-right font-mono text-xs text-muted-foreground tabular-nums'
               aria-label={
                 lastActivity === 'now'
                   ? 'Last activity just now'

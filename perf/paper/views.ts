@@ -613,7 +613,12 @@ views.push(
     async setup({ page }) {
       await click(
         page,
-        button('Archive Remove legacy coupon endpoint'),
+        button('Actions for Remove legacy coupon endpoint'),
+        'cleanup thread actions'
+      )
+      await click(
+        page,
+        `[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim()==='Archive')`,
         'archive completed cleanup'
       )
       await waitFor(page, `document.querySelector('[data-sonner-toast]')`, 'undo toast')

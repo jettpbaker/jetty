@@ -70,15 +70,6 @@ export function ThreadRowActions({
   return (
     <>
       <div className='thread-row-actions' data-overlay={overlay}>
-        <Button
-          variant='ghost-text'
-          size='icon'
-          className='thread-row-action'
-          aria-label={`${archived ? 'Unarchive' : 'Archive'} ${title}`}
-          onClick={onArchive}
-        >
-          {archived ? <ArrowOutOfBoxIcon className='size-3' /> : <ArchiveIcon className='size-3' />}
-        </Button>
         <DropdownMenu
           open={overlay === 'menu'}
           onOpenChange={(open) => changeOverlay('menu', open)}
@@ -97,6 +88,10 @@ export function ThreadRowActions({
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>
+              <DropdownMenuItem onClick={onArchive}>
+                {archived ? <ArrowOutOfBoxIcon /> : <ArchiveIcon />}
+                {archived ? 'Unarchive' : 'Archive'}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={editTitle}>
                 <Pencil2Icon />
                 Rename

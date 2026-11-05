@@ -80,8 +80,8 @@
   the pinned pin, the sidebar and details pane toggles, and status glyphs: Central's filled
   QuestionmarkCircle (needs input), CircleCheck (ready, finished and passed) and CircleX (error
   and failed). Working uses Central's outlined Progress50; waiting uses its outlined Clock.
-  Idle, queued, stopped and skipped use our custom idle ring; sidebar idle rows use a quiet
-  6px dot in the same 16px status slot. Selected answers stay stroked.
+  Idle, queued, stopped and skipped use our custom idle ring, including sidebar idle rows
+  in their 14px status slot. Selected answers stay stroked.
   GitHub is the official filled svgl mark. Provider logos and the context ring stay custom.
 - Completed tool calls use muted tool-kind glyphs; active, blocked and failed calls keep status glyphs.
 - Keycaps: a shortcut the app registers shows as the `KeybindChip` of its entry in `keybinds.tsx`; a one-off key that isn't an app shortcut (↵ in a dialog's footer) is a `Kbd`. Both use regular weight and fill with translucent foreground (`bg-foreground/8`) so they sit on any surface. Never give a keycap an opaque fill.
@@ -99,9 +99,9 @@
   takes the matching icon size (`xs` ↔ `icon-xs`, `sm` ↔ `icon-sm`), never a
   smaller size stretched with height classes. Radius follows size, so mixed
   sizes give mismatched corners.
-- The tab close button keeps its tiny target and no-fill hover. Thread row Archive/More
-  actions keep small glyphs and no-fill hover in 24px hit areas, inside a permanent 50px
-  trailing age/action column. Titles truncate before that column without changing on hover. Row status and title stay visible; shortcut numbers appear only while held.
+- The tab close button keeps its tiny target and no-fill hover. Thread rows keep one More
+  action with a small glyph and no-fill hover in a 24px hit area, inside a permanent 28px
+  trailing age/action column. Archive stays in that menu and on its keyboard shortcut. Titles truncate before that column without changing on hover. Row status and title stay visible; shortcut numbers appear only while held.
 - Status colors are semantic: orange = needs input, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.
@@ -131,8 +131,8 @@
   are Geist Sans, including Jetty tool targets ("Archived 3 threads").
 - Overflowing single-line text: fade when it scrolls on hover (`OverflowTitle`
   inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still. Sidebar
-  thread titles stay still: two lines at sidebar widths up to 320px, one line above that;
-  the hover card wraps the full title and holds PR details. Single-project lists and groups
+  thread titles stay still on one line with ellipsis at every sidebar width; only actionable
+  state details add a second line. The hover card wraps the full title and holds PR details. Single-project lists and groups
   omit repeated project emoji. In a mixed-project list, a single-project group names its
   project in the heading; mixed-project groups keep a consistent project slot, including Pinned.
   The default sidebar is 300px and resizes from 200–400px.

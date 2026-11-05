@@ -1,6 +1,6 @@
 import type { ProjectIcon, PullRequestLink, ThreadMeta } from '@jetty/shared/wire'
 
-import { formatAge, formatElapsed } from '@/lib/time'
+import { formatAge } from '@/lib/time'
 import { listedAt, type SidebarList, type SidebarRow } from '@/state/sidebar'
 
 import type { ThreadPullRequest } from './thread_pull_request'
@@ -34,7 +34,7 @@ export function sidebarThread({ thread, project }: SidebarRow, now: number): Sid
     detail: threadNavigationDetail(thread),
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length
-        ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
+        ? formatAge(Math.min(...thread.backgroundTasks.map((task) => task.startedAt)), now)
         : formatAge(listedAt(thread), now),
     pinned: thread.pinned,
     archived: thread.archived,
