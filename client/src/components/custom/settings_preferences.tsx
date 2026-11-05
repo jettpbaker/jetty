@@ -11,6 +11,7 @@ import { environments } from './composer_environment'
 import {
   Mono,
   PlannedSettingsRow,
+  PlannedSettingsSection,
   SettingsCard,
   SettingsPage,
   SettingsRow,
@@ -91,7 +92,7 @@ export function SettingsPreferences() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
-      <SettingsSection title='Coming soon' description='Startup and sending preferences'>
+      <PlannedSettingsSection title='Startup and sending'>
         <SettingsCard>
           <PlannedSettingsRow
             id='open-on-launch'
@@ -104,7 +105,7 @@ export function SettingsPreferences() {
             description='Choose the send key. Shift-Enter always adds a new line.'
           />
         </SettingsCard>
-      </SettingsSection>
+      </PlannedSettingsSection>
     </SettingsPage>
   )
 }

@@ -33,6 +33,7 @@ import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import {
   PlannedSettingsRow,
+  PlannedSettingsSection,
   SettingsCard,
   SettingsLinkRow,
   SettingsPage,
@@ -275,7 +276,7 @@ export function SettingsIntelligence() {
           />
         </SettingsCard>
       </SettingsSection>
-      <SettingsSection title='Coming soon'>
+      <PlannedSettingsSection title='Catch up'>
         <SettingsCard>
           <PlannedSettingsRow
             id='digest'
@@ -283,7 +284,7 @@ export function SettingsIntelligence() {
             description='Catches you up on every thread when you come back'
           />
         </SettingsCard>
-      </SettingsSection>
+      </PlannedSettingsSection>
     </SettingsPage>
   )
 }
@@ -352,7 +353,7 @@ export function SettingsGuidedReviews() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
-      <SettingsSection title='Coming soon'>
+      <PlannedSettingsSection title='Customisation'>
         <SettingsCard>
           <PlannedSettingsRow
             title='Skip small pull requests'
@@ -363,7 +364,7 @@ export function SettingsGuidedReviews() {
             description='Tell guides what to lead with, and what to skip'
           />
         </SettingsCard>
-      </SettingsSection>
+      </PlannedSettingsSection>
     </SettingsPage>
   )
 }

@@ -213,6 +213,12 @@ export function SettingsRow({
   )
 }
 
+export function PlannedSettingsSection(
+  props: Omit<ComponentProps<typeof SettingsSection>, 'action'>
+) {
+  return <SettingsSection {...props} action={<ComingSoon />} />
+}
+
 export function PlannedSettingsRow({
   id,
   title,
@@ -222,7 +228,7 @@ export function PlannedSettingsRow({
   title: string
   description: string
 }) {
-  return <UnavailableSettingsRow id={id} title={title} description={description} />
+  return <SettingsRow id={id} title={title} description={description} disabled />
 }
 
 export function UnavailableSettingsRow({

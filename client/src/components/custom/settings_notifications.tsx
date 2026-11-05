@@ -1,11 +1,8 @@
-import { Bell2Icon } from './central_icons'
 import {
-  ComingSoon,
   PlannedSettingsRow,
   SettingsCard,
   SettingsPage,
-  SettingsRow,
-  SettingsSection,
+  PlannedSettingsSection,
 } from './settings_layout'
 
 const events = [
@@ -29,19 +26,9 @@ export function SettingsNotifications() {
   return (
     <SettingsPage
       title='Notifications'
-      description='Hear about threads that need you while Jetty is in another tab.'
+      description='Browser notifications are not available yet. These are the events Jetty will support.'
     >
-      <SettingsCard>
-        <SettingsRow
-          id='browser-notifications'
-          icon={Bell2Icon}
-          title='Browser notifications'
-          description='Notifications are not available yet. These are the events Jetty will support.'
-        >
-          <ComingSoon />
-        </SettingsRow>
-      </SettingsCard>
-      <SettingsSection title='Planned notifications'>
+      <PlannedSettingsSection id='browser-notifications' title='Planned notifications'>
         <SettingsCard>
           {events.map((event) => (
             <PlannedSettingsRow
@@ -51,7 +38,7 @@ export function SettingsNotifications() {
             />
           ))}
         </SettingsCard>
-      </SettingsSection>
+      </PlannedSettingsSection>
     </SettingsPage>
   )
 }
