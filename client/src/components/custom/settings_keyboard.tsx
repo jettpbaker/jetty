@@ -1,6 +1,12 @@
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, keybinds, type Keybind } from './keybinds'
-import { SettingsButton, SettingsCard, SettingsPage, SettingsSection } from './settings_layout'
+import {
+  ComingSoon,
+  SettingsButton,
+  SettingsCard,
+  SettingsPage,
+  SettingsSection,
+} from './settings_layout'
 
 // ⌥1–9 is nine bindings, listed as one.
 const sidebarRows: Keybind = {
@@ -46,7 +52,9 @@ export function SettingsKeyboard() {
       className='gap-7 [&>header]:pb-1'
       action={
         <DisabledTooltip reason='Shortcut customization is coming soon' wrap='inline-flex'>
-          <SettingsButton disabled>Customize</SettingsButton>
+          <SettingsButton disabled>
+            Customize <ComingSoon />
+          </SettingsButton>
         </DisabledTooltip>
       }
     >
