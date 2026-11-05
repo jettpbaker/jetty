@@ -4,17 +4,10 @@ import {
   ChevronRightSmallIcon,
   ListBulletsIcon,
   ChangesIcon,
+  PullRequestIcon,
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-  EmptyDescription,
-  EmptyContent,
-} from '@/components/ui/empty'
 import { useNow } from '@/hooks/use-now'
 import { effortLabels } from '@/lib/loadout'
 import { formatDuration } from '@/lib/time'
@@ -38,6 +31,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { environments } from './composer_environment'
 import { TodoList } from './composer_strip'
+import { ContentEmpty } from './content_empty'
 import { CopyButton } from './copy_button'
 import { DiffCounts } from './diff/file_card'
 import { LinkPullRequestDialog } from './pull_request_link'
@@ -172,25 +166,20 @@ export function ThreadOverview({
 
   return (
     <div ref={scroller} className='scrollbar-subtle h-full overflow-auto'>
-      <div className='flex flex-col gap-5 p-2 text-13'>
+      <div className='flex min-h-full flex-col gap-6 p-2 text-13'>
         <ThreadProperties threadId={threadId} />
         {empty && (
-          <Empty className='min-h-80 px-5'>
-            <EmptyHeader>
-              <EmptyMedia variant='icon' className='border border-border bg-transparent'>
-                <ListBulletsIcon className='size-5 text-muted-foreground' />
-              </EmptyMedia>
-              <EmptyTitle className='text-sm tracking-normal'>No activity yet</EmptyTitle>
-              <EmptyDescription>
-                Plans, subagents and linked pull requests will appear here as work progresses.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button size='sm' onClick={() => setLinking(true)}>
-                Link pull request
-              </Button>
-            </EmptyContent>
-          </Empty>
+          <ContentEmpty
+            icon={ListBulletsIcon}
+            title='No activity yet'
+            description='Plans, subagents and linked pull requests will appear here as work progresses.'
+            className='min-h-80'
+          >
+            <Button variant='outline' size='sm' onClick={() => setLinking(true)}>
+              <PullRequestIcon data-icon='inline-start' />
+              Link pull request
+            </Button>
+          </ContentEmpty>
         )}
         {running.length > 0 && (
           <Section label='Running' count={running.length} {...sectionProps('running')}>
@@ -334,24 +323,35 @@ function ThreadProperties({ threadId }: { threadId: string }) {
     <section aria-label='Thread properties' className='min-w-0 border-b border-border pb-2'>
       <Collapsible open={expanded} onOpenChange={setExpanded}>
         <CollapsibleTrigger
-          render={<Button variant='ghost-text' size='sm' />}
+          render={<Button variant='ghost' size='sm' />}
           aria-label='Thread environment details'
-          className='group/environment h-8 w-full min-w-0 justify-start gap-2 px-2.5 font-normal'
+          className='group/environment h-14 w-full min-w-0 justify-start gap-2.5 px-2.5 text-left font-normal'
         >
-          <environment.Icon />
-          <span className='truncate'>{project?.title ?? 'Project unavailable'}</span>
-          <span className='shrink-0 text-xs text-muted-foreground'>{environment.label}</span>
-          {branch && (
-            <span className='truncate font-mono text-xs text-muted-foreground'>{branch}</span>
-          )}
-          <ChevronRightSmallIcon className='ml-auto shrink-0 text-muted-foreground group-aria-expanded/environment:rotate-90' />
+          <environment.Icon className='size-4 text-muted-foreground' />
+          <span className='flex min-w-0 flex-1 flex-col gap-1'>
+            <span className='truncate text-13 text-foreground'>
+              {project?.title ?? 'Project unavailable'}
+            </span>
+            <span className='flex min-w-0 items-center gap-2 text-xs'>
+              <span className='shrink-0 text-muted-foreground'>{environment.label}</span>
+              {branch && (
+                <span className='truncate font-mono text-foreground' title={branch}>
+                  {branch}
+                </span>
+              )}
+            </span>
+          </span>
+          <ChevronRightSmallIcon className='size-4 shrink-0 text-muted-foreground group-aria-expanded/environment:rotate-90' />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <dl className='flex flex-col gap-2.5 px-2.5 pt-3 pb-2'>
+          <dl className='flex flex-col px-2.5 pt-2 pb-1'>
             {rows.map(({ label, value }) => (
-              <div key={label} className='grid grid-cols-[88px_minmax(0,1fr)] items-start gap-3'>
+              <div
+                key={label}
+                className='grid min-h-7 grid-cols-[96px_minmax(0,1fr)] items-start gap-3 py-1'
+              >
                 <dt className='text-xs leading-5 text-muted-foreground'>{label}</dt>
-                <dd className='min-w-0 text-13 leading-5'>{value}</dd>
+                <dd className='min-w-0 text-13 leading-5 text-foreground'>{value}</dd>
               </div>
             ))}
           </dl>
@@ -436,12 +436,12 @@ export function Section({
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} data-section={id} className='min-w-0'>
       <CollapsibleTrigger
-        render={<Button variant='ghost-text' size='xs' />}
+        render={<Button variant='ghost-text' size='sm' />}
         className='group/section w-full justify-start gap-2 rounded-sm px-2.5'
       >
         {label}
         <span className='font-mono font-normal text-muted-foreground tabular-nums'>{count}</span>
-        <ChevronRightSmallIcon className='ml-auto text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
+        <ChevronRightSmallIcon className='ml-auto size-4 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='pt-2'>{children}</div>
