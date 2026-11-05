@@ -42,16 +42,11 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
   const failed = call.status === 'failed'
   return (
     <div className='my-1 flex min-w-0 flex-col gap-3 rounded-sm border border-border bg-card p-3 text-xs'>
-      {call.input !== undefined && (
-        <section>
-          <h4 className='mb-1 text-muted-foreground'>Input</h4>
-          <ToolOutput>{call.input}</ToolOutput>
-        </section>
-      )}
+      {call.kind === 'terminal' && <ToolOutput>$ {call.target}</ToolOutput>}
       <section>
-        <h4 className='mb-1 text-muted-foreground'>
-          {failed ? 'Error' : call.kind === 'edit' ? 'Changes' : 'Output'}
-        </h4>
+        {(failed || call.kind === 'edit') && (
+          <h4 className='mb-1 text-muted-foreground'>{failed ? 'Error' : 'Changes'}</h4>
+        )}
         {output ? (
           <ToolOutput className={cn(failed && 'text-status-error')}>{output}</ToolOutput>
         ) : call.outputBytes !== undefined ? null : (
@@ -72,6 +67,14 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
           </p>
         )}
       </section>
+      {call.input !== undefined && (
+        <details>
+          <summary className='cursor-pointer rounded-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring'>
+            Raw input
+          </summary>
+          <ToolOutput className='mt-2'>{call.input}</ToolOutput>
+        </details>
+      )}
     </div>
   )
 }

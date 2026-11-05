@@ -10,18 +10,10 @@
   gap: 0.25rem;
 }
 .activity-chevron {
-  visibility: hidden;
+  visibility: visible;
 }
 :is(.activity-header, .activity-file-status)[aria-expanded='true'] > .activity-chevron {
   transform: rotate(90deg);
-}
-:is(.activity-header, .activity-file-status):focus-visible > .activity-chevron {
-  visibility: visible;
-}
-@media (hover: hover) and (pointer: fine) {
-  :is(.activity-header, .activity-file-status):hover > .activity-chevron {
-    visibility: visible;
-  }
 }
 .activity-file-row {
   padding-block: 0;
