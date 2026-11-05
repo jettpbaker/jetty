@@ -24,8 +24,8 @@ import { inDialog, KeybindTooltip, keybinds } from './keybinds'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import './details_layout.css'
 
-const minWidth = 320
-const narrowWidth = 760
+const minWidth = 420
+const narrowWidth = 980
 
 export type DetailsLayoutState = ReturnType<typeof useDetailsLayout>
 
@@ -71,11 +71,11 @@ export function useDetailsLayout({ compact = false }: { compact?: boolean } = {}
   const [expanded, setExpanded] = useState(false)
   const narrow = available < narrowWidth
   const full = narrow || expanded
-  const max = Math.max(minWidth, available - (compact ? 560 : 360))
+  const max = Math.max(minWidth, available - 560)
   const clamp = (width: number) => Math.max(minWidth, Math.min(max, width))
   const width = full
     ? available
-    : clamp(compact ? (overviewWidth ?? 360) : (preferredWidth ?? available * 0.5))
+    : clamp(compact ? (overviewWidth ?? minWidth) : (preferredWidth ?? available * 0.5))
 
   // Opening measures first, so the pane's first frame already has its width.
   const show = useCallback(() => {
