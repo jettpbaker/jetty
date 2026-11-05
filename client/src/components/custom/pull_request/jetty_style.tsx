@@ -1673,7 +1673,7 @@ function TitleEditor({
       contentEditable={disabled ? false : 'plaintext-only'}
       suppressContentEditableWarning
       spellCheck={false}
-      className='outline-none'
+      className='rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring'
       onKeyDown={(e) => {
         if (inComposition(e.nativeEvent)) return
         if (e.key === 'Enter') {

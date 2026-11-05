@@ -27,7 +27,20 @@ export function DisabledTooltip({
       {wrap === undefined ? (
         <TooltipTrigger render={control} />
       ) : (
-        <TooltipTrigger render={<span className={cn(wrap, 'cursor-not-allowed')} />}>
+        <TooltipTrigger
+          render={
+            <span
+              // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focus reveals why the wrapped control is unavailable
+              tabIndex={0}
+              aria-disabled='true'
+              aria-describedby={id}
+              className={cn(
+                wrap,
+                'cursor-not-allowed rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
+              )}
+            />
+          }
+        >
           {control}
         </TooltipTrigger>
       )}

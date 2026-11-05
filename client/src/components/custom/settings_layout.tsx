@@ -130,16 +130,16 @@ export function SettingsCard({ className, children }: { className?: string; chil
   )
 }
 
-// The last folder tells paths apart, so a long path gives way before it does.
 export function PathText({ path, className }: { path: string; className?: string }) {
-  const slash = path.lastIndexOf('/', path.length - 2)
   return (
     <span
-      className={cn('flex min-w-0 font-mono text-xs text-muted-foreground', className)}
+      className={cn(
+        'min-w-0 truncate text-left font-mono text-xs text-muted-foreground [direction:rtl]',
+        className
+      )}
       title={path}
     >
-      <span className='min-w-0 truncate'>{path.slice(0, slash)}</span>
-      <span className='max-w-full shrink-0 truncate'>{path.slice(slash)}</span>
+      <bdi dir='ltr'>{path}</bdi>
     </span>
   )
 }
