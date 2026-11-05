@@ -18,7 +18,7 @@ const buttonVariants = cva(
         'ghost-text':
           'text-muted-foreground not-disabled:hover:text-foreground aria-expanded:text-foreground disabled:text-disabled-foreground disabled:[&_svg]:text-disabled-foreground',
         destructive:
-          'bg-destructive/10 text-destructive not-disabled:hover:bg-destructive/20 focus-visible:border-destructive focus-visible:ring-destructive dark:bg-destructive/20 dark:not-disabled:hover:bg-destructive/30 disabled:opacity-50',
+          'bg-destructive/10 text-[color-mix(in_oklch,var(--destructive),var(--foreground)_20%)] not-disabled:hover:bg-destructive/20 focus-visible:border-destructive focus-visible:ring-destructive dark:bg-destructive/20 dark:not-disabled:hover:bg-destructive/30 disabled:opacity-50',
         link: 'text-primary underline-offset-4 not-disabled:hover:underline disabled:text-disabled-foreground disabled:[&_svg]:text-disabled-foreground',
       },
       tone: {
