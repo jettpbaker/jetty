@@ -253,21 +253,21 @@ export function ComposerQueue({
   const resume = queue.unsent.find((entry) => !isQueuedEditing(entry, queue.editing))
   return (
     <MediaLightboxProvider>
-      <div className='scrollbar-subtle flex max-h-64 flex-col gap-0.5 overflow-y-auto first:rounded-t-md'>
+      <div className='scrollbar-subtle flex max-h-64 flex-col divide-y divide-border overflow-y-auto first:rounded-t-md'>
         {!queue.held && queue.paused && queue.unsent.length > 0 && (
           <div
             data-strip='queue'
             className='flex items-start gap-2 bg-popover px-3 py-3 text-sm first:rounded-t-md'
           >
             {settingUp ? (
-              <Spinner className='mt-1 size-3.5 text-muted-foreground' />
+              <Spinner className='mt-1 size-4 text-muted-foreground' />
             ) : retrySetup ? (
               <StatusGlyph
                 status={worktree?.state === 'failed' ? 'error' : 'stopped'}
-                className='mt-1'
+                className='mt-1 size-4'
               />
             ) : (
-              <PauseIcon className='mt-1 size-3.5 text-muted-foreground' />
+              <PauseIcon className='mt-1 size-4 text-muted-foreground' />
             )}
             <span className='flex min-w-0 flex-1 flex-col gap-1'>
               <span>
@@ -280,7 +280,7 @@ export function ComposerQueue({
                       : worktree?.state === 'ready'
                         ? 'Worktree ready'
                         : 'Paused'}{' '}
-                · {queue.unsent.length} waiting
+                · {queue.unsent.length} queued {queue.unsent.length === 1 ? 'message' : 'messages'}
               </span>
               {retrySetup && worktree?.error && (
                 <span className='text-xs leading-5 text-muted-foreground wrap-anywhere'>
@@ -356,7 +356,7 @@ function QueuedRow({
       />
       <div className='flex min-w-0 items-center gap-4'>
         <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <ArrowShareLeftIcon className='size-3 shrink-0 translate-y-px text-muted-foreground' />
+          <ArrowShareLeftIcon className='size-4 shrink-0 text-muted-foreground' />
           <div className='min-w-0 flex-1'>
             <QueuedText entry={entry} muted={editing} />
           </div>

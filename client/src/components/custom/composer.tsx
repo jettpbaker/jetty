@@ -168,8 +168,12 @@ export function Composer({
       className='mx-auto flex w-full max-w-[825px] flex-col gap-1'
     >
       {header}
-      <div className='flex flex-col gap-0.5'>
-        {strip ? <div className='flex flex-col gap-0.5'>{strip}</div> : null}
+      <div className={cn('flex flex-col', strip && 'overflow-hidden rounded-md bg-popover')}>
+        {strip ? (
+          <div className={cn('flex flex-col', strip && 'overflow-hidden rounded-md bg-popover')}>
+            {strip}
+          </div>
+        ) : null}
         <div
           className='relative'
           style={
