@@ -10,6 +10,11 @@ manifest. Failed states remove their generated artboard and are listed as droppe
 The script clones the perf lab's golden home, writes schema-checked fixture snapshots
 while that clone is stopped, then starts the echo server and Vite on free ports. GitHub
 runs in replay mode. The project repository is also cloned into the isolated stack.
+The capture home presents a checkout release across Storefront and Analytics, with a
+Checkout bot, linked PRs and child threads. Retitling and conversation replacement happen
+only in that stopped clone; the golden `small`, `long`, `code` and `diff` threads stay
+unchanged for perf journeys. Capture-owned checkout files supply the editor and Changes
+views. PR snapshots are refreshed from the capture replay before opening any views.
 `replay.ts` rekeys the existing recorded responses for the current GraphQL queries;
 it never fetches GitHub or changes the original recordings. Worktree loading uses a
 real delayed setup in that cloned repository. Browser input and screenshots go through
