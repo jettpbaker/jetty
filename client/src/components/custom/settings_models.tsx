@@ -1,6 +1,7 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -360,11 +361,11 @@ function AvailableModels() {
                   <span className='grow truncate'>
                     <ModelLabel model={model} />
                   </span>
-                  <Switch
+                  <Checkbox
                     aria-label={`Show ${model.name} in pickers`}
                     disabled={!on}
                     checked={checked}
-                    onCheckedChange={(next) => setEnabled(model, next)}
+                    onCheckedChange={(next) => setEnabled(model, next === true)}
                   />
                 </div>
               )
@@ -419,8 +420,9 @@ export function SettingsModels() {
           <div className='flex shrink-0 items-center gap-2 pr-1'>
             {refreshing && <span className='text-xs text-muted-foreground'>Checking…</span>}
             <Button
-              variant='ghost'
-              className='h-7 gap-1.5 rounded-sm pr-2.5 pl-2 text-13'
+              variant='ghost-text'
+              tone='muted'
+              size='xs'
               aria-busy={refreshing}
               onClick={() => refresh(true)}
             >

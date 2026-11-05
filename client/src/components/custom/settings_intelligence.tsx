@@ -26,28 +26,17 @@ import {
 } from '@jetty/shared/wire'
 import { useState } from 'react'
 
-import {
-  ArchiveIcon,
-  ChevronDownSmallIcon,
-  Minimize45Icon,
-  MagicBookIcon,
-  CalendarClockIcon,
-  NewspaperIcon,
-  TextSizeIcon,
-  PullRequestIcon,
-} from './central_icons'
+import { ChevronDownSmallIcon } from './central_icons'
 import { loadoutParts, ModelMenuItems } from './composer_loadout'
 import { DisabledTooltip } from './disabled_tooltip'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import {
-  ComingSoon,
   SettingsCard,
   SettingsLinkRow,
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  UnavailableSettingsRow,
   selectTriggerClass,
 } from './settings_layout'
 
@@ -197,13 +186,12 @@ export function SettingsIntelligence() {
       description='The jobs Jetty hands to a model on its own, and what agents may do without being asked.'
     >
       <SettingsSection
-        title='Built in'
+        title='Background model jobs'
         description='Small jobs Jetty runs itself, on your own subscriptions.'
       >
         <SettingsCard>
           <SettingsRow
             id='thread-titles'
-            icon={TextSizeIcon}
             title='Thread titles'
             description={unavailable ?? 'Names new threads, and the branches they work on'}
             disabled={!!unavailable}
@@ -224,13 +212,11 @@ export function SettingsIntelligence() {
           <SettingsLinkRow
             id='guided-reviews'
             page='guided-reviews'
-            icon={MagicBookIcon}
             title='Guided reviews'
             description='Walks you through a pull request in chapters, from its Guide tab'
           />
           <SettingsRow
             id='tidying'
-            icon={Minimize45Icon}
             title='Bot memory maintenance'
             description='Compact bot chats and save notes'
           >
@@ -244,32 +230,21 @@ export function SettingsIntelligence() {
               />
             </span>
           </SettingsRow>
-          <SettingsRow
-            id='digest'
-            icon={NewspaperIcon}
-            title='Digest'
-            description='Catches you up on every thread when you come back'
-            disabled
-          >
-            <ComingSoon />
-          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
       <SettingsSection
-        title='On their own'
+        title='Automatic agent actions'
         description='What agents and bots may do without being asked.'
       >
         <SettingsCard>
           <SettingsLinkRow
             id='pr-activity'
             page='pr-activity'
-            icon={<PullRequestIcon />}
             title='Wake on PR activity'
             description='Agents pick up reviews, failing checks and conflicts on PRs they opened'
           />
           <SettingsRow
             id='archive'
-            icon={ArchiveIcon}
             title='Archive finished threads'
             description='Agents and bots archive threads they started once the work is merged'
           >
@@ -281,7 +256,6 @@ export function SettingsIntelligence() {
           </SettingsRow>
           <SettingsRow
             id='idle-compaction'
-            icon={Minimize45Icon}
             title='Compact idle threads'
             description='Summarise threads over 200k tokens just before their cache expires, so coming back costs less.'
           >
@@ -295,9 +269,18 @@ export function SettingsIntelligence() {
             id='check-ins'
             page='bots'
             hash='rhythm'
-            icon={CalendarClockIcon}
             title='Bot check-ins'
             description="Quiet bots look over their area, only while you're around"
+          />
+        </SettingsCard>
+      </SettingsSection>
+      <SettingsSection title='Coming soon'>
+        <SettingsCard>
+          <SettingsRow
+            id='digest'
+            title='Digest'
+            description='Catches you up on every thread when you come back'
+            disabled
           />
         </SettingsCard>
       </SettingsSection>
@@ -371,21 +354,16 @@ export function SettingsGuidedReviews() {
       </SettingsSection>
       <SettingsSection title='Coming soon'>
         <SettingsCard>
-          <UnavailableSettingsRow
+          <SettingsRow
             title='Skip small pull requests'
             description='Choose the minimum number of changed lines for a guide'
+            disabled
           />
-        </SettingsCard>
-      </SettingsSection>
-      <SettingsSection title='Guides'>
-        <SettingsCard>
           <SettingsRow
             title='Instructions'
             description='Tell guides what to lead with, and what to skip'
             disabled
-          >
-            <ComingSoon />
-          </SettingsRow>
+          />
         </SettingsCard>
       </SettingsSection>
     </SettingsPage>

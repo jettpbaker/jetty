@@ -56,7 +56,7 @@ export function SettingsPage({
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-190 flex-col gap-10 pb-16',
+        'mx-auto flex w-full max-w-190 flex-col gap-7 pb-16',
         back ? 'pt-5.5' : 'pt-4',
         className
       )}
@@ -289,7 +289,15 @@ export function SettingsSelect<T extends string>({
   disabled?: boolean
 }) {
   const current = options.find((option) => option.value === value)
-  if (disabled) return <ComingSoon />
+  if (disabled)
+    return (
+      <DisabledTooltip reason={`${label} customization is coming soon`} wrap='inline-flex shrink-0'>
+        <Button variant='ghost-text' size='sm' disabled>
+          {current?.icon}
+          {current?.label}
+        </Button>
+      </DisabledTooltip>
+    )
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger

@@ -8,7 +8,6 @@ import { useState } from 'react'
 
 import { accessModes } from './composer_access_mode'
 import { environments } from './composer_environment'
-import { KeybindChip, keybinds } from './keybinds'
 import {
   Mono,
   SettingsCard,
@@ -19,8 +18,6 @@ import {
 } from './settings_layout'
 
 type Environment = ThreadMeta['environment']
-
-const keycapClass = 'h-5 min-w-5 rounded-sm px-1 text-xs'
 
 export function SettingsPreferences() {
   const { accessMode, setAccessMode } = useAccessMode()
@@ -93,47 +90,20 @@ export function SettingsPreferences() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
-      <SettingsSection title='Startup and sending'>
+      <SettingsSection title='Coming soon' description='Startup and sending preferences'>
         <SettingsCard>
           <SettingsRow
             id='open-on-launch'
             title='Open on launch'
-            description='What Jetty shows when you open it'
+            description='Choose what Jetty shows when you open it'
             disabled
-          >
-            <SettingsSelect
-              label='Open on launch'
-              value='last-thread'
-              options={[
-                { value: 'last-thread', label: 'Last thread' },
-                { value: 'new-thread', label: 'New thread' },
-                { value: 'pull-requests', label: 'Pull requests' },
-              ]}
-              disabled
-            />
-          </SettingsRow>
+          />
           <SettingsRow
             id='send-key'
             title='Send messages with'
-            description='Shift-Enter always adds a new line'
+            description='Choose the send key. Shift-Enter always adds a new line.'
             disabled
-          >
-            <SettingsSelect
-              label='Send messages with'
-              value='enter'
-              options={[
-                {
-                  value: 'enter',
-                  label: <KeybindChip binding={keybinds.send} className={keycapClass} />,
-                },
-                {
-                  value: 'mod-enter',
-                  label: <KeybindChip binding={keybinds.steer} className={keycapClass} />,
-                },
-              ]}
-              disabled
-            />
-          </SettingsRow>
+          />
         </SettingsCard>
       </SettingsSection>
     </SettingsPage>

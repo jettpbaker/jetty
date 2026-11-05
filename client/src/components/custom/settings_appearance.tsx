@@ -95,8 +95,6 @@ function IconAction({
   )
 }
 
-const textButtonClass = 'h-7 rounded-sm px-2.5 text-13'
-
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
   const appearance = useAppearance()
@@ -314,8 +312,8 @@ export function SettingsAppearance() {
               </div>
             ) : (
               <Button
-                variant='ghost'
-                className={textButtonClass}
+                variant='outline'
+                size='sm'
                 disabled={uploading}
                 onClick={() => void chooseImage()}
               >
@@ -354,8 +352,8 @@ export function SettingsAppearance() {
               </div>
             ) : (
               <Button
-                variant='ghost'
-                className={textButtonClass}
+                variant='outline'
+                size='sm'
                 disabled={uploading}
                 onClick={() => void chooseVideo()}
               >
