@@ -349,6 +349,7 @@ export function WorkBlock({
   const [arrived] = useState(() => startedAt !== undefined && Date.now() - startedAt < 1000)
   const [groupEntries] = useState(createWorkEntries)
   const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
+  const steps = entries.filter((entry) => entry.type !== 'text').length
   // Under a second, a bare heading beats "for 0s", as a thought's does.
   const duration = (elapsedSeconds ?? 0) >= 1 ? formatActivityDuration(elapsedSeconds) : undefined
   const heading = settingUp
@@ -398,6 +399,7 @@ export function WorkBlock({
         </span>
       }
       titleSuffix={timing}
+      summary={steps > 0 ? `${steps} ${steps === 1 ? 'step' : 'steps'}` : undefined}
       ended={ended}
       hasContent={entries.length > 0}
       renderContent={(view) => (

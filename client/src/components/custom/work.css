@@ -19,7 +19,7 @@
   padding-block: 0;
 }
 .activity-header[data-flush] {
-  @apply text-muted-foreground;
+  @apply h-7 text-muted-foreground;
   padding-inline-start: 0;
 }
 .activity-header[data-flush]:hover,

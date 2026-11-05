@@ -14,6 +14,7 @@ export function ActivityChevron() {
 export function ActivityDisclosure({
   title,
   titleSuffix,
+  summary,
   defaultView = 'preview',
   ended = false,
   hasContent = true,
@@ -24,6 +25,7 @@ export function ActivityDisclosure({
 }: {
   title: ReactNode
   titleSuffix?: ReactNode
+  summary?: ReactNode
   defaultView?: ActivityView
   ended?: boolean
   hasContent?: boolean
@@ -56,15 +58,19 @@ export function ActivityDisclosure({
       <div className={animateHeader ? 'work-raise-enter' : undefined}>
         {hasContent ? (
           <Button
-            variant='ghost-text'
+            variant={flushHeader ? 'ghost' : 'ghost-text'}
             className='activity-header'
             data-flush={flushHeader || undefined}
             aria-expanded={expanded}
             aria-controls={id}
             onClick={toggle}
           >
+            {flushHeader && <ActivityChevron />}
             {heading}
-            <ActivityChevron />
+            {summary && (
+              <span className='ml-auto pl-3 text-xs text-muted-foreground'>{summary}</span>
+            )}
+            {!flushHeader && <ActivityChevron />}
           </Button>
         ) : (
           <div
