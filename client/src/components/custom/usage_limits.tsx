@@ -200,14 +200,26 @@ function UsageRow({
           </>
         )}
       </span>
-      {note && (
+      {(!compact || note) && (
         <span
           className={cn(
-            'col-[2/-1] min-h-4 text-xs',
+            'col-[2/-1] flex min-h-4 flex-wrap items-center gap-x-2 gap-y-1 text-xs',
             warning ? usageWarningColor(window) : 'text-muted-foreground'
           )}
         >
-          {note}
+          {note && <span>{note}</span>}
+          {!compact && window.pct >= 95 && (
+            <Button
+              variant='ghost-text'
+              size='xs'
+              className='-my-1'
+              aria-label={`Manage ${providerNames[usage.provider]} models`}
+              render={<Link to='/settings/$page' params={{ page: 'models' }} />}
+            >
+              Manage models
+              <ArrowUpRightIcon />
+            </Button>
+          )}
         </span>
       )}
     </WindowTip>
@@ -355,18 +367,6 @@ export function UsagePage({
                     <h2 id={`usage-${provider}`} className='text-sm font-semibold text-foreground'>
                       {providerNames[provider]}
                     </h2>
-                    {item?.windows.some((window) => window.pct >= 90) && (
-                      <Button
-                        variant='outline'
-                        size='xs'
-                        className='ml-auto'
-                        aria-label={`Manage ${providerNames[provider]} models`}
-                        render={<Link to='/settings/$page' params={{ page: 'models' }} />}
-                      >
-                        Manage models
-                        <ArrowUpRightIcon />
-                      </Button>
-                    )}
                     {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
                       <span className='ml-auto text-xs'>
                         Couldn’t refresh
