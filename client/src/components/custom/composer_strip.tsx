@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
+import { Checkbox } from '@base-ui/react/checkbox'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import {
@@ -778,22 +779,22 @@ function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
       </>
     )
     return spec.multiSelect ? (
-      <button
+      <Checkbox.Root
         key={option.label}
-        type='button'
-        role='checkbox'
-        aria-checked={selected}
-        onClick={() => ctl.pick(option.label)}
+        nativeButton
+        render={<button type='button' aria-label={option.label} />}
+        checked={selected}
+        onCheckedChange={() => ctl.pick(option.label)}
         className={className}
       >
         {content}
-      </button>
+      </Checkbox.Root>
     ) : (
       <Radio.Root
         key={option.label}
         value={option.label}
         nativeButton
-        render={<button type='button' />}
+        render={<button type='button' aria-label={option.label} />}
         className={className}
       >
         {content}
@@ -802,9 +803,10 @@ function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
   })
   const className = 'scroll-fade-y scrollbar-subtle flex max-h-72 flex-col gap-1 overflow-y-auto'
   return spec.multiSelect ? (
-    <div className={className} role='group' aria-label={spec.question}>
+    <fieldset className={className}>
+      <legend className='sr-only'>{spec.question}</legend>
       {options}
-    </div>
+    </fieldset>
   ) : (
     <RadioGroup
       key={ctl.step}
