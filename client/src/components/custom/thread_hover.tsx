@@ -42,7 +42,13 @@ import { threadPullRequests } from './sidebar_thread_groups'
 import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
 import { SubagentGlyph, subagentGlyphState, renderWorkingTitle } from './subagent_glyph'
 import { rankPullRequests, type ThreadPullRequest } from './thread_pull_request'
-import { quietStatus, StatusGlyph, threadStatus, type ThreadStatus } from './thread_status'
+import {
+  quietStatus,
+  StatusGlyph,
+  threadStatus,
+  statusPresentation,
+  type ThreadStatus,
+} from './thread_status'
 import { formatActivityDuration } from './work_model'
 import './subagent_finish.css'
 import './thread_hover.css'
@@ -53,6 +59,7 @@ type Checkout = { label: string; branch: boolean }
 
 type ThreadHoverPanelProps = {
   title: string
+  status: ThreadStatus
   provider?: ProviderId
   model?: string
   environment: 'local' | 'worktree'
@@ -290,6 +297,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   return (
     <ThreadHoverPanel
       title={thread.title}
+      status={threadStatus(thread.status, thread.readyForReview)}
       provider={thread.provider}
       model={
         thread.provider && thread.model
@@ -324,6 +332,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
 
 function ThreadHoverPanel({
   title,
+  status,
   provider,
   model,
   environment,
@@ -346,6 +355,10 @@ function ThreadHoverPanel({
 
   return (
     <div className='flex flex-col gap-1.5'>
+      <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+        <StatusGlyph status={status} />
+        {statusPresentation[status].label}
+      </div>
       <div data-overflow-hover className='flex min-w-0 items-center gap-3'>
         <OverflowTitle>{title}</OverflowTitle>
         {model && (

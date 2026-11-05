@@ -157,7 +157,7 @@ export function ThreadOverview({
 
   return (
     <div ref={scroller} className='scrollbar-subtle h-full overflow-auto'>
-      <div className='flex flex-col gap-3 p-2 text-13'>
+      <div className='flex flex-col gap-5 p-2 text-13'>
         {running.length > 0 && (
           <Section label='Running' count={running.length} {...sectionProps('running')}>
             <div className='flex flex-col'>
@@ -282,7 +282,7 @@ export function Section({
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} data-section={id} className='min-w-0'>
       <CollapsibleTrigger
-        render={<Button variant='secondary' size='sm' />}
+        render={<Button variant='ghost' tone='muted' size='xs' />}
         className='group/section w-full justify-start gap-2 rounded-sm px-2.5'
       >
         {label}
@@ -290,7 +290,7 @@ export function Section({
         <ChevronRightSmallIcon className='ml-auto text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className='pt-1'>{children}</div>
+        <div className='pt-2'>{children}</div>
       </CollapsibleContent>
     </Collapsible>
   )
