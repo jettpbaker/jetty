@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useRender } from '@base-ui/react/use-render'
 import {
   useId,
@@ -17,6 +18,7 @@ import './grouped_table.css'
 export type GroupedColumn<T> = {
   id: string
   label?: string
+  align?: 'start' | 'center' | 'end'
   /** Higher priorities survive longer. Title and essential columns never collapse. */
   priority: number
   width: number
@@ -36,6 +38,7 @@ export type TableGroup<T> = {
 
 type GroupedTableProps<T> = {
   label: string
+  className?: string
   columns: readonly GroupedColumn<T>[]
   groups: readonly TableGroup<T>[]
   rowKey: (row: T) => string | number
@@ -49,6 +52,7 @@ type GroupedTableProps<T> = {
 /** One observer per table; every row keeps the same tracks, including zero-width ones. */
 export function GroupedTable<T>({
   label,
+  className,
   columns,
   groups,
   rowKey,
@@ -138,7 +142,7 @@ export function GroupedTable<T>({
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- keyboard navigation delegates to the table's native controls
     <div
       ref={root}
-      className='grouped-table scrollbar-subtle'
+      className={cn('grouped-table scrollbar-subtle', className)}
       aria-label={label}
       onKeyDown={moveFocus}
       onScroll={() => onRowHover?.(null)}
@@ -153,6 +157,7 @@ export function GroupedTable<T>({
             <span
               key={column.id}
               className='grouped-table-cell'
+              data-align={column.align}
               data-collapsed={collapsed.has(column.id)}
             >
               {column.label}
@@ -222,6 +227,7 @@ export function GroupedTable<T>({
                       <span
                         key={column.id}
                         className='grouped-table-cell'
+                        data-align={column.align}
                         data-title={column.title || undefined}
                         data-collapsed={collapsed.has(column.id)}
                         aria-hidden={collapsed.has(column.id) || undefined}

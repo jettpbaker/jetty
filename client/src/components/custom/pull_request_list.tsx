@@ -154,7 +154,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             }))
             .filter((group) => group.rows.length)
   const singleRepo = new Set(rows.map((pull) => pull.repo)).size === 1
-  const shortIdentifier = singleRepo || groupBy === 'repo'
+  const shortIdentifier = groupBy === 'repo'
   const columns: GroupedColumn<PullRequestListItem>[] = [
     {
       id: 'state',
@@ -180,7 +180,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'title',
-      label: 'Pull request',
       priority: 100,
       width: 280,
       title: true,
@@ -196,19 +195,20 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       id: 'checks',
       label: 'Checks',
       priority: 60,
-      width: 96,
+      width: 88,
       render: (pull) => <PullRequestChecks checks={pull.checks} />,
     },
     {
       id: 'review',
       label: 'Review',
       priority: 50,
-      width: 136,
+      width: 112,
       render: (pull) => <PullRequestReview review={pull.reviewDecision} />,
     },
     {
       id: 'diff',
       label: 'Changes',
+      align: 'end',
       priority: 20,
       width: 88,
       render: (pull) => (
@@ -231,6 +231,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'author',
       label: 'By',
+      align: 'center',
       visible: tab !== 'created',
       priority: 100,
       width: 36,
@@ -249,8 +250,9 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'age',
       label: 'Age',
+      align: 'end',
       priority: 40,
-      width: 40,
+      width: 44,
       render: (pull) => (
         <span
           className='ml-auto font-mono text-xs text-muted-foreground tabular-nums'
@@ -368,6 +370,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
         <>
           <GroupedTable
             label='Pull requests'
+            className='w-full max-w-240 self-start'
             columns={columns}
             groups={groups}
             rowKey={(pull) => pull.url}
