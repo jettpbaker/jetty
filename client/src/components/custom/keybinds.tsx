@@ -57,6 +57,8 @@ export const keybinds = {
   findFile: { hotkey: 'Mod+P', label: '⌘P', name: 'Find a file', modifiers: ['Meta'] },
   addToPrompt: { hotkey: 'Mod+L', label: '⌘L', name: 'Add to prompt', modifiers: ['Meta'] },
   // The composer handles these keys itself; they're here to be listed and shown.
+  allowOnce: { hotkey: 'Mod+Enter', label: '⌘↵', name: 'Allow once', modifiers: ['Meta'] },
+  denyApproval: { hotkey: 'Escape', label: 'Esc', name: 'Deny approval', modifiers: [] },
   send: { hotkey: 'Enter', label: '↵', name: 'Send', modifiers: [] },
   steer: {
     hotkey: 'Mod+Enter',

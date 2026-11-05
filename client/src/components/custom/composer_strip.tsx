@@ -40,6 +40,7 @@ import type { Approval, Question, Secret, Source } from './composer_strip_model'
 import { DiffCounts } from './diff/file_card'
 import { loadDiffWorkerPool } from './diff_worker_pool'
 import { DisabledTooltip } from './disabled_tooltip'
+import { KeybindChip, keybinds } from './keybinds'
 import { SourceLabel } from './source_label'
 
 export function Code({ children, className }: { children: ReactNode; className?: string }) {
@@ -342,16 +343,19 @@ function ApprovalActions({
     )
   return (
     <div className='flex shrink-0 items-center gap-2'>
-      <StripButton variant='outline' onClick={ctl.deny}>
+      <StripButton variant='outline' onClick={ctl.deny} aria-keyshortcuts='Escape'>
         {typed ? 'Deny with note' : 'Deny'}
+        <KeybindChip binding={keybinds.denyApproval} />
       </StripButton>
       <div className='flex'>
         <StripButton
           variant='default'
           className='rounded-r-none'
           onClick={() => ctl.decide('once')}
+          aria-keyshortcuts='Meta+Enter Control+Enter'
         >
           Allow once
+          <KeybindChip binding={keybinds.allowOnce} />
         </StripButton>
         <DropdownMenu open={ctl.menuOpen} onOpenChange={ctl.setMenuOpen}>
           <DropdownMenuTrigger
