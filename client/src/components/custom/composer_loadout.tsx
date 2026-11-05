@@ -465,15 +465,16 @@ export function ComposerLoadout({
                   : undefined
             }
           >
-            <label className='flex h-8 items-center justify-between gap-3 text-xs'>
+            <div className='flex h-8 items-center justify-between gap-3 text-xs'>
               Fast
               <Switch
                 size='sm'
+                aria-label='Fast'
                 disabled={!value || !model?.fast}
                 checked={value?.fast ?? false}
                 onCheckedChange={(fast) => value && onChange({ ...value, fast })}
               />
-            </label>
+            </div>
           </DisabledTooltip>
         </div>
         <Separator />

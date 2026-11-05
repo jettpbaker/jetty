@@ -26,7 +26,7 @@ import { use } from 'react'
 import type { BackgroundItem, CompactionState, PullRequestItem } from './thread_rows'
 
 import { botColorStyle, botTextClass } from './bot_avatar'
-import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
+import { ChatSeam, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem } from './composer_strip_model'
 import { inlineLinkClass, LeadTitle, OpenPullLink, plainClick, shorten } from './entity_link'

@@ -656,7 +656,8 @@ export function ThreadComposer({
               {restartHeld && threadId && (
                 <div
                   data-strip='restart'
-                  role='status'
+                  role='region'
+                  aria-label='Paused after repeated restarts'
                   className='flex items-start gap-2 bg-popover p-3 text-sm first:rounded-t-md'
                 >
                   <PauseIcon className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
