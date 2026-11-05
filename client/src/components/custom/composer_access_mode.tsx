@@ -85,10 +85,12 @@ export function ComposerAccessMode({
       >
         <DropdownMenuTrigger
           aria-label={`Access mode: ${label}`}
-          render={<Button variant='outline' size='sm' className='text-13' />}
+          render={<Button variant='ghost-text' size='sm' className='gap-1.5 text-13' />}
         >
           <Icon className='text-muted-foreground' />
-          {label}
+          <span className='@max-[560px]/composer:sr-only'>
+            {value === 'auto' ? 'Approval' : label}
+          </span>
           <ChevronDownSmallIcon className='text-muted-foreground' />
         </DropdownMenuTrigger>
       </KeybindTooltip>

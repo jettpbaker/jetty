@@ -45,7 +45,12 @@ export function ThreadFooter({
             }
           >
             {place && <place.Icon className='size-3 shrink-0' />}
-            <span className={cn('truncate', branch && 'font-mono')}>
+            <span
+              className={cn(
+                'max-w-40 truncate @max-[600px]/composer:max-w-24',
+                branch && 'font-mono'
+              )}
+            >
               {branch && place && <span className='sr-only'>{place.label} </span>}
               {branch ?? place?.label}
             </span>
@@ -53,6 +58,7 @@ export function ThreadFooter({
           <TooltipContent align='start' className='max-w-lg'>
             <span className='flex flex-col'>
               {place && <span>{place.label}</span>}
+              {branch && <span className='font-mono'>{branch}</span>}
               {path && <span className='font-mono text-muted-foreground'>{path}</span>}
             </span>
           </TooltipContent>

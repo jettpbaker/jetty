@@ -246,7 +246,7 @@ export function Composer({
               align='block-end'
               className={cn('items-end justify-between', compact && 'hidden')}
             >
-              <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1'>
+              <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 @max-[600px]/composer:gap-x-1'>
                 <ComposerAttach
                   onAttach={attachments.add}
                   disabledReason={attachments.refused}
@@ -259,7 +259,7 @@ export function Composer({
                   onChange={onAccessModeChange}
                 />
                 {context && (
-                  <div className='flex min-w-0 flex-1 @max-[560px]/composer:basis-full'>
+                  <div className='flex min-w-0 flex-1 @max-[420px]/composer:basis-full'>
                     {context}
                   </div>
                 )}

@@ -301,7 +301,7 @@ export function ComposerLoadout({
           }
           render={
             <Button
-              variant='outline'
+              variant='ghost-text'
               size='sm'
               tone={value ? 'default' : 'muted'}
               className={cn('group/chip gap-1.5 rounded-sm text-13', loading && 'invisible')}

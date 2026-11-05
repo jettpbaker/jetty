@@ -265,7 +265,7 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         <span className={cn('font-mono text-xs', capacityTone(fullness(context)))}>
           {context ? `${Math.round(fullness(context) * 100)}%` : '—'}
         </span>
-        <span className='text-xs'>context</span>
+        <span className='text-xs @max-[600px]/composer:hidden'>context</span>
       </PopoverTrigger>
       <PopoverContent
         side='top'
