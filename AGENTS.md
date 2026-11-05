@@ -99,8 +99,8 @@
   smaller size stretched with height classes. Radius follows size, so mixed
   sizes give mismatched corners.
 - The tab close button keeps its tiny target and no-fill hover. Thread row Archive/More
-  actions keep small glyphs and no-fill hover in 24px hit areas, overlaid on the trailing
-  age column and title edge without changing the title’s layout. Row status and title stay visible; shortcut numbers appear only while held.
+  actions keep small glyphs and no-fill hover in 24px hit areas, inside a permanent 50px
+  trailing age/action column. Titles truncate before that column without changing on hover. Row status and title stay visible; shortcut numbers appear only while held.
 - Status colors are semantic: orange = needs input, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.

@@ -16,6 +16,7 @@
   transition: none;
 }
 .thread-row[data-selected] > button,
+.thread-row > button[data-popup-open],
 .thread-row:focus-within > button,
 .thread-row:has(.thread-row-actions[data-overlay='menu']) > button {
   background-color: var(--thread-row-surface);
@@ -23,7 +24,7 @@
 .thread-row-actions {
   position: absolute;
   top: 3px;
-  right: 8px;
+  right: 10px;
   display: flex;
   align-items: center;
   gap: 2px;

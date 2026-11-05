@@ -99,7 +99,7 @@ export function ThreadRowActions({
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={editTitle}>
                 <Pencil2Icon />
-                Edit
+                Rename
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onPin}>
                 <PinIcon filled={pinned} />
@@ -119,7 +119,7 @@ export function ThreadRowActions({
       </div>
       <Dialog open={overlay === 'edit'} onOpenChange={(open) => changeOverlay('edit', open)}>
         <DialogContent>
-          <DialogTitle>Edit thread</DialogTitle>
+          <DialogTitle>Rename thread</DialogTitle>
           <form className='flex flex-col gap-4' onSubmit={saveTitle}>
             <Input
               ref={titleInput}

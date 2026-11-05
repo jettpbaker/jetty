@@ -80,7 +80,7 @@ export function ThreadRow({
               )}
             </span>
             <span
-              className='thread-row-age w-7 shrink-0 text-right font-mono text-xs text-muted-foreground'
+              className='thread-row-age w-12.5 shrink-0 text-right font-mono text-xs text-muted-foreground'
               aria-label={
                 lastActivity === 'now'
                   ? 'Last activity just now'
