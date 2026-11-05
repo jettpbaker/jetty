@@ -283,7 +283,7 @@ export function Composer({
                       render={<span className={canSend ? 'flex' : 'flex cursor-not-allowed'} />}
                     >
                       <InputGroupButton
-                        variant='default'
+                        variant={canSend ? 'default' : 'ghost'}
                         size='icon-sm'
                         aria-label={sendLabel}
                         // The caret stays in the composer, so the next message or paste follows at once.

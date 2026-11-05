@@ -19,11 +19,17 @@ import { useState } from 'react'
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindTooltip, keybinds, appShortcut } from './keybinds'
 
-export const accessModes: Record<PermissionMode, { label: string; Icon: typeof ShieldCheckIcon }> =
-  {
-    auto: { label: 'Auto', Icon: ShieldCheckIcon },
-    full_access: { label: 'Full access', Icon: ShieldBreakIcon },
-  }
+export const accessModes: Record<
+  PermissionMode,
+  { label: string; description: string; Icon: typeof ShieldCheckIcon }
+> = {
+  auto: { label: 'Auto', description: 'Asks before restricted actions', Icon: ShieldCheckIcon },
+  full_access: {
+    label: 'Full access',
+    description: 'Runs commands and edits without asking',
+    Icon: ShieldBreakIcon,
+  },
+}
 
 function isMode(value: unknown): value is PermissionMode {
   return typeof value === 'string' && Object.hasOwn(accessModes, value)
@@ -67,22 +73,13 @@ export function ComposerAccessMode({
       <KeybindTooltip binding={{ ...keybinds.access, name: label }}>
         <DropdownMenuTrigger
           aria-label={`Access mode: ${label}`}
-          render={
-            <Button
-              variant='ghost'
-              size='icon'
-              className={
-                value === 'full_access'
-                  ? 'text-status-attention not-disabled:hover:text-status-attention aria-expanded:text-status-attention'
-                  : undefined
-              }
-            />
-          }
+          render={<Button variant='ghost' size='sm' />}
         >
           <Icon />
+          {label}
         </DropdownMenuTrigger>
       </KeybindTooltip>
-      <DropdownMenuContent align='start' className='w-max min-w-32'>
+      <DropdownMenuContent align='start' className='w-64'>
         <DropdownMenuRadioGroup
           value={value}
           onValueChange={(next) => {
@@ -92,7 +89,12 @@ export function ComposerAccessMode({
           {Object.entries(accessModes).map(([id, mode]) => (
             <DropdownMenuRadioItem key={id} value={id}>
               <mode.Icon />
-              {mode.label}
+              <span className='flex min-w-0 flex-col gap-0.5'>
+                <span>{mode.label}</span>
+                <span className='text-xs leading-4 text-muted-foreground whitespace-normal'>
+                  {mode.description}
+                </span>
+              </span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
