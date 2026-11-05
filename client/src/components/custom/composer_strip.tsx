@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Kbd } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
@@ -721,7 +722,7 @@ export function QuestionStrip({
           role={spec.multiSelect ? 'group' : 'radiogroup'}
           aria-label={spec.question}
         >
-          {spec.options.map((option) => {
+          {spec.options.map((option, index) => {
             const selected = ctl.picks.includes(option.label)
             return (
               <button
@@ -731,10 +732,20 @@ export function QuestionStrip({
                 aria-checked={selected}
                 onClick={() => ctl.pick(option.label)}
                 className={cn(
-                  'flex min-w-0 items-center gap-2 rounded-menu-item px-2 py-1 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                  'flex min-w-0 items-center gap-3 rounded-menu-item px-2 py-2 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
                   selected && 'bg-accent'
                 )}
               >
+                <span
+                  aria-hidden='true'
+                  className={cn(
+                    'flex size-4 shrink-0 items-center justify-center border border-muted-foreground',
+                    spec.multiSelect ? 'rounded-xs' : 'rounded-full',
+                    selected && 'border-primary text-primary'
+                  )}
+                >
+                  {selected && <Checkmark1MediumIcon className='size-3' />}
+                </span>
                 <span className='flex min-w-0 flex-1 flex-col'>
                   <span className='text-sm leading-5'>{option.label}</span>
                   {option.description && option.description !== option.label && (
@@ -743,9 +754,7 @@ export function QuestionStrip({
                     </span>
                   )}
                 </span>
-                <span className='flex h-5 w-4 shrink-0 items-center justify-center'>
-                  {selected && <Checkmark1MediumIcon className='size-3.5 text-muted-foreground' />}
-                </span>
+                {index < 9 && <Kbd>{index + 1}</Kbd>}
               </button>
             )
           })}
