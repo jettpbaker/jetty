@@ -59,3 +59,7 @@
   background: linear-gradient(to bottom, var(--sidebar), transparent);
   pointer-events: none;
 }
+
+.sidebar-thread-heading:has(+ [data-thread-row]:focus-within)::after {
+  display: none;
+}
