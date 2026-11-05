@@ -288,6 +288,15 @@ export const views: View[] = [
   },
   {
     area: 'Details pane',
+    state: 'overview empty',
+    route: (ctx) => `/threads/${ctx.fixtures.threads.long}`,
+    selector: '[aria-label="Thread details"]',
+    ready: prompt,
+    setup: details,
+    verify: `document.querySelector('[aria-label="Thread details"]').textContent.includes('No activity yet')`,
+  },
+  {
+    area: 'Details pane',
     state: 'changes empty',
     route: (ctx) => `/threads/${ctx.fixtures.threads.long}`,
     selector: '[aria-label="Thread details"]',
