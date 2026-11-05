@@ -76,8 +76,6 @@ async function expandedWork(ctx: Context) {
     'work activity'
   )
   await Bun.sleep(400)
-  await click(page, `document.querySelector('button[aria-label="Ran 1 command"]')`, 'command group')
-  await Bun.sleep(300)
   await click(
     page,
     `[...document.querySelectorAll('button')].find(e=>e.textContent.includes('Run the checkout regression tests'))`,
@@ -407,7 +405,7 @@ export const views: View[] = [
   ...[
     ['thread actions', `Actions for ${checkoutTitle}`],
     ['thread grouping', 'Thread grouping: Date'],
-    ['model loadout', 'Loadout: Opus, High'],
+    ['model loadout', 'Model:'],
     ['access mode', 'Access mode: Auto'],
     ['attachments', 'Add attachment'],
     ['context window', 'Context window 26% full'],
@@ -420,7 +418,13 @@ export const views: View[] = [
       ready: prompt,
       verify: `[...document.querySelectorAll('[data-slot=dropdown-menu-content],[data-slot=popover-content],[role=menu]')].some(e=>e.getBoundingClientRect().width>0)`,
       async setup({ page }) {
-        await click(page, button(label!), 'overlay trigger')
+        await click(
+          page,
+          state === 'model loadout'
+            ? `document.querySelector('button[aria-label^="Model:"]')`
+            : button(label!),
+          'overlay trigger'
+        )
       },
     })
   ),
