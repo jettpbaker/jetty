@@ -13,6 +13,8 @@ import { DiffStyleContext, DiffWrapContext } from './model'
 const diffCSS = `
 ${codeSurfaceCSS}
 :host { --diffs-min-number-column-width: 4ch; --diffs-scrollbar-gutter-override: 8px; }
+[data-overflow="wrap"][data-indicators="classic"] [data-line] { padding-inline-start: 4ch; text-indent: -2ch; }
+[data-overflow="wrap"] [data-line]::before { text-indent: 0; }
 [data-overflow="scroll"] [data-code] { overflow-x: auto; padding-bottom: var(--diffs-gap-block, 8px); }
 [data-code]::-webkit-scrollbar-thumb,
 :host(:hover) [data-code]::-webkit-scrollbar-thumb { background-color: var(--muted-foreground); }
