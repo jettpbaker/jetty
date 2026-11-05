@@ -252,6 +252,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
         (row.footer === undefined ? 4 : footerRow)
       )
     case 'work': {
+      if (row.settingUp && row.activities.length === 0) return 0
       if (workEnded(row.status)) return 28
       let height = 32
       for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {

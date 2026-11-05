@@ -375,6 +375,7 @@ export function WorkBlock({
     ) : (
       ''
     )
+  if (settingUp && entries.length === 0) return null
   return (
     <ActivityDisclosure
       flushHeader

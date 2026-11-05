@@ -32,6 +32,7 @@ import { heldByRestarts } from '@jetty/shared/items'
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 
 import { FileLines, isImageAttachment } from './attachment_files'
+import { StatusGlyph } from './thread_status'
 
 type ComposerQueueState = {
   unsent: readonly QueuedMessage[]
@@ -253,33 +254,44 @@ export function ComposerQueue({
   return (
     <MediaLightboxProvider>
       <div className='scrollbar-subtle flex max-h-64 flex-col gap-0.5 overflow-y-auto first:rounded-t-md'>
-        {queue.own.map((entry) => (
-          <QueuedRow
-            key={entry.id}
-            threadId={threadId}
-            entry={entry}
-            editing={isQueuedEditing(entry, queue.editing)}
-            running={running}
-          />
-        ))}
         {!queue.held && queue.paused && queue.unsent.length > 0 && (
           <div
             data-strip='queue'
-            className='flex items-center gap-2 bg-popover px-3 py-2 text-xs text-muted-foreground first:rounded-t-md'
+            className='flex items-start gap-2 bg-popover px-3 py-3 text-sm first:rounded-t-md'
           >
-            {settingUp ? <Spinner className='size-3' /> : <PauseIcon className='size-3' />}
-            <span className='flex-1'>
-              {settingUp
-                ? 'Setting up worktree'
-                : worktree?.state === 'ready'
-                  ? 'Worktree ready'
-                  : 'Paused'}{' '}
-              · {queue.unsent.length} waiting
+            {settingUp ? (
+              <Spinner className='mt-1 size-3.5 text-muted-foreground' />
+            ) : retrySetup ? (
+              <StatusGlyph
+                status={worktree?.state === 'failed' ? 'error' : 'stopped'}
+                className='mt-1'
+              />
+            ) : (
+              <PauseIcon className='mt-1 size-3.5 text-muted-foreground' />
+            )}
+            <span className='flex min-w-0 flex-1 flex-col gap-1'>
+              <span>
+                {settingUp
+                  ? 'Setting up worktree…'
+                  : worktree?.state === 'failed'
+                    ? 'Worktree setup failed'
+                    : worktree?.state === 'stopped'
+                      ? 'Worktree setup stopped'
+                      : worktree?.state === 'ready'
+                        ? 'Worktree ready'
+                        : 'Paused'}{' '}
+                · {queue.unsent.length} waiting
+              </span>
+              {retrySetup && worktree?.error && (
+                <span className='text-xs leading-5 text-muted-foreground wrap-anywhere'>
+                  {worktree.error}
+                </span>
+              )}
             </span>
             {!settingUp && (
               <Button
-                variant='ghost-text'
-                size='xs'
+                variant='default'
+                size='sm'
                 disabled={!resume}
                 onClick={() => {
                   if (resume) actions.sendNow(threadId, resume)
@@ -290,6 +302,15 @@ export function ComposerQueue({
             )}
           </div>
         )}
+        {queue.own.map((entry) => (
+          <QueuedRow
+            key={entry.id}
+            threadId={threadId}
+            entry={entry}
+            editing={isQueuedEditing(entry, queue.editing)}
+            running={running}
+          />
+        ))}
         {queue.removed && (
           <div data-strip='queue' className='bg-popover px-3 py-2 first:rounded-t-md'>
             <QueueRemoved threadId={threadId} />

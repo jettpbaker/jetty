@@ -594,7 +594,7 @@ export function ThreadComposer({
           </EmptyHeader>
         </Empty>
       )}
-      {worktree && setupNotice && (!settingUp || !hasQueue) && (
+      {worktree && setupNotice && !hasQueue && (
         <div
           role={worktree.state === 'failed' ? 'alert' : 'status'}
           className='flex items-center gap-2 pb-2 text-sm'
