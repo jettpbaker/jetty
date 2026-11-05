@@ -51,6 +51,8 @@ export function threadNavigationDetail(thread: ThreadMeta, restartHeld = false) 
     return 'Setting up worktree'
   if (thread.worktree?.state === 'failed') return 'Worktree setup failed'
   if (thread.worktree?.state === 'stopped') return 'Worktree setup stopped'
+  if (thread.status === 'awaiting_approval') return 'Input needed'
+  if (thread.status === 'error') return 'Turn failed'
   const queued = thread.pendingMessages?.length ?? 0
   if (thread.queuePaused && queued) return `Paused · ${queued} queued`
   if (queued) return `Queued · ${queued} message${queued === 1 ? '' : 's'}`
