@@ -1,7 +1,7 @@
 import type { ProviderId } from '@jetty/shared/wire'
 
 import { useNow } from '@/hooks/use-now'
-import { formatDuration } from '@/lib/time'
+import { formatUsageDuration } from '@/lib/provider-usage'
 import { usageFreshMs, useProviderUsage } from '@/state/provider-usage'
 import { Link } from '@tanstack/react-router'
 import { useEffect } from 'react'
@@ -39,10 +39,7 @@ export function ComposerModelUsage({
                 'now'
               ) : (
                 <>
-                  in{' '}
-                  <span className='font-mono'>
-                    {formatDuration(Math.ceil((window.resetsAt - now) / 60_000) * 60)}
-                  </span>
+                  in <span className='font-mono'>{formatUsageDuration(window.resetsAt - now)}</span>
                 </>
               )}
             </span>

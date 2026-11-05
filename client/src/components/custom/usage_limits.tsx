@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatUsageDuration as duration } from '@/lib/provider-usage'
 import { cn } from '@/lib/utils'
 import { Link } from '@tanstack/react-router'
 
@@ -58,13 +59,6 @@ function percentLeft(window: UsageWindow) {
 function timeLeft(window: UsageWindow, now: number) {
   if (window.resetsAt === undefined || !window.minutes) return undefined
   return clamp((window.resetsAt - now) / (window.minutes * minute), 0, 1)
-}
-
-function duration(ms: number) {
-  const minutes = Math.max(0, Math.ceil(ms / minute))
-  if (minutes >= 1440) return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`
-  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-  return `${minutes}m`
 }
 
 // Spending at the rate so far hits the limit before the reset: said only when that's more than five points ahead of an even pace.
