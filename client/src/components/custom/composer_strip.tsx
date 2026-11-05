@@ -25,6 +25,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
+import { Radio } from '@base-ui/react/radio'
+import { RadioGroup } from '@base-ui/react/radio-group'
 import {
   Suspense,
   useEffect,
@@ -734,52 +736,87 @@ export function QuestionStrip({
           )}
         </div>
       </div>
-      {spec.options.length > 0 && (
-        <div
-          className='scroll-fade-y scrollbar-subtle flex max-h-72 flex-col gap-1 overflow-y-auto'
-          role={spec.multiSelect ? 'group' : 'radiogroup'}
-          aria-label={spec.question}
-        >
-          {spec.options.map((option, index) => {
-            const selected = ctl.picks.includes(option.label)
-            return (
-              <button
-                key={option.label}
-                type='button'
-                role={spec.multiSelect ? 'checkbox' : 'radio'}
-                aria-checked={selected}
-                onClick={() => ctl.pick(option.label)}
-                className={cn(
-                  'flex min-w-0 items-center gap-3 rounded-menu-item px-2 py-2 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-                  selected && 'bg-accent'
-                )}
-              >
-                <span
-                  aria-hidden='true'
-                  className={cn(
-                    'flex size-4 shrink-0 items-center justify-center border border-muted-foreground',
-                    spec.multiSelect ? 'rounded-xs' : 'rounded-full',
-                    selected && 'border-primary text-primary'
-                  )}
-                >
-                  {selected && <Checkmark1MediumIcon className='size-3' />}
-                </span>
-                <span className='flex min-w-0 flex-1 flex-col'>
-                  <span className='text-sm leading-5'>{option.label}</span>
-                  {option.description && option.description !== option.label && (
-                    <span className='text-xs leading-4 text-muted-foreground'>
-                      {option.description}
-                    </span>
-                  )}
-                </span>
-                {index < 9 && <Kbd>{index + 1}</Kbd>}
-              </button>
-            )
-          })}
-        </div>
-      )}
+      {spec.options.length > 0 && <QuestionOptions ctl={ctl} />}
+      <div className='flex items-center justify-end gap-2 pt-2'>
+        <Button size='sm' disabled={!ctl.answer} onClick={ctl.next}>
+          {ctl.last ? 'Answer' : 'Next'}
+          <Kbd>↵</Kbd>
+        </Button>
+      </div>
       {followUp && <FollowUpNote />}
     </FlushShell>
+  )
+}
+
+function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
+  const spec = ctl.spec!
+  const options = spec.options.map((option, index) => {
+    const selected = ctl.picks.includes(option.label)
+    const className = cn(
+      'flex min-w-0 items-center gap-3 rounded-menu-item px-2 py-2 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+      selected && 'bg-accent'
+    )
+    const content = (
+      <>
+        <span
+          aria-hidden='true'
+          className={cn(
+            'flex size-4 shrink-0 items-center justify-center border border-muted-foreground',
+            spec.multiSelect ? 'rounded-xs' : 'rounded-full',
+            selected && 'border-primary text-primary'
+          )}
+        >
+          {selected && <Checkmark1MediumIcon className='size-3' />}
+        </span>
+        <span className='flex min-w-0 flex-1 flex-col'>
+          <span className='text-sm leading-5'>{option.label}</span>
+          {option.description && option.description !== option.label && (
+            <span className='text-xs leading-4 text-muted-foreground'>{option.description}</span>
+          )}
+        </span>
+        {index < 9 && <Kbd>{index + 1}</Kbd>}
+      </>
+    )
+    return spec.multiSelect ? (
+      <button
+        key={option.label}
+        type='button'
+        role='checkbox'
+        aria-checked={selected}
+        onClick={() => ctl.pick(option.label)}
+        className={className}
+      >
+        {content}
+      </button>
+    ) : (
+      <Radio.Root
+        key={option.label}
+        value={option.label}
+        nativeButton
+        render={<button type='button' />}
+        className={className}
+      >
+        {content}
+      </Radio.Root>
+    )
+  })
+  const className = 'scroll-fade-y scrollbar-subtle flex max-h-72 flex-col gap-1 overflow-y-auto'
+  return spec.multiSelect ? (
+    <div className={className} role='group' aria-label={spec.question}>
+      {options}
+    </div>
+  ) : (
+    <RadioGroup
+      key={ctl.step}
+      className={className}
+      aria-label={spec.question}
+      value={ctl.picks[0] ?? null}
+      onValueChange={(value) => {
+        if (value) ctl.pick(value)
+      }}
+    >
+      {options}
+    </RadioGroup>
   )
 }
 
