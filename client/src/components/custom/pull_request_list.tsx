@@ -181,8 +181,10 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'title',
+      label: 'Title',
       priority: 100,
       width: 280,
+      maxWidth: 400,
       title: true,
       render: (pull, { collapsed }) => (
         <GroupedTableTitle

@@ -1,6 +1,9 @@
 .pull-request-list .grouped-table {
   padding-inline: 6px;
 }
+.pull-request-list .grouped-table-group-button {
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
+}
 .pull-request-list [data-slot='button']:focus-visible {
   --tw-ring-color: var(--ring);
 }

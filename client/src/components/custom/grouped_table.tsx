@@ -22,6 +22,7 @@ export type GroupedColumn<T> = {
   /** Higher priorities survive longer. Title and essential columns never collapse. */
   priority: number
   width: number
+  maxWidth?: number
   title?: boolean
   essential?: boolean
   visible?: boolean
@@ -112,7 +113,9 @@ export function GroupedTable<T>({
   }
   const template = columns
     .map((column) =>
-      column.title ? 'minmax(0, 1fr)' : `${collapsed.has(column.id) ? 0 : column.width}px`
+      column.title
+        ? `minmax(0, ${column.maxWidth === undefined ? '1fr' : `${column.maxWidth}px`})`
+        : `${collapsed.has(column.id) ? 0 : column.width}px`
     )
     .join(' ')
   const gridStyle = { gridTemplateColumns: template }
