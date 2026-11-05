@@ -1750,15 +1750,7 @@ function isMergeMethodMap(value: unknown): value is Record<string, PrMergeMethod
   return true
 }
 
-function MergeButton({
-  pr,
-  reason,
-  onMerge,
-}: {
-  pr: PrPull
-  reason: string
-  onMerge: (method: PrMergeMethod) => Promise<boolean>
-}) {
+function useMergeAction(pr: PrPull, onMerge: (method: PrMergeMethod) => Promise<boolean>) {
   const options = mergeMethodOptions.filter((option) => pr.mergeMethods.includes(option.method))
   const repo = repoPath(pr)
   // GitHub's viewer default only moves after a merge on github.com. A merge from Jetty is
@@ -1779,11 +1771,9 @@ function MergeButton({
   const current =
     options.find((option) => option.method === method) ?? options[0] ?? mergeMethodOptions[0]!
   const split = options.length > 1
-  const edge = split && 'rounded-r-none'
   const runningCount = checkCounts(pr).running
   // Quiet while GitHub still allows the merge and some checks are in progress.
-  const pending = !reason && runningCount > 0
-  const variant = pending || reason ? 'outline' : 'default'
+  const pending = runningCount > 0
   function runMerge(chosen: PrMergeMethod) {
     if (merging) return
     setMerging(true)
@@ -1793,6 +1783,32 @@ function MergeButton({
       })
       .finally(() => setMerging(false))
   }
+  return {
+    options,
+    lastUsed,
+    current,
+    split,
+    pending,
+    runningCount,
+    setPicked,
+    merging,
+    runMerge,
+  }
+}
+
+function MergeButton({
+  reason,
+  action,
+  compact = false,
+}: {
+  reason: string
+  action: ReturnType<typeof useMergeAction>
+  compact?: boolean
+}) {
+  const { options, lastUsed, current, split, pending, runningCount, setPicked, merging, runMerge } =
+    action
+  const edge = split && 'rounded-r-none'
+  const variant = compact || pending || reason ? 'outline' : 'default'
   const face = (
     <Button
       variant={variant}
@@ -1894,13 +1910,26 @@ function MergeButton({
   )
 }
 
-function ReadyForReview({ pr, onReady }: { pr: PrPull; onReady: () => void }) {
+function ReadyForReview({
+  pr,
+  onReady,
+  compact = false,
+}: {
+  pr: PrPull
+  onReady: () => void
+  compact?: boolean
+}) {
   const reason = !editable(pr)
     ? `Only ${personName(pr.author)} can mark this pull request ready`
     : undefined
   return (
     <DisabledTooltip reason={reason} wrap='inline-flex self-start'>
-      <Button size='sm' disabled={!!reason} onClick={onReady}>
+      <Button
+        variant={compact ? 'outline' : 'default'}
+        size='sm'
+        disabled={!!reason}
+        onClick={onReady}
+      >
         Ready for review
       </Button>
     </DisabledTooltip>
@@ -1912,11 +1941,13 @@ function MergeDecision({
   reason,
   onShowDiff,
   onShowActivity,
+  action,
 }: {
   pr: PrPull
   reason: string
   onShowDiff: () => void
   onShowActivity: () => void
+  action: ReactNode
 }) {
   const { threads } = usePrRuntime()
   const conflict = reason === 'Resolve merge conflicts first'
@@ -1976,11 +2007,7 @@ function MergeDecision({
         <p className='text-xs text-muted-foreground'>Mark this draft ready to request a review.</p>
       ) : pr.state === 'open' ? (
         <>
-          {!conflict && (
-            <p className='text-xs text-muted-foreground'>
-              {reason || 'This branch can be merged into the base branch.'}
-            </p>
-          )}
+          {reason && !conflict && <p className='text-xs text-muted-foreground'>{reason}</p>}
           {reason && (
             <div className='flex flex-wrap items-center gap-2'>
               {threads[0] && (
@@ -1999,6 +2026,7 @@ function MergeDecision({
           )}
         </>
       ) : null}
+      {action && <div className='flex border-t border-border pt-3'>{action}</div>}
     </section>
   )
 }
@@ -2065,6 +2093,7 @@ function GuidePane({
 export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const pr = original
   const { actions, ref, status, more, sidebar } = usePrRuntime()
+  const mergeAction = useMergeAction(pr, (method) => actions.merge(method, pr.data.pull.head.sha))
   useNow(60_000)
   const setState = (state: PrPull['state']) => {
     if (state !== 'merged') void actions.state(state)
@@ -2304,13 +2333,9 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       )}
                       {status}
                       {pr.state === 'draft' ? (
-                        <ReadyForReview pr={pr} onReady={() => setState('open')} />
+                        <ReadyForReview pr={pr} onReady={() => setState('open')} compact />
                       ) : pr.state === 'open' ? (
-                        <MergeButton
-                          pr={pr}
-                          reason={reason}
-                          onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
-                        />
+                        <MergeButton reason={reason} action={mergeAction} compact />
                       ) : (
                         <span className='inline-flex h-7 items-center gap-1.5 px-2 text-13 text-muted-foreground'>
                           <StateGlyph state={pr.state} />
@@ -2384,6 +2409,13 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             <MergeDecision
                               pr={pr}
                               reason={reason}
+                              action={
+                                pr.state === 'draft' ? (
+                                  <ReadyForReview pr={pr} onReady={() => setState('open')} />
+                                ) : pr.state === 'open' ? (
+                                  <MergeButton reason={reason} action={mergeAction} />
+                                ) : null
+                              }
                               onShowDiff={() => setTab('diff')}
                               onShowActivity={() =>
                                 document
