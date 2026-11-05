@@ -21,6 +21,7 @@ export const codeSurfaceCSS = `
   --diffs-bg-deletion: color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-deletion-base));
   --diffs-gap-style: none;
 }
+[data-expand-button]:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 [data-gutter] [data-column-number] { --mix-light: 100%; --mix-dark: 100%; color: var(--muted-foreground); }
 [data-background] :is([data-line], [data-no-newline]) {
   --mix-light: 92%;
@@ -28,11 +29,29 @@ export const codeSurfaceCSS = `
 }
 `
 
-// Pierre draws the unmodified-lines expanders as icon-only buttons with no name.
+function activateExpander(event: KeyboardEvent) {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  const activate = event.key === 'Enter' ? event.type === 'keydown' : event.type === 'keyup'
+  if (!activate || event.repeat) return
+  const target = event.currentTarget
+  if (target instanceof HTMLElement)
+    target.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, composed: true, shiftKey: event.shiftKey })
+    )
+}
+
+// Pierre's role=button divs need names, keyboard stops and activation.
 export function nameExpanders(node: HTMLElement) {
-  for (const button of node.shadowRoot?.querySelectorAll<HTMLElement>(
-    '[data-expand-button]:not([data-expand-all-button])'
-  ) ?? []) {
+  for (const button of node.shadowRoot?.querySelectorAll<HTMLElement>('[data-expand-button]') ??
+    []) {
+    button.tabIndex = 0
+    button.onkeydown = activateExpander
+    button.onkeyup = activateExpander
+    if (button.hasAttribute('data-expand-all-button')) {
+      button.setAttribute('aria-label', 'Show all unmodified lines')
+      continue
+    }
     const { expandUp, expandDown } = button.dataset
     const way = expandUp !== undefined ? ' above' : expandDown !== undefined ? ' below' : ''
     button.setAttribute('aria-label', `Show unmodified lines${way}`)
