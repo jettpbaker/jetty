@@ -1,4 +1,8 @@
-import { MagnifyingGlass2Icon, SettingsSliderHorIcon } from '@/components/custom/central_icons'
+import {
+  CrossSmallIcon,
+  MagnifyingGlass2Icon,
+  SettingsSliderHorIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -48,13 +52,22 @@ export function SidebarThreadControls({
         icon={<MagnifyingGlass2Icon className='size-4' />}
         aria-label='Search threads'
         placeholder='Search threads'
-        className='text-xs text-muted-foreground'
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') onQueryChange('')
         }}
       />
+      {query && (
+        <Button
+          variant='ghost'
+          size='icon-xs'
+          aria-label='Clear thread search'
+          onClick={() => onQueryChange('')}
+        >
+          <CrossSmallIcon />
+        </Button>
+      )}
       <DropdownMenu key={grouping}>
         <DropdownMenuTrigger
           render={

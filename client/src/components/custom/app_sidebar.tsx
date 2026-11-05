@@ -519,12 +519,15 @@ export const AppSidebar = memo(function AppSidebar() {
                             className='[--jb-ring:var(--sidebar)]'
                           />
                         )}
-                        <span className='flex min-w-0 flex-1 items-baseline gap-1.5'>
+                        <span className='flex min-w-0 flex-1 items-baseline gap-1'>
                           <span className='min-w-0 truncate font-medium'>{item.label}</span>
                           {item.projectLabel && (
-                            <span className='min-w-0 truncate' title={item.projectLabel}>
-                              · {item.projectLabel}
-                            </span>
+                            <>
+                              <span aria-hidden='true'>·</span>
+                              <span className='min-w-0 truncate' title={item.projectLabel}>
+                                {item.projectLabel}
+                              </span>
+                            </>
                           )}
                           <span
                             className='shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
