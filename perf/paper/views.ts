@@ -424,7 +424,7 @@ export const views: View[] = [
   },
   ...[
     ['thread actions', `Actions for ${checkoutTitle}`],
-    ['thread grouping', 'Thread grouping: Date'],
+    ['thread grouping', 'Thread grouping: Project'],
     ['model loadout', 'Model:'],
     ['access mode', 'Access mode: Ask for approval'],
     ['attachments', 'Add attachment'],
