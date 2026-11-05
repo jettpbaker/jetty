@@ -29,7 +29,6 @@ import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
-import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAttachments } from '@/hooks/use-attachments'
 import { useNow } from '@/hooks/use-now'
@@ -74,10 +73,8 @@ import { toast } from 'sonner'
 
 import { PauseIcon, WorktreeIcon } from './central_icons'
 import { DisabledTooltip } from './disabled_tooltip'
-import { errorSurface } from './error_surface'
 import { ThreadFooter } from './thread_footer'
-import { StatusGlyph } from './thread_status'
-import { WorktreeSetupError } from './worktree_setup_error'
+import { WorktreeSetupNotice } from './worktree_setup_notice'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -566,7 +563,9 @@ export function ThreadComposer({
           placeholder: restartHeld
             ? 'Add instructions before resuming'
             : setupNotice
-              ? 'Queue a message for when setup finishes'
+              ? settingUp
+                ? 'Queue a message for when setup finishes'
+                : 'Add a message for the retry'
               : hasQueue && composerQueue?.paused
                 ? 'Queue another message'
                 : meta?.status === 'error'
@@ -642,38 +641,6 @@ export function ThreadComposer({
           </EmptyHeader>
         </Empty>
       )}
-      {worktree && setupNotice && !hasQueue && (
-        <div
-          role={worktree.state === 'failed' ? 'alert' : 'status'}
-          className={cn(
-            'flex items-center gap-2 text-sm',
-            worktree.state === 'failed' ? cn('mb-2 p-3', errorSurface) : 'pb-2'
-          )}
-        >
-          {settingUp ? (
-            <Spinner className='size-3.5 text-muted-foreground' />
-          ) : (
-            <StatusGlyph status={worktree.state === 'failed' ? 'error' : 'stopped'} />
-          )}
-          <div className='flex min-w-0 flex-1 flex-col gap-1'>
-            <span className='font-medium'>
-              {settingUp
-                ? 'Setting up worktree…'
-                : worktree.state === 'failed'
-                  ? 'Worktree setup failed'
-                  : 'Worktree setup stopped'}
-            </span>
-            {!settingUp && worktree.error && (
-              <WorktreeSetupError error={worktree.error} stopped={worktree.state === 'stopped'} />
-            )}
-          </div>
-          {!settingUp && !messageHeld && (
-            <Button variant='outline' size='sm' {...pressProps(retry)}>
-              Retry setup
-            </Button>
-          )}
-        </div>
-      )}
       <Composer
         value={draft}
         onValueChange={setDraft}
@@ -683,12 +650,36 @@ export function ThreadComposer({
           if (threadId) interruptTurn(threadId)
         }}
         onChooseModel={needsModel ? () => modelMenuRef.current?.() : undefined}
-        running={running && !item && !editingEntry}
+        running={running && !settingUp && !item && !editingEntry}
         stop={running && turnActive && !editingEntry && item !== undefined}
         requestId={item?.id}
         strip={
-          hasQueue || restartHeld || usageBanner || (!inlineDecision && mode.strip) ? (
+          hasQueue ||
+          setupNotice ||
+          restartHeld ||
+          usageBanner ||
+          (!inlineDecision && mode.strip) ? (
             <>
+              {worktree && setupNotice && !hasQueue && (
+                <WorktreeSetupNotice
+                  worktree={worktree}
+                  detail={settingUp ? 'Messages you send now wait for setup.' : undefined}
+                >
+                  {settingUp ? (
+                    <Button
+                      variant='ghost-text'
+                      size='sm'
+                      onClick={() => threadId && interruptTurn(threadId)}
+                    >
+                      Cancel setup
+                    </Button>
+                  ) : !messageHeld ? (
+                    <Button variant='outline' size='sm' {...pressProps(retry)}>
+                      Retry setup
+                    </Button>
+                  ) : null}
+                </WorktreeSetupNotice>
+              )}
               {hasQueue && threadId && composerQueue && (
                 <ComposerQueue
                   threadId={threadId}
