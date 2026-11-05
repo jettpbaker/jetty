@@ -189,7 +189,7 @@ export const AppSidebar = memo(function AppSidebar() {
         kind: 'thread' as const,
         id,
         archived: group.archived,
-        showProject: multipleProjects && !group.projectId,
+        showProject: false,
       })),
     ]
   })
@@ -519,22 +519,17 @@ export const AppSidebar = memo(function AppSidebar() {
                             className='[--jb-ring:var(--sidebar)]'
                           />
                         )}
-                        <span className='flex min-w-0 flex-1 items-baseline gap-1'>
-                          <span className='min-w-0 truncate font-medium'>{item.label}</span>
-                          {item.projectLabel && (
-                            <>
-                              <span aria-hidden='true'>·</span>
-                              <span className='min-w-0 truncate' title={item.projectLabel}>
-                                {item.projectLabel}
-                              </span>
-                            </>
-                          )}
-                          <span
-                            className='shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
-                            aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
-                          >
-                            {item.count}
+                        <span className='min-w-0 flex-1 truncate font-medium'>{item.label}</span>
+                        {item.projectLabel && (
+                          <span className='max-w-24 truncate font-normal' title={item.projectLabel}>
+                            {item.projectLabel}
                           </span>
+                        )}
+                        <span
+                          className='w-7 shrink-0 text-right font-mono text-xs font-normal tabular-nums'
+                          aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
+                        >
+                          {item.count}
                         </span>
                       </>
                     )

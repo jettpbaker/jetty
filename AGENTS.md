@@ -133,8 +133,9 @@
   inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still. Sidebar
   thread titles stay still on one line with ellipsis at every sidebar width; only actionable
   state details add a second line. The hover card wraps the full title and holds PR details. Single-project lists and groups
-  omit repeated project emoji. In a mixed-project list, a single-project group names its
-  project in the heading; mixed-project groups keep a consistent project slot, including Pinned.
+  omit repeated project emoji. The main sidebar list uses status-only thread rows, including
+  mixed-project groups, so titles keep one alignment and the available width. A single-project
+  group names its project in the heading; the hover card identifies every thread's project.
   The default sidebar is 300px and resizes from 200–400px.
 
 ## thread environments
