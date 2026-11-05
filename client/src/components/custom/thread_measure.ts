@@ -242,7 +242,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
         markdownHeight(
           row.id,
           row.item.text,
-          Math.min(width, 720),
+          Math.min(width, 640),
           rough || row.streaming,
           22,
           14

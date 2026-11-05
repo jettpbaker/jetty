@@ -71,9 +71,16 @@
 }
 
 .thread-reply > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
-  max-inline-size: 720px;
+  max-inline-size: 76ch;
 }
 
-.thread-reply :is(h3, h4, h5, h6) {
-  font-size: 14px;
+.thread-reply :is(h1, h2, h3, h4, h5, h6) {
+  margin-block-start: 20px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.thread-reply > :first-child {
+  margin-block-start: 0;
 }
