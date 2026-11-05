@@ -87,10 +87,15 @@ export function ComposerAccessMode({
           render={<Button variant='ghost' size='sm' />}
         >
           <Icon />
-          {value === 'auto' ? 'Auto' : label}
+          {label}
         </DropdownMenuTrigger>
       </KeybindTooltip>
-      <DropdownMenuContent side='top' sideOffset={6} align='start' className='w-64'>
+      <DropdownMenuContent
+        side='top'
+        sideOffset={6}
+        align='start'
+        className='w-80 max-w-[calc(100vw-24px)]'
+      >
         <DropdownMenuRadioGroup
           value={value}
           onValueChange={(next) => {
@@ -98,8 +103,12 @@ export function ComposerAccessMode({
           }}
         >
           {Object.entries(accessModes).map(([id, mode]) => (
-            <DropdownMenuRadioItem key={id} value={id} className='h-auto! py-2'>
-              <mode.Icon />
+            <DropdownMenuRadioItem
+              key={id}
+              value={id}
+              className='h-auto! items-start py-2 data-checked:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:top-2.5'
+            >
+              <mode.Icon className='mt-0.5' />
               <span className='flex min-w-0 flex-col gap-0.5'>
                 <span>{mode.menuLabel}</span>
                 <span className='text-xs leading-4 text-muted-foreground whitespace-normal'>
