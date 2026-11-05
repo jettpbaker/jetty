@@ -323,11 +323,11 @@ function ThreadProperties({ threadId }: { threadId: string }) {
     <section aria-label='Thread properties' className='min-w-0 border-b border-border pb-2'>
       <Collapsible open={expanded} onOpenChange={setExpanded}>
         <CollapsibleTrigger
-          render={<Button variant='ghost' size='sm' />}
+          render={<Button variant='ghost' />}
           aria-label='Thread environment details'
           className='group/environment h-14 w-full min-w-0 justify-start gap-2.5 px-2.5 text-left font-normal'
         >
-          <environment.Icon className='size-4 text-muted-foreground' />
+          <environment.Icon className='text-muted-foreground' />
           <span className='flex min-w-0 flex-1 flex-col gap-1'>
             <span className='truncate text-13 text-foreground'>
               {project?.title ?? 'Project unavailable'}
@@ -341,7 +341,7 @@ function ThreadProperties({ threadId }: { threadId: string }) {
               )}
             </span>
           </span>
-          <ChevronRightSmallIcon className='size-4 shrink-0 text-muted-foreground group-aria-expanded/environment:rotate-90' />
+          <ChevronRightSmallIcon className='shrink-0 text-muted-foreground group-aria-expanded/environment:rotate-90' />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <dl className='flex flex-col px-2.5 pt-2 pb-1'>
@@ -436,12 +436,12 @@ export function Section({
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} data-section={id} className='min-w-0'>
       <CollapsibleTrigger
-        render={<Button variant='ghost-text' size='sm' />}
-        className='group/section w-full justify-start gap-2 rounded-sm px-2.5'
+        render={<Button variant='ghost-text' />}
+        className='group/section h-7 w-full justify-start gap-2 rounded-sm px-2.5 text-xs'
       >
         {label}
         <span className='font-mono font-normal text-muted-foreground tabular-nums'>{count}</span>
-        <ChevronRightSmallIcon className='ml-auto size-4 text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
+        <ChevronRightSmallIcon className='ml-auto text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-aria-expanded/section:rotate-90 motion-reduce:transition-none' />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='pt-2'>{children}</div>
