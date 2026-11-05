@@ -294,7 +294,13 @@ export function LivePullRequestView({
               : `${link.repo}#${link.number}`
           }
         >
-          <Button size='sm' disabled={refreshing} onClick={() => refresh(link)}>
+          <Button
+            size='sm'
+            disabled={refreshing}
+            focusableWhenDisabled
+            aria-busy={refreshing}
+            onClick={() => refresh(link)}
+          >
             Retry
           </Button>
           <Button

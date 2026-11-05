@@ -167,7 +167,9 @@ function RowText({ title, description }: { title: ReactNode; description?: React
   return (
     <span className='flex min-w-0 grow basis-48 flex-col gap-0.5'>
       <span className='text-13 text-foreground'>{title}</span>
-      {description && <span className='text-13 leading-5 text-muted-foreground'>{description}</span>}
+      {description && (
+        <span className='text-13 leading-5 text-muted-foreground'>{description}</span>
+      )}
     </span>
   )
 }
