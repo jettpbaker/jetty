@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
+import { effortLabels } from '@/lib/loadout'
 import { formatDuration } from '@/lib/time'
 import { storage } from '@/platform'
 import {
@@ -253,6 +254,7 @@ function ThreadProperties({ threadId }: { threadId: string }) {
   const project = useProject(meta?.projectId)
   const models = useModels()
   const context = useThreadContext(threadId)
+  const [expanded, setExpanded] = useState(false)
   if (!meta) return null
   const environment = environments[meta.environment]
   const branch = meta.git?.branch ?? meta.worktree?.branch
@@ -286,7 +288,9 @@ function ThreadProperties({ threadId }: { threadId: string }) {
             value: (
               <>
                 {model}
-                {meta.effort && <span className='text-muted-foreground'> · {meta.effort}</span>}
+                {meta.effort && (
+                  <span className='text-muted-foreground'> · {effortLabels[meta.effort]}</span>
+                )}
               </>
             ),
           },
@@ -306,19 +310,32 @@ function ThreadProperties({ threadId }: { threadId: string }) {
       : []),
   ]
   return (
-    <section
-      aria-label='Thread properties'
-      className='flex flex-col gap-3 border-b border-border px-2.5 pt-2 pb-4'
-    >
-      <h2 className='text-13 font-medium'>Environment</h2>
-      <dl className='flex flex-col gap-2.5'>
-        {rows.map(({ label, value }) => (
-          <div key={label} className='grid grid-cols-[88px_minmax(0,1fr)] items-start gap-3'>
-            <dt className='text-xs leading-5 text-muted-foreground'>{label}</dt>
-            <dd className='min-w-0 text-13 leading-5'>{value}</dd>
-          </div>
-        ))}
-      </dl>
+    <section aria-label='Thread properties' className='min-w-0 border-b border-border pb-2'>
+      <Collapsible open={expanded} onOpenChange={setExpanded}>
+        <CollapsibleTrigger
+          render={<Button variant='ghost-text' size='sm' />}
+          aria-label='Thread environment details'
+          className='group/environment h-8 w-full min-w-0 justify-start gap-2 px-2.5 font-normal'
+        >
+          <environment.Icon />
+          <span className='truncate'>{project?.title ?? 'Project unavailable'}</span>
+          <span className='shrink-0 text-xs text-muted-foreground'>{environment.label}</span>
+          {branch && (
+            <span className='truncate font-mono text-xs text-muted-foreground'>{branch}</span>
+          )}
+          <ChevronRightSmallIcon className='ml-auto shrink-0 text-muted-foreground group-aria-expanded/environment:rotate-90' />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <dl className='flex flex-col gap-2.5 px-2.5 pt-3 pb-2'>
+            {rows.map(({ label, value }) => (
+              <div key={label} className='grid grid-cols-[88px_minmax(0,1fr)] items-start gap-3'>
+                <dt className='text-xs leading-5 text-muted-foreground'>{label}</dt>
+                <dd className='min-w-0 text-13 leading-5'>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </CollapsibleContent>
+      </Collapsible>
     </section>
   )
 }
