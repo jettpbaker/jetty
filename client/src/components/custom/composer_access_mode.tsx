@@ -1,6 +1,7 @@
 import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
 import {
+  ChevronDownSmallIcon,
   ShieldKeyholeIcon,
   ShieldCheckIcon,
   ShieldBreakIcon,
@@ -86,8 +87,9 @@ export function ComposerAccessMode({
           aria-label={`Access mode: ${label}`}
           render={<Button variant='ghost' size='sm' />}
         >
-          <Icon />
+          <Icon className='text-muted-foreground' />
           {label}
+          <ChevronDownSmallIcon className='text-muted-foreground' />
         </DropdownMenuTrigger>
       </KeybindTooltip>
       <DropdownMenuContent

@@ -1,7 +1,12 @@
 import type { ProviderId, ProviderModel } from '@jetty/shared/wire'
 import type { KeyboardEvent, RefObject, SyntheticEvent } from 'react'
 
-import { ArrowUpRightIcon, DotGrid2x3Icon, PlusMediumIcon } from '@/components/custom/central_icons'
+import {
+  ArrowUpRightIcon,
+  ChevronDownSmallIcon,
+  DotGrid2x3Icon,
+  PlusMediumIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -305,6 +310,7 @@ export function ComposerLoadout({
           ) : (
             'Choose a model'
           )}
+          <ChevronDownSmallIcon className='text-muted-foreground' />
         </PopoverTrigger>
       </KeybindTooltip>
       <PopoverContent

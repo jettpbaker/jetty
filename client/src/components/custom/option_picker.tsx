@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { useRef, useState, type ReactNode } from 'react'
 
+import { ChevronDownSmallIcon } from './central_icons'
 import './option_picker.css'
 
 export type PickerOption = {
@@ -97,7 +98,7 @@ export function OptionPicker({
         disabled={disabled}
         render={
           <Button
-            variant='ghost-text'
+            variant='ghost'
             size='sm'
             className={cn(
               'gap-1.5 rounded-sm',
@@ -110,6 +111,7 @@ export function OptionPicker({
       >
         {selected?.icon ?? icon}
         {shown}
+        <ChevronDownSmallIcon className='text-muted-foreground' />
       </PopoverTrigger>
       <PopoverContent
         align={align}
