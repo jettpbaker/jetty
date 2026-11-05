@@ -50,8 +50,9 @@ import { useSortable, isSortable } from '@dnd-kit/react/sortable'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useReducedMotion } from 'motion/react'
-import { useId, useImperativeHandle, useRef, useState } from 'react'
+import { use, useId, useImperativeHandle, useRef, useState } from 'react'
 
+import { ComposerMenuAnchorContext } from './composer_menu_anchor'
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, KeybindTooltip, keybinds, appShortcut } from './keybinds'
 import './option_picker.css'
@@ -225,6 +226,7 @@ export function ComposerLoadout({
   modelMenuRef?: RefObject<(() => void) | null>
 }) {
   const { model, name, efforts } = loadoutParts(catalog, value, allowedEfforts)
+  const anchor = use(ComposerMenuAnchorContext)
   const allModels = useModels()
   const { refresh } = useModelRefresh()
   const equipped = loadouts.flatMap((slot) => {
@@ -324,8 +326,9 @@ export function ComposerLoadout({
         </PopoverTrigger>
       </KeybindTooltip>
       <PopoverContent
+        anchor={anchor}
         side='top'
-        sideOffset={6}
+        sideOffset={8}
         align='start'
         className='search-picker w-86 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
         initialFocus={() =>

@@ -4,6 +4,7 @@ import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 import { StopIcon, ArrowUpIcon } from '@/components/custom/central_icons'
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerAttachments } from '@/components/custom/composer_attach'
+import { ComposerMenuAnchorContext } from '@/components/custom/composer_menu_anchor'
 import { ComposerShadow, useWallpaperUnderComposer } from '@/components/custom/composer_shadow'
 import {
   SlashMenu,
@@ -167,158 +168,160 @@ export function Composer({
   }
 
   return (
-    <div
-      ref={root}
-      data-perf-region='composer'
-      className='@container/composer mx-auto flex w-full max-w-[825px] flex-col gap-1 [&_button:focus-visible]:ring-ring'
-    >
-      {header}
+    <ComposerMenuAnchorContext value={root}>
       <div
-        className={cn(
-          'flex flex-col',
-          requestId ? 'gap-2' : strip && 'overflow-hidden rounded-md bg-popover'
-        )}
+        ref={root}
+        data-perf-region='composer'
+        className='@container/composer mx-auto flex w-full max-w-[825px] flex-col gap-1 [&_button:focus-visible]:ring-ring'
       >
-        {strip ? (
-          <div
-            className={cn(
-              'flex flex-col overflow-hidden rounded-md bg-popover',
-              requestId && 'ring-1 ring-status-attention/40'
-            )}
-          >
-            {strip}
-          </div>
-        ) : null}
+        {header}
         <div
-          className='relative'
-          style={
-            ambient ? ({ '--composer-radius': 'var(--radius-md)' } as CSSProperties) : undefined
-          }
+          className={cn(
+            'flex flex-col',
+            requestId ? 'gap-2' : strip && 'overflow-hidden rounded-md bg-popover'
+          )}
         >
-          {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
-          <InputGroup
-            className={cn(
-              'relative w-full max-w-[825px] border-0 bg-popover dark:bg-popover',
-              strip && !requestId && 'rounded-t-none',
-              // Over a wallpaper the ambient shadow does the lifting.
-              ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
-            )}
-          >
-            {reply}
-            <ComposerAttachments items={attachments.items} onRemove={attachments.remove} />
+          {strip ? (
             <div
-              ref={field}
-              data-composing={menu.composing || undefined}
-              className='skill-chip-field relative w-full'
+              className={cn(
+                'flex flex-col overflow-hidden rounded-md bg-popover',
+                requestId && 'ring-1 ring-status-attention/40'
+              )}
             >
-              <SlashMirror slash={menu} />
-              <InputGroupTextarea
-                ref={textarea}
-                aria-label='Thread prompt'
-                spellCheck={false}
-                {...menu.input}
-                onFocus={() => {
-                  if (requestId) setExpandedRequest(requestId)
-                  menu.input.onFocus()
-                }}
-                placeholder={placeholder}
-                onPaste={attachments.paste}
-                onKeyDown={(event) => {
-                  if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return
-                  if (inComposition(event.nativeEvent)) return
-                  if (onChooseModel) {
-                    event.preventDefault()
-                    onChooseModel()
-                    return
-                  }
-                  const send = event.metaKey || event.ctrlKey ? onBackgroundSubmit : onSubmit
-                  if (!send) return
-                  event.preventDefault()
-                  if (canSend) send()
-                }}
-                rows={rows}
-                style={{ minHeight: `calc(${rows}lh + 1rem)` }}
-                className='skill-chip-text relative scroll-fade-y max-h-60 min-h-0'
-              />
-              {menu.open && <SlashMenu slash={menu} />}
+              {strip}
             </div>
-            <InputGroupAddon
-              align='block-end'
-              className={cn('items-end justify-between', compact && 'hidden')}
+          ) : null}
+          <div
+            className='relative'
+            style={
+              ambient ? ({ '--composer-radius': 'var(--radius-md)' } as CSSProperties) : undefined
+            }
+          >
+            {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
+            <InputGroup
+              className={cn(
+                'relative w-full max-w-[825px] border-0 bg-popover dark:bg-popover',
+                strip && !requestId && 'rounded-t-none',
+                // Over a wallpaper the ambient shadow does the lifting.
+                ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
+              )}
             >
-              <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 @max-[600px]/composer:gap-x-1'>
-                <ComposerAttach
-                  onAttach={attachments.add}
-                  disabledReason={attachments.refused}
-                  className='-ml-2'
+              {reply}
+              <ComposerAttachments items={attachments.items} onRemove={attachments.remove} />
+              <div
+                ref={field}
+                data-composing={menu.composing || undefined}
+                className='skill-chip-field relative w-full'
+              >
+                <SlashMirror slash={menu} />
+                <InputGroupTextarea
+                  ref={textarea}
+                  aria-label='Thread prompt'
+                  spellCheck={false}
+                  {...menu.input}
+                  onFocus={() => {
+                    if (requestId) setExpandedRequest(requestId)
+                    menu.input.onFocus()
+                  }}
+                  placeholder={placeholder}
+                  onPaste={attachments.paste}
+                  onKeyDown={(event) => {
+                    if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey) return
+                    if (inComposition(event.nativeEvent)) return
+                    if (onChooseModel) {
+                      event.preventDefault()
+                      onChooseModel()
+                      return
+                    }
+                    const send = event.metaKey || event.ctrlKey ? onBackgroundSubmit : onSubmit
+                    if (!send) return
+                    event.preventDefault()
+                    if (canSend) send()
+                  }}
+                  rows={rows}
+                  style={{ minHeight: `calc(${rows}lh + 1rem)` }}
+                  className='skill-chip-text relative scroll-fade-y max-h-60 min-h-0'
                 />
-                {loadout}
-                <ComposerAccessMode
-                  value={accessMode}
-                  model={model}
-                  onChange={onAccessModeChange}
-                />
-                {context && (
-                  <div className='flex min-w-0 flex-1 @max-[420px]/composer:basis-full'>
-                    {context}
-                  </div>
-                )}
+                {menu.open && <SlashMenu slash={menu} />}
               </div>
-              <div className='flex items-center gap-1'>
-                {stopping && (
-                  <InputGroupButton
-                    variant='default'
-                    size='icon-sm'
-                    aria-label='Stop'
-                    onClick={onInterrupt}
-                  >
-                    <StopIcon filled />
-                  </InputGroupButton>
-                )}
-                {!offerSend ? null : onChooseModel ? (
-                  <Tooltip>
-                    <TooltipTrigger render={<span className='flex' />}>
-                      <InputGroupButton
-                        variant='default'
-                        size='icon-sm'
-                        aria-label='Choose a model'
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={onChooseModel}
-                      >
-                        <ArrowUpIcon />
-                      </InputGroupButton>
-                    </TooltipTrigger>
-                    <TooltipContent>{sendHint}</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={<span className={canSend ? 'flex' : 'flex cursor-not-allowed'} />}
+              <InputGroupAddon
+                align='block-end'
+                className={cn('items-end justify-between', compact && 'hidden')}
+              >
+                <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 @max-[600px]/composer:gap-x-1'>
+                  <ComposerAttach
+                    onAttach={attachments.add}
+                    disabledReason={attachments.refused}
+                    className='-ml-2'
+                  />
+                  {loadout}
+                  <ComposerAccessMode
+                    value={accessMode}
+                    model={model}
+                    onChange={onAccessModeChange}
+                  />
+                  {context && (
+                    <div className='flex min-w-0 flex-1 @max-[420px]/composer:basis-full'>
+                      {context}
+                    </div>
+                  )}
+                </div>
+                <div className='flex items-center gap-1'>
+                  {stopping && (
+                    <InputGroupButton
+                      variant='default'
+                      size='icon-sm'
+                      aria-label='Stop'
+                      onClick={onInterrupt}
                     >
-                      <InputGroupButton
-                        variant={canSend ? 'default' : 'ghost'}
-                        size='icon-sm'
-                        aria-label={sendLabel}
-                        // The caret stays in the composer, so the next message or paste follows at once.
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={submit}
-                        disabled={!canSend}
-                        className={canSend ? undefined : 'pointer-events-none'}
+                      <StopIcon filled />
+                    </InputGroupButton>
+                  )}
+                  {!offerSend ? null : onChooseModel ? (
+                    <Tooltip>
+                      <TooltipTrigger render={<span className='flex' />}>
+                        <InputGroupButton
+                          variant='default'
+                          size='icon-sm'
+                          aria-label='Choose a model'
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={onChooseModel}
+                        >
+                          <ArrowUpIcon />
+                        </InputGroupButton>
+                      </TooltipTrigger>
+                      <TooltipContent>{sendHint}</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={<span className={canSend ? 'flex' : 'flex cursor-not-allowed'} />}
                       >
-                        <ArrowUpIcon />
-                      </InputGroupButton>
-                    </TooltipTrigger>
-                    <TooltipContent>{sendHint ?? sendLabel}</TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-            </InputGroupAddon>
-          </InputGroup>
+                        <InputGroupButton
+                          variant={canSend ? 'default' : 'ghost'}
+                          size='icon-sm'
+                          aria-label={sendLabel}
+                          // The caret stays in the composer, so the next message or paste follows at once.
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={submit}
+                          disabled={!canSend}
+                          className={canSend ? undefined : 'pointer-events-none'}
+                        >
+                          <ArrowUpIcon />
+                        </InputGroupButton>
+                      </TooltipTrigger>
+                      <TooltipContent>{sendHint ?? sendLabel}</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </InputGroupAddon>
+            </InputGroup>
+          </div>
         </div>
+        {attachments.error ? (
+          <p className='px-2.5 text-xs text-destructive'>{attachments.error}</p>
+        ) : null}
       </div>
-      {attachments.error ? (
-        <p className='px-2.5 text-xs text-destructive'>{attachments.error}</p>
-      ) : null}
-    </div>
+    </ComposerMenuAnchorContext>
   )
 }

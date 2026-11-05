@@ -16,8 +16,9 @@ import {
   useProviderUsage,
   type UsageProvider,
 } from '@/state/provider-usage'
-import { useEffect } from 'react'
+import { use, useEffect } from 'react'
 
+import { ComposerMenuAnchorContext } from './composer_menu_anchor'
 import './context_ring.css'
 
 const radius = 90
@@ -244,6 +245,7 @@ function PopoverLimits({ provider }: { provider: UsageProvider }) {
 
 // Opens on click, not pointer-down: it's an overlay (JET-3).
 export function ThreadContextRing({ threadId, provider }: { threadId: string; provider: string }) {
+  const anchor = use(ComposerMenuAnchorContext)
   const context = useThreadContext(threadId)
   const limits = allUsageProviders.find((id) => id === provider)
   return (
@@ -268,9 +270,10 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         <span className='text-xs @max-[600px]/composer:hidden'>context</span>
       </PopoverTrigger>
       <PopoverContent
+        anchor={anchor}
         side='top'
         align='end'
-        sideOffset={6}
+        sideOffset={8}
         className='context-popover w-80 gap-3 p-3 text-xs'
       >
         <ContextDetails context={context} />

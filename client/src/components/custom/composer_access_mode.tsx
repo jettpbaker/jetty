@@ -15,8 +15,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { useState } from 'react'
+import { use, useState } from 'react'
 
+import { ComposerMenuAnchorContext } from './composer_menu_anchor'
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindTooltip, keybinds, appShortcut } from './keybinds'
 
@@ -51,6 +52,7 @@ export function ComposerAccessMode({
   model?: ProviderModel
   onChange: (value: PermissionMode) => void
 }) {
+  const anchor = use(ComposerMenuAnchorContext)
   const [open, setOpen] = useState(false)
   const choosable = model?.autoMode !== false
   useHotkey(
@@ -64,13 +66,14 @@ export function ComposerAccessMode({
     return (
       <DisabledTooltip reason={`${model.name} only supports asking first`} wrap='flex'>
         <Button
-          variant='ghost'
-          size='icon'
+          variant='ghost-text'
+          size='sm'
           disabled
           aria-label='Access mode: Asks first'
           className='pointer-events-none'
         >
           <ShieldKeyholeIcon />
+          Asks first
         </Button>
       </DisabledTooltip>
     )
@@ -90,15 +93,14 @@ export function ComposerAccessMode({
           }
         >
           <Icon className='text-muted-foreground' />
-          <span className='@max-[560px]/composer:sr-only'>
-            {value === 'auto' ? 'Approval' : label}
-          </span>
+          <span>{value === 'auto' ? 'Approval' : label}</span>
           <ChevronDownSmallIcon className='text-muted-foreground' />
         </DropdownMenuTrigger>
       </KeybindTooltip>
       <DropdownMenuContent
+        anchor={anchor}
         side='top'
-        sideOffset={6}
+        sideOffset={8}
         align='start'
         className='w-80 max-w-[calc(100vw-24px)]'
       >
