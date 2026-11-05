@@ -10,13 +10,12 @@ import { accessModes } from './composer_access_mode'
 import { environments } from './composer_environment'
 import {
   Mono,
-  PlannedSettingsRow,
-  PlannedSettingsSection,
   SettingsCard,
   SettingsPage,
   SettingsRow,
   SettingsSection,
   SettingsSelect,
+  UnavailableSettingsRow,
 } from './settings_layout'
 
 type Environment = ThreadMeta['environment']
@@ -92,20 +91,20 @@ export function SettingsPreferences() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
-      <PlannedSettingsSection title='Startup and sending'>
+      <SettingsSection title='Startup and sending'>
         <SettingsCard>
-          <PlannedSettingsRow
+          <UnavailableSettingsRow
             id='open-on-launch'
             title='Open on launch'
             description='Choose what Jetty shows when you open it'
           />
-          <PlannedSettingsRow
+          <UnavailableSettingsRow
             id='send-key'
             title='Send messages with'
             description='Choose the send key. Shift-Enter always adds a new line.'
           />
         </SettingsCard>
-      </PlannedSettingsSection>
+      </SettingsSection>
     </SettingsPage>
   )
 }

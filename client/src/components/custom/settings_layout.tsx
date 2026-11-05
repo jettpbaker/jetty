@@ -163,18 +163,10 @@ function RowIcon({ icon: Glyph, disabled }: { icon: Icon | ReactElement; disable
   )
 }
 
-function RowText({
-  title,
-  description,
-  disabled,
-}: {
-  title: ReactNode
-  description?: ReactNode
-  disabled?: boolean
-}) {
+function RowText({ title, description }: { title: ReactNode; description?: ReactNode }) {
   return (
     <span className='flex min-w-0 grow basis-48 flex-col gap-0.5'>
-      <span className={cn('text-13', disabled && 'text-muted-foreground')}>{title}</span>
+      <span className='text-13 text-foreground'>{title}</span>
       {description && <span className='text-xs text-muted-foreground'>{description}</span>}
     </span>
   )
@@ -207,7 +199,7 @@ export function SettingsRow({
       )}
     >
       {icon && <RowIcon icon={icon} disabled={disabled} />}
-      <RowText title={title} description={description} disabled={disabled} />
+      <RowText title={title} description={description} />
       {children}
     </div>
   )
