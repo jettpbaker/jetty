@@ -173,11 +173,7 @@ function ProjectRow({
         {!git ? null : !ok ? (
           <span className='text-xs text-muted-foreground'>Not a git repo</span>
         ) : ok.setupGuide ? (
-          <Button
-            variant='ghost'
-            className='-ml-2 h-7 rounded-sm px-2 text-13'
-            onClick={() => ok.setupGuide && setUp(ok.setupGuide)}
-          >
+          <Button variant='outline' size='xs' onClick={() => ok.setupGuide && setUp(ok.setupGuide)}>
             Set up
           </Button>
         ) : (

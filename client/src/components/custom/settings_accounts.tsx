@@ -102,14 +102,14 @@ function AccountCard({
       >
         {icon}
       </span>
-      <span className='flex min-w-0 grow basis-0 flex-col gap-0.5'>
+      <span className='flex min-w-0 grow basis-64 flex-col gap-0.5'>
         <span className='flex items-baseline gap-1.5 text-13'>
           <span className={disabled ? 'text-muted-foreground' : undefined}>{title}</span>
           {detail && <span className='text-muted-foreground'>{detail}</span>}
         </span>
         <span
           className={cn(
-            'truncate text-xs',
+            'text-xs whitespace-normal',
             disabled ? 'text-disabled-foreground' : 'text-muted-foreground'
           )}
         >
@@ -237,7 +237,6 @@ function ProviderCard({ provider }: { provider: (typeof providers)[number] }) {
         </Button>
       )}
       <Switch
-        size='sm'
         aria-label={`Use ${provider.name} in Jetty`}
         checked={on}
         onCheckedChange={(value) => setEnabled({ ...enabled, [provider.id]: value })}

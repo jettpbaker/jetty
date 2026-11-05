@@ -361,7 +361,6 @@ function AvailableModels() {
                     <ModelLabel model={model} />
                   </span>
                   <Switch
-                    size='sm'
                     aria-label={`Show ${model.name} in pickers`}
                     disabled={!on}
                     checked={checked}
