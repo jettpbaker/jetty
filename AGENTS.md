@@ -102,6 +102,7 @@
 - Status colors are semantic: orange = needs input, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.
+- Inline code uses a neutral foreground wash and inherits text colour; accent is for links.
 - Link colour in text: accent means a click takes you to one specific thing (a
   thread, issue, commit, file or URL). Counts that open a menu ("3 threads"),
   names, answers and actions are foreground, and the words joining them are

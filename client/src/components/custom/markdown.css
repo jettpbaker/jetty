@@ -1,5 +1,15 @@
 [data-streamdown='unordered-list'] {
-  list-style-type: '- ';
+  list-style-type: disc;
+}
+
+:is([data-streamdown='unordered-list'], [data-streamdown='ordered-list']) {
+  list-style-position: outside;
+  padding-inline-start: 1.25em;
+}
+
+[data-streamdown='list-item']::marker {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
 }
 
 /* A top-level list sits a paragraph's gap from its neighbours, so its edge items drop their outer padding. */
