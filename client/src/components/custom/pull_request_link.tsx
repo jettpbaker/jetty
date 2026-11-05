@@ -68,7 +68,7 @@ export function LinkPullRequestDialog({
         <DialogTitle>Link pull request</DialogTitle>
         <form className='flex flex-col gap-4' onSubmit={submit}>
           <div className='flex flex-col gap-2'>
-            <label htmlFor='pull-request-reference' className='text-sm font-medium'>
+            <label htmlFor='pull-request-reference' className='sr-only'>
               Pull request
             </label>
             <Input
