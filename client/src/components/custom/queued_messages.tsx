@@ -2,7 +2,7 @@ import type { Attachment, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage, ThreadMeta } from '@jetty/shared/wire'
 
 import {
-  ArrowShareLeftIcon,
+  ClockIcon,
   CrossSmallIcon,
   Pencil2Icon,
   PauseIcon,
@@ -31,6 +31,7 @@ import { heldByRestarts } from '@jetty/shared/items'
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 
 import { FileLines, isImageAttachment } from './attachment_files'
+import { DisabledTooltip } from './disabled_tooltip'
 import { StatusGlyph } from './thread_status'
 import { WorktreeSetupError } from './worktree_setup_error'
 
@@ -310,6 +311,7 @@ export function ComposerQueue({
                 entry={entry}
                 editing={isQueuedEditing(entry, queue.editing)}
                 running={running}
+                setupBlocked={settingUp || retrySetup}
               />
             ))}
             {queue.removed && (
@@ -329,7 +331,9 @@ function QueuedRow({
   entry,
   editing,
   running,
+  setupBlocked,
 }: {
+  setupBlocked: boolean
   threadId: string
   entry: QueuedMessage
   editing: boolean
@@ -359,7 +363,7 @@ function QueuedRow({
       />
       <div className='flex min-w-0 items-center gap-4'>
         <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <ArrowShareLeftIcon className='size-4 shrink-0 text-muted-foreground' />
+          <ClockIcon className='size-4 shrink-0 text-muted-foreground' />
           <div className='min-w-0 flex-1'>
             <QueuedText entry={entry} muted={editing} />
           </div>
@@ -372,15 +376,30 @@ function QueuedRow({
           >
             <Pencil2Icon />
           </IconAction>
-          <Button
-            variant='ghost-text'
-            size='sm'
-            aria-label={running ? 'Steer with queued message' : 'Send queued message now'}
-            disabled={editing}
-            onClick={() => act(() => actions.sendNow(threadId, entry))}
+          <DisabledTooltip
+            reason={
+              setupBlocked
+                ? 'Queued until worktree setup completes. Retry setup to continue.'
+                : undefined
+            }
+            wrap='flex'
           >
-            Send now
-          </Button>
+            <Button
+              variant='ghost-text'
+              size='sm'
+              aria-label={
+                setupBlocked
+                  ? 'Queued until setup completes'
+                  : running
+                    ? 'Steer with queued message'
+                    : 'Send queued message now'
+              }
+              disabled={editing || setupBlocked}
+              onClick={() => act(() => actions.sendNow(threadId, entry))}
+            >
+              {setupBlocked ? 'After setup' : running ? 'Steer now' : 'Resume with this'}
+            </Button>
+          </DisabledTooltip>
           <IconAction
             label='Remove from the queue'
             disabled={editing}
