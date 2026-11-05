@@ -38,6 +38,11 @@ ${(['addition', 'deletion'] as const)
 // Pierre renders each fold in both the gutter and the code column, and in split view on both sides; it
 // draws the controls from the gutter of the unified or deletions side and a bare bar elsewhere, so the
 // chip is scoped to that gutter and every other copy keeps Pierre's display and gets only the hairline.
+const newFileCSS = `
+:host { --diffs-bg-addition: var(--diffs-bg); }
+[data-background] :is([data-line], [data-no-newline]) { --mix-light: 100%; --mix-dark: 100%; }
+`
+
 const shown = ':is([data-unified], [data-deletions]) [data-gutter]'
 const hairline =
   'background: var(--diffs-bg) linear-gradient(var(--border), var(--border)) center / 100% 0.5px no-repeat;'
@@ -109,7 +114,7 @@ export function DiffBody<T = undefined>({
         disableFileHeader: true,
         hunkSeparators: snippet || suggestion ? 'simple' : 'line-info',
         overflow: wrap ? 'wrap' : 'scroll',
-        unsafeCSS: diffCSS + foldCSS,
+        unsafeCSS: diffCSS + foldCSS + (diff.type === 'new' ? newFileCSS : ''),
         onPostRender: nameExpanders,
       }}
     />
