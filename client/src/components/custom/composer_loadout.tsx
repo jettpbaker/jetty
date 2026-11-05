@@ -478,25 +478,14 @@ export function ComposerLoadout({
                 </span>
               )}
             </span>
-            <DisabledTooltip
-              reason={
-                !value
-                  ? 'Choose a model first'
-                  : !model?.fast
-                    ? `${name} has no fast mode`
-                    : undefined
-              }
-              wrap='flex'
-            >
-              <Switch
-                size='sm'
-                aria-label='Fast'
-                aria-describedby={fastUnavailable ? fastHint : undefined}
-                disabled={!value || !model?.fast}
-                checked={value?.fast ?? false}
-                onCheckedChange={(fast) => value && onChange({ ...value, fast })}
-              />
-            </DisabledTooltip>
+            <Switch
+              size='sm'
+              aria-label='Fast'
+              aria-describedby={fastUnavailable ? fastHint : undefined}
+              disabled={!value || !model?.fast}
+              checked={value?.fast ?? false}
+              onCheckedChange={(fast) => value && onChange({ ...value, fast })}
+            />
           </div>
         </div>
         <Separator />
