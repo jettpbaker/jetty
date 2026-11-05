@@ -10,6 +10,8 @@ import { catalogModelName } from '@jetty/shared/model-name'
 import { SourceLabel } from './source_label'
 
 const footer = 'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground'
+const reveal =
+  'opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100'
 const copy =
   'opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100 transition-[color,background-color,opacity] motion-reduce:transition-none'
 
@@ -41,7 +43,7 @@ export function UserMessageFooter({
       </div>
     )
   return (
-    <div className={cn(footer, 'self-end')}>
+    <div className={cn(footer, 'self-end', !steered && reveal)}>
       {text && <CopyButton text={text} label='Copy message' className={copy} />}
       {steered && (
         <>
@@ -59,14 +61,16 @@ export function AgentMessageFooter({
   createdAt,
   loadout,
   provider,
+  latest,
 }: {
   text: string
   createdAt: number
   loadout?: TurnLoadout
   provider?: string
+  latest?: boolean
 }) {
   return (
-    <div className={cn(footer, 'self-start')}>
+    <div className={cn(footer, 'self-start', !latest && reveal)}>
       {loadout && <TurnModel loadout={loadout} provider={provider} />}
       <SentAt createdAt={createdAt} />
       <CopyButton text={text} label='Copy message' className={copy} />

@@ -247,7 +247,9 @@ const ThreadItemRow = memo(function ThreadItemRow({
   provider,
   projectPath,
   onOpenRoom,
+  latestAssistant,
 }: {
+  latestAssistant: boolean
   row: ThreadRow
   streamingRows: ReturnType<typeof useStreamingRows>
   threadId: string
@@ -324,6 +326,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
                 createdAt={row.item.createdAt}
                 loadout={row.loadout}
                 provider={provider}
+                latest={latestAssistant}
               />
             )}
           </Bubble>
@@ -382,7 +385,9 @@ const VirtualRow = memo(function VirtualRow({
   projectPath,
   onOpenRoom,
   afterWork,
+  latestAssistant,
 }: {
+  latestAssistant: boolean
   index: number
   afterWork: boolean
   start: number
@@ -416,6 +421,7 @@ const VirtualRow = memo(function VirtualRow({
       >
         <ThreadItemRow
           row={row}
+          latestAssistant={latestAssistant}
           streamingRows={streamingRows}
           threadId={threadId}
           provider={provider}
@@ -538,6 +544,9 @@ export function ThreadList({
   const pinned = useRef(pending || !saved || saved.index === -1)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [width, setWidth] = useState(saved?.width ?? 660)
+  const latestAssistant = rows.findLastIndex(
+    (row) => row.kind === 'assistant' || row.kind === 'plan'
+  )
   const [rough, setRough] = useState(() => (saved ? new Set<string>() : roughRows(rows, width)))
   const [gutter, setGutter] = useState(0)
   const [fontsReady, setFontsReady] = useState(false)
@@ -1178,6 +1187,7 @@ export function ThreadList({
               <VirtualRow
                 key={virtualRow.key}
                 index={virtualRow.index}
+                latestAssistant={virtualRow.index === latestAssistant}
                 afterWork={afterWork(rows, virtualRow.index)}
                 start={virtualRow.start}
                 row={rows[virtualRow.index]!}
