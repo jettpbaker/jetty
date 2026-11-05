@@ -17,7 +17,7 @@ const copy =
 
 function SentAt({ createdAt }: { createdAt: number }) {
   return (
-    <time className='text-muted-foreground' dateTime={new Date(createdAt).toISOString()}>
+    <time className='font-mono text-muted-foreground' dateTime={new Date(createdAt).toISOString()}>
       {formatSentAt(createdAt)}
     </time>
   )
@@ -70,8 +70,13 @@ export function AgentMessageFooter({
   latest?: boolean
 }) {
   return (
-    <div className={cn(footer, 'self-start', !latest && reveal)}>
-      {loadout && <TurnModel loadout={loadout} provider={provider} />}
+    <div className={cn(footer, 'self-start gap-2', !latest && reveal)}>
+      {loadout && (
+        <>
+          <TurnModel loadout={loadout} provider={provider} />
+          <span aria-hidden='true'>·</span>
+        </>
+      )}
       <SentAt createdAt={createdAt} />
       <CopyButton text={text} label='Copy message' className={copy} />
     </div>
