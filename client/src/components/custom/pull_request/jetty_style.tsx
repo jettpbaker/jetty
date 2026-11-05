@@ -867,11 +867,14 @@ function Properties({ pr }: { pr: PrPull }) {
     Issues: <Issues pr={pr} />,
   }
   return (
-    <dl className='flex w-full flex-col gap-3'>
+    <dl className='flex w-full flex-col gap-2'>
       {[...propertyRows, ...(threads.length ? ['Thread'] : [])].map((label) => (
-        <div key={label} className='grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-start gap-3'>
+        <div
+          key={label}
+          className='grid min-h-8 min-w-0 grid-cols-[72px_minmax(0,1fr)] items-start gap-3'
+        >
           <dt className='pt-1.5 text-xs text-muted-foreground'>{label}</dt>
-          <dd className='min-w-0 text-sm'>{values[label]}</dd>
+          <dd className='min-w-0 text-13'>{values[label]}</dd>
         </div>
       ))}
     </dl>
@@ -1836,7 +1839,9 @@ function MergeButton({
     <Button
       variant={variant}
       size='sm'
-      className={cn('rounded-sm', edge, merging && 'pointer-events-none')}
+      className={cn('rounded-sm disabled:opacity-100', !compact && 'min-w-0 flex-1', edge)}
+      disabled={merging}
+      focusableWhenDisabled
       aria-busy={merging}
       onClick={() => runMerge(current.method)}
     >
@@ -1846,43 +1851,44 @@ function MergeButton({
         <span
           className={cn('col-start-1 row-start-1 flex items-center gap-1', merging && 'invisible')}
         >
-          {pending ? (
-            <Progress50Icon className='size-3.5 text-status-working' />
-          ) : (
-            <MergedIcon className='size-3.5' />
-          )}
+          {pending ? <Progress50Icon className='text-status-working' /> : <MergedIcon />}
           {current.label}
         </span>
         <span
           className={cn('col-start-1 row-start-1 flex items-center gap-1', !merging && 'invisible')}
         >
-          {merging ? <Spinner className='size-3.5' /> : <span className='size-3.5' />}
+          {merging ? <Spinner /> : <span className='size-4' />}
           Merging
         </span>
       </span>
     </Button>
   )
   const primary = reason ? (
-    <DisabledTooltip reason={reason} wrap='inline-flex'>
+    <DisabledTooltip reason={reason} wrap={compact ? 'inline-flex' : 'flex min-w-0 flex-1'}>
       <Button
         disabled
         variant='outline'
         size='sm'
         aria-description={reason}
-        className={cn('rounded-sm', edge)}
+        className={cn('rounded-sm', !compact && 'min-w-0 flex-1', edge)}
       >
-        <MergedIcon className='size-3.5' />
+        <MergedIcon />
         {current.label}
       </Button>
     </DisabledTooltip>
   ) : pending ? (
-    <Hint text={`${countLabel(runningCount, 'check')} still running`}>{face}</Hint>
+    <Hint
+      text={`${countLabel(runningCount, 'check')} still running`}
+      className={compact ? 'inline-flex min-w-0' : 'flex min-w-0 flex-1'}
+    >
+      {face}
+    </Hint>
   ) : (
     face
   )
   if (!split) return primary
   return (
-    <div className='flex'>
+    <div className={cn('flex', !compact && 'w-full')}>
       {primary}
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -1890,13 +1896,11 @@ function MergeButton({
             <Button
               variant={variant}
               size='icon-sm'
-              className={cn(
-                'rounded-sm rounded-l-none border-l-0',
-                reason && 'opacity-50',
-                merging && 'pointer-events-none'
-              )}
+              className='rounded-sm rounded-l-none border-l-0'
+              focusableWhenDisabled
             />
           }
+          disabled={merging}
           aria-label='Select merge method'
         >
           <ChevronDownSmallIcon />
