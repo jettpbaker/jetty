@@ -138,15 +138,21 @@ export async function prepareReplay(dir: string) {
       pullRequestChecksFields,
       pullRequestStateFields,
     ]) {
-      const query = pullRequestGraphqlQuery(
-        group.map(({ pull }) => ({ repo: prRepo, number: Number(pull.number) })),
-        fields
-      )
-      await writeRecording(dir, {
-        ...group[0]!.fixture,
-        args: ['api', '--hostname', 'github.com', '--include', 'graphql', '-f', `query=${query}`],
-        stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ data })}`,
-      })
+      for (let heads = 0; heads < 1 << group.length; heads++) {
+        const query = pullRequestGraphqlQuery(
+          group.map(({ pull }, index) => ({
+            repo: prRepo,
+            number: Number(pull.number),
+            headSha: heads & (1 << index) ? String(pull.headRefOid) : undefined,
+          })),
+          fields
+        )
+        await writeRecording(dir, {
+          ...group[0]!.fixture,
+          args: ['api', '--hostname', 'github.com', '--include', 'graphql', '-f', `query=${query}`],
+          stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ data })}`,
+        })
+      }
     }
   }
   return [...pulls.values()].map(({ pull }) =>
