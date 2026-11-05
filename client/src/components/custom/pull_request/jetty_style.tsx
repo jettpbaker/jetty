@@ -2258,7 +2258,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               </span>
                             </div>
                             {pr.state === 'open' && reason && (
-                              <p role='status' className='flex items-center gap-2 pt-3 text-sm'>
+                              <output className='flex items-center gap-2 pt-3 text-sm'>
                                 <StatusGlyph
                                   status={reason === 'Checking mergeability' ? 'working' : 'error'}
                                 />
@@ -2266,7 +2266,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                                   Merge blocked{' '}
                                   <span className='text-muted-foreground'>· {reason}</span>
                                 </span>
-                              </p>
+                              </output>
                             )}
                           </div>
                           <Properties pr={pr} />

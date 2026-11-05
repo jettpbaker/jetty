@@ -12,7 +12,9 @@ import {
 import { useProviderUnavailable } from '@/state/models'
 
 import { ArrowRotateClockwiseIcon } from './central_icons'
+import { CopyButton } from './copy_button'
 import { DisabledTooltip } from './disabled_tooltip'
+import { StatusGlyph } from './thread_status'
 import { providerNames } from './usage_limits'
 
 // A failed turn, with Retry under it while it is the latest turn and the thread is idle.
@@ -62,22 +64,22 @@ export function ErrorMessage({
   }
   return (
     <Message align='start'>
-      <MessageContent className='gap-0'>
-        <p className='text-sm text-destructive'>{message}</p>
-        {failed && (
-          <DisabledTooltip reason={unavailable} wrap='self-start'>
-            <Button
-              variant='ghost-text'
-              size='xs'
-              className='-ml-3 self-start'
-              onClick={retry}
-              disabled={!!unavailable}
-            >
-              <ArrowRotateClockwiseIcon />
-              Retry
-            </Button>
-          </DisabledTooltip>
-        )}
+      <MessageContent className='flex-row items-start gap-2 rounded-sm bg-status-error-wash p-3'>
+        <StatusGlyph status='error' className='mt-1' />
+        <div className='flex min-w-0 flex-1 flex-col gap-2'>
+          <p className='text-sm text-foreground'>{message}</p>
+          <div className='flex items-center gap-2'>
+            {failed && (
+              <DisabledTooltip reason={unavailable} wrap='self-start'>
+                <Button variant='outline' size='xs' onClick={retry} disabled={!!unavailable}>
+                  <ArrowRotateClockwiseIcon />
+                  Retry
+                </Button>
+              </DisabledTooltip>
+            )}
+            <CopyButton text={message} label='Copy error' />
+          </div>
+        </div>
       </MessageContent>
     </Message>
   )
