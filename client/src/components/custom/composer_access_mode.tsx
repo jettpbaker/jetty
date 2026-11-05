@@ -25,6 +25,7 @@ export const accessModes: Record<
 > = {
   auto: {
     label: 'Ask for approval',
+    menuLabel: 'Ask for approval',
     description: 'Allows routine work; asks before restricted actions',
     Icon: ShieldCheckIcon,
   },
