@@ -601,7 +601,7 @@ export function ThreadList({
     overscan: 10,
     gap: rowGap,
     paddingStart: agentId ? agentInset : chatInset,
-    paddingEnd: chatInset,
+    paddingEnd: rowGap,
     getItemKey,
     initialMeasurementsCache: saved?.sizes,
     // The virtualizer keeps only measurements that differ from the estimate, so a row whose
@@ -679,7 +679,9 @@ export function ThreadList({
       : Math.max(answerStart, sentStart - viewportHeight / 2)
   // The reply consumes this space before its growth needs to move the conversation.
   const scrollSize =
-    pinStart === undefined ? totalSize : Math.max(totalSize, pinStart - sentInset + viewportHeight)
+    pinStart === undefined || totalSize <= viewportHeight
+      ? totalSize
+      : Math.max(totalSize, pinStart - sentInset + viewportHeight)
   // Keep room for the spring to brake when finishing work shrinks the transcript.
   const [scrollSpace, setScrollSpace] = useState(scrollSize)
   if (scrollSize > scrollSpace) setScrollSpace(scrollSize)
@@ -832,6 +834,13 @@ export function ThreadList({
       releaseScrollSpace()
       return
     }
+    if (totalSize <= element.clientHeight) {
+      glider.current?.stop()
+      stopSendGlide()
+      releaseScrollSpace()
+      element.scrollTop = 0
+      return
+    }
     // Growth glides; opening the thread, resizing it or seeking far lands at once.
     const key = `${view}:${width}`
     const last = virtualizer.measurementsCache[rows.length - 1]
@@ -897,6 +906,7 @@ export function ThreadList({
     stamp,
     width,
     scrollSize,
+    totalSize,
     viewportHeight,
     view,
     gliderFor,
@@ -1130,11 +1140,12 @@ export function ThreadList({
     <MediaLightboxProvider>
       <div
         data-perf-region='messages'
-        className='relative flex min-h-0 flex-1 flex-col [timeline-scope:--chat-top]'
+        className='relative flex min-h-0 shrink flex-col [timeline-scope:--chat-top]'
+        style={{ height: totalSize + (remainingMessages > 0 ? 40 : 0) }}
       >
         <section
           ref={scroller}
-          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] [scroll-timeline:--chat-top_block] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] [scroll-timeline:--chat-top_block] [overflow-anchor:none] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
