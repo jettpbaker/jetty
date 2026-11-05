@@ -86,8 +86,8 @@ export function LinkPullRequestDialog({
               }}
             />
             <p id='pull-request-scope' className='text-xs leading-5 text-muted-foreground'>
-              A number uses {project ? `${project.title}’s` : 'this project’s'} GitHub repository.
-              Use a URL for another repository.
+              Enter a pull request number from {project ? `${project.title}’s` : 'this project’s'}{' '}
+              GitHub repository, or a GitHub URL from any repository.
             </p>
             {error && (
               <p id='pull-request-error' role='alert' className='text-xs text-destructive'>
@@ -99,8 +99,13 @@ export function LinkPullRequestDialog({
             <Button type='button' variant='ghost' onClick={() => change(false)}>
               Cancel
             </Button>
-            <Button type='submit' aria-busy={pending} disabled={!validReference(draft) || pending}>
-              Link
+            <Button
+              type='submit'
+              aria-describedby='pull-request-scope'
+              aria-busy={pending}
+              disabled={!validReference(draft) || pending}
+            >
+              Link pull request
             </Button>
           </DialogFooter>
         </form>
