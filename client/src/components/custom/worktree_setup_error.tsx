@@ -11,7 +11,15 @@ export function WorktreeSetupError({ error }: { error: string }) {
         {error.split('\n')[0]}
       </p>
       <Collapsible>
-        <CollapsibleTrigger render={<Button variant='ghost-text' size='xs' className='px-0' />}>
+        <CollapsibleTrigger
+          render={
+            <Button
+              variant='ghost-text'
+              size='xs'
+              className='px-0 [&[aria-expanded=true]>svg]:rotate-90'
+            />
+          }
+        >
           <ChevronRightSmallIcon />
           View setup output
         </CollapsibleTrigger>
@@ -21,7 +29,6 @@ export function WorktreeSetupError({ error }: { error: string }) {
               <span>Setup output</span>
               <CopyButton text={error} label='Copy setup output' />
             </div>
-            {/* The output scrolls independently, including when navigating with a keyboard. */}
             <pre
               // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a bounded output scrollport
               tabIndex={0}

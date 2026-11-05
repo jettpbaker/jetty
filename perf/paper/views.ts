@@ -208,6 +208,17 @@ export const views: View[] = [
     })
   ),
   {
+    area: 'Composer',
+    state: 'worktree failed output',
+    route: (ctx) => `/threads/${ctx.ids['worktree failed']}`,
+    selector: '[data-paper-composer-shell]',
+    ready: prompt,
+    async setup({ page }) {
+      await click(page, text('View setup output'), 'setup output')
+    },
+    verify: `document.querySelector('pre[aria-label="Worktree setup output"]')?.getBoundingClientRect().height > 0`,
+  },
+  {
     area: 'Thread chat',
     state: 'loading worktree setup',
     route: (ctx) => `/threads/${ctx.ids['worktree setting_up']}`,
