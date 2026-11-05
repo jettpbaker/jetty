@@ -36,7 +36,7 @@ export function UserMessageFooter({
 }) {
   if (steering)
     return (
-      <div className={cn(line, 'self-end')}>
+      <div className={cn(footer, 'self-end')}>
         <span className='shimmer px-1'>Steering…</span>
       </div>
     )
