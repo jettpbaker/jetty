@@ -602,7 +602,7 @@ function PullTab({
       title={title ? `${title} · ${link.repo}#${link.number} · ${look.label}` : link.url}
     >
       <TabLabel
-        label={`#${link.number}`}
+        label={`PR #${link.number}`}
         mono
         icon={<look.icon className={cn('details-tab-kind size-3', look.color)} />}
         canClose={canClose}

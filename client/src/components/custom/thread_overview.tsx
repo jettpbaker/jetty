@@ -18,13 +18,19 @@ import {
   useOpenSubagent,
   useSubagents,
   useThreadMeta,
+  useProject,
+  useModels,
+  useThreadContext,
   type SubagentSummary,
 } from '@/state'
+import { catalogModelName } from '@jetty/shared/model-name'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { ChildThreadList, type ChildThread } from './child_threads'
+import { environments } from './composer_environment'
 import { TodoList } from './composer_strip'
 import { ContentEmpty } from './content_empty'
+import { CopyButton } from './copy_button'
 import { DiffCounts } from './diff/file_card'
 import { PullRequestRow } from './pull_request_row'
 import { RunningTaskRow } from './running_task_row'
@@ -154,18 +160,17 @@ export function ThreadOverview({
     pullRequests.length === 0 &&
     files.length === 0
 
-  if (empty)
-    return (
-      <ContentEmpty
-        icon={ListBulletsIcon}
-        title='No activity yet'
-        description='Plans, subagents and linked pull requests will appear here as work progresses.'
-      />
-    )
-
   return (
     <div ref={scroller} className='scrollbar-subtle h-full overflow-auto'>
       <div className='flex flex-col gap-5 p-2 text-13'>
+        <ThreadProperties threadId={threadId} />
+        {empty && (
+          <ContentEmpty
+            icon={ListBulletsIcon}
+            title='No activity yet'
+            description='Plans, subagents and linked pull requests will appear here as work progresses.'
+          />
+        )}
         {running.length > 0 && (
           <Section label='Running' count={running.length} {...sectionProps('running')}>
             <div className='flex flex-col'>
@@ -240,6 +245,81 @@ export function ThreadOverview({
         )}
       </div>
     </div>
+  )
+}
+
+function ThreadProperties({ threadId }: { threadId: string }) {
+  const meta = useThreadMeta(threadId)
+  const project = useProject(meta?.projectId)
+  const models = useModels()
+  const context = useThreadContext(threadId)
+  if (!meta) return null
+  const environment = environments[meta.environment]
+  const branch = meta.git?.branch ?? meta.worktree?.branch
+  const path = meta.workingPath ?? (meta.environment === 'local' ? project?.path : undefined)
+  const model = catalogModelName(models, meta.provider, meta.model)
+  const rows: { label: string; value: ReactNode }[] = [
+    { label: 'Project', value: project?.title ?? 'Project unavailable' },
+    { label: 'Environment', value: environment.label },
+    ...(branch
+      ? [{ label: 'Branch', value: <span className='font-mono wrap-anywhere'>{branch}</span> }]
+      : []),
+    ...(path
+      ? [
+          {
+            label: 'Folder',
+            value: (
+              <span className='flex min-w-0 items-start gap-1'>
+                <span className='min-w-0 flex-1 font-mono text-xs leading-5 wrap-anywhere'>
+                  {path}
+                </span>
+                <CopyButton text={path} label='Copy working folder path' />
+              </span>
+            ),
+          },
+        ]
+      : []),
+    ...(model
+      ? [
+          {
+            label: 'Model',
+            value: (
+              <>
+                {model}
+                {meta.effort && <span className='text-muted-foreground'> · {meta.effort}</span>}
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...(context
+      ? [
+          {
+            label: 'Context',
+            value: (
+              <span className='font-mono'>
+                {Math.round((context.usedTokens / context.maxTokens) * 100)}%
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ]
+  return (
+    <section
+      aria-label='Thread properties'
+      className='flex flex-col gap-3 border-b border-border px-2.5 pt-2 pb-4'
+    >
+      <h2 className='text-13 font-medium'>Environment</h2>
+      <dl className='flex flex-col gap-2.5'>
+        {rows.map(({ label, value }) => (
+          <div key={label} className='grid grid-cols-[88px_minmax(0,1fr)] items-start gap-3'>
+            <dt className='text-xs leading-5 text-muted-foreground'>{label}</dt>
+            <dd className='min-w-0 text-13 leading-5'>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
 }
 
