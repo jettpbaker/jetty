@@ -677,8 +677,7 @@ export function ThreadComposer({
                       Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes
                     </span>
                     <span className='text-xs leading-5 text-muted-foreground'>
-                      Background work stopped when Jetty restarted. Resume to continue where the
-                      agent left off.
+                      Resume to continue where the agent left off.
                     </span>
                   </div>
                   <DisabledTooltip reason={unavailable} wrap='flex'>

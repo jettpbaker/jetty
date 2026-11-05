@@ -946,12 +946,19 @@ export function threadRows(
   // A monitor's line follows the turn that started it. A background command has none: it's a step
   // in its turn's work, and the details pane lists it while it runs.
   const started: BackgroundItem[] = []
+  const stoppedBackgroundTurns = new Set(
+    items.filter((item) => item.kind === 'background_stopped').map((item) => item.turnId)
+  )
   function finishTurn(resumed: boolean) {
     if (!currentTurnId) return
     for (const item of started.splice(0)) rows.push({ kind: 'background', id: item.id, item })
     const id = `${currentTurnId}:restart`
-    if (heldTurns.has(currentTurnId)) rows.push({ kind: 'restartLimit', id, resumed })
-    else if (outcomes[currentTurnId] === 'server_restarted') rows.push({ kind: 'restart', id })
+    if (heldTurns.has(currentTurnId) && resumed) rows.push({ kind: 'restartLimit', id, resumed })
+    else if (
+      (heldTurns.has(currentTurnId) || outcomes[currentTurnId] === 'server_restarted') &&
+      !stoppedBackgroundTurns.has(currentTurnId)
+    )
+      rows.push({ kind: 'restart', id })
   }
   for (const [index, item] of items.entries()) {
     if (currentTurnId && currentTurnId !== item.turnId) finishTurn(lastFollowUp >= index)
