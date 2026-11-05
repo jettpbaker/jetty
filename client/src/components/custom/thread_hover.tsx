@@ -358,11 +358,11 @@ function ThreadHoverPanel({
 
   return (
     <div className='flex flex-col gap-1.5'>
+      <h3 className='text-sm font-medium leading-5 wrap-break-word'>{title}</h3>
       <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
         <StatusGlyph status={status} />
         {detail ?? statusPresentation[status].label}
       </div>
-      <h3 className='text-sm font-medium leading-5 wrap-break-word'>{title}</h3>
       {project && (
         <div className='flex min-w-0 items-center gap-1.5 text-muted-foreground'>
           <ProjectGlyph icon={project.icon} className='size-3 shrink-0' />
