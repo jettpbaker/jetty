@@ -50,7 +50,7 @@ import { useSortable, isSortable } from '@dnd-kit/react/sortable'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useReducedMotion } from 'motion/react'
-import { useImperativeHandle, useRef, useState } from 'react'
+import { useId, useImperativeHandle, useRef, useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, KeybindTooltip, keybinds, appShortcut } from './keybinds'
@@ -233,6 +233,13 @@ export function ComposerLoadout({
   })
   const checked =
     (value && equipped.find(({ loadout }) => sameLoadoutIn(catalog, loadout, value))?.slot.id) ?? ''
+  const showSaved = equipped.length > 1 || Boolean(equipped.length && !checked)
+  const fastHint = useId()
+  const fastUnavailable = !value
+    ? 'Choose a model first'
+    : !model?.fast
+      ? 'Unavailable for this model'
+      : undefined
   const models = lockedProvider
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
@@ -345,8 +352,8 @@ export function ComposerLoadout({
           <Separator />
           <CommandList>
             <div className='picker-results'>
-              {configurations.length > 0 && (
-                <CommandGroup heading='Configurations'>
+              {showSaved && configurations.length > 0 && (
+                <CommandGroup heading='Saved'>
                   <DragDropProvider
                     sensors={sensors}
                     modifiers={modifiers}
@@ -409,7 +416,7 @@ export function ComposerLoadout({
                     key={modelKey(item)}
                     value={modelKey(item)}
                     disabled={disabledProviders.includes(item.provider)}
-                    data-checked={!checked && model === item}
+                    data-checked={(!showSaved || !checked) && model === item}
                     onSelect={() => onChange(equipModel(value ?? { fast: false }, item))}
                   >
                     <ProviderGlyph provider={item.provider} className='size-3' />
@@ -462,8 +469,15 @@ export function ComposerLoadout({
               {value ? `${name} doesn’t support effort levels` : 'Choose a model first'}
             </p>
           )}
-          <div className='flex h-8 items-center justify-between gap-3 text-xs'>
-            <span>Fast</span>
+          <div className='flex min-h-8 items-center justify-between gap-3 text-xs'>
+            <span className='flex flex-col gap-1'>
+              <span>Fast</span>
+              {fastUnavailable && (
+                <span id={fastHint} className='text-xs text-muted-foreground'>
+                  {fastUnavailable}
+                </span>
+              )}
+            </span>
             <DisabledTooltip
               reason={
                 !value
@@ -477,6 +491,7 @@ export function ComposerLoadout({
               <Switch
                 size='sm'
                 aria-label='Fast'
+                aria-describedby={fastUnavailable ? fastHint : undefined}
                 disabled={!value || !model?.fast}
                 checked={value?.fast ?? false}
                 onCheckedChange={(fast) => value && onChange({ ...value, fast })}
