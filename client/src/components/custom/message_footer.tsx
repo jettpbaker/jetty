@@ -9,25 +9,13 @@ import { catalogModelName } from '@jetty/shared/model-name'
 
 import { SourceLabel } from './source_label'
 
-// True reveals the whole footer on message hover or keyboard focus; false keeps the time and
-// model showing and reveals only the copy button. Touch has no hover, so there it always shows.
-const revealWholeFooter = true
-
-const hidden = 'opacity-0 group-hover/message:opacity-100 [@media(hover:none)]:opacity-100'
-const line = 'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground'
-const footer = cn(
-  line,
-  revealWholeFooter &&
-    `${hidden} transition-opacity has-focus-visible:opacity-100 motion-reduce:transition-none`
-)
-const copy = cn(
-  !revealWholeFooter &&
-    `${hidden} transition-[color,background-color,opacity] focus-visible:opacity-100`
-)
+const footer = 'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground'
+const copy =
+  'opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100 transition-[color,background-color,opacity] motion-reduce:transition-none'
 
 function SentAt({ createdAt }: { createdAt: number }) {
   return (
-    <time className='text-faint-foreground' dateTime={new Date(createdAt).toISOString()}>
+    <time className='text-muted-foreground' dateTime={new Date(createdAt).toISOString()}>
       {formatSentAt(createdAt)}
     </time>
   )

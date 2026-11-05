@@ -176,13 +176,7 @@ function RowText({
   return (
     <span className='flex min-w-0 grow basis-48 flex-col gap-0.5'>
       <span className={cn('text-13', disabled && 'text-muted-foreground')}>{title}</span>
-      {description && (
-        <span
-          className={cn('text-xs', disabled ? 'text-disabled-foreground' : 'text-muted-foreground')}
-        >
-          {description}
-        </span>
-      )}
+      {description && <span className='text-xs text-muted-foreground'>{description}</span>}
     </span>
   )
 }
