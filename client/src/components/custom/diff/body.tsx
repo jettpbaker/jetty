@@ -9,14 +9,7 @@ import { useDiffWorkerPoolLoading } from '../diff_worker_pool'
 import { codeSurfaceCSS, nameExpanders, syntaxTheme } from '../syntax_theme'
 import { DiffStyleContext, DiffWrapContext } from './model'
 
-// Jetty's skin for Pierre's diffs, injected into its shadow root: the code surface (syntax_theme.ts),
-// line numbers tinted like their code with no gap between, so a changed line's tint runs unbroken, and a solid
-// removed-line bar like the added one (Pierre stripes it).
-// A comment's row is one colour across the gutter and the code: the diff background, or, between two
-// added (or two removed) lines, their tint, so a run of changes reads as one block with the comment
-// inside it; the gutter bar stays on the lines themselves. In split view the other side's spacer keeps
-// the empty side's stripes when it sits inside them. Comments stack
-// above the sticky line-number gutter (z-index 3) so their card can reach back over it.
+// Review comments share the adjacent lines' wash; line numbers stay neutral and +/- marks identify changes.
 const diffCSS = `
 ${codeSurfaceCSS}
 [data-line-annotation], [data-gutter-buffer="annotation"] { --diffs-annotation-bg: var(--diffs-bg); }
@@ -28,8 +21,7 @@ ${codeSurfaceCSS}
   background-origin: border-box;
 }
 [data-gutter-buffer="buffer"] + [data-gutter-buffer="annotation"]:has(+ [data-gutter-buffer="buffer"]) { --diffs-annotation-bg: var(--diffs-bg-context-gutter); }
-[data-gutter] [data-column-number] { --mix-light: 88%; --mix-dark: 80%; }
-[data-indicators="bars"] [data-line-type="change-deletion"][data-column-number]::before { background: var(--diffs-deletion-base); }
+[data-gutter] [data-column-number] { --mix-light: 100%; --mix-dark: 100%; color: var(--muted-foreground); }
 ${(['addition', 'deletion'] as const)
   .map(
     (kind) => `
@@ -109,6 +101,7 @@ export function DiffBody<T = undefined>({
       options={{
         loadDiffFiles,
         diffStyle: suggestion ? 'unified' : diffStyle,
+        diffIndicators: 'classic',
         theme: syntaxTheme,
         themeType: resolvedTheme === 'dark' ? 'dark' : 'light',
         disableFileHeader: true,
