@@ -309,7 +309,10 @@ return { ...quote, discountCode: discount?.code ?? null }
           kind: 'approval',
           title: 'Run checkout validation',
           toolName: 'Bash',
-          input: { command: 'bun run typecheck && bun test src/checkout' },
+          input: {
+            command: 'bun run typecheck && bun test src/checkout',
+            cwd: '~/code/storefront',
+          },
           suggestions: [],
           always: { scope: 'project', patterns: ['bun run:*', 'bun test:*'] },
         }),

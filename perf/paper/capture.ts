@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 
 import { repoRoot } from '../app'
 import { openPage, viewport, type Page } from '../driver'
+import { sanitizeCapturePaths } from './capture_paths'
 import { writeFixtures } from './fixtures'
 import { connectPaper, fileId, payload } from './mcp'
 import { prepareHome, startStack } from './stack'
@@ -246,6 +247,7 @@ try {
     for (const theme of view.themes ?? ['dark']) {
       try {
         await navigate(view, theme)
+        await sanitizeCapturePaths(page, ctx.repo)
         const tokens = await readTokens(page, theme)
         await paper.syncTokens(tokens.tokens)
         await writeCapture(

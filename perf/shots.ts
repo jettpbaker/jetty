@@ -10,6 +10,7 @@ import type { Theme } from './paper/tokens'
 
 import { repoRoot } from './app'
 import { openPage, viewport, type Page } from './driver'
+import { sanitizeCapturePaths } from './paper/capture_paths'
 import { writeFixtures } from './paper/fixtures'
 import { prepareHome, startStack } from './paper/stack'
 import { openView, views, type Context } from './paper/views'
@@ -71,6 +72,7 @@ try {
       const slug = `${view.area}-${view.state}-${theme}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
       try {
         await openView(ctx, stack.origin, view, theme)
+        await sanitizeCapturePaths(page, ctx.repo)
         const file = `${slug}.png`
         await shoot(page, join(out, file))
         const partial = view.selector && view.selector !== 'body' && view.selector !== 'main'
