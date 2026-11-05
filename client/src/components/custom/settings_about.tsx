@@ -1,5 +1,6 @@
 import { homePath, useSettingsInfo } from '@/state/models'
 
+import { CopyButton } from './copy_button'
 import { copyFilePath } from './file_link'
 import {
   Mono,
@@ -19,8 +20,23 @@ function megabytes(bytes: number) {
 
 export function SettingsAbout() {
   const info = useSettingsInfo()
+  const version = import.meta.env.JETTY_VERSION
   return (
     <SettingsPage title='About' description='Where Jetty keeps your threads, bots and settings.'>
+      <SettingsSection title='Jetty'>
+        <SettingsCard>
+          <SettingsRow id='version' title='Version' description='The build running in this tab'>
+            {version ? (
+              <span className='flex items-center gap-2'>
+                <code className='font-mono text-xs'>{version}</code>
+                <CopyButton text={version} label='Copy version' />
+              </span>
+            ) : (
+              <span className='text-13 text-muted-foreground'>Development</span>
+            )}
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
       <SettingsSection title='Data'>
         <SettingsCard>
           <SettingsRow
