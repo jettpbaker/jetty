@@ -14,6 +14,7 @@ import {
   ShieldBreakIcon,
   Checkmark1MediumIcon,
 } from '@/components/custom/central_icons'
+import { Kbd } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
 import { inComposition } from '@/lib/composition'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
@@ -742,6 +743,11 @@ export function SlashMenu({ slash }: { slash: Slash }) {
           </div>
         ))}
       </div>
+      {!mentioning && (
+        <div className='flex items-center justify-end gap-1.5 border-t border-border px-3 py-2 text-xs text-muted-foreground'>
+          <Kbd>↵</Kbd> to select
+        </div>
+      )}
     </div>
   )
 }

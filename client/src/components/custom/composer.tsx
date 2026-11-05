@@ -108,13 +108,19 @@ export function Composer({
   const ownInput = useRef<HTMLTextAreaElement>(null)
   const textarea = inputRef ?? ownInput
   const empty = !value.trim() && attachments.items.length === 0
-  const canSend = !(sendDisabled ?? empty) && attachments.ready
+  const menu = useComposerSlash(value, onValueChange, textarea, slash)
+  const selectingCommand =
+    menu.open &&
+    menu.query?.trigger === '/' &&
+    menu.query.start === 0 &&
+    menu.query.end === value.length &&
+    attachments.items.length === 0
+  const canSend = !(sendDisabled ?? empty) && attachments.ready && !selectingCommand
   const stopping = stop || (running && empty)
   // Deny with note, Submit and a queued follow-up stay reachable while Stop is up.
   const offerSend = !stopping || (Boolean(stop) && canSend)
   const [expandedRequest, setExpandedRequest] = useState<string>()
   const compact = Boolean(requestId && expandedRequest !== requestId && empty && !canSend)
-  const menu = useComposerSlash(value, onValueChange, textarea, slash)
   const { field } = menu
 
   useLayoutEffect(() => perf.rendered('app.launch'), [])
