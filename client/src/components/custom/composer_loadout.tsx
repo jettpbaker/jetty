@@ -284,7 +284,7 @@ export function ComposerLoadout({
         <PopoverTrigger
           aria-label={
             value
-              ? `Loadout: ${[name, describeLoadout(value)].filter(Boolean).join(', ')}`
+              ? `Model: ${[name, describeLoadout(value)].filter(Boolean).join(', ')}`
               : 'Choose a model'
           }
           render={

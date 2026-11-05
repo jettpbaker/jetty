@@ -11,8 +11,12 @@ export function modelLabelText(model: {
   id: string
   name: string
   contextWindow?: '1m'
+  resolvedId?: string
 }): string {
-  return model.provider === 'claude' ? claudeModelName(model.id, model.name) : model.name
+  const name = model.provider === 'claude' ? claudeModelName(model.id, model.name) : model.name
+  return model.provider === 'claude' && !/\d/.test(name) && model.resolvedId
+    ? claudeModelLabel(model.resolvedId)
+    : name
 }
 
 // Providers rename a model's context variant (`opus` ↔ `opus[1m]`), stranding saved IDs.
