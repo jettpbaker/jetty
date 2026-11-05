@@ -546,10 +546,10 @@ export function ThreadComposer({
       ? answer
       : {
           strip: answer?.strip,
-          placeholder: settingUp
-            ? 'Queue another message'
-            : restartHeld
-              ? 'Add instructions before resuming'
+          placeholder: restartHeld
+            ? 'Add instructions before resuming'
+            : settingUp || (hasQueue && composerQueue?.paused)
+              ? 'Queue another message'
               : meta?.status === 'error'
                 ? 'Tell the agent what to try instead'
                 : running

@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatDuration } from '@/lib/time'
+import { formatDuration, formatSentAt } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useBot, useContinuing, useOpenPullRequestTab, usePullRequestSummary } from '@/state'
 import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jetty/shared/items'
@@ -395,6 +395,9 @@ export function PullRequestSeam({ item }: { item: PullRequestItem }) {
       ) : (
         line
       )}
+      <time className='ml-2 shrink-0 font-mono' dateTime={new Date(item.createdAt).toISOString()}>
+        {formatSentAt(item.createdAt)}
+      </time>
     </div>
   )
 }
