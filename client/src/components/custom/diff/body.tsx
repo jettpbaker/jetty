@@ -120,12 +120,19 @@ export function DiffBody<T = undefined>({
         unsafeCSS: diffCSS + foldCSS + (diff.type === 'new' ? newFileCSS : ''),
         onPostRender: (node) => {
           nameExpanders(node)
-          for (const code of node.shadowRoot?.querySelectorAll<HTMLElement>(
-            '[data-overflow="scroll"] [data-code]'
-          ) ?? []) {
-            code.tabIndex = 0
-            code.setAttribute('role', 'region')
-            code.setAttribute('aria-label', `${diff.name} diff, scroll horizontally for long lines`)
+          for (const code of node.shadowRoot?.querySelectorAll<HTMLElement>('[data-code]') ?? []) {
+            if (wrap) {
+              code.removeAttribute('tabindex')
+              code.removeAttribute('role')
+              code.removeAttribute('aria-label')
+            } else {
+              code.tabIndex = 0
+              code.setAttribute('role', 'region')
+              code.setAttribute(
+                'aria-label',
+                `${diff.name} diff, scroll horizontally for long lines`
+              )
+            }
           }
         },
       }}
