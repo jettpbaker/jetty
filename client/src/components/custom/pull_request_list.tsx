@@ -180,6 +180,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'title',
+      label: 'Pull request',
       priority: 100,
       width: 280,
       title: true,
@@ -193,12 +194,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'checks',
+      label: 'Checks',
       priority: 60,
-      width: 30,
+      width: 96,
       render: (pull) => <PullRequestChecks checks={pull.checks} />,
     },
     {
       id: 'review',
+      label: 'Review',
       priority: 50,
       width: 136,
       render: (pull) => (
@@ -211,7 +214,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           )}
           title={reviewLabel(pull.reviewDecision)}
         >
-          {reviewLabel(pull.reviewDecision)}
+          {pull.reviewDecision ? reviewLabel(pull.reviewDecision) : '—'}
         </span>
       ),
     },
@@ -503,7 +506,7 @@ function checksLabel(checks: PullRequestListItem['checks']) {
 function PullRequestChecks({ checks }: { checks: PullRequestListItem['checks'] }) {
   const label = checksLabel(checks)
   return (
-    <span className='flex' title={label}>
+    <span className='flex items-center gap-1.5 text-xs text-muted-foreground' title={label}>
       {checks === 'success' ? (
         <CircleCheckIcon filled className='size-3.5 text-pr-open' />
       ) : checks === 'failure' ? (
@@ -515,7 +518,17 @@ function PullRequestChecks({ checks }: { checks: PullRequestListItem['checks'] }
           —
         </span>
       )}
-      <span className='sr-only'>{label}</span>
+      <span>
+        {checks === 'success' ? (
+          'Passed'
+        ) : checks === 'failure' ? (
+          'Failed'
+        ) : checks === 'pending' ? (
+          'Running'
+        ) : (
+          <span className='sr-only'>{label}</span>
+        )}
+      </span>
     </span>
   )
 }

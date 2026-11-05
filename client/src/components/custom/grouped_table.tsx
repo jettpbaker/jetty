@@ -16,6 +16,7 @@ import './grouped_table.css'
 
 export type GroupedColumn<T> = {
   id: string
+  label?: string
   /** Higher priorities survive longer. Title and essential columns never collapse. */
   priority: number
   width: number
@@ -142,6 +143,23 @@ export function GroupedTable<T>({
       onKeyDown={moveFocus}
       onScroll={() => onRowHover?.(null)}
     >
+      {groups.some((group) => group.rows.length) && columns.some((column) => column.label) && (
+        <div
+          className='grouped-table-grid grouped-table-columns'
+          style={gridStyle}
+          aria-hidden='true'
+        >
+          {columns.map((column) => (
+            <span
+              key={column.id}
+              className='grouped-table-cell'
+              data-collapsed={collapsed.has(column.id)}
+            >
+              {column.label}
+            </span>
+          ))}
+        </div>
+      )}
       {groups.map((group) => {
         const closed = collapsedGroups[group.id] ?? group.defaultCollapsed ?? false
         const headerId = `${id}-${group.id}-header`
