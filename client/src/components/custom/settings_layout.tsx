@@ -6,7 +6,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { Link } from '@tanstack/react-router'
@@ -57,7 +56,7 @@ export function SettingsPage({
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-160 flex-col gap-10 pb-16',
+        'flex w-full max-w-180 flex-col gap-10 pb-16 sm:ml-8',
         back ? 'pt-5.5' : 'pt-14',
         className
       )}
@@ -139,7 +138,7 @@ export function PathText({ path, className }: { path: string; className?: string
       className={cn('flex min-w-0 font-mono text-xs text-muted-foreground', className)}
       title={path}
     >
-      <span className='truncate'>{path.slice(0, slash)}</span>
+      <span className='min-w-0 truncate'>{path.slice(0, slash)}</span>
       <span className='max-w-full shrink-0 truncate'>{path.slice(slash)}</span>
     </span>
   )

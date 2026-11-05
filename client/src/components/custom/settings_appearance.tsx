@@ -196,7 +196,7 @@ export function SettingsAppearance() {
   return (
     <SettingsPage title='Appearance' description='How Jetty looks on this device.'>
       <SettingsSection id='theme' title='Theme'>
-        <div role='radiogroup' aria-label='Theme' className='flex gap-3'>
+        <div role='radiogroup' aria-label='Theme' className='flex gap-3 px-4'>
           {themes.map(({ value, label }) => (
             <button
               key={value}
@@ -238,7 +238,7 @@ export function SettingsAppearance() {
               </span>
               <span
                 className={cn(
-                  'pl-0.5 text-13',
+                  'text-13',
                   theme === value
                     ? 'text-foreground'
                     : 'text-muted-foreground group-hover/tile:text-foreground'

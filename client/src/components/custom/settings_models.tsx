@@ -219,14 +219,14 @@ function SlotRow({
                   <ModelChoices groups={groups} onPick={equip} />
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-              <DropdownMenuItem onClick={onClear}>Remove from loadout</DropdownMenuItem>
+              <DropdownMenuItem onClick={onClear}>Remove configuration</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </>
       ) : (
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger
-            aria-label={`Add a model to slot ${index + 1}`}
+            aria-label={`Add configuration`}
             title='Option+Shift+↑/↓ to reorder'
             onKeyDown={moveOnKeys(index, onMove)}
             className='group/add flex grow items-center gap-3 rounded-sm text-left text-13 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
@@ -240,7 +240,7 @@ function SlotRow({
             >
               <PlusMediumIcon />
             </span>
-            Add a model
+            Add configuration
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start' className='min-w-48'>
             <ModelChoices groups={groups} onPick={equip} />
@@ -252,7 +252,9 @@ function SlotRow({
 }
 
 function Loadout() {
-  const { loadouts: slots, catalog, setLoadouts } = useLoadouts()
+  const { loadouts, catalog, setLoadouts } = useLoadouts()
+  const configured = loadouts.filter((slot) => slot.model !== null)
+  const slots = [...configured, ...loadouts.filter((slot) => slot.model === null)]
   const [enabledProviders] = useProviderEnabled()
   const [announcement, setAnnouncement] = useState('')
   const groups = providers
@@ -270,7 +272,7 @@ function Loadout() {
     )
   }
   function move(from: number, to: number) {
-    if (from === to || to < 0 || to >= slots.length) return
+    if (from === to || to < 0 || to >= configured.length) return
     const next = [...slots]
     next.splice(to, 0, ...next.splice(from, 1))
     save(next, 'Configurations reordered.')
@@ -286,10 +288,10 @@ function Loadout() {
     >
       <div
         role='group'
-        aria-label='Model loadout'
+        aria-label='Model configurations'
         className={cn(cardClass, 'flex flex-col divide-y divide-border px-4')}
       >
-        {slots.map((slot, index) => (
+        {slots.slice(0, Math.min(configured.length + 1, slots.length)).map((slot, index) => (
           <SlotRow
             key={slot.id}
             slot={slot}
@@ -306,6 +308,12 @@ function Loadout() {
             }
           />
         ))}
+        {configured.length === slots.length && (
+          <Button variant='ghost' className='my-2 justify-start' disabled>
+            <PlusMediumIcon />
+            Add configuration
+          </Button>
+        )}
       </div>
       <p role='status' aria-live='polite' className='sr-only'>
         {announcement}
@@ -383,6 +391,7 @@ function AvailableModels() {
 
 export function SettingsModels() {
   const { refreshing, refresh } = useModelRefresh()
+  const { loadouts } = useLoadouts()
   useEffect(() => {
     refresh()
   }, [refresh])
@@ -394,6 +403,11 @@ export function SettingsModels() {
       <SettingsSection
         id='loadout'
         title='Configurations'
+        action={
+          <span className='pr-4 font-mono text-xs text-muted-foreground'>
+            {loadouts.filter((slot) => slot.model !== null).length} of {loadouts.length}
+          </span>
+        }
         description='Save up to five model and effort combinations for the composer. Drag to reorder.'
       >
         <Loadout />
