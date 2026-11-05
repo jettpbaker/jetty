@@ -1,5 +1,5 @@
 import type { SubagentStatus } from '@jetty/shared/items'
-import type { Bot, ProjectIcon, ProviderId, RunningSubagent } from '@jetty/shared/wire'
+import type { Bot, ProjectIcon, RunningSubagent } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
@@ -38,7 +38,6 @@ import { environments } from './composer_environment'
 import { JettyBot } from './jetty_bot'
 import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
-import { ProviderGlyph } from './provider_glyph'
 import { RollingDuration } from './rolling_duration'
 import { threadNavigationDetail, threadPullRequests } from './sidebar_thread_groups'
 import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
@@ -58,7 +57,6 @@ type ThreadHoverPanelProps = {
   project?: { title: string; icon?: ProjectIcon }
   detail?: string
   status: ThreadStatus
-  provider?: ProviderId
   model?: string
   environment: 'local' | 'worktree'
   checkout?: Checkout
@@ -217,7 +215,7 @@ export function ThreadHoverPopup({
   return (
     <PreviewCard.Portal>
       <PreviewCard.Positioner side={side} align='start' sideOffset={8} className='z-50'>
-        <PreviewCard.Popup className='thread-hover-panel w-80 max-w-[calc(100vw-32px)] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
+        <PreviewCard.Popup className='thread-hover-panel w-68 max-w-[calc(100vw-32px)] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
           {children}
         </PreviewCard.Popup>
       </PreviewCard.Positioner>
@@ -299,7 +297,6 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
       project={project}
       detail={threadNavigationDetail(thread)}
       status={threadStatus(thread.status, thread.readyForReview)}
-      provider={thread.provider}
       model={
         thread.provider && thread.model
           ? catalogModelName(models, thread.provider, thread.model)
@@ -336,7 +333,6 @@ function ThreadHoverPanel({
   project,
   detail,
   status,
-  provider,
   model,
   environment,
   checkout,
@@ -363,18 +359,18 @@ function ThreadHoverPanel({
         <StatusGlyph status={status} />
         {detail ?? statusPresentation[status].label}
       </div>
-      {project && (
-        <div className='flex min-w-0 items-center gap-1.5 text-muted-foreground'>
-          <ProjectGlyph icon={project.icon} className='size-3 shrink-0' />
-          <span className='truncate'>{project.title}</span>
-        </div>
-      )}
-      {model && (
-        <div className='flex items-center gap-1.5 text-muted-foreground'>
-          {provider && <ProviderGlyph provider={provider} className='size-3' />}
-          {model}
-        </div>
-      )}
+      <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground'>
+        {project && (
+          <span className='inline-flex min-w-0 max-w-full items-center gap-1'>
+            <ProjectGlyph icon={project.icon} className='size-3 shrink-0' />
+            <span className='truncate'>{project.title}</span>
+          </span>
+        )}
+        {project && model && <span aria-hidden='true'>·</span>}
+        {model && <span>{model}</span>}
+        {(project || model) && <span aria-hidden='true'>·</span>}
+        <EnvironmentLine worktree={environment === 'worktree'} checkout={checkout} />
+      </div>
       {owner && (
         <button
           type='button'
@@ -386,7 +382,6 @@ function ThreadHoverPanel({
           {owner.name}
         </button>
       )}
-      <EnvironmentLine worktree={environment === 'worktree'} checkout={checkout} />
       {parent && (
         <Section label='Parent thread'>
           <ThreadLinkRow thread={parent} onOpen={() => onOpenThread(parent.id)} />

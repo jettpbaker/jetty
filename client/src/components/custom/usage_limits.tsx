@@ -428,7 +428,7 @@ export function UsageBanner({
               <Button
                 variant='ghost'
                 size='icon'
-                className='-my-1 -ml-2 self-start'
+                className='-my-1'
                 aria-label='Open Usage'
                 onClick={onOpen}
               />
