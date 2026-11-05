@@ -35,7 +35,9 @@ import {
   SquareArrowTopRightIcon,
   SquareBehindSquare1Icon,
   BrokenChainLink1Icon,
+  PullRequestIcon,
 } from './central_icons'
+import { ContentEmpty } from './content_empty'
 import { MediaLightboxProvider } from './media_lightbox'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { adaptPullRequest } from './pull_request/adapter'
@@ -275,11 +277,9 @@ export function PullRequestUnavailable({
 }) {
   return (
     <div className='flex h-full flex-col items-center justify-center gap-3 p-4 text-center'>
-      <div className='flex flex-col gap-1'>
-        <p className='text-sm'>{title}</p>
-        <p className='text-xs text-muted-foreground'>{detail}</p>
-      </div>
-      <div className='flex items-center gap-1'>{children}</div>
+      <ContentEmpty icon={PullRequestIcon} title={title} description={detail}>
+        <div className='flex items-center gap-1'>{children}</div>
+      </ContentEmpty>
     </div>
   )
 }

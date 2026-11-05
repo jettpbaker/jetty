@@ -45,7 +45,7 @@ type GroupedTableProps<T> = {
   onSelect?: (row: T) => void
   onRowHover?: (row: T | null) => void
   renderRow?: (row: T) => ReactElement
-  empty?: string
+  empty?: ReactNode
 }
 
 /** One observer per table; every row keeps the same tracks, including zero-width ones. */
@@ -228,9 +228,12 @@ export function GroupedTable<T>({
         )
       })}
       {fill > 0 && <div aria-hidden='true' style={{ height: fill }} />}
-      {!groups.some((group) => group.rows.length) && (
-        <p className='p-8 text-center text-sm text-muted-foreground'>{empty}</p>
-      )}
+      {!groups.some((group) => group.rows.length) &&
+        (typeof empty === 'string' ? (
+          <p className='p-8 text-center text-sm text-muted-foreground'>{empty}</p>
+        ) : (
+          empty
+        ))}
     </div>
   )
 }

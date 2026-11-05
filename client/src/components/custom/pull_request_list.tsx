@@ -1,5 +1,6 @@
 import type { PullRequestListItem, PullRequestListTab } from '@jetty/shared/wire'
 
+import { ContentEmpty } from '@/components/custom/content_empty'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
@@ -397,7 +398,25 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 />
               )
             }}
-            empty={pulls.length ? 'No pull requests match these filters.' : 'No pull requests'}
+            empty={
+              <ContentEmpty
+                icon={PullRequestIcon}
+                title={
+                  pulls.length
+                    ? 'No pull requests match these filters'
+                    : tab === 'created'
+                      ? 'No pull requests created by you'
+                      : 'No pull requests'
+                }
+                description={
+                  pulls.length
+                    ? 'Try including more states or repositories.'
+                    : tab === 'created'
+                      ? 'Pull requests you open will show here.'
+                      : 'Pull requests for this view will show here.'
+                }
+              />
+            }
           />
           {list.truncated && (
             <p className='px-4 py-2 text-xs text-muted-foreground'>Showing latest {pulls.length}</p>

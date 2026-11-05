@@ -14,7 +14,9 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } 
 
 import type { FileTarget } from './file_link'
 
+import { FilesIcon } from './central_icons'
 import { ChangesScopePicker } from './changes_scope'
+import { ContentEmpty } from './content_empty'
 import { byTreeOrder } from './diff/model'
 import { diffViewer, primeDiffHighlights } from './diff_worker_pool'
 
@@ -134,12 +136,11 @@ export function ThreadChanges({
         <div className='flex h-9 shrink-0 items-center border-b border-border pl-2'>
           <ChangesScopePicker value={scope} onChange={setScope} />
         </div>
-        <div className='flex flex-1 flex-col items-center justify-center gap-1 p-4 text-center'>
-          <p className='text-sm'>No changes</p>
-          <p className='text-xs text-muted-foreground'>
-            Edits in this thread&apos;s working folder will show here.
-          </p>
-        </div>
+        <ContentEmpty
+          icon={FilesIcon}
+          title='No changes'
+          description="Edits in this thread's working folder will show here."
+        />
         {notShown.length > 0 && <NotShown paths={notShown} />}
       </div>
     )
