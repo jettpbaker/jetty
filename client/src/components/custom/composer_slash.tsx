@@ -715,7 +715,7 @@ export function SlashMenu({ slash }: { slash: Slash }) {
   }, [slash.index, slash.entries.length])
 
   return (
-    <div className='absolute inset-x-0 bottom-full z-50 mb-2 w-full origin-bottom-left overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border animate-(--motion-popup-enter) slide-in-from-bottom-1 fade-in-60 motion-reduce:animate-none'>
+    <div className='absolute bottom-full left-0 z-50 mb-2 w-full max-w-112 origin-bottom-left overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border animate-(--motion-popup-enter) slide-in-from-bottom-1 fade-in-60 motion-reduce:animate-none'>
       <div
         id='slash-menu'
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- preserve the sketchpad's div-based list markup

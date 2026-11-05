@@ -606,11 +606,7 @@ export function ThreadComposer({
         <Empty className='flex-none items-start px-2 pt-6 pb-6 text-left'>
           <EmptyHeader className='max-w-full items-start'>
             <EmptyTitle className='text-2xl font-semibold'>
-              {threadId
-                ? (meta?.title ?? 'Thread')
-                : project?.title
-                  ? `New thread in ${project.title}`
-                  : 'New thread'}
+              {threadId ? (meta?.title ?? 'Thread') : 'New thread'}
             </EmptyTitle>
             {threadId && <EmptyDescription>No messages yet</EmptyDescription>}
           </EmptyHeader>
@@ -767,15 +763,12 @@ export function ThreadComposer({
                   startingRef={startingRef}
                   onStartingRefChange={(ref) => retarget({ ref })}
                 />
-              </div>
-              {setupGuide && (
-                <div className='flex items-center gap-2 px-2 text-xs text-muted-foreground'>
-                  <span>Worktree setup is optional</span>
+                {setupGuide && (
                   <Button variant='ghost-text' size='xs' onClick={() => setUpWorktrees(setupGuide)}>
                     Set up worktrees
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )
         }
