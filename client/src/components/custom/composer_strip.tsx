@@ -645,6 +645,15 @@ export function useQuestion(
   }
   function onKey(event: KeyboardEvent) {
     if (event.defaultPrevented || !spec) return false
+    if (
+      event.key === 'Enter' &&
+      current &&
+      event.target instanceof Element &&
+      event.target.closest('[role="radio"], [role="checkbox"]')
+    ) {
+      next()
+      return true
+    }
     if (event.key === 'Escape') {
       onDismiss()
       return true
@@ -775,7 +784,7 @@ function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
             <span className='text-xs leading-4 text-muted-foreground'>{option.description}</span>
           )}
         </span>
-        {index < 9 && <Kbd>{index + 1}</Kbd>}
+        {index < 9 && <Kbd className='text-foreground'>{index + 1}</Kbd>}
       </>
     )
     return spec.multiSelect ? (

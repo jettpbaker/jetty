@@ -170,7 +170,7 @@ export function Composer({
     <div
       ref={root}
       data-perf-region='composer'
-      className='@container/composer mx-auto flex w-full max-w-[825px] flex-col gap-1'
+      className='@container/composer mx-auto flex w-full max-w-[825px] flex-col gap-1 [&_button:focus-visible]:ring-ring'
     >
       {header}
       <div
