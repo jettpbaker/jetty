@@ -21,6 +21,7 @@ import type { DiffFile } from './model'
 import { FilesIcon, SidebarSimpleLeftWideIcon, SettingsSliderHorIcon } from '../central_icons'
 import { ChangedFilesTree } from '../changed_files_tree'
 import { DiffFileFilter } from './file_filter'
+import { DiffToolbarFrame } from './toolbar_frame'
 
 export function DiffToolbarButton({ className, ...props }: React.ComponentProps<typeof Button>) {
   return (
@@ -66,6 +67,7 @@ export function DiffToolbar({
   onDiffStyleChange,
   toggles,
   children,
+  leading,
   filters,
 }: {
   files: DiffFile[]
@@ -81,10 +83,12 @@ export function DiffToolbar({
   onDiffStyleChange: (style: 'unified' | 'split') => void
   toggles: readonly DiffToggle[]
   children?: ReactNode
+  leading?: ReactNode
   filters?: ReactNode
 }) {
   return (
-    <div className='mr-4 ml-3 flex h-10 shrink-0 items-center gap-2 @max-[720px]:ml-4'>
+    <DiffToolbarFrame>
+      {leading}
       <DiffToolbarButton
         className='@max-[720px]:hidden'
         aria-expanded={pane}
@@ -102,7 +106,7 @@ export function DiffToolbar({
         {filters && (
           <fieldset
             aria-label='Files to show'
-            className='flex h-7 items-center gap-0.5 rounded-sm bg-muted p-0.5 [&>button]:h-6 [&>button]:rounded-sm [&>button[aria-pressed=true]]:bg-background [&>button[aria-pressed=true]]:shadow-xs'
+            className='flex h-7 items-center gap-0.5 rounded-sm bg-muted p-0.5 [&>button]:h-6 [&>button]:rounded-sm [&>button[aria-pressed=true]]:bg-accent [&>button[aria-pressed=true]]:text-foreground'
           >
             {filters}
           </fieldset>
@@ -127,9 +131,9 @@ export function DiffToolbar({
           diffStyle={diffStyle}
           onDiffStyleChange={onDiffStyleChange}
           toggles={toggles}
-        />{' '}
+        />
       </div>
-    </div>
+    </DiffToolbarFrame>
   )
 }
 
