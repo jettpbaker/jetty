@@ -155,20 +155,18 @@ function UsageRow({
     <WindowTip
       usage={usage}
       window={window}
-      className='col-span-full grid grid-cols-subgrid items-center gap-y-1'
+      className={cn(
+        'col-span-full grid grid-cols-subgrid items-center gap-y-1',
+        !compact && 'min-h-12'
+      )}
     >
       <span className='truncate text-xs text-muted-foreground'>{window.label}</span>
       <UsageBar window={window} className={compact ? 'h-0.75' : 'h-1'} />
       <span
         className={cn('text-right text-xs', left <= 10 ? 'text-destructive' : 'text-foreground')}
       >
-        <span className='font-mono tabular-nums'>{100 - left}%</span> used
-        {!compact && (
-          <span className='text-muted-foreground'>
-            {' '}
-            · <span className='font-mono tabular-nums'>{left}%</span> left
-          </span>
-        )}
+        <span className='font-mono tabular-nums'>{100 - left}%</span>
+        <span className={compact ? undefined : 'sr-only'}> used</span>
       </span>
       <span
         className={cn(
@@ -178,7 +176,7 @@ function UsageRow({
       >
         {reset && (
           <>
-            <span>Resets in</span>
+            <span className={compact ? undefined : 'sr-only'}>Resets in</span>
             <Mono>{reset}</Mono>
           </>
         )}
@@ -193,7 +191,7 @@ function UsageRow({
 function windowsGrid(compact: boolean) {
   return compact
     ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_9.5rem_7.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_9.5rem_6.5rem] @max-md:gap-x-3'
+    : 'grid-cols-[minmax(0,7rem)_minmax(0,1fr)_3.5rem_7.5rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3rem_6rem] @max-md:gap-x-3'
 }
 
 // Why a provider shows no windows, when it doesn't.
@@ -217,6 +215,17 @@ function UsageWindows({
   if (missing) return <p className='text-xs text-muted-foreground'>{missing}</p>
   return (
     <div data-usage-provider={usage.provider} className={cn('grid', windowsGrid(compact))}>
+      {!compact && (
+        <div
+          aria-hidden='true'
+          className='col-span-full grid grid-cols-subgrid pb-1 text-xs text-muted-foreground'
+        >
+          <span>Window</span>
+          <span>Usage</span>
+          <span className='text-right'>Used</span>
+          <span className='text-right'>Resets in</span>
+        </div>
+      )}
       {usage.windows.map((window) => (
         <UsageRow key={window.id} usage={usage} window={window} now={now} compact={compact} />
       ))}
@@ -310,7 +319,7 @@ export function UsagePage({
               >
                 <div className='flex items-center gap-2 text-muted-foreground'>
                   <ProviderGlyph provider={provider} className='size-4' />
-                  <h2 id={`usage-${provider}`} className='text-sm font-medium'>
+                  <h2 id={`usage-${provider}`} className='text-sm font-semibold text-foreground'>
                     {providerNames[provider]}
                   </h2>
                   {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
