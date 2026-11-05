@@ -200,7 +200,7 @@ export function Composer({
             {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
             <InputGroup
               className={cn(
-                'relative w-full max-w-[825px] border-0 bg-popover dark:bg-popover',
+                'relative w-full max-w-[825px] border-border bg-popover dark:border-0 dark:bg-popover',
                 strip && !requestId && 'rounded-t-none',
                 // Over a wallpaper the ambient shadow does the lifting.
                 ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
