@@ -95,7 +95,7 @@ export function StatusGlyph({
   const { icon: Icon, label, color } = statusPresentation[status]
   return (
     <span
-      className={cn('flex size-3.5 shrink-0 items-center justify-center', color, className)}
+      className={cn('flex size-4 shrink-0 items-center justify-center', color, className)}
       title={label}
     >
       {idleDot && status === 'idle' ? (

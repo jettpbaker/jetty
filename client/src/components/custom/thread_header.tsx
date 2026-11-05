@@ -2,7 +2,14 @@ import { ArrowOutOfBoxIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
-import { useOpenPullRequest, useProject, useThreadMeta } from '@/state'
+import {
+  useContinuing,
+  useOpenPullRequest,
+  useProject,
+  useThreadMeta,
+  useThreadStructure,
+} from '@/state'
+import { heldByRestarts } from '@jetty/shared/items'
 
 import { BotTabStrip } from './bot_tab_strip'
 import { environments } from './composer_environment'
@@ -10,6 +17,16 @@ import './thread_header.css'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { linkPresentation } from './thread_pull_request'
 import { StatusGlyph, threadStatus } from './thread_status'
+
+function ErrorThreadStatus({ threadId }: { threadId: string }) {
+  const thread = useThreadStructure(threadId)
+  const continuing = useContinuing(threadId)
+  return (
+    <StatusGlyph
+      status={continuing ? 'working' : thread && heldByRestarts(thread.items) ? 'stopped' : 'error'}
+    />
+  )
+}
 
 export function ThreadHeader({
   onUnarchive,
@@ -48,9 +65,13 @@ export function ThreadHeader({
       <PageSidebarTrigger />
       {meta && (
         <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <StatusGlyph
-            status={meta.archived ? 'archived' : threadStatus(meta.status, meta.readyForReview)}
-          />
+          {meta.status === 'error' && !meta.archived ? (
+            <ErrorThreadStatus threadId={threadId} />
+          ) : (
+            <StatusGlyph
+              status={meta.archived ? 'archived' : threadStatus(meta.status, meta.readyForReview)}
+            />
+          )}
           <h1 className='truncate text-sm font-medium' title={meta.title}>
             {meta.title}
           </h1>
