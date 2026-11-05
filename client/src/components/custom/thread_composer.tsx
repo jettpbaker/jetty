@@ -271,7 +271,8 @@ export function ThreadComposer({
   // Text keeps the intent it was started with: a request that shows up mid-message, or just
   // before it, leaves Enter queueing or sending it rather than answering the request.
   const typed = draft.trim() !== ''
-  const answering = Boolean(item) && (!typed || saved.typedFor === item?.id)
+  const answering =
+    Boolean(item && item.kind !== 'question') && (!typed || saved.typedFor === item?.id)
   function setDraft(text: string) {
     if (typed || !text.trim()) return update({ text })
     const noticed = item && performance.now() - shown.current.at >= noticeMs
@@ -326,6 +327,7 @@ export function ThreadComposer({
     keepKeyboardFocus
   )
   const input = useRef<HTMLTextAreaElement>(null)
+  const questionInput = useRef<HTMLTextAreaElement>(null)
   const modelMenuRef = useRef<(() => void) | null>(null)
   const focusEdit = useRef(false)
 
@@ -514,6 +516,7 @@ export function ThreadComposer({
             strip: (
               <QuestionStrip
                 ctl={question}
+                inputRef={questionInput}
                 item={item}
                 followUp={followUp}
                 header={header}
@@ -571,7 +574,7 @@ export function ThreadComposer({
                   : running
                     ? 'Queue a follow-up while the agent works'
                     : ambient
-                      ? 'What should this thread change? · / for commands'
+                      ? 'Describe a task or ask a question · / for commands'
                       : 'Ask for follow-up changes · / for commands',
           sendLabel: editingEntry
             ? 'Save'
@@ -622,7 +625,7 @@ export function ThreadComposer({
           <fieldset
             className='overflow-hidden rounded-md border border-status-attention/40'
             onKeyDownCapture={(event) => {
-              if (!event.nativeEvent.isComposing) mode.onKeyDown(event.nativeEvent)
+              if (!event.nativeEvent.isComposing) answer?.onKeyDown(event.nativeEvent)
             }}
           >
             <legend className='sr-only'>
@@ -844,9 +847,16 @@ export function ThreadComposer({
             />
           )
         }
-        rows={hasQueue || item ? 1 : rows}
+        rows={hasQueue ? 1 : rows}
         ambient={ambient}
         inputRef={input}
+        onTypeToFocus={(key) => {
+          if (item?.kind !== 'question' || typed || editingEntry || !requestTarget) return false
+          if (threadId) revealRequest(threadId, item.id)
+          question.write(question.custom + key)
+          questionInput.current?.focus({ preventScroll: true })
+          return true
+        }}
         slash={{ threadId, projectId: projectId ?? meta?.projectId, onUsage: showUsage }}
       />
     </div>

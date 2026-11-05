@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Kbd } from '@/components/ui/kbd'
+import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
@@ -37,6 +38,7 @@ import {
   type ComponentProps,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 
 import type { Approval, Question, Secret, Source } from './composer_strip_model'
@@ -338,7 +340,7 @@ function ApprovalActions({
 }) {
   if (ctl.confirming)
     return (
-      <div className='flex shrink-0 items-center gap-2'>
+      <div className='flex items-center justify-end gap-2 pt-1'>
         <StripButton variant='ghost-text' onClick={() => ctl.setConfirming(false)}>
           Cancel
         </StripButton>
@@ -346,8 +348,8 @@ function ApprovalActions({
       </div>
     )
   return (
-    <div className='flex shrink-0 items-center gap-2'>
-      <StripButton variant='outline' onClick={ctl.deny} aria-keyshortcuts='Escape'>
+    <div className='flex items-center justify-between gap-2 pt-1'>
+      <StripButton variant='ghost' onClick={ctl.deny} aria-keyshortcuts='Escape'>
         {typed ? 'Deny with note' : 'Deny'}
         <KeybindChip binding={keybinds.denyApproval} />
       </StripButton>
@@ -407,7 +409,7 @@ function ProposedDiff(props: ComponentProps<typeof import('./proposed_diff').Pro
 
 function FullTarget({ item }: { item: Approval }) {
   const className =
-    'scrollbar-subtle flex max-h-28 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'
+    'scrollbar-subtle flex max-h-40 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a long command scrolls; keyboard users need access to the entire request
     <pre tabIndex={0} className={className}>
@@ -525,7 +527,6 @@ export function ApprovalStrip({
             )}
           </span>
         )}
-        <ApprovalActions ctl={ctl} typed={typed} run={item.run} />
       </div>
       {item.run && <FullTarget item={item} />}
       {ctl.expanded &&
@@ -538,6 +539,7 @@ export function ApprovalStrip({
         ) : (
           <FullTarget item={item} />
         ))}
+      <ApprovalActions ctl={ctl} typed={typed} run={item.run} />
       {followUp && <FollowUpNote />}
     </FlushShell>
   )
@@ -561,19 +563,18 @@ export function useQuestion(
   dismiss: (item: Question, progress: QuestionProgress) => void,
   keepFocus: () => void
 ) {
-  const draft = saved.text
   const progress = item && (saved.questions?.[item.id] ?? freshProgress(item))
   const step = progress?.step ?? 0
   const spec = item?.questions[step]
   const total = item?.questions.length ?? 0
   const last = step === total - 1
 
-  function save(next: QuestionProgress | undefined, text?: string) {
+  function save(next: QuestionProgress | undefined) {
     if (!item) return
     const questions = { ...saved.questions }
     if (next) questions[item.id] = next
     else delete questions[item.id]
-    update(text === undefined ? { questions } : { questions, text })
+    update({ questions })
   }
 
   function answerAt(state: QuestionProgress, index: number) {
@@ -583,9 +584,12 @@ export function useQuestion(
       ? [...picks, typed].filter(Boolean).join(', ')
       : typed || picks.join(', ')
   }
-  const current = progress
-    ? answerAt({ ...progress, custom: progress.custom.with(step, draft) }, step)
-    : ''
+  const custom = progress?.custom[step] ?? ''
+  const current = progress ? answerAt(progress, step) : ''
+
+  function write(text: string) {
+    if (progress) save({ ...progress, custom: progress.custom.with(step, text) })
+  }
 
   function pick(label: string) {
     if (!progress || !spec) return
@@ -599,8 +603,7 @@ export function useQuestion(
   }
   function go(to: number) {
     if (!progress || to < 0 || to >= total || to === step) return
-    const custom = progress.custom.with(step, draft)
-    save({ ...progress, step: to, custom }, custom[to] ?? '')
+    save({ ...progress, step: to })
   }
   // Moves past this question, or once it's the last, sends what was answered. Skipped questions
   // are left out of the answers; skipping them all dismisses the set.
@@ -611,11 +614,11 @@ export function useQuestion(
     )
     const to = last ? open : step + 1
     if (to !== -1) {
-      save({ ...state, step: to }, state.custom[to] ?? '')
+      save({ ...state, step: to })
       return
     }
     keepFocus()
-    save(undefined, '')
+    save(undefined)
     const answers = Object.fromEntries(
       item.questions.flatMap((question, index) => {
         const value = answerAt(state, index)
@@ -627,7 +630,7 @@ export function useQuestion(
   }
   function next() {
     if (!progress || !current) return
-    advance({ ...progress, custom: progress.custom.with(step, draft) })
+    advance(progress)
   }
   function skip() {
     if (!item || !progress) return
@@ -641,8 +644,8 @@ export function useQuestion(
   function onDismiss() {
     if (!item || !progress) return
     keepFocus()
-    save(undefined, '')
-    dismiss(item, { ...progress, custom: progress.custom.with(step, draft) })
+    save(undefined)
+    dismiss(item, progress)
   }
   function onKey(event: KeyboardEvent) {
     if (event.defaultPrevented || !spec) return false
@@ -671,6 +674,8 @@ export function useQuestion(
     last,
     picks: progress?.picks[step] ?? [],
     answer: current,
+    custom,
+    write,
     pick,
     go,
     next,
@@ -688,12 +693,14 @@ function FollowUpNote() {
 
 export function QuestionStrip({
   ctl,
+  inputRef,
   item,
   followUp,
   header,
   hideSource,
 }: {
   ctl: QuestionControl
+  inputRef: RefObject<HTMLTextAreaElement | null>
   item: Question
   followUp?: boolean
   header?: ReactNode
@@ -739,8 +746,27 @@ export function QuestionStrip({
         </div>
       </div>
       {spec.options.length > 0 && <QuestionOptions ctl={ctl} />}
+      <Textarea
+        ref={inputRef}
+        aria-label='Custom answer'
+        placeholder={spec.options.length ? 'Write another answer' : 'Write your answer'}
+        value={ctl.custom}
+        onChange={(event) => ctl.write(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+          event.preventDefault()
+          ctl.next()
+        }}
+        rows={1}
+        className='scrollbar-subtle mt-2 max-h-40 min-h-9 resize-none overflow-y-auto'
+      />
       <div className='flex items-center justify-end gap-2 pt-2'>
-        <Button size='sm' disabled={!ctl.answer} onClick={ctl.next}>
+        <Button
+          size='sm'
+          disabled={!ctl.answer}
+          className='disabled:bg-foreground/8 disabled:text-muted-foreground disabled:opacity-100'
+          onClick={ctl.next}
+        >
           {!ctl.answer
             ? spec.options.length
               ? 'Select an answer'

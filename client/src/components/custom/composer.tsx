@@ -30,7 +30,6 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
-  useState,
   type CSSProperties,
   type ReactNode,
   type RefObject,
@@ -50,7 +49,7 @@ export function Composer({
   strip,
   requestId,
   reply,
-  placeholder = 'What should this thread change? · / for commands',
+  placeholder = 'Describe a task or ask a question · / for commands',
   sendLabel = 'Send',
   sendDisabled,
   sendHint,
@@ -65,6 +64,7 @@ export function Composer({
   rows = 2,
   ambient = false,
   inputRef,
+  onTypeToFocus,
   slash,
 }: {
   value: string
@@ -99,6 +99,7 @@ export function Composer({
   rows?: number
   ambient?: boolean
   inputRef?: RefObject<HTMLTextAreaElement | null>
+  onTypeToFocus?: (key: string) => boolean
   // Where the / menu's skills and model come from.
   slash?: SlashScope
 }) {
@@ -119,12 +120,11 @@ export function Composer({
   const stopping = stop || (running && empty)
   // Deny with note, Submit and a queued follow-up stay reachable while Stop is up.
   const offerSend = !stopping || (Boolean(stop) && canSend)
-  const [expandedRequest, setExpandedRequest] = useState<string>()
-  const compact = Boolean(requestId && expandedRequest !== requestId && empty && !canSend)
   const { field } = menu
 
   useLayoutEffect(() => perf.rendered('app.launch'), [])
 
+  const typeToFocus = useEffectEvent((key: string) => onTypeToFocus?.(key))
   const append = useEffectEvent((key: string) => onValueChange(value + key))
   const handleKey = useEffectEvent((event: KeyboardEvent) => onKeyDown?.(event))
 
@@ -165,6 +165,7 @@ export function Composer({
       const input = textarea.current
       if (!input) return
       event.preventDefault()
+      if (typeToFocus(event.key)) return
       append(event.key)
       input.focus({ preventScroll: true })
       requestAnimationFrame(() => input.setSelectionRange(input.value.length, input.value.length))
@@ -229,10 +230,7 @@ export function Composer({
                   aria-label='Thread prompt'
                   spellCheck={false}
                   {...menu.input}
-                  onFocus={() => {
-                    if (requestId) setExpandedRequest(requestId)
-                    menu.input.onFocus()
-                  }}
+                  onFocus={menu.input.onFocus}
                   placeholder={placeholder}
                   onPaste={attachments.paste}
                   onKeyDown={(event) => {
@@ -254,10 +252,7 @@ export function Composer({
                 />
                 {menu.open && <SlashMenu slash={menu} />}
               </div>
-              <InputGroupAddon
-                align='block-end'
-                className={cn('items-end justify-between', compact && 'hidden')}
-              >
+              <InputGroupAddon align='block-end' className='items-end justify-between'>
                 <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 group-data-narrow/composer:gap-x-1'>
                   <ComposerAttach
                     onAttach={attachments.add}
