@@ -19,3 +19,22 @@
   animation: none;
   scroll-padding-block: 12px;
 }
+
+.sidebar-thread-scroll-edge::before,
+.sidebar-thread-scroll-edge::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.sidebar-thread-scroll-edge::before {
+  top: 0;
+  height: 8px;
+  background: linear-gradient(to bottom, var(--sidebar), transparent);
+}
+.sidebar-thread-scroll-edge::after {
+  bottom: 0;
+  height: 16px;
+  background: linear-gradient(to top, var(--sidebar), transparent);
+}

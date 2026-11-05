@@ -212,7 +212,7 @@ function UsageRow({
             <Button
               variant='ghost-text'
               size='xs'
-              className='-my-1'
+              className='-my-1 -ml-2 self-start'
               aria-label={`Manage ${providerNames[usage.provider]} models`}
               render={<Link to='/settings/$page' params={{ page: 'models' }} />}
             >
@@ -428,7 +428,7 @@ export function UsageBanner({
               <Button
                 variant='ghost'
                 size='icon'
-                className='-my-1'
+                className='-my-1 -ml-2 self-start'
                 aria-label='Open Usage'
                 onClick={onOpen}
               />
