@@ -326,8 +326,16 @@ export function ThreadComposer({
   const modelMenuRef = useRef<(() => void) | null>(null)
   const focusEdit = useRef(false)
 
-  useLayoutEffect(() => {
-    if (!threadId) input.current?.focus({ preventScroll: true })
+  // Focusability reads layout, so wait for font metrics before focusing a new prompt.
+  useEffect(() => {
+    if (threadId) return
+    let active = true
+    void document.fonts.ready.then(() => {
+      if (active) input.current?.focus({ preventScroll: true })
+    })
+    return () => {
+      active = false
+    }
   }, [threadId])
 
   // The Edit button unmounts as its row turns into "Editing"; the loaded draft takes focus.
