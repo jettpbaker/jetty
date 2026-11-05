@@ -99,7 +99,7 @@ export function DiffToolbar({
   filters?: ReactNode
 }) {
   return (
-    <div className='mr-4 ml-3 flex h-7 shrink-0 items-center gap-2 @max-[720px]:ml-4'>
+    <div className='mr-4 ml-3 flex h-10 shrink-0 items-center gap-2 @max-[720px]:ml-4'>
       <DiffToolbarButton
         className='@max-[720px]:hidden'
         aria-expanded={pane}

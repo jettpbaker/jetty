@@ -2207,72 +2207,83 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                 data-perf-region='pr-panel'
                 className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
               >
-                <div className='flex h-(--app-tab-bar-height) shrink-0 items-center justify-between border-b border-border px-4'>
+                <div className='flex shrink-0 flex-wrap items-center gap-x-3 border-b border-border px-4'>
                   {sidebar}
-                  <nav aria-label='Pull request view' className='flex gap-1'>
-                    {(
-                      [
-                        ['overview', 'Overview', 'Overview · 1'],
-                        ['diff', 'Diff', 'Diff · 2'],
-                        ['guide', 'Guide', guideReason ?? 'Guide · 3'],
-                      ] as const
-                    )
-                      .filter(([value]) => value !== 'guide' || guidesOn)
-                      .map(([value, label, hint]) => (
-                        <DisabledTooltip
-                          key={value}
-                          reason={hint}
-                          wrap={value === 'guide' && guideReason ? 'inline-flex' : undefined}
-                        >
-                          <Button
-                            variant='ghost'
-                            tone='muted'
-                            size='sm'
-                            aria-pressed={tab === value}
-                            disabled={value === 'guide' && !!guideReason}
-                            aria-description={value === 'guide' ? guideReason : undefined}
-                            className='rounded-sm font-normal aria-pressed:bg-accent'
-                            {...pressProps(() => {
-                              if (value === 'diff') perf.start('pr.diff')
-                              setTab(value)
-                            })}
+                  <div
+                    className='flex min-h-(--app-tab-bar-height) min-w-0 flex-1 basis-full items-center gap-2 @min-[800px]:max-w-80 @min-[800px]:basis-0'
+                    title={`${repoPath(pr)}#${pr.number} · ${pr.title}`}
+                  >
+                    <span className='shrink-0 font-mono text-xs text-muted-foreground'>
+                      <span className='sr-only'>{repoPath(pr)} </span>#{pr.number}
+                    </span>
+                    <span className='truncate text-sm font-medium'>{pr.title}</span>
+                  </div>
+                  <div className='flex min-h-(--app-tab-bar-height) min-w-0 flex-1 basis-full items-center justify-between gap-2 @min-[800px]:basis-0'>
+                    <nav aria-label='Pull request view' className='flex gap-1'>
+                      {(
+                        [
+                          ['overview', 'Overview', 'Overview · 1'],
+                          ['diff', 'Diff', 'Diff · 2'],
+                          ['guide', 'Guide', guideReason ?? 'Guide · 3'],
+                        ] as const
+                      )
+                        .filter(([value]) => value !== 'guide' || guidesOn)
+                        .map(([value, label, hint]) => (
+                          <DisabledTooltip
+                            key={value}
+                            reason={hint}
+                            wrap={value === 'guide' && guideReason ? 'inline-flex' : undefined}
                           >
-                            {label}
-                          </Button>
-                        </DisabledTooltip>
-                      ))}
-                  </nav>
-                  <div className='ml-auto flex items-center gap-1'>
-                    {tab === 'guide' && guide.state?.guide && (
-                      <DiffDisplayOptions
-                        trigger={
-                          <Button
-                            variant='ghost'
-                            tone='muted'
-                            size='icon'
-                            aria-label='Diff display options'
-                          />
-                        }
-                        diffStyle={diffStyle}
-                        onDiffStyleChange={setDiffStyle}
-                        toggles={[
-                          ['Hide generated', hideGenerated, setHideGenerated],
-                          ['Wrap lines', wrap, setWrapChoice],
-                        ]}
-                      />
-                    )}
-                    {status}
-                    {tab !== 'overview' &&
-                      (pr.state === 'draft' ? (
-                        <ReadyForReview pr={pr} onReady={() => setState('open')} />
-                      ) : pr.state === 'open' ? (
-                        <MergeButton
-                          pr={pr}
-                          reason={reason}
-                          onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
+                            <Button
+                              variant='ghost'
+                              tone='muted'
+                              size='sm'
+                              aria-pressed={tab === value}
+                              disabled={value === 'guide' && !!guideReason}
+                              aria-description={value === 'guide' ? guideReason : undefined}
+                              className='rounded-sm font-normal aria-pressed:bg-accent'
+                              {...pressProps(() => {
+                                if (value === 'diff') perf.start('pr.diff')
+                                setTab(value)
+                              })}
+                            >
+                              {label}
+                            </Button>
+                          </DisabledTooltip>
+                        ))}
+                    </nav>
+                    <div className='ml-auto flex items-center gap-1'>
+                      {tab === 'guide' && guide.state?.guide && (
+                        <DiffDisplayOptions
+                          trigger={
+                            <Button
+                              variant='ghost'
+                              tone='muted'
+                              size='icon'
+                              aria-label='Diff display options'
+                            />
+                          }
+                          diffStyle={diffStyle}
+                          onDiffStyleChange={setDiffStyle}
+                          toggles={[
+                            ['Hide generated', hideGenerated, setHideGenerated],
+                            ['Wrap lines', wrap, setWrapChoice],
+                          ]}
                         />
-                      ) : null)}
-                    {more}
+                      )}
+                      {status}
+                      {tab !== 'overview' &&
+                        (pr.state === 'draft' ? (
+                          <ReadyForReview pr={pr} onReady={() => setState('open')} />
+                        ) : pr.state === 'open' ? (
+                          <MergeButton
+                            pr={pr}
+                            reason={reason}
+                            onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
+                          />
+                        ) : null)}
+                      {more}
+                    </div>
                   </div>
                 </div>
                 {
