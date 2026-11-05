@@ -570,7 +570,7 @@ export function ThreadComposer({
 
   return (
     <div className='mx-auto w-full max-w-[873px] px-6 pb-1'>
-      {worktree && setupNotice && (
+      {worktree && setupNotice && (!settingUp || !hasQueue) && (
         <div
           role={worktree.state === 'failed' ? 'alert' : 'status'}
           className='flex items-center gap-2 pb-2 text-sm'

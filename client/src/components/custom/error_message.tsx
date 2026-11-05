@@ -64,7 +64,7 @@ export function ErrorMessage({
   }
   return (
     <Message align='start'>
-      <MessageContent className='flex-row items-start gap-2 rounded-sm bg-status-error-wash p-3'>
+      <MessageContent className='flex-row items-start gap-2 rounded-sm bg-(--status-error-wash) p-3'>
         <StatusGlyph status='error' className='mt-1' />
         <div className='flex min-w-0 flex-1 flex-col gap-2'>
           <p className='text-sm text-foreground'>{message}</p>
