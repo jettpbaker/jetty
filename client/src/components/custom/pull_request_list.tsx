@@ -142,6 +142,13 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const repos = [...new Set(pulls.map((pull) => pull.repo))].toSorted((a, b) =>
     repoName(a).localeCompare(repoName(b))
   )
+  const visibleRepos = repos.filter((repo) => !hiddenRepos.includes(repo))
+  const repositoryScope =
+    visibleRepos.length === 1
+      ? visibleRepos[0]
+      : hiddenRepos.length
+        ? `${visibleRepos.length} repositories`
+        : 'All repositories'
   const rows = pulls
     .filter(
       (pull) =>
@@ -163,7 +170,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               id: group,
               label: pullRequestReadinessLabel[group],
               rows: rows.filter((pull) => pullRequestListGroup(pull) === group),
-              defaultCollapsed: group === 'closed' || group === 'merged',
+              defaultCollapsed: group === 'closed' || (group === 'merged' && pulls.length >= 8),
             }))
             .filter((group) => group.rows.length)
         : pullRequestGroupOrder
@@ -171,7 +178,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               id: group,
               label: pullRequestGroupLabel[group],
               rows: rows.filter((pull) => pull.state === group),
-              defaultCollapsed: group === 'closed' || group === 'merged',
+              defaultCollapsed: group === 'closed' || (group === 'merged' && pulls.length >= 8),
             }))
             .filter((group) => group.rows.length)
   const singleRepo = new Set(rows.map((pull) => pull.repo)).size === 1
@@ -303,14 +310,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               </Button>
             ))}
           </nav>
-          {singleRepo && (
-            <span
-              className='hidden truncate text-xs text-muted-foreground @lg:inline'
-              title={rows[0]?.repo}
-            >
-              {rows[0]?.repo}
-            </span>
-          )}
         </div>
         <div className='flex items-center gap-1'>
           {failure && list.items && (
@@ -385,8 +384,8 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           />
         </div>
       </header>
-      <div className='flex shrink-0 items-center px-4 pt-3'>
-        <InputGroup className='h-8 w-64 max-w-full'>
+      <div className='pull-request-list-tools flex shrink-0 items-center gap-4'>
+        <InputGroup className='h-8 w-72 max-w-full border-0 bg-transparent shadow-none'>
           <InputGroupAddon>
             <MagnifyingGlass2Icon aria-hidden='true' />
           </InputGroupAddon>
@@ -416,6 +415,9 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             </InputGroupAddon>
           )}
         </InputGroup>
+        <span className='ml-auto min-w-0 truncate text-xs text-muted-foreground'>
+          {repositoryScope}
+        </span>
       </div>
       {list?.items ? (
         <>
@@ -484,7 +486,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                   </Button>
                 ) : tab === 'created' ? (
                   <Button variant='outline' size='sm' onClick={() => onTabChange('for-you')}>
-                    View For you
+                    Show pull requests for you
                   </Button>
                 ) : null}
               </ContentEmpty>
