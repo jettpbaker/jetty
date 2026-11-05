@@ -580,6 +580,9 @@ views.push(
       )
       await waitFor(page, `document.querySelector('[data-sonner-toast]')`, 'undo toast')
     },
+    async cleanup({ rpc, ids }) {
+      await rpc.request('thread.archive', { threadId: ids.toast!, archived: false })
+    },
   },
   {
     area: 'Overlays',
