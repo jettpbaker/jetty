@@ -399,12 +399,11 @@ function ProposedDiff(props: ComponentProps<typeof import('./proposed_diff').Pro
 }
 
 function FullTarget({ item }: { item: Approval }) {
+  const className =
+    'scrollbar-subtle flex max-h-28 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a long command scrolls; keyboard users need access to the entire request
-    <pre
-      tabIndex={0}
-      className='scrollbar-subtle flex max-h-28 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'
-    >
+    <pre tabIndex={0} className={className}>
       <span className='whitespace-pre-wrap wrap-anywhere'>
         {item.run && <span className='text-muted-foreground select-none'>$ </span>}
         {item.target}
