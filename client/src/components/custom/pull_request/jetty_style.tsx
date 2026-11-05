@@ -25,7 +25,7 @@ import { markdownText } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
 import { prPresentation } from '@/components/custom/thread_pull_request'
-import { quietStatus, StatusGlyph, threadStatus } from '@/components/custom/thread_status'
+import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -830,15 +830,7 @@ function Properties({ pr }: { pr: PrPull }) {
               status={threadStatus(thread.status, thread.readyForReview)}
               className='mt-0.5 size-4 shrink-0'
             />
-            <span
-              className={cn(
-                'line-clamp-2',
-                quietStatus(threadStatus(thread.status, thread.readyForReview)) &&
-                  'text-muted-foreground'
-              )}
-            >
-              {thread.title}
-            </span>
+            <span className='line-clamp-2 text-foreground'>{thread.title}</span>
           </Button>
         ))}
       </div>
@@ -848,7 +840,12 @@ function Properties({ pr }: { pr: PrPull }) {
   }
   return (
     <dl className='flex w-full flex-wrap gap-x-6 gap-y-3 @min-[1000px]:flex-nowrap @min-[1000px]:flex-col @min-[1000px]:gap-5'>
-      {[...propertyRows, ...(threads.length ? ['Thread'] : [])].map((label) => (
+      {[
+        ...propertyRows.filter(
+          (label) => label !== 'Checks' || !['open', 'draft'].includes(pr.state)
+        ),
+        ...(threads.length ? ['Thread'] : []),
+      ].map((label) => (
         <div key={label} className='flex min-w-0 max-w-full flex-col gap-1 @min-[1000px]:w-full'>
           <dt className='text-xs text-muted-foreground'>{label}</dt>
           <dd className='min-w-0 text-sm'>{values[label]}</dd>
@@ -1030,7 +1027,7 @@ function Activity({ pr }: { pr: PrPull }) {
                   className='size-5'
                 />
                 <span>{personName(review.author)}</span>
-                <Ago at={review.submittedAt} raised />
+                <Ago at={review.submittedAt} />
                 <ReviewTag state={review.state} />
                 {review.body.trim() && <span className='ml-auto'>{quoteReply(review.body)}</span>}
               </div>
@@ -1086,13 +1083,35 @@ function Activity({ pr }: { pr: PrPull }) {
   )
 }
 function ActivityThreads({ threads, author }: { threads: PrThread[]; author?: PrUser }) {
+  const open = threads
+    .filter((thread) => !thread.resolved)
+    .toSorted((a, b) => a.path.localeCompare(b.path))
+  const resolved = threads
+    .filter((thread) => thread.resolved)
+    .toSorted((a, b) => a.path.localeCompare(b.path))
   return (
     <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
-      {threads
-        .toSorted((a, b) => Number(a.resolved) - Number(b.resolved) || a.path.localeCompare(b.path))
-        .map((thread) => (
-          <ActivityThread key={thread.id} thread={thread} author={author} />
-        ))}
+      {open.map((thread) => (
+        <ActivityThread key={thread.id} thread={thread} author={author} />
+      ))}
+      {resolved.length > 0 && (
+        <Collapsible>
+          <CollapsibleTrigger
+            render={<Button variant='ghost-text' size='sm' />}
+            className='group/resolved h-8 w-full justify-start rounded-none px-3 text-xs font-normal'
+          >
+            <ChevronRightSmallIcon className='group-aria-expanded/resolved:rotate-90' />
+            {countLabel(resolved.length, 'resolved discussion')}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
+              {resolved.map((thread) => (
+                <ActivityThread key={thread.id} thread={thread} author={author} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   )
 }
@@ -1723,7 +1742,6 @@ const mergeMethodOptions: { method: PrMergeMethod; label: string; description: s
   },
 ]
 // Merging wears the open-PR green, as on GitHub; dark text, as on Jetty's lilac primary.
-const mergeTone = 'bg-pr-open not-disabled:hover:bg-pr-open/80 aria-expanded:bg-pr-open/80'
 
 // GitHub's split merge button: it merges by the picked method, and its caret, there when the repo
 // allows more than one, picks another. A blocked merge dims both halves, but the caret still picks.
@@ -1773,7 +1791,6 @@ function MergeButton({
   // Quiet while GitHub still allows the merge and some checks are in progress.
   const pending = !reason && runningCount > 0
   const variant = pending || reason ? 'outline' : 'default'
-  const tone = pending || reason ? '' : mergeTone
   function runMerge(chosen: PrMergeMethod) {
     if (merging) return
     setMerging(true)
@@ -1787,7 +1804,7 @@ function MergeButton({
     <Button
       variant={variant}
       size='sm'
-      className={cn('rounded-sm', edge, tone, merging && 'pointer-events-none')}
+      className={cn('rounded-sm', edge, merging && 'pointer-events-none')}
       aria-busy={merging}
       onClick={() => runMerge(current.method)}
     >
@@ -1843,7 +1860,6 @@ function MergeButton({
               size='icon-sm'
               className={cn(
                 'rounded-sm rounded-l-none border-l-0',
-                tone,
                 reason && 'opacity-50',
                 merging && 'pointer-events-none'
               )}
@@ -1882,6 +1898,78 @@ function MergeButton({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  )
+}
+
+function ReadyForReview({ pr, onReady }: { pr: PrPull; onReady: () => void }) {
+  const reason = !editable(pr)
+    ? `Only ${personName(pr.author)} can mark this pull request ready`
+    : undefined
+  return (
+    <DisabledTooltip reason={reason} wrap='inline-flex self-start'>
+      <Button size='sm' disabled={!!reason} onClick={onReady}>
+        Ready for review
+      </Button>
+    </DisabledTooltip>
+  )
+}
+
+function MergeDecision({
+  pr,
+  reason,
+  onReady,
+  onMerge,
+  onShowDiff,
+}: {
+  pr: PrPull
+  reason: string
+  onReady: () => void
+  onMerge: (method: PrMergeMethod) => Promise<boolean>
+  onShowDiff: () => void
+}) {
+  const { threads } = usePrRuntime()
+  const conflict = reason === 'Resolve merge conflicts first'
+  return (
+    <section
+      aria-label='Merge pull request'
+      className='flex flex-col gap-3 rounded-md border border-border p-3'
+    >
+      <div className='text-13'>
+        <ChecksPill pr={pr} />
+      </div>
+      {pr.state === 'draft' ? (
+        <>
+          <p className='text-xs text-muted-foreground'>
+            Mark this draft ready to request a review.
+          </p>
+          <ReadyForReview pr={pr} onReady={onReady} />
+        </>
+      ) : (
+        <>
+          <p className={cn('text-xs', conflict ? 'text-destructive' : 'text-muted-foreground')}>
+            {conflict
+              ? `This branch has conflicts with ${pr.base}`
+              : reason || 'This branch can be merged into the base branch.'}
+          </p>
+          <MergeButton pr={pr} reason={reason} onMerge={onMerge} />
+          {reason && threads[0] && (
+            <Button
+              variant='outline'
+              size='sm'
+              nativeButton={false}
+              render={<Link to='/threads/$threadId' params={{ threadId: threads[0].id }} />}
+            >
+              {conflict ? 'Open thread to resolve' : 'Open linked thread'}
+            </Button>
+          )}
+          {reason && (
+            <Button variant='ghost-text' size='xs' className='self-start' onClick={onShowDiff}>
+              View diff
+            </Button>
+          )}
+        </>
+      )}
+    </section>
   )
 }
 
@@ -1946,7 +2034,7 @@ function GuidePane({
 
 export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const pr = original
-  const { actions, ref, status, more, sidebar, threads } = usePrRuntime()
+  const { actions, ref, status, more, sidebar } = usePrRuntime()
   useNow(60_000)
   const setState = (state: PrPull['state']) => {
     if (state !== 'merged') void actions.state(state)
@@ -2174,22 +2262,16 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       />
                     )}
                     {status}
-                    {pr.state === 'draft' ? (
-                      <Button
-                        size='sm'
-                        className='rounded-sm'
-                        disabled={!editable(pr)}
-                        onClick={() => setState('open')}
-                      >
-                        Ready for review
-                      </Button>
-                    ) : pr.state === 'open' ? (
-                      <MergeButton
-                        pr={pr}
-                        reason={reason}
-                        onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
-                      />
-                    ) : null}
+                    {tab !== 'overview' &&
+                      (pr.state === 'draft' ? (
+                        <ReadyForReview pr={pr} onReady={() => setState('open')} />
+                      ) : pr.state === 'open' ? (
+                        <MergeButton
+                          pr={pr}
+                          reason={reason}
+                          onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
+                        />
+                      ) : null)}
                     {more}
                   </div>
                 </div>
@@ -2248,69 +2330,21 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                                 <Ago at={(pr.state === 'merged' && pr.mergedAt) || pr.createdAt} />
                               </span>
                             </div>
-                            {pr.state === 'open' && reason && (
-                              <div
-                                className={cn(
-                                  'flex flex-col items-start gap-3 rounded-md border p-3',
-                                  reason === 'Checking mergeability'
-                                    ? 'border-border'
-                                    : 'border-destructive/20 bg-destructive/8'
-                                )}
-                              >
-                                <output className='flex items-start gap-2 text-sm'>
-                                  <StatusGlyph
-                                    status={
-                                      reason === 'Checking mergeability' ? 'working' : 'error'
-                                    }
-                                    className='mt-0.5 size-4 shrink-0'
-                                  />
-                                  <span className='font-medium'>
-                                    {reason === 'Resolve merge conflicts first' ? (
-                                      <>This branch has conflicts with {pr.base}</>
-                                    ) : (
-                                      <>
-                                        Merge blocked{' '}
-                                        <span className='font-normal text-muted-foreground'>
-                                          · {reason}
-                                        </span>
-                                      </>
-                                    )}
-                                  </span>
-                                </output>
-                                <div className='flex flex-wrap items-center gap-2'>
-                                  {threads[0] && (
-                                    <Button
-                                      variant='outline'
-                                      size='sm'
-                                      nativeButton={false}
-                                      render={
-                                        <Link
-                                          to='/threads/$threadId'
-                                          params={{ threadId: threads[0].id }}
-                                        />
-                                      }
-                                    >
-                                      {reason === 'Resolve merge conflicts first'
-                                        ? 'Open thread to resolve'
-                                        : 'Open linked thread'}
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant='ghost-text'
-                                    size='sm'
-                                    onClick={() => setTab('diff')}
-                                  >
-                                    View diff
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
                           </div>
                           <aside
                             aria-label='Pull request properties'
-                            className='min-w-0 @min-[1000px]:sticky @min-[1000px]:top-7 @min-[1000px]:col-start-2 @min-[1000px]:row-start-1 @min-[1000px]:row-span-3'
+                            className='flex min-w-0 flex-col gap-6 @min-[1000px]:sticky @min-[1000px]:top-7 @min-[1000px]:col-start-2 @min-[1000px]:row-start-1 @min-[1000px]:row-span-3'
                           >
                             <Properties pr={pr} />
+                            {(pr.state === 'open' || pr.state === 'draft') && (
+                              <MergeDecision
+                                pr={pr}
+                                reason={reason}
+                                onReady={() => setState('open')}
+                                onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
+                                onShowDiff={() => setTab('diff')}
+                              />
+                            )}
                           </aside>
                           <Section
                             title='Description'
