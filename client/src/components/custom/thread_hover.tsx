@@ -218,7 +218,7 @@ export function ThreadHoverPopup({
   return (
     <PreviewCard.Portal>
       <PreviewCard.Positioner side={side} align='start' sideOffset={8} className='z-50'>
-        <PreviewCard.Popup className='thread-hover-panel w-68 max-w-[calc(100vw-32px)] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
+        <PreviewCard.Popup className='thread-hover-panel w-68 max-w-[calc(100vw-32px)] rounded-md bg-popover p-3 text-xs text-popover-foreground shadow-lg ring-1 ring-[color-mix(in_oklch,var(--border),var(--foreground)_12%)]'>
           {children}
         </PreviewCard.Popup>
       </PreviewCard.Positioner>
