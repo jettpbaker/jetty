@@ -131,6 +131,11 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 // Messages keep a little air either side.
 const paddedRows = new Set<ThreadRow['kind']>(['user'])
 
+function afterWork(rows: readonly ThreadRow[], index: number) {
+  const kind = rows[index]?.kind
+  return (kind === 'assistant' || kind === 'plan') && rows[index - 1]?.kind === 'work'
+}
+
 function contentWidth(scrollerWidth: number) {
   return Math.max(1, Math.min(873, scrollerWidth) - 48)
 }
@@ -286,7 +291,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
       <Message align='start' className={cn(row.footer === undefined && 'pb-1')}>
         <MessageContent>
           <Bubble
-            variant={row.kind === 'plan' ? 'outline' : 'ghost'}
+            variant={row.kind === 'plan' ? 'muted' : 'ghost'}
             align='start'
             className='w-full max-w-full'
           >
@@ -376,8 +381,10 @@ const VirtualRow = memo(function VirtualRow({
   provider,
   projectPath,
   onOpenRoom,
+  afterWork,
 }: {
   index: number
+  afterWork: boolean
   start: number
   row: ThreadRow
   streamingRows: ReturnType<typeof useStreamingRows>
@@ -401,7 +408,7 @@ const VirtualRow = memo(function VirtualRow({
           )
       }}
       ref={virtualizer.measureElement}
-      className='absolute top-0 left-0 w-full'
+      className={cn('absolute top-0 left-0 w-full', afterWork && 'pt-2')}
       style={{ transform: `translateY(${start}px)` }}
     >
       <div
@@ -565,7 +572,8 @@ export function ThreadList({
     () => ({
       getItemKey: (index: number) => estimatedRows[index]!.id,
       estimateSize: (index: number) =>
-        estimateRow(estimatedRows[index]!, width, rough.has(estimatedRows[index]!.id)),
+        estimateRow(estimatedRows[index]!, width, rough.has(estimatedRows[index]!.id)) +
+        (afterWork(estimatedRows, index) ? 8 : 0),
     }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- fontsReady changes text layout
     [estimatedRows, width, fontsReady, rough]
@@ -1170,6 +1178,7 @@ export function ThreadList({
               <VirtualRow
                 key={virtualRow.key}
                 index={virtualRow.index}
+                afterWork={afterWork(rows, virtualRow.index)}
                 start={virtualRow.start}
                 row={rows[virtualRow.index]!}
                 streamingRows={streamingRows}
