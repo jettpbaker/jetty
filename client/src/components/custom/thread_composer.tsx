@@ -179,7 +179,6 @@ export function ThreadComposer({
   const latestProject = useNewThreadProject(!threadId && !picked, selectedId)
   const projectId =
     !threadId && chromeReady ? (picked ? target?.projectId : latestProject) : undefined
-  const project = useProject(projectId)
   const projectGit = useProjectGit(projectId)
   const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
   const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined

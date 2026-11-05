@@ -43,7 +43,7 @@ export function ThreadHeader({
   return (
     <header
       data-perf-region='thread-header'
-      className='details-chat-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
+      className='details-chat-header @container/thread-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
     >
       <PageSidebarTrigger />
       {meta && (
@@ -57,9 +57,12 @@ export function ThreadHeader({
         </div>
       )}
       {meta && (
-        <div className='thread-header-context flex max-w-1/2 min-w-0 items-center gap-3 text-13 text-muted-foreground'>
+        <div className='thread-header-context flex max-w-1/2 min-w-0 shrink-0 items-center gap-3 text-13 text-muted-foreground'>
           {project && (
-            <span className='max-w-36 truncate' title={project.title}>
+            <span
+              className='max-w-36 truncate @max-[760px]/thread-header:hidden'
+              title={project.title}
+            >
               {project.title}
             </span>
           )}
@@ -69,8 +72,12 @@ export function ThreadHeader({
               title={`${place.label}${branch ? ` · ${branch}` : ''}`}
             >
               <place.Icon aria-hidden='true' className='size-3.5 shrink-0' />
-              <span className='truncate'>{place.label}</span>
-              {branch && <span className='max-w-40 truncate font-mono'>{branch}</span>}
+              <span className='truncate @max-[760px]/thread-header:sr-only'>{place.label}</span>
+              {branch && (
+                <span className='max-w-40 truncate font-mono @max-[760px]/thread-header:max-w-24'>
+                  {branch}
+                </span>
+              )}
             </span>
           )}
           {pull && (

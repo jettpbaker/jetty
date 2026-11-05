@@ -304,7 +304,10 @@ export function ComposerLoadout({
               variant='ghost-text'
               size='sm'
               tone={value ? 'default' : 'muted'}
-              className={cn('group/chip gap-1.5 rounded-sm text-13', loading && 'invisible')}
+              className={cn(
+                'group/chip gap-1.5 rounded-sm text-13 text-foreground',
+                loading && 'invisible'
+              )}
             />
           }
         >
