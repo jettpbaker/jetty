@@ -847,9 +847,9 @@ function Properties({ pr }: { pr: PrPull }) {
     Issues: <Issues pr={pr} />,
   }
   return (
-    <dl className='flex flex-wrap gap-x-6 gap-y-3 @min-[1000px]:flex-col @min-[1000px]:gap-5'>
+    <dl className='flex w-full flex-wrap gap-x-6 gap-y-3 @min-[1000px]:flex-nowrap @min-[1000px]:flex-col @min-[1000px]:gap-5'>
       {[...propertyRows, ...(threads.length ? ['Thread'] : [])].map((label) => (
-        <div key={label} className='flex min-w-0 flex-col gap-1'>
+        <div key={label} className='flex min-w-0 max-w-full flex-col gap-1 @min-[1000px]:w-full'>
           <dt className='text-xs text-muted-foreground'>{label}</dt>
           <dd className='min-w-0 text-sm'>{values[label]}</dd>
         </div>
@@ -2198,7 +2198,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                   >
                     <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
                       <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                        <div className='mx-auto grid w-full max-w-[1040px] flex-1 grid-cols-1 items-start gap-x-10 gap-y-8 @min-[1000px]:grid-cols-[minmax(0,720px)_220px]'>
+                        <div className='mx-auto grid w-full max-w-[760px] flex-1 grid-cols-1 items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1040px] @min-[1000px]:grid-cols-[minmax(0,720px)_220px]'>
                           <div className='flex min-w-0 flex-col gap-2 @min-[1000px]:col-start-1'>
                             <div className='flex flex-wrap items-center gap-2.5'>
                               <StatusMenu pr={pr} />
