@@ -19,7 +19,7 @@ function Root() {
             </AppShell>
           </DiffWorkerPoolProvider>
         </KeybindProvider>
-        <Toaster position='top-center' />
+        <Toaster position='bottom-left' offset={{ left: 12, bottom: 58 }} />
       </TooltipProvider>
     </StateProvider>
   )
