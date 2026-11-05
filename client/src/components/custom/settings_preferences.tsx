@@ -64,7 +64,7 @@ export function SettingsPreferences() {
           <SettingsRow
             id='access'
             title='Access'
-            description='Automatic approvals handles routine actions and asks when needed. Full access never asks.'
+            description='Allow routine work automatically, or use full access to run without approvals.'
           >
             <SettingsSelect
               label='Access for new threads'
