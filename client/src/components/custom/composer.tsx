@@ -1,7 +1,7 @@
 import type { Attachments } from '@/hooks/use-attachments'
 import type { PermissionMode, ProviderModel } from '@jetty/shared/wire'
 
-import { StopIcon, ArrowUpIcon, PlayIcon } from '@/components/custom/central_icons'
+import { StopIcon, ArrowUpIcon } from '@/components/custom/central_icons'
 import { ComposerAccessMode } from '@/components/custom/composer_access_mode'
 import { ComposerAttach, ComposerAttachments } from '@/components/custom/composer_attach'
 import { ComposerShadow, useWallpaperUnderComposer } from '@/components/custom/composer_shadow'
@@ -39,8 +39,6 @@ export function Composer({
   onSubmit,
   onBackgroundSubmit,
   onInterrupt,
-  onContinue,
-  continueDisabledReason,
   onChooseModel,
   running,
   stop,
@@ -69,9 +67,6 @@ export function Composer({
   // ⌘Enter / Ctrl+Enter; without it the chord is left to onKeyDown
   onBackgroundSubmit?: () => void
   onInterrupt: () => void
-  // Offered in place of Send while the composer is empty: carries on a paused thread.
-  onContinue?: () => void
-  continueDisabledReason?: string
   // A new thread with nothing to send as: Enter and Send open the model menu.
   onChooseModel?: () => void
   running: boolean
@@ -109,7 +104,6 @@ export function Composer({
   const stopping = stop || (running && empty)
   // Deny with note, Submit and a queued follow-up stay reachable while Stop is up.
   const offerSend = !stopping || (Boolean(stop) && canSend)
-  const play = !stopping && !running && empty && onContinue !== undefined
   const menu = useComposerSlash(value, onValueChange, textarea, slash)
   const { field } = menu
 
@@ -247,23 +241,7 @@ export function Composer({
                     <StopIcon filled />
                   </InputGroupButton>
                 )}
-                {!offerSend ? null : play ? (
-                  <Tooltip>
-                    <TooltipTrigger render={<span className='flex' />}>
-                      <InputGroupButton
-                        variant='default'
-                        size='icon-sm'
-                        aria-label='Resume'
-                        onClick={onContinue}
-                        disabled={!!continueDisabledReason}
-                        aria-description={continueDisabledReason}
-                      >
-                        <PlayIcon filled />
-                      </InputGroupButton>
-                    </TooltipTrigger>
-                    <TooltipContent>{continueDisabledReason ?? 'Resume'}</TooltipContent>
-                  </Tooltip>
-                ) : onChooseModel ? (
+                {!offerSend ? null : onChooseModel ? (
                   <Tooltip>
                     <TooltipTrigger render={<span className='flex' />}>
                       <InputGroupButton

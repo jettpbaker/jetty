@@ -41,6 +41,7 @@ import {
   useChromeReady,
   useDefaultEnvironment,
   useContinueThread,
+  useContinuing,
   useCreateThread,
   useDismissQuestion,
   useDraft,
@@ -61,12 +62,14 @@ import { createItemSelection } from '@/state/item_selection'
 import { useProviderUnavailable } from '@/state/models'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
-import { heldByRestarts } from '@jetty/shared/items'
+import { heldByRestarts, RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/items'
 import { worktreeSetupPrompt } from '@jetty/shared/wire'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { PauseIcon } from './central_icons'
+import { DisabledTooltip } from './disabled_tooltip'
 import { ThreadFooter } from './thread_footer'
 import { StatusGlyph } from './thread_status'
 
@@ -158,6 +161,8 @@ export function ThreadComposer({
   const sendTurn = useSendTurn()
   const interruptTurn = useInterruptTurn()
   const continueThread = useContinueThread()
+  const continuing = useContinuing(threadId ?? '')
+  const restartHeld = Boolean(threadId && heldByRestarts(items) && !continuing)
   const createThread = useCreateThread()
   const respondApproval = useRespondApproval()
   const respondQuestion = useRespondQuestion()
@@ -541,13 +546,17 @@ export function ThreadComposer({
       ? answer
       : {
           strip: answer?.strip,
-          placeholder: !threadId
-            ? undefined
-            : running
-              ? 'Queue a follow-up while the agent works'
-              : ambient
-                ? 'What would you like to work on?'
-                : 'Ask for follow-up changes',
+          placeholder: settingUp
+            ? 'Queue another message'
+            : restartHeld
+              ? 'Add instructions before resuming'
+              : meta?.status === 'error'
+                ? 'Tell the agent what to try instead'
+                : running
+                  ? 'Queue a follow-up while the agent works'
+                  : ambient
+                    ? 'What should this thread change? · / for commands'
+                    : 'Ask for follow-up changes · / for commands',
           sendLabel: editingEntry
             ? 'Save'
             : running
@@ -629,19 +638,11 @@ export function ThreadComposer({
         onInterrupt={() => {
           if (threadId) interruptTurn(threadId)
         }}
-        onContinue={
-          threadId && heldByRestarts(items)
-            ? () => {
-                if (!unavailable) continueThread(threadId)
-              }
-            : undefined
-        }
-        continueDisabledReason={unavailable}
         onChooseModel={needsModel ? () => modelMenuRef.current?.() : undefined}
         running={running && !item && !editingEntry}
         stop={running && turnActive && !editingEntry && item !== undefined}
         strip={
-          hasQueue || usageBanner || mode.strip ? (
+          hasQueue || restartHeld || usageBanner || mode.strip ? (
             <>
               {hasQueue && threadId && composerQueue && (
                 <ComposerQueue
@@ -650,6 +651,33 @@ export function ThreadComposer({
                   running={running}
                   worktree={worktree}
                 />
+              )}
+              {restartHeld && threadId && (
+                <div
+                  data-strip='restart'
+                  role='status'
+                  className='flex items-start gap-2 bg-popover p-3 text-sm first:rounded-t-md'
+                >
+                  <PauseIcon className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
+                  <div className='flex min-w-0 flex-1 flex-col gap-1'>
+                    <span className='font-medium'>
+                      Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes
+                    </span>
+                    <span className='text-xs leading-5 text-muted-foreground'>
+                      Background work stopped when Jetty restarted. Resume to continue where the
+                      agent left off.
+                    </span>
+                  </div>
+                  <DisabledTooltip reason={unavailable} wrap='flex'>
+                    <Button
+                      size='sm'
+                      disabled={!!unavailable}
+                      onClick={() => continueThread(threadId)}
+                    >
+                      Resume
+                    </Button>
+                  </DisabledTooltip>
+                </div>
               )}
               {usageBanner}
               {mode.strip}
