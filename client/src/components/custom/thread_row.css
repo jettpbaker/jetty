@@ -1,6 +1,7 @@
 .thread-row {
   position: relative;
   border-radius: var(--radius-sm);
+  scroll-margin-block: 12px;
   --thread-row-action-size: 24px;
 }
 .thread-row > button {
@@ -20,11 +21,17 @@
   visibility: hidden;
   pointer-events: none;
   color: var(--muted-foreground);
+  border-radius: var(--radius-sm);
+  background: var(--sidebar-accent);
 }
 .thread-row:focus-within .thread-row-actions,
 .thread-row-actions[data-overlay='menu'] {
   visibility: visible;
   pointer-events: auto;
+}
+.thread-row:focus-within [data-thread-title],
+.thread-row:has(.thread-row-actions[data-overlay='menu']) [data-thread-title] {
+  padding-right: 22px;
 }
 .thread-row:focus-within .thread-row-age,
 .thread-row:has(.thread-row-actions[data-overlay='menu']) .thread-row-age {
@@ -38,6 +45,9 @@
     visibility: visible;
     pointer-events: auto;
   }
+  .thread-row:hover [data-thread-title] {
+    padding-right: 22px;
+  }
   .thread-row:hover .thread-row-age {
     visibility: hidden;
   }
@@ -46,6 +56,9 @@
   .thread-row-actions {
     visibility: visible;
     pointer-events: auto;
+  }
+  [data-thread-title] {
+    padding-right: 22px;
   }
   .thread-row-age {
     visibility: hidden;

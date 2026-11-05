@@ -34,7 +34,6 @@ import {
   useArchiveThread,
   useBumpDraft,
   useDeleteThread,
-  useOpenPullRequest,
   usePinThread,
   useThreadJourney,
   useThreadRowPrefetch,
@@ -134,7 +133,6 @@ export const AppSidebar = memo(function AppSidebar() {
     storage.set(viewKey, JSON.stringify(next))
   }
   const prefetch = useThreadRowPrefetch()
-  const openPullRequest = useOpenPullRequest()
 
   const list = useSidebarList()
   const mainList = list && {
@@ -164,14 +162,24 @@ export const AppSidebar = memo(function AppSidebar() {
   const shortcutFor = (kind: 'bot' | 'thread', id: string) =>
     keybinds.sidebarRows[numbered.findIndex((row) => row.kind === kind && row.id === id)]
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
-  const items = (groups ?? []).flatMap((group) => [
-    { kind: 'heading' as const, ...group, id: `heading:${group.id}`, count: group.threads.length },
-    ...(group.archived && !archivedOpen ? [] : group.threads).map((id) => ({
-      kind: 'thread' as const,
-      id,
-      archived: group.archived,
-    })),
-  ])
+  const projectByThread = new Map(mainList?.threads.map((thread) => [thread.id, thread.projectId]))
+  const items = (groups ?? []).flatMap((group) => {
+    const showProject = new Set(group.threads.map((id) => projectByThread.get(id))).size > 1
+    return [
+      {
+        kind: 'heading' as const,
+        ...group,
+        id: `heading:${group.id}`,
+        count: group.threads.length,
+      },
+      ...(group.archived && !archivedOpen ? [] : group.threads).map((id) => ({
+        kind: 'thread' as const,
+        id,
+        archived: group.archived,
+        showProject,
+      })),
+    ]
+  })
   const bumpDraft = useBumpDraft()
   const startThreadJourney = useThreadJourney()
   const archiveThread = useArchiveThread()
@@ -424,7 +432,6 @@ export const AppSidebar = memo(function AppSidebar() {
                             onDelete={remove}
                             onPin={pinThread}
                             onRename={renameThread}
-                            onOpenPullRequest={openPullRequest}
                           />
                         </div>
                       ))}
@@ -460,7 +467,7 @@ export const AppSidebar = memo(function AppSidebar() {
         </div>
         <MotionSidebarContent
           layoutScroll
-          className='min-h-32 overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
+          className='sidebar-thread-list min-h-32 overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
         >
           <nav aria-label='Threads'>
             <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
@@ -556,7 +563,7 @@ export const AppSidebar = memo(function AppSidebar() {
                       onDelete={remove}
                       onPin={pinThread}
                       onRename={renameThread}
-                      onOpenPullRequest={openPullRequest}
+                      showProject={item.showProject}
                     />
                   </motion.div>
                 )
@@ -632,7 +639,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   onDelete,
   onPin,
   onRename,
-  onOpenPullRequest,
+  showProject = true,
 }: {
   id: string
   now: number
@@ -645,7 +652,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   onDelete: (id: string) => void
   onPin: ReturnType<typeof usePinThread>
   onRename: ReturnType<typeof useRenameThread>
-  onOpenPullRequest: ReturnType<typeof useOpenPullRequest>
+  showProject?: boolean
 }) {
   const row = useSidebarRow(id)
   if (!row) return null
@@ -657,6 +664,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       shortcut={shortcut}
       selected={selected}
       nested={nested}
+      showProject={showProject}
       actions={{
         pinned: thread.pinned,
         archived: thread.archived,
@@ -667,7 +675,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
         onRename: (title) => onRename(id, title),
       }}
       onSelect={() => onSelect(id)}
-      onOpenPullRequest={() => thread.pullRequest && onOpenPullRequest(id, thread.pullRequest)}
     />
   )
 })

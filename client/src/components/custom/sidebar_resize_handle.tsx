@@ -6,7 +6,7 @@ import './sidebar_resize_handle.css'
 type Drag = { startX: number; startWidth: number; width: number; wrapper: HTMLElement }
 
 const min = 200
-const max = 300
+const max = 400
 const clamp = (value: number) => Math.min(max, Math.max(min, Math.round(value)))
 
 export function SidebarResizeHandle({

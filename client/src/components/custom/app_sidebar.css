@@ -13,3 +13,9 @@
     border-top-color: var(--sidebar-border);
   }
 }
+
+.sidebar-thread-list {
+  mask-image: none;
+  animation: none;
+  scroll-padding-block: 12px;
+}

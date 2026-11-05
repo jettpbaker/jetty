@@ -24,7 +24,7 @@ const widthKey = 'jetty.sidebar.width'
 const openKey = 'jetty.sidebar.open'
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => Number(storage.get(widthKey)) || 250)
+  const [sidebarWidth, setSidebarWidth] = useState(() => Number(storage.get(widthKey)) || 300)
   const [open, setOpen] = useState(() => storage.get(openKey) !== 'false')
 
   function changeWidth(width: number) {

@@ -98,8 +98,8 @@
   smaller size stretched with height classes. Radius follows size, so mixed
   sizes give mismatched corners.
 - The tab close button keeps its tiny target and no-fill hover. Thread row Archive/More
-  actions keep small glyphs and no-fill hover in 24px hit areas, in the trailing age
-  column. Row status and title stay visible; shortcut numbers appear only while held.
+  actions keep small glyphs and no-fill hover in 24px hit areas, overlaid on the trailing
+  age column and title edge. Row status and title stay visible; shortcut numbers appear only while held.
 - Status colors are semantic: orange = needs input, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.
@@ -129,7 +129,9 @@
   are Geist Sans, including Jetty tool targets ("Archived 3 threads").
 - Overflowing single-line text: fade when it scrolls on hover (`OverflowTitle`
   inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still. Sidebar
-  thread titles stay still and truncate; the hover card wraps the full title.
+  thread titles stay still and truncate; the hover card wraps the full title and holds PR
+  details. Omit repeated project emoji within single-project groups. The default sidebar is
+  300px and resizes from 200–400px.
 
 ## thread environments
 

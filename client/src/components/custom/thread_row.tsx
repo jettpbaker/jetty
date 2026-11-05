@@ -2,12 +2,12 @@ import type { ProjectIcon } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { useBot } from '@/state'
+import { useEffect, useRef } from 'react'
 
 import { JettyBot } from './jetty_bot'
 import { HeldKeybind, type Keybind } from './keybinds'
 import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
-import { PullRequestMark, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
 import { StatusGlyph, type ThreadStatus } from './thread_status'
 import './thread_row.css'
@@ -21,13 +21,12 @@ export function ThreadRow({
   status,
   detail,
   lastActivity,
-  pullRequests,
   shortcut,
   selected,
   nested = false,
+  showProject = true,
   actions,
   onSelect,
-  onOpenPullRequest,
 }: {
   id: string
   botId?: string
@@ -37,17 +36,20 @@ export function ThreadRow({
   status: ThreadStatus
   detail?: string
   lastActivity: string
-  pullRequests: readonly ThreadPullRequest[]
   shortcut?: Keybind
   selected: boolean
   nested?: boolean
+  showProject?: boolean
   actions: Omit<ThreadRowActionsProps, 'title'>
   onSelect: () => void
-  onOpenPullRequest: () => void
 }) {
   const bot = useBot(botId)
+  const rowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
   return (
-    <div className='thread-row keybind-target' data-selected={selected || undefined}>
+    <div ref={rowRef} className='thread-row keybind-target' data-selected={selected || undefined}>
       <ThreadHoverCard threadId={id}>
         {(trigger) => (
           <Button
@@ -55,16 +57,12 @@ export function ThreadRow({
             variant='ghost-text'
             className='thread-row-button h-auto min-h-8 w-full min-w-0 justify-start gap-1.5 rounded-sm px-2.5 py-1 text-left font-normal text-foreground'
             aria-pressed={selected}
-            onClick={(event) =>
-              event.target instanceof Element && event.target.closest('[data-pull-request]')
-                ? onOpenPullRequest()
-                : onSelect()
-            }
+            onClick={onSelect}
           >
             <HeldKeybind binding={shortcut}>
               <StatusGlyph status={status} className='size-3.5' />
             </HeldKeybind>
-            {!nested && (
+            {!nested && (showProject || (bot && !bot.archived)) && (
               <span className='flex size-3.5 shrink-0 items-center justify-center' title={project}>
                 {bot && !bot.archived ? (
                   <JettyBot shape={bot.shape} color={bot.color} size={14} />
@@ -77,15 +75,12 @@ export function ThreadRow({
               <span data-thread-title className='truncate leading-5'>
                 {title}
               </span>
-              {detail && <span className='truncate text-xs leading-4'>{detail}</span>}
+              {detail && (
+                <span className='truncate text-xs leading-4 text-muted-foreground'>{detail}</span>
+              )}
             </span>
-            {pullRequests.length > 0 && (
-              <span data-pull-request className='flex shrink-0'>
-                <PullRequestMark pullRequests={pullRequests} tooltip={false} compact />
-              </span>
-            )}
             <span
-              className='thread-row-age w-12.5 shrink-0 text-right font-mono text-xs text-muted-foreground'
+              className='thread-row-age w-7 shrink-0 text-right font-mono text-xs text-muted-foreground'
               aria-label={
                 lastActivity === 'now'
                   ? 'Last activity just now'
