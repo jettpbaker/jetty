@@ -70,7 +70,7 @@ function Thread() {
     )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      <InlineRequests key={threadId}>
+      <InlineRequests>
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
             threadId={threadId}
