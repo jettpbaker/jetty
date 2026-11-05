@@ -208,7 +208,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
       ) : (
         <div className='min-h-0 flex-1' />
       )}
-      <div className='mx-auto flex w-full max-w-[873px] shrink-0 flex-col gap-2 px-6 pb-1'>
+      <div className='mx-auto flex w-full max-w-[873px] shrink-0 flex-col gap-2 px-6 pb-3'>
         {overlay.serverItems.map(
           (item) =>
             (item.kind === 'approval' || item.kind === 'question') &&
