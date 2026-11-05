@@ -78,7 +78,9 @@
 }
 .theme-tile-card {
   display: flex;
-  height: 38px;
+  width: 90%;
+  height: 32px;
+  align-self: flex-end;
   flex: none;
   flex-direction: column;
   gap: 5px;
@@ -130,4 +132,22 @@
 }
 .theme-tile[data-tile='system'] > .theme-tile-panel:last-child .theme-tile-card > span + span {
   width: 12px;
+}
+
+.theme-tile-composer {
+  display: flex;
+  height: 14px;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 3px;
+  border: 1px solid var(--tile-card-border);
+  border-radius: 4px;
+  background: var(--tile-card);
+}
+.theme-tile-composer > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--tile-accent);
 }
