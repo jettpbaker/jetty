@@ -23,7 +23,11 @@ export const accessModes: Record<
   PermissionMode,
   { label: string; description: string; Icon: typeof ShieldCheckIcon }
 > = {
-  auto: { label: 'Auto', description: 'Asks before restricted actions', Icon: ShieldCheckIcon },
+  auto: {
+    label: 'Ask for approval',
+    description: 'Allows routine work; asks before restricted actions',
+    Icon: ShieldCheckIcon,
+  },
   full_access: {
     label: 'Full access',
     description: 'Runs commands and edits without asking',
@@ -76,10 +80,10 @@ export function ComposerAccessMode({
           render={<Button variant='ghost' size='sm' />}
         >
           <Icon />
-          {label}
+          {value === 'auto' ? 'Auto' : label}
         </DropdownMenuTrigger>
       </KeybindTooltip>
-      <DropdownMenuContent align='start' className='w-64'>
+      <DropdownMenuContent side='top' sideOffset={6} align='start' className='w-64'>
         <DropdownMenuRadioGroup
           value={value}
           onValueChange={(next) => {

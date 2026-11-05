@@ -308,6 +308,8 @@ export function ComposerLoadout({
         </PopoverTrigger>
       </KeybindTooltip>
       <PopoverContent
+        side='top'
+        sideOffset={6}
         align='start'
         className='search-picker w-86 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
         initialFocus={() =>

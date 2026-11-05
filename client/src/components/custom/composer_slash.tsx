@@ -91,16 +91,19 @@ type Entry = {
   run: () => void
 }
 
-const accessLabels: Record<PermissionMode, string> = { auto: 'Auto', full_access: 'Full access' }
+const accessLabels: Record<PermissionMode, string> = {
+  auto: 'Ask for approval',
+  full_access: 'Full access',
+}
 const accessDescriptions: Record<PermissionMode, string> = {
-  auto: 'Ask before risky actions',
-  full_access: 'Run anything without asking',
+  auto: 'Allows routine work; asks before restricted actions',
+  full_access: 'Runs commands and edits without asking',
 }
 const commandOrder = ['model', 'effort', 'fast', 'access', 'compact', 'usage', 'new']
 const commandLabels: Record<ValueCommand, string> = {
-  model: 'Model',
-  effort: 'Effort',
-  access: 'Access',
+  model: 'Change model',
+  effort: 'Set effort',
+  access: 'Change access',
 }
 const groupOrder = ['Commands', 'Skills']
 
@@ -341,10 +344,10 @@ export function useComposerSlash(
     const efforts = model?.efforts.length ?? 0
     const choosable = model?.autoMode !== false
     return [
-      command('model', 'Model', '', <AtomIcon />, true, picker('model')),
+      command('model', 'Change model', '', <AtomIcon />, true, picker('model')),
       command(
         'effort',
-        'Effort',
+        'Set effort',
         efforts ? '' : loadout ? `${name} has no effort levels` : unset,
         <EffortIcon level={loadout?.effort ?? 'medium'} />,
         true,
@@ -365,7 +368,7 @@ export function useComposerSlash(
       ),
       command(
         'access',
-        'Access',
+        'Change access',
         choosable ? '' : `${model.name} only supports asking first`,
         <ShieldCheckIcon />,
         true,
@@ -377,7 +380,7 @@ export function useComposerSlash(
         ? [
             command(
               'usage',
-              'Usage',
+              'View usage',
               provider ? '' : unset,
               <AnalyticsIcon />,
               false,
@@ -389,7 +392,7 @@ export function useComposerSlash(
             ),
           ]
         : []),
-      command('new', 'New thread', '', <EditSmall1Icon />, false, () => {
+      command('new', 'Start new thread', '', <EditSmall1Icon />, false, () => {
         consume(range)
         bumpDraft()
         void navigate({ to: '/' })
@@ -733,6 +736,8 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
     role: 'option',
     'aria-selected': index === slash.index,
     'aria-disabled': entry.disabled || undefined,
+    'aria-description': entry.disabled ? entry.description : undefined,
+    title: entry.disabled ? entry.description : undefined,
     'data-active': index === slash.index ? '' : undefined,
     'data-disabled': entry.disabled ? '' : undefined,
     onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault(),
@@ -756,7 +761,9 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
     <div {...props} className={`${row} h-menu-item-compact`}>
       {entry.icon}
       <span className='shrink-0'>{entry.name}</span>
-      <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
+      <span className='min-w-0 flex-1 truncate text-muted-foreground'>
+        {entry.disabled ? 'Unavailable' : entry.description}
+      </span>
       {entry.kind === 'option' && entry.selected && (
         <Checkmark1MediumIcon className='text-current' />
       )}

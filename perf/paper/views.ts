@@ -406,7 +406,7 @@ export const views: View[] = [
     ['thread actions', `Actions for ${checkoutTitle}`],
     ['thread grouping', 'Thread grouping: Date'],
     ['model loadout', 'Model:'],
-    ['access mode', 'Access mode: Auto'],
+    ['access mode', 'Access mode: Ask for approval'],
     ['attachments', 'Add attachment'],
     ['context window', 'Context window 26% full'],
   ].map(
@@ -485,6 +485,7 @@ views.push(
     ready: prompt,
     async setup({ page }) {
       await click(page, prompt, 'new thread prompt')
+      await page.evaluate(`(${prompt}).select()`)
       await page.cdp('Input.insertText', { text: checkoutPrompt })
     },
   },
