@@ -1,5 +1,3 @@
-import { Switch } from '@/components/ui/switch'
-
 import { Bell2Icon } from './central_icons'
 import {
   ComingSoon,
@@ -23,6 +21,7 @@ const events = [
     title: 'A guide is ready',
     description: 'For pull requests someone asked you to review',
   },
+  { title: 'Play a sound', description: 'A soft chime with each notification' },
 ]
 
 export function SettingsNotifications() {
@@ -49,21 +48,8 @@ export function SettingsNotifications() {
               title={event.title}
               description={event.description}
               disabled
-            >
-              <Switch checked={false} disabled aria-label={`${event.title} — Coming soon`} />
-            </SettingsRow>
+            />
           ))}
-        </SettingsCard>
-      </SettingsSection>
-      <SettingsSection title='Sound'>
-        <SettingsCard>
-          <SettingsRow
-            title='Play a sound'
-            description='A soft chime with each notification'
-            disabled
-          >
-            <Switch checked={false} disabled aria-label='Play a sound — Coming soon' />
-          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
     </SettingsPage>
