@@ -284,7 +284,7 @@ function VerdictGlyph({ state, className }: { state: string; className: string }
 }
 function ReviewTag({ state }: { state: string }) {
   return (
-    <span className='inline-flex items-center gap-1 rounded-sm bg-accent px-2 py-0.5 text-muted-foreground'>
+    <span className='inline-flex items-center gap-1 text-muted-foreground'>
       <VerdictGlyph state={state} className='size-3' />
       {reviewWords[state] ?? 'Reviewed'}
     </span>
@@ -497,6 +497,7 @@ function checkTone(check: PrCheck) {
 
 // The checks list, in the app's search-picker style (as the reviewer and branch pickers).
 function ChecksPill({ pr }: { pr: PrPull }) {
+  const [open, setOpen] = useState(false)
   const [showSkipped, setShowSkipped] = useState(false)
   const [query, setQuery] = useState('')
   const search = query.trim().toLowerCase()
@@ -522,10 +523,11 @@ function ChecksPill({ pr }: { pr: PrPull }) {
       <CommandItem
         key={check.id}
         value={`check:${check.id}`}
+        className='h-auto items-start py-2'
         onSelect={() => window.open(check.url, '_blank', 'noopener')}
       >
         <span className={cn('shrink-0', tone)}>{glyph}</span>
-        <span className='min-w-0 truncate'>
+        <span className='min-w-0 flex-1 whitespace-normal wrap-anywhere'>
           {check.kind === 'run' && (
             <span className='text-muted-foreground'>{check.workflow ?? check.app} / </span>
           )}
@@ -549,24 +551,25 @@ function ChecksPill({ pr }: { pr: PrPull }) {
     )
   }
   return (
-    <Popover
+    <Collapsible
+      open={open}
       onOpenChange={(open) => {
+        setOpen(open)
         if (!open) return
         setQuery('')
         setShowSkipped(false)
       }}
     >
-      <PopoverTrigger
-        render={<Button variant='ghost' size='sm' className='rounded-sm px-0.75 font-normal' />}
+      <CollapsibleTrigger
+        aria-label={open ? 'Hide checks' : 'Show checks'}
+        render={
+          <Button variant='ghost' size='sm' className='max-w-full rounded-sm px-0.75 font-normal' />
+        }
       >
         <ChecksSummary pr={pr} />
-      </PopoverTrigger>
-      <PopoverContent
-        align='start'
-        side='bottom'
-        className='search-picker w-[440px] max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
-      >
-        <PopoverTitle className='sr-only'>Checks</PopoverTitle>
+        <ChevronDownSmallIcon className={cn('shrink-0', open && 'rotate-180')} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className='search-picker mt-2 overflow-hidden rounded-sm border border-border [&_[data-slot=command-item]]:h-auto [&_[data-slot=command-item]]:py-2'>
         <Command label='Search checks' shouldFilter={false}>
           <CommandInput
             placeholder='Search checks'
@@ -630,8 +633,8 @@ function ChecksPill({ pr }: { pr: PrPull }) {
             </div>
           </CommandList>
         </Command>
-      </PopoverContent>
-    </Popover>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 const StatusChange = createContext<(state: PrPull['state']) => void>(() => {})
@@ -809,13 +812,13 @@ function Properties({ pr }: { pr: PrPull }) {
       </div>
     ),
     Thread: (
-      <div className='flex flex-wrap items-center gap-x-2'>
+      <div className='flex min-w-0 flex-wrap items-center gap-x-2'>
         {threads.map((thread) => (
           <Button
             key={thread.id}
             variant='ghost'
             size='sm'
-            className='h-7 min-w-0 max-w-full gap-2 rounded-sm px-0.75 font-normal'
+            className='h-7 min-w-0 max-w-full shrink gap-2 rounded-sm px-0.75 font-normal'
             nativeButton={false}
             render={<Link to='/threads/$threadId' params={{ threadId: thread.id }} />}
           >
@@ -1081,9 +1084,11 @@ function Activity({ pr }: { pr: PrPull }) {
 function ActivityThreads({ threads, author }: { threads: PrThread[]; author?: PrUser }) {
   return (
     <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
-      {threads.map((thread) => (
-        <ActivityThread key={thread.id} thread={thread} author={author} />
-      ))}
+      {threads
+        .toSorted((a, b) => Number(a.resolved) - Number(b.resolved) || a.path.localeCompare(b.path))
+        .map((thread) => (
+          <ActivityThread key={thread.id} thread={thread} author={author} />
+        ))}
     </div>
   )
 }
@@ -1120,22 +1125,18 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
           </span>
           {thread.outdated && <span className='shrink-0 text-muted-foreground'>Outdated</span>}
           {thread.resolved ? (
-            <CentralCircleCheckIcon
-              filled
-              className='size-3.5 shrink-0 text-status-success'
-              aria-label='Resolved'
-            />
+            <span className='shrink-0 text-muted-foreground'>Resolved</span>
           ) : (
             <span className='inline-flex shrink-0 items-center gap-1 text-foreground'>Open</span>
           )}
         </span>
         {!expanded && (
-          <span className='flex w-full items-center gap-2 pl-5 text-xs text-muted-foreground'>
+          <span className='flex w-full items-center gap-2 pl-5 text-13 leading-5 text-foreground'>
             <span className='min-w-0 flex-1 truncate'>
               {markdownText(thread.comments[0]?.body ?? '')}
             </span>
             <span
-              className='inline-flex shrink-0 items-center gap-1 font-mono'
+              className='inline-flex shrink-0 items-center gap-1 font-mono text-xs text-muted-foreground'
               aria-label={`${thread.comments.length} comments`}
             >
               <VerdictGlyph state='COMMENTED' className='size-3.5' />
