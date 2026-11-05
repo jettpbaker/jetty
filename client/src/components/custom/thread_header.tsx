@@ -1,5 +1,6 @@
 import { ArrowOutOfBoxIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
+import { useWidthBreakpoints } from '@/hooks/use-width-breakpoints'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
 import {
@@ -10,6 +11,7 @@ import {
   useThreadStructure,
 } from '@/state'
 import { heldByRestarts } from '@jetty/shared/items'
+import { useRef } from 'react'
 
 import { BotTabStrip } from './bot_tab_strip'
 import { environments } from './composer_environment'
@@ -17,6 +19,8 @@ import './thread_header.css'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { linkPresentation } from './thread_pull_request'
 import { StatusGlyph, threadStatus } from './thread_status'
+
+const headerBreakpoints = { compact: 760 }
 
 function ErrorThreadStatus({ threadId }: { threadId: string }) {
   const thread = useThreadStructure(threadId)
@@ -38,6 +42,8 @@ export function ThreadHeader({
   threadId: string
   botId?: string
 }) {
+  const headerRef = useRef<HTMLElement>(null)
+  useWidthBreakpoints(headerRef, headerBreakpoints)
   const meta = useThreadMeta(threadId)
   const project = useProject(meta?.projectId)
   const openPull = useOpenPullRequest()
@@ -59,8 +65,9 @@ export function ThreadHeader({
     )
   return (
     <header
+      ref={headerRef}
       data-perf-region='thread-header'
-      className='details-chat-header @container/thread-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
+      className='details-chat-header group/thread-header flex h-(--app-tab-bar-height) shrink-0 items-center gap-2 border-b border-border pr-[42px] pl-(--page-header-inset)'
     >
       <PageSidebarTrigger />
       {meta && (
@@ -81,7 +88,7 @@ export function ThreadHeader({
         <div className='thread-header-context flex max-w-1/2 min-w-0 shrink-0 items-center gap-3 text-13 text-muted-foreground'>
           {project && (
             <span
-              className='max-w-36 truncate @max-[760px]/thread-header:hidden'
+              className='max-w-36 truncate group-data-compact/thread-header:hidden'
               title={project.title}
             >
               {project.title}
@@ -93,9 +100,11 @@ export function ThreadHeader({
               title={`${place.label}${branch ? ` · ${branch}` : ''}`}
             >
               <place.Icon aria-hidden='true' className='size-3.5 shrink-0' />
-              <span className='truncate @max-[760px]/thread-header:sr-only'>{place.label}</span>
+              <span className='truncate group-data-compact/thread-header:sr-only'>
+                {place.label}
+              </span>
               {branch && (
-                <span className='max-w-40 truncate font-mono @max-[760px]/thread-header:max-w-24'>
+                <span className='max-w-40 truncate font-mono group-data-compact/thread-header:max-w-24'>
                   {branch}
                 </span>
               )}

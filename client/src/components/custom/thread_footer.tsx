@@ -47,7 +47,7 @@ export function ThreadFooter({
             {place && <place.Icon className='size-3 shrink-0' />}
             <span
               className={cn(
-                'max-w-40 truncate @max-[600px]/composer:max-w-24',
+                'max-w-40 truncate group-data-narrow/composer:max-w-24',
                 branch && 'font-mono'
               )}
             >

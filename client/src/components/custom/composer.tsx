@@ -20,6 +20,7 @@ import {
   InputGroupTextarea,
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useWidthBreakpoints } from '@/hooks/use-width-breakpoints'
 import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
 import { inComposition } from '@/lib/composition'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,8 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
+
+const composerBreakpoints = { narrow: 600, stacked: 480 }
 
 export function Composer({
   value,
@@ -100,6 +103,7 @@ export function Composer({
   slash?: SlashScope
 }) {
   const root = useRef<HTMLDivElement>(null)
+  useWidthBreakpoints(root, composerBreakpoints)
   const wallpaperUnder = useWallpaperUnderComposer()
   const ownInput = useRef<HTMLTextAreaElement>(null)
   const textarea = inputRef ?? ownInput
@@ -172,7 +176,7 @@ export function Composer({
       <div
         ref={root}
         data-perf-region='composer'
-        className='@container/composer mx-auto flex w-full max-w-[825px] flex-col gap-1 [&_button:focus-visible]:ring-ring'
+        className='group/composer mx-auto flex w-full max-w-[825px] flex-col gap-1 [&_button:focus-visible]:ring-ring'
       >
         {header}
         <div
@@ -248,7 +252,7 @@ export function Composer({
                 align='block-end'
                 className={cn('items-end justify-between', compact && 'hidden')}
               >
-                <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 @max-[600px]/composer:gap-x-1'>
+                <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 group-data-narrow/composer:gap-x-1'>
                   <ComposerAttach
                     onAttach={attachments.add}
                     disabledReason={attachments.refused}
@@ -261,7 +265,7 @@ export function Composer({
                     onChange={onAccessModeChange}
                   />
                   {context && (
-                    <div className='flex min-w-0 flex-1 @max-[480px]/composer:basis-full'>
+                    <div className='flex min-w-0 flex-1 group-data-stacked/composer:basis-full'>
                       {context}
                     </div>
                   )}
