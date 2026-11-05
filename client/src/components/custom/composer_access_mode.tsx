@@ -21,7 +21,7 @@ import { KeybindTooltip, keybinds, appShortcut } from './keybinds'
 
 export const accessModes: Record<
   PermissionMode,
-  { label: string; description: string; Icon: typeof ShieldCheckIcon }
+  { label: string; menuLabel: string; description: string; Icon: typeof ShieldCheckIcon }
 > = {
   auto: {
     label: 'Ask for approval',
@@ -30,6 +30,7 @@ export const accessModes: Record<
   },
   full_access: {
     label: 'Full access',
+    menuLabel: 'Full access',
     description: 'Runs commands and edits without asking',
     Icon: ShieldBreakIcon,
   },
@@ -74,7 +75,12 @@ export function ComposerAccessMode({
   const { label, Icon } = accessModes[value]
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
-      <KeybindTooltip binding={{ ...keybinds.access, name: label }}>
+      <KeybindTooltip
+        binding={{
+          ...keybinds.access,
+          name: `${accessModes[value].menuLabel}: ${accessModes[value].description}`,
+        }}
+      >
         <DropdownMenuTrigger
           aria-label={`Access mode: ${label}`}
           render={<Button variant='ghost' size='sm' />}
@@ -94,7 +100,7 @@ export function ComposerAccessMode({
             <DropdownMenuRadioItem key={id} value={id} className='h-auto! py-2'>
               <mode.Icon />
               <span className='flex min-w-0 flex-col gap-0.5'>
-                <span>{mode.label}</span>
+                <span>{mode.menuLabel}</span>
                 <span className='text-xs leading-4 text-muted-foreground whitespace-normal'>
                   {mode.description}
                 </span>

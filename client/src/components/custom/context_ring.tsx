@@ -148,7 +148,7 @@ function ContextDetails({ context }: { context: ContextUsage | null }) {
   if (!context)
     return (
       <div className='flex flex-col gap-2'>
-        <span className='font-medium'>Context</span>
+        <span className='font-medium'>This thread</span>
         <Gauge fraction={0} />
         <span className='text-muted-foreground'>No context reading yet.</span>
       </div>
@@ -156,7 +156,7 @@ function ContextDetails({ context }: { context: ContextUsage | null }) {
   const slices = context.slices.toSorted((a, b) => b.tokens - a.tokens)
   const fraction = fullness(context)
   return (
-    <Collapsible className='flex flex-col gap-2'>
+    <Collapsible defaultOpen className='flex flex-col gap-2'>
       <div className='flex items-center justify-between gap-3'>
         {slices.length > 0 ? (
           <CollapsibleTrigger
@@ -168,11 +168,11 @@ function ContextDetails({ context }: { context: ContextUsage | null }) {
               />
             }
           >
-            Context
+            This thread
             <ChevronRightSmallIcon className='text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-hover/details:text-foreground group-aria-expanded/details:rotate-90 motion-reduce:transition-none' />
           </CollapsibleTrigger>
         ) : (
-          <span className='font-medium'>Context</span>
+          <span className='font-medium'>This thread</span>
         )}
         <Mono className='text-muted-foreground'>
           {tokens(context.usedTokens)} / {tokens(context.maxTokens)} (

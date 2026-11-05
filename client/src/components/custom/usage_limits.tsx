@@ -9,6 +9,7 @@ import {
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -425,7 +426,7 @@ export function Mono({ children, className }: { children: ReactNode; className?:
 }
 
 function Rule() {
-  return <div className='-mx-3 border-t border-border' />
+  return <Separator className='-mx-3 w-auto' />
 }
 
 function PlanHeading({
@@ -440,7 +441,7 @@ function PlanHeading({
   return (
     <div className='flex items-center gap-1.5'>
       <ProviderGlyph provider={provider} className='size-3 text-muted-foreground' />
-      <span className='font-medium'>{providerNames[provider]}</span>
+      <span className='font-medium'>{providerNames[provider]} limits</span>
       {plan && <span className='text-muted-foreground'>{plan}</span>}
       {children && <span className='ml-auto'>{children}</span>}
     </div>

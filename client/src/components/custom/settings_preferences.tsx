@@ -64,14 +64,14 @@ export function SettingsPreferences() {
           <SettingsRow
             id='access'
             title='Access'
-            description='Auto asks before anything risky. Full access never asks.'
+            description='Automatic approvals handles routine actions and asks when needed. Full access never asks.'
           >
             <SettingsSelect
               label='Access for new threads'
               value={accessMode}
               onChange={setAccessMode}
               options={(['auto', 'full_access'] as const).map((value) => {
-                const { label, Icon } = accessModes[value]
+                const { menuLabel: label, Icon } = accessModes[value]
                 return { value, label, icon: <Icon /> }
               })}
             />
