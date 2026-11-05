@@ -588,6 +588,18 @@ export function ThreadComposer({
         ambient && !threadId && 'max-w-[808px]'
       )}
     >
+      <output className='sr-only' aria-live='polite' aria-atomic='true'>
+        {meta &&
+          (restartHeld
+            ? `${meta.title}: paused after repeated restarts`
+            : meta.status === 'awaiting_approval'
+              ? `${meta.title}: needs your input`
+              : meta.status === 'error'
+                ? `${meta.title}: failed`
+                : meta.readyForReview
+                  ? `${meta.title}: finished`
+                  : '')}
+      </output>
       {ambient && (
         <Empty className='flex-none px-0 pt-6 pb-6'>
           <EmptyHeader className='max-w-lg'>
