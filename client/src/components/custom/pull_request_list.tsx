@@ -487,7 +487,7 @@ function reviewLabel(review: PullRequestListItem['reviewDecision']) {
   if (review === 'APPROVED') return 'Approved'
   if (review === 'CHANGES_REQUESTED') return 'Changes requested'
   if (review === 'REVIEW_REQUIRED') return 'Review needed'
-  return 'No review'
+  return 'No review reported'
 }
 
 function checksLabel(checks: PullRequestListItem['checks']) {

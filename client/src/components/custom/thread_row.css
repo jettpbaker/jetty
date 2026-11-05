@@ -8,7 +8,9 @@
   background-color: transparent;
   transition: none;
 }
-.thread-row[data-selected] > button {
+.thread-row[data-selected] > button,
+.thread-row:focus-within > button,
+.thread-row:has(.thread-row-actions[data-overlay='menu']) > button {
   background-color: var(--sidebar-accent);
 }
 .thread-row-actions {
