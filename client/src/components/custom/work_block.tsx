@@ -255,10 +255,7 @@ function WorkHistory({
   return (
     <div
       ref={scroller}
-      className={cn(
-        'work-scroll no-scrollbar pl-3',
-        entries.length > previewCount && 'overflow-y-auto'
-      )}
+      className={cn('work-scroll no-scrollbar', entries.length > previewCount && 'overflow-y-auto')}
       onScroll={onScroll}
       onTouchStart={unpin}
     >
@@ -268,6 +265,7 @@ function WorkHistory({
             key={entry.id}
             data-quote={entry.type === 'text' ? entry.id : undefined}
             className={cn(
+              entry.type !== 'text' && 'pl-3',
               entry.type !== 'text' &&
                 !initialEntries.has(entry.id) &&
                 (entry.type === 'tools' &&
@@ -284,7 +282,10 @@ function WorkHistory({
               <TranscriptMarker item={entry.item} source={entry.source} />
             ) : entry.type === 'text' ? (
               <Markdown
-                className={cn('work-text', index < entries.length - 1 && 'work-text-past')}
+                className={cn(
+                  'thread-reply work-text',
+                  index < entries.length - 1 && 'work-text-past'
+                )}
                 streaming={entry.streaming}
                 arrived={!entry.streaming && completedAgo(entry.id) < 1000}
                 reply={entry.id}

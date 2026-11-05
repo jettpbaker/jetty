@@ -102,7 +102,10 @@ const components = {
   td: MarkdownTableCell,
   code: ({ node: _node, className, children, ...props }: ComponentProps<'code'> & ExtraProps) => (
     <code
-      className={cn('inline-code rounded px-1.5 py-0.5 font-mono text-sm', className)}
+      className={cn(
+        'inline-code rounded px-1 py-0 font-mono text-[0.875em] leading-none',
+        className
+      )}
       data-streamdown='inline-code'
       // One token (a flag, a path) that a table keeps whole; 50 characters still fit a 24rem cell.
       data-token={typeof children === 'string' && /^\S{1,50}$/.test(children) ? '' : undefined}

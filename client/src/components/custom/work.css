@@ -30,16 +30,11 @@
   @apply px-2 pb-1 text-13 leading-relaxed text-muted-foreground;
 }
 .work-text {
-  @apply px-2 py-1 text-13 leading-5 text-foreground;
+  @apply py-1 text-[14px] leading-[22px] text-foreground;
   transition: color var(--motion-control-duration) var(--motion-control-ease);
 }
 .work-text-past {
   @apply text-muted-foreground;
-}
-.work-text .inline-code,
-.thinking-text .inline-code,
-.thread-reply .inline-code {
-  font-size: inherit;
 }
 .work-scroll {
   overflow-anchor: none;
