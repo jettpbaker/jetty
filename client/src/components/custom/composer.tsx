@@ -200,7 +200,7 @@ export function Composer({
             {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
             <InputGroup
               className={cn(
-                'relative w-full max-w-[825px] border-border bg-popover dark:border-0 dark:bg-popover',
+                'relative w-full max-w-[825px] border-border bg-popover focus-within:ring-2 focus-within:ring-ring dark:border-0 dark:bg-popover',
                 strip && !requestId && 'rounded-t-none',
                 // Over a wallpaper the ambient shadow does the lifting.
                 ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
@@ -298,7 +298,7 @@ export function Composer({
                         render={<span className={canSend ? 'flex' : 'flex cursor-not-allowed'} />}
                       >
                         <InputGroupButton
-                          variant={canSend ? 'default' : 'ghost'}
+                          variant='default'
                           size='icon-sm'
                           aria-label={sendLabel}
                           // The caret stays in the composer, so the next message or paste follows at once.
