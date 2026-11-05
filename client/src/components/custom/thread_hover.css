@@ -6,3 +6,7 @@
 .thread-hover-panel[data-ending-style] {
   opacity: 0;
 }
+
+.thread-hover-panel [data-slot='button']:focus-visible {
+  --tw-ring-color: var(--ring);
+}

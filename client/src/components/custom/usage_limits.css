@@ -30,3 +30,7 @@
 .usage-text-exhausted {
   color: color-mix(in oklch, var(--destructive) 85%, var(--foreground));
 }
+
+.usage-page [data-slot='button']:focus-visible {
+  --tw-ring-color: var(--ring);
+}

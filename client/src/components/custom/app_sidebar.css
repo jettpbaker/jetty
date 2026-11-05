@@ -38,3 +38,7 @@
   height: 16px;
   background: linear-gradient(to top, var(--sidebar), transparent);
 }
+
+.app-sidebar [data-slot='button']:focus-visible {
+  --tw-ring-color: var(--ring);
+}

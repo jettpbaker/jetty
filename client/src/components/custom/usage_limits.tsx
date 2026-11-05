@@ -303,7 +303,7 @@ export function UsagePage({
     return item?.connected && !item.failed && !failed.has(provider) && item.windows.length === 0
   })
   return (
-    <div className='flex h-full min-h-0 flex-col bg-background'>
+    <div className='usage-page flex h-full min-h-0 flex-col bg-background'>
       <header className='flex h-(--app-tab-bar-height,42px) shrink-0 items-center justify-between gap-2 border-b border-border pl-(--page-header-inset,16px) pr-3'>
         <div className='flex min-w-0 items-center gap-3'>
           <PageSidebarTrigger />

@@ -333,7 +333,7 @@ export const AppSidebar = memo(function AppSidebar() {
     <Sidebar
       data-perf-region='sidebar'
       aria-label='Thread sidebar'
-      className='top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0 [timeline-scope:--sidebar-threads]'
+      className='app-sidebar top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0 [timeline-scope:--sidebar-threads]'
       variant='inset'
       collapsible='offcanvas'
     >

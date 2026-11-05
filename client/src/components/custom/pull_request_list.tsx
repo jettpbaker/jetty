@@ -48,6 +48,7 @@ import {
   type PullRequestGroup,
 } from './pull_request_list_model'
 import { linkPresentation, prPresentation } from './thread_pull_request'
+import './pull_request_list.css'
 
 type PullRequestListProps = {
   tab: PullRequestListTab
@@ -264,7 +265,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
   ]
   return (
-    <div className='@container flex h-full min-h-0 min-w-0 flex-col'>
+    <div className='pull-request-list @container flex h-full min-h-0 min-w-0 flex-col'>
       <header className='flex h-(--app-tab-bar-height,42px) shrink-0 items-center justify-between gap-2 border-b border-border pl-(--page-header-inset,16px) pr-3'>
         <div className='flex min-w-0 items-center gap-3'>
           <PageSidebarTrigger />
@@ -370,7 +371,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
         <>
           <GroupedTable
             label='Pull requests'
-            className='w-full px-1.5'
+            className='w-full'
             columns={columns}
             groups={groups}
             rowKey={(pull) => pull.url}

@@ -1,0 +1,6 @@
+.pull-request-list .grouped-table {
+  padding-inline: 6px;
+}
+.pull-request-list [data-slot='button']:focus-visible {
+  --tw-ring-color: var(--ring);
+}
