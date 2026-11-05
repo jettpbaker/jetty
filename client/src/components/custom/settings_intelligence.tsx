@@ -231,8 +231,8 @@ export function SettingsIntelligence() {
           <SettingsRow
             id='tidying'
             icon={Minimize45Icon}
-            title='Bot tidying'
-            description='Bots compact their chats and file their notes'
+            title='Bot memory maintenance'
+            description='Compact bot chats and save notes'
           >
             <span className={cn('flex shrink-0', !tidying.ready && 'invisible')}>
               <JobModelSelect

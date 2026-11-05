@@ -3,11 +3,11 @@ import type { Bot } from '@jetty/shared/wire'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useShowQuietTurns } from '@/lib/bot-quiet-turns'
-import { effortLabels, findModel } from '@/lib/loadout'
+import { effortLabels } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useArchiveBot, useArchivedBots, useBots, useChrome } from '@/state'
 import { homePath, useSettingsInfo } from '@/state/models'
-import { modelLabelText } from '@jetty/shared/model-name'
+import { catalogModelName } from '@jetty/shared/model-name'
 import { useState } from 'react'
 
 import { DeleteBotDialog } from './bot_archive'
@@ -35,7 +35,7 @@ import {
 
 function BotRow({ bot }: { bot: Bot }) {
   const chrome = useChrome()
-  const model = findModel(chrome?.models ?? [], { provider: bot.provider, model: bot.model })
+  const model = catalogModelName(chrome?.models, bot.provider, bot.model)
   const project = bot.projectId
     ? chrome?.projects.find((entry) => entry.id === bot.projectId)?.title
     : 'All projects'
@@ -54,9 +54,7 @@ function BotRow({ bot }: { bot: Bot }) {
           <span className='text-13'>{bot.name}</span>
           <span className='flex min-w-0 items-center gap-2 text-xs text-muted-foreground'>
             <span className='truncate'>
-              {[model ? modelLabelText(model) : bot.model, bot.effort && effortLabels[bot.effort]]
-                .filter(Boolean)
-                .join(' ')}
+              {[model, bot.effort && effortLabels[bot.effort]].filter(Boolean).join(' ')}
             </span>
             {bot.permissionMode === 'full_access' && (
               <span className='flex shrink-0 items-center gap-1 [&_svg]:size-3'>
@@ -173,13 +171,13 @@ export function SettingsBots() {
         <SettingsCard>
           <SettingsRow
             id='show-quiet-turns'
-            title='Show check-ins and tidies'
+            title='Show bot maintenance updates'
             description='Show what a bot did when Jetty woke it, even when it had nothing to tell you'
           >
             <Switch
               checked={showQuietTurns}
               onCheckedChange={setShowQuietTurns}
-              aria-label='Show check-ins and tidies'
+              aria-label='Show bot maintenance updates'
             />
           </SettingsRow>
         </SettingsCard>
