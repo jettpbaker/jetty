@@ -71,6 +71,7 @@ import {
   isValidElement,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -696,7 +697,7 @@ function StatusPill({ pr, editable = false }: { pr: PrPull; editable?: boolean }
       )}
     >
       <Icon className='size-3.5' />
-      {label}
+      <span className='text-foreground'>{label}</span>
       {editable && <ChevronDownSmallIcon className='size-3.5' />}
     </span>
   )
@@ -1957,12 +1958,12 @@ function MergeDecision({
           className='h-auto justify-start px-0 py-1 text-xs font-normal'
           onClick={onShowActivity}
         >
-          {review === 'APPROVED' || reviewed
-            ? 'Approved'
-            : review === 'CHANGES_REQUESTED'
-              ? 'Changes requested'
-              : review === 'REVIEW_REQUIRED'
-                ? 'Awaiting review'
+          {review === 'CHANGES_REQUESTED'
+            ? 'Changes requested'
+            : review === 'REVIEW_REQUIRED'
+              ? 'Awaiting review'
+              : review === 'APPROVED' || reviewed
+                ? 'Approved'
                 : pr.reviews.length
                   ? 'Reviewed'
                   : 'No reviews yet'}
@@ -2223,6 +2224,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const inView = files.some((f) => f.path === scrolledTo) ? scrolledTo : (files[0]?.path ?? null)
   inViewRef.current = inView
   const reason = mergeReason(pr)
+  const activityId = useId()
   const [attachSlot, setAttachSlot] = useState<HTMLDivElement | null>(null)
   const byline = (pr.state === 'merged' && pr.mergedBy) || pr.author
   return (
@@ -2384,8 +2386,8 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               reason={reason}
                               onShowDiff={() => setTab('diff')}
                               onShowActivity={() =>
-                                view.current
-                                  ?.querySelector('[data-pr-activity]')
+                                document
+                                  .getElementById(activityId)
                                   ?.scrollIntoView({ block: 'start' })
                               }
                             />
@@ -2412,7 +2414,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           <Section
                             title='Activity'
                             className='flex min-w-0 flex-1 flex-col @min-[1000px]:col-start-1'
-                            id='pr-activity'
+                            id={activityId}
                           >
                             <MemoizedActivity pr={pr} />
                           </Section>
