@@ -29,7 +29,6 @@ import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAttachments } from '@/hooks/use-attachments'
 import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
@@ -182,6 +181,7 @@ export function ThreadComposer({
   const latestProject = useNewThreadProject(!threadId && !picked, selectedId)
   const projectId =
     !threadId && chromeReady ? (picked ? target?.projectId : latestProject) : undefined
+  const project = useProject(projectId)
   const projectGit = useProjectGit(projectId)
   const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
   const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined
@@ -637,7 +637,9 @@ export function ThreadComposer({
       {ambient && !threadId && (
         <Empty className='flex-none items-start px-2 pt-6 pb-6 text-left'>
           <EmptyHeader className='max-w-full items-start'>
-            <EmptyTitle className='text-2xl font-semibold'>New thread</EmptyTitle>
+            <EmptyTitle className='text-xl font-semibold'>
+              What would you like to do{project ? ` in ${project.title}` : ''}?
+            </EmptyTitle>
           </EmptyHeader>
         </Empty>
       )}
@@ -790,30 +792,24 @@ export function ThreadComposer({
                   onEnvironmentChange={(next) => retarget({ environment: next })}
                   startingRef={startingRef}
                   onStartingRefChange={(ref) => retarget({ ref })}
-                  worktreeSetup={
-                    setupGuide && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant='secondary'
-                              size='sm'
-                              className='ml-1'
-                              onClick={() => setUpWorktrees(setupGuide)}
-                            />
-                          }
-                        >
-                          <WorktreeIcon />
-                          Set up worktrees
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          Configure copied files and setup commands for new worktrees
-                        </TooltipContent>
-                      </Tooltip>
-                    )
-                  }
                 />
               </div>
+              {setupGuide && (
+                <div className='flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1'>
+                  <Button
+                    variant='ghost-text'
+                    size='sm'
+                    className='-ml-2'
+                    onClick={() => setUpWorktrees(setupGuide)}
+                  >
+                    <WorktreeIcon />
+                    Set up worktrees
+                  </Button>
+                  <span className='text-xs text-muted-foreground'>
+                    Optional: add setup and cleanup commands for new worktrees.
+                  </span>
+                </div>
+              )}
             </div>
           )
         }

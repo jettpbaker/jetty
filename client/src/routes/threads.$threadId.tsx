@@ -82,7 +82,7 @@ function Thread() {
               <EmptyHeader>
                 <EmptyTitle>Ready when you are</EmptyTitle>
                 <EmptyDescription>
-                  Describe what you’d like to change in {project?.title ?? 'this project'}.
+                  Describe a task or ask a question in {project?.title ?? 'this project'}.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>

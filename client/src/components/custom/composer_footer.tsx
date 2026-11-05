@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react'
-
 import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { useProject } from '@/state'
 import { useBranches, useBranchList, type BranchList } from '@/state/worktrees'
@@ -14,14 +12,12 @@ export function ComposerFooter({
   onEnvironmentChange,
   startingRef,
   onStartingRefChange,
-  worktreeSetup,
 }: {
   environment: 'local' | 'worktree'
   onEnvironmentChange: (environment: 'local' | 'worktree') => void
   startingRef?: string
   onStartingRefChange: (ref: string) => void
   projectId?: string
-  worktreeSetup?: ReactNode
 }) {
   const fetchBranches = useBranches()
   const localOnly = environment === 'local'
@@ -78,7 +74,6 @@ export function ComposerFooter({
         onValueChange={onEnvironmentChange}
         worktreeDisabled={noGit}
       />
-      {worktreeSetup}
       <ComposerBranch
         branch={branchLabel}
         list={list}
