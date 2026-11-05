@@ -97,9 +97,9 @@
   takes the matching icon size (`xs` ↔ `icon-xs`, `sm` ↔ `icon-sm`), never a
   smaller size stretched with height classes. Radius follows size, so mixed
   sizes give mismatched corners.
-- The tab close button and the thread row's Archive/More buttons
-  (`thread_row_actions.tsx`) are deliberately their own thing (tiny, no bg
-  hover, sized glyphs) — leave them.
+- The tab close button keeps its tiny target and no-fill hover. Thread row Archive/More
+  actions keep small glyphs and no-fill hover in 24px hit areas, in the trailing age
+  column. Row status and title stay visible; shortcut numbers appear only while held.
 - Status colors are semantic: orange = needs input, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.
@@ -128,7 +128,8 @@
   branches, SHAs, ids, PR and issue numbers, times like `2m`, token counts, `2/5`. Words
   are Geist Sans, including Jetty tool targets ("Archived 3 threads").
 - Overflowing single-line text: fade when it scrolls on hover (`OverflowTitle`
-  inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still.
+  inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still. Sidebar
+  thread titles stay still and truncate; the hover card wraps the full title.
 
 ## thread environments
 

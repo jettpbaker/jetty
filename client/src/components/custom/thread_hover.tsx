@@ -1,5 +1,5 @@
 import type { SubagentStatus } from '@jetty/shared/items'
-import type { Bot, ProviderId, RunningSubagent } from '@jetty/shared/wire'
+import type { Bot, ProjectIcon, ProviderId, RunningSubagent } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
 import { pressProps } from '@/lib/press'
@@ -7,6 +7,7 @@ import { threadBranch } from '@/lib/thread_worktree'
 import { cn } from '@/lib/utils'
 import {
   useModels,
+  useProject,
   useOpenOverview,
   useOpenPullRequest,
   useSubagentOutcome,
@@ -36,9 +37,10 @@ import { useChildThreads } from './child_threads'
 import { environments } from './composer_environment'
 import { JettyBot } from './jetty_bot'
 import { OverflowTitle } from './overflow_title'
+import { ProjectGlyph } from './project_glyph'
 import { ProviderGlyph } from './provider_glyph'
 import { RollingDuration } from './rolling_duration'
-import { threadPullRequests } from './sidebar_thread_groups'
+import { threadNavigationDetail, threadPullRequests } from './sidebar_thread_groups'
 import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
 import { SubagentGlyph, subagentGlyphState, renderWorkingTitle } from './subagent_glyph'
 import { rankPullRequests, type ThreadPullRequest } from './thread_pull_request'
@@ -59,6 +61,8 @@ type Checkout = { label: string; branch: boolean }
 
 type ThreadHoverPanelProps = {
   title: string
+  project?: { title: string; icon?: ProjectIcon }
+  detail?: string
   status: ThreadStatus
   provider?: ProviderId
   model?: string
@@ -219,7 +223,7 @@ export function ThreadHoverPopup({
   return (
     <PreviewCard.Portal>
       <PreviewCard.Positioner side={side} align='start' sideOffset={8} className='z-50'>
-        <PreviewCard.Popup className='thread-hover-panel w-[450px] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
+        <PreviewCard.Popup className='thread-hover-panel w-80 max-w-[calc(100vw-32px)] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
           {children}
         </PreviewCard.Popup>
       </PreviewCard.Positioner>
@@ -287,6 +291,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const openPullRequest = useOpenPullRequest()
   const openOverview = useOpenOverview()
   const thread = useThreadMeta(threadId)
+  const project = useProject(thread?.projectId)
   const parent = useThreadMeta(thread?.parentThreadId)
   const parentBot = useBot(thread?.parentThreadId)
   const owner = useBot(thread?.botId)
@@ -297,6 +302,8 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   return (
     <ThreadHoverPanel
       title={thread.title}
+      project={project}
+      detail={threadNavigationDetail(thread)}
       status={threadStatus(thread.status, thread.readyForReview)}
       provider={thread.provider}
       model={
@@ -332,6 +339,8 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
 
 function ThreadHoverPanel({
   title,
+  project,
+  detail,
   status,
   provider,
   model,
@@ -357,17 +366,21 @@ function ThreadHoverPanel({
     <div className='flex flex-col gap-1.5'>
       <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
         <StatusGlyph status={status} />
-        {statusPresentation[status].label}
+        {detail ?? statusPresentation[status].label}
       </div>
-      <div data-overflow-hover className='flex min-w-0 items-center gap-3'>
-        <OverflowTitle>{title}</OverflowTitle>
-        {model && (
-          <span className='flex shrink-0 items-center gap-1'>
-            {provider && <ProviderGlyph provider={provider} className='size-3 text-primary' />}
-            {model}
-          </span>
-        )}
-      </div>
+      <h3 className='text-sm font-medium leading-5 wrap-break-word'>{title}</h3>
+      {project && (
+        <div className='flex min-w-0 items-center gap-1.5 text-muted-foreground'>
+          <ProjectGlyph icon={project.icon} className='size-3 shrink-0' />
+          <span className='truncate'>{project.title}</span>
+        </div>
+      )}
+      {model && (
+        <div className='flex items-center gap-1.5 text-muted-foreground'>
+          {provider && <ProviderGlyph provider={provider} className='size-3' />}
+          {model}
+        </div>
+      )}
       {owner && (
         <button
           type='button'

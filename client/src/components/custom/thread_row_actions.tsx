@@ -19,14 +19,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
-import { HoverKeybind, KeybindChip, type Keybind } from './keybinds'
+import { KeybindChip, type Keybind } from './keybinds'
 
 type ActionOverlay = 'closed' | 'menu' | 'edit'
 
 export type ThreadRowActionsProps = {
   title: string
-  // The row's ⌥N, which hover shows here since these actions cover the title row's end.
-  shortcut?: Keybind
   pinned: boolean
   archived?: boolean
   onArchive: () => void
@@ -38,7 +36,6 @@ export type ThreadRowActionsProps = {
 
 export function ThreadRowActions({
   title,
-  shortcut,
   pinned,
   archived = false,
   onArchive,
@@ -73,9 +70,6 @@ export function ThreadRowActions({
   return (
     <>
       <div className='thread-row-actions' data-overlay={overlay}>
-        {shortcut && (
-          <HoverKeybind binding={shortcut} className='h-(--thread-row-action-size) items-center' />
-        )}
         <Button
           variant='ghost-text'
           size='icon'

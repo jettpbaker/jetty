@@ -536,11 +536,6 @@ export const AppSidebar = memo(function AppSidebar() {
                   <motion.div
                     key={item.id}
                     data-thread-row
-                    className={
-                      item.archived && item.id !== selectedId
-                        ? 'opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100'
-                        : undefined
-                    }
                     layout={reducedMotion ? false : 'position'}
                     layoutDependency={layoutDependency}
                     initial={false}
@@ -637,7 +632,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   now: number
   shortcut?: Keybind
   selected: boolean
-  // Bot threads, one line each; the main list keeps two.
   nested?: boolean
   onSelect: (id: string) => void
   onArchive: (id: string) => void
@@ -657,7 +651,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       shortcut={shortcut}
       selected={selected}
       nested={nested}
-      oneLine={nested}
       actions={{
         pinned: thread.pinned,
         archived: thread.archived,

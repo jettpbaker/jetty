@@ -1,4 +1,4 @@
-import type { ProjectIcon, PullRequestLink } from '@jetty/shared/wire'
+import type { ProjectIcon, PullRequestLink, ThreadMeta } from '@jetty/shared/wire'
 
 import { formatAge, formatElapsed } from '@/lib/time'
 import { listedAt, type SidebarList, type SidebarRow } from '@/state/sidebar'
@@ -15,6 +15,7 @@ export type SidebarThread = {
   project: string
   projectIcon?: ProjectIcon
   status: ThreadStatus
+  detail?: string
   lastActivity: string
   pinned: boolean
   archived: boolean
@@ -30,6 +31,7 @@ export function sidebarThread({ thread, project }: SidebarRow, now: number): Sid
     project: project?.title ?? '',
     projectIcon: project?.icon,
     status: threadStatus(thread.status, thread.readyForReview),
+    detail: threadNavigationDetail(thread),
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length
         ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
@@ -38,6 +40,16 @@ export function sidebarThread({ thread, project }: SidebarRow, now: number): Sid
     archived: thread.archived,
     ...threadPullRequests(thread.pullRequests ?? []),
   }
+}
+
+export function threadNavigationDetail(thread: ThreadMeta) {
+  if (thread.worktree?.state === 'pending' || thread.worktree?.state === 'setting_up')
+    return 'Setting up worktree'
+  if (thread.worktree?.state === 'failed') return 'Worktree setup failed'
+  if (thread.worktree?.state === 'stopped') return 'Worktree setup stopped'
+  if (thread.queuePaused && thread.pendingMessages?.length)
+    return `Paused · ${thread.pendingMessages.length} queued`
+  return undefined
 }
 
 const stateRank = { open: 0, draft: 1, merged: 2, closed: 3 }
