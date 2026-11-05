@@ -75,7 +75,6 @@ import {
   useRef,
   useState,
   useLayoutEffect,
-  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from 'react'
@@ -640,12 +639,7 @@ const statusOptions = ['open', 'draft', 'closed'] as const
 
 function StatusMenu({ pr }: { pr: PrPull }) {
   const change = useContext(StatusChange)
-  if (pr.state === 'merged')
-    return (
-      <div className='flex h-7 items-center px-1'>
-        <PropertyStatus pr={pr} />
-      </div>
-    )
+  if (pr.state === 'merged') return <StatusPill pr={pr} />
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -653,13 +647,13 @@ function StatusMenu({ pr }: { pr: PrPull }) {
           <Button
             variant='ghost'
             size='sm'
-            className='h-7 rounded-sm px-0.75 font-normal'
+            className='h-auto rounded-full p-0'
             disabled={!editable(pr)}
             aria-label={`Status: ${prPresentation[pr.state].label}`}
           />
         }
       >
-        <PropertyStatus pr={pr} />
+        <StatusPill pr={pr} editable={editable(pr)} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' className='w-44'>
         <DropdownMenuRadioGroup
@@ -681,18 +675,18 @@ function StatusMenu({ pr }: { pr: PrPull }) {
   )
 }
 
-// GitHub's state pill, leading the byline. It only shows the state; the Status row changes it. When
-// a merge lands, its colour crossfades from green to purple.
-// The status pill on its own line above the title, beside the repo and number.
-function StatusPill({ pr }: { pr: PrPull }) {
-  const { icon: Icon, label } = prPresentation[pr.state]
+function StatusPill({ pr, editable = false }: { pr: PrPull; editable?: boolean }) {
+  const { icon: Icon, label, color } = prPresentation[pr.state]
   return (
     <span
-      style={{ '--pill': `var(--pr-${pr.state})` } as CSSProperties}
-      className='inline-flex h-7 items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--pill)_16%,transparent)] px-2.5 text-sm font-medium text-[oklch(from_var(--pill)_min(l,0.5)_c_h)] transition-[background-color,color] duration-300 dark:text-[color-mix(in_oklch,var(--pill)_70%,white)]'
+      className={cn(
+        'inline-flex h-7 items-center gap-1.5 rounded-full bg-foreground/6 px-2.5 text-sm font-medium',
+        color
+      )}
     >
       <Icon className='size-3.5' />
       {label}
+      {editable && <ChevronDownSmallIcon className='size-3.5' />}
     </span>
   )
 }
@@ -779,7 +773,7 @@ function Issues({ pr }: { pr: PrPull }) {
 
 // Rows run in this order: where it stands, what gates the merge, then context. The branch is in the
 // byline above.
-const propertyRows = ['Status', 'Checks', 'Reviewers', 'Issues']
+const propertyRows = ['Checks', 'Reviewers', 'Issues']
 function Properties({ pr }: { pr: PrPull }) {
   const { ref, threads } = usePrRuntime()
   const setReviewRequest = useSetReviewRequest()
@@ -800,7 +794,6 @@ function Properties({ pr }: { pr: PrPull }) {
     />
   )
   const values: Record<string, ReactNode> = {
-    Status: <StatusMenu pr={pr} />,
     Reviewers: pr.reviewers.length ? (
       <ReviewerList people={pr.reviewers}>{picker}</ReviewerList>
     ) : (
@@ -822,7 +815,7 @@ function Properties({ pr }: { pr: PrPull }) {
             key={thread.id}
             variant='ghost'
             size='sm'
-            className='h-7 max-w-full gap-2 rounded-sm px-0.75 font-normal'
+            className='h-7 min-w-0 max-w-full gap-2 rounded-sm px-0.75 font-normal'
             nativeButton={false}
             render={<Link to='/threads/$threadId' params={{ threadId: thread.id }} />}
           >
@@ -847,15 +840,14 @@ function Properties({ pr }: { pr: PrPull }) {
     Issues: <Issues pr={pr} />,
   }
   return (
-    <div className='space-y-1'>
+    <dl className='flex flex-wrap gap-x-6 gap-y-3 @min-[1000px]:flex-col @min-[1000px]:gap-5'>
       {[...propertyRows, ...(threads.length ? ['Thread'] : [])].map((label) => (
-        <div key={label} className='grid min-h-7 grid-cols-[92px_minmax(0,1fr)] items-start gap-2'>
-          {/* Top-aligned for values that run several lines; the padding centres it on the first. */}
-          <div className='py-1.5 text-xs text-muted-foreground'>{label}</div>
-          <div className='min-w-0 text-sm'>{values[label]}</div>
+        <div key={label} className='flex min-w-0 flex-col gap-1'>
+          <dt className='text-xs text-muted-foreground'>{label}</dt>
+          <dd className='min-w-0 text-sm'>{values[label]}</dd>
         </div>
       ))}
-    </div>
+    </dl>
   )
 }
 
@@ -965,16 +957,6 @@ const statusEventCopy: Record<PrStatusEvent['kind'], { state: PrPull['state']; t
 
 // Property rows share one 16px glyph slot, an 8px gap (the reviewers row needs it for the verdict
 // badge on the avatar's corner) and a 4px inset; a Button's 1px border counts towards that inset.
-function PropertyStatus({ pr }: { pr: PrPull }) {
-  const { icon: Icon, color, label } = prPresentation[pr.state]
-  return (
-    <span className='inline-flex items-center gap-2 text-xs'>
-      <Icon className={cn('size-4 shrink-0', color)} />
-      {label}
-    </span>
-  )
-}
-
 function StateGlyph({ state }: { state: PrPull['state'] }) {
   const { icon: Icon, color } = prPresentation[state]
   return <Icon className={`size-3.5 shrink-0 ${color}`} />
@@ -1959,7 +1941,7 @@ function GuidePane({
 
 export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const pr = original
-  const { actions, ref, status, more, sidebar } = usePrRuntime()
+  const { actions, ref, status, more, sidebar, threads } = usePrRuntime()
   useNow(60_000)
   const setState = (state: PrPull['state']) => {
     if (state !== 'merged') void actions.state(state)
@@ -2211,10 +2193,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                   >
                     <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
                       <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                        <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
-                          <div className='space-y-1'>
+                        <div className='mx-auto grid w-full max-w-[1040px] flex-1 grid-cols-1 items-start gap-x-10 gap-y-8 @min-[1000px]:grid-cols-[minmax(0,720px)_220px]'>
+                          <div className='flex min-w-0 flex-col gap-2 @min-[1000px]:col-start-1'>
                             <div className='flex flex-wrap items-center gap-2.5'>
-                              <StatusPill pr={pr} />
+                              <StatusMenu pr={pr} />
                               <Hint text='Opens in GitHub'>
                                 <a
                                   href={pr.url}
@@ -2258,21 +2240,54 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               </span>
                             </div>
                             {pr.state === 'open' && reason && (
-                              <output className='flex items-center gap-2 pt-3 text-sm'>
-                                <StatusGlyph
-                                  status={reason === 'Checking mergeability' ? 'working' : 'error'}
-                                />
-                                <span>
-                                  Merge blocked{' '}
-                                  <span className='text-muted-foreground'>· {reason}</span>
-                                </span>
-                              </output>
+                              <div className='flex flex-col items-start gap-3 rounded-md border border-border p-3'>
+                                <output className='flex items-center gap-2 text-sm'>
+                                  <StatusGlyph
+                                    status={
+                                      reason === 'Checking mergeability' ? 'working' : 'error'
+                                    }
+                                  />
+                                  <span>
+                                    Merge blocked{' '}
+                                    <span className='text-muted-foreground'>· {reason}</span>
+                                  </span>
+                                </output>
+                                <div className='flex flex-wrap items-center gap-2'>
+                                  {threads[0] && (
+                                    <Button
+                                      variant='outline'
+                                      size='sm'
+                                      nativeButton={false}
+                                      render={
+                                        <Link
+                                          to='/threads/$threadId'
+                                          params={{ threadId: threads[0].id }}
+                                        />
+                                      }
+                                    >
+                                      Open linked thread
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant='ghost-text'
+                                    size='sm'
+                                    onClick={() => setTab('diff')}
+                                  >
+                                    View diff
+                                  </Button>
+                                </div>
+                              </div>
                             )}
                           </div>
-                          <Properties pr={pr} />
+                          <aside
+                            aria-label='Pull request properties'
+                            className='min-w-0 @min-[1000px]:sticky @min-[1000px]:top-7 @min-[1000px]:col-start-2 @min-[1000px]:row-start-1 @min-[1000px]:row-span-3'
+                          >
+                            <Properties pr={pr} />
+                          </aside>
                           <Section
                             title='Description'
-                            className='group/description'
+                            className='group/description min-w-0 @min-[1000px]:col-start-1'
                             action={<div ref={setAttachSlot} className='flex' />}
                           >
                             <DescriptionEditor
@@ -2288,7 +2303,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               }}
                             />
                           </Section>
-                          <Section title='Activity' className='flex flex-1 flex-col'>
+                          <Section
+                            title='Activity'
+                            className='flex min-w-0 flex-1 flex-col @min-[1000px]:col-start-1'
+                          >
                             <MemoizedActivity pr={pr} />
                           </Section>
                         </div>
