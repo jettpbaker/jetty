@@ -27,6 +27,7 @@ import { ReplyTab } from '@/components/custom/reply_quote'
 import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { Spinner } from '@/components/ui/spinner'
 import { useAttachments } from '@/hooks/use-attachments'
 import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
@@ -65,6 +66,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState }
 import { toast } from 'sonner'
 
 import { ThreadFooter } from './thread_footer'
+import { StatusGlyph } from './thread_status'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -218,7 +220,8 @@ export function ThreadComposer({
     if (threadId) retrySetup(threadId)
   }
   const worktree = meta?.worktree
-  const setupNotice = worktree?.state === 'failed' || worktree?.state === 'stopped'
+  const settingUp = worktree?.state === 'pending' || worktree?.state === 'setting_up'
+  const setupNotice = settingUp || worktree?.state === 'failed' || worktree?.state === 'stopped'
   const messageHeld = Boolean(meta?.queuePaused && unsent.length > 0)
   const needsModel = !threadId && !loadout
   // Each /usage asks again; 0 is closed.
@@ -570,16 +573,26 @@ export function ThreadComposer({
       {worktree && setupNotice && (
         <div
           role={worktree.state === 'failed' ? 'alert' : 'status'}
-          className='flex items-center gap-2 pb-2 text-xs'
+          className='flex items-center gap-2 pb-2 text-sm'
         >
-          <span
-            className={worktree.state === 'failed' ? 'text-destructive' : 'text-muted-foreground'}
-          >
-            {worktree.error}
+          {settingUp ? (
+            <Spinner className='size-3.5 text-muted-foreground' />
+          ) : (
+            <StatusGlyph status={worktree.state === 'failed' ? 'error' : 'stopped'} />
+          )}
+          <span className='min-w-0 flex-1'>
+            {settingUp
+              ? 'Setting up worktree…'
+              : worktree.state === 'failed'
+                ? 'Worktree setup failed'
+                : 'Worktree setup stopped'}
+            {!settingUp && worktree.error && (
+              <span className='text-muted-foreground'> · {worktree.error}</span>
+            )}
           </span>
-          {!messageHeld && (
+          {!settingUp && !messageHeld && (
             <Button variant='outline' size='sm' {...pressProps(retry)}>
-              Retry
+              Retry setup
             </Button>
           )}
         </div>
@@ -607,7 +620,12 @@ export function ThreadComposer({
           hasQueue || usageBanner || mode.strip ? (
             <>
               {hasQueue && threadId && composerQueue && (
-                <ComposerQueue threadId={threadId} queue={composerQueue} running={running} />
+                <ComposerQueue
+                  threadId={threadId}
+                  queue={composerQueue}
+                  running={running}
+                  worktree={worktree}
+                />
               )}
               {usageBanner}
               {mode.strip}

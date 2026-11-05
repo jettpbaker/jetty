@@ -1,5 +1,5 @@
 import type { Attachment, ThreadItem } from '@jetty/shared/items'
-import type { QueuedMessage } from '@jetty/shared/wire'
+import type { QueuedMessage, ThreadMeta } from '@jetty/shared/wire'
 
 import {
   ArrowShareLeftIcon,
@@ -14,6 +14,7 @@ import { MediaLightboxProvider, useOpenMedia } from '@/components/custom/media_l
 import { RepliedTo } from '@/components/custom/reply_quote'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { serverNow } from '@/lib/server_time'
 import { cn } from '@/lib/utils'
@@ -238,12 +239,16 @@ export function ComposerQueue({
   threadId,
   queue,
   running,
+  worktree,
 }: {
   threadId: string
   queue: ComposerQueueState
   running: boolean
+  worktree?: ThreadMeta['worktree']
 }) {
   const actions = useQueueActions()
+  const settingUp = worktree?.state === 'pending' || worktree?.state === 'setting_up'
+  const retrySetup = worktree?.state === 'failed' || worktree?.state === 'stopped'
   const resume = queue.unsent.find((entry) => !isQueuedEditing(entry, queue.editing))
   return (
     <MediaLightboxProvider>
@@ -262,18 +267,27 @@ export function ComposerQueue({
             data-strip='queue'
             className='flex items-center gap-2 bg-popover px-3 py-2 text-xs text-muted-foreground first:rounded-t-md'
           >
-            <PauseIcon className='size-3' />
-            <span className='flex-1'>Paused · {queue.unsent.length} waiting</span>
-            <Button
-              variant='ghost-text'
-              size='xs'
-              disabled={!resume}
-              onClick={() => {
-                if (resume) actions.sendNow(threadId, resume)
-              }}
-            >
-              Resume
-            </Button>
+            {settingUp ? <Spinner className='size-3' /> : <PauseIcon className='size-3' />}
+            <span className='flex-1'>
+              {settingUp
+                ? 'Setting up worktree'
+                : worktree?.state === 'ready'
+                  ? 'Worktree ready'
+                  : 'Paused'}{' '}
+              · {queue.unsent.length} waiting
+            </span>
+            {!settingUp && (
+              <Button
+                variant='ghost-text'
+                size='xs'
+                disabled={!resume}
+                onClick={() => {
+                  if (resume) actions.sendNow(threadId, resume)
+                }}
+              >
+                {retrySetup ? 'Retry setup & resume' : 'Resume'}
+              </Button>
+            )}
           </div>
         )}
         {queue.removed && (
