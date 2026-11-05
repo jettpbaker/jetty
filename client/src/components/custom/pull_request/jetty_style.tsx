@@ -1785,8 +1785,8 @@ function MergeButton({
   const runningCount = checkCounts(pr).running
   // Quiet while GitHub still allows the merge and some checks are in progress.
   const pending = !reason && runningCount > 0
-  const variant = pending ? 'outline' : 'default'
-  const tone = pending ? '' : mergeTone
+  const variant = pending || reason ? 'outline' : 'default'
+  const tone = pending || reason ? '' : mergeTone
   function runMerge(chosen: PrMergeMethod) {
     if (merging) return
     setMerging(true)
@@ -1828,7 +1828,13 @@ function MergeButton({
   )
   const primary = reason ? (
     <Hint text={reason}>
-      <Button disabled size='sm' className={cn('rounded-sm', edge, mergeTone)}>
+      <Button
+        disabled
+        variant='outline'
+        size='sm'
+        aria-description={reason}
+        className={cn('rounded-sm', edge)}
+      >
         <MergedIcon className='size-3.5' />
         {current.label}
       </Button>
@@ -2126,7 +2132,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                 data-perf-region='pr-panel'
                 className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
               >
-                <div className='flex shrink-0 items-center justify-between px-4 pt-3 pb-2'>
+                <div className='flex h-(--app-tab-bar-height) shrink-0 items-center justify-between border-b border-border px-4'>
                   {sidebar}
                   <nav aria-label='Pull request view' className='flex gap-1'>
                     {(
@@ -2251,6 +2257,17 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                                 <Ago at={(pr.state === 'merged' && pr.mergedAt) || pr.createdAt} />
                               </span>
                             </div>
+                            {pr.state === 'open' && reason && (
+                              <p role='status' className='flex items-center gap-2 pt-3 text-sm'>
+                                <StatusGlyph
+                                  status={reason === 'Checking mergeability' ? 'working' : 'error'}
+                                />
+                                <span>
+                                  Merge blocked{' '}
+                                  <span className='text-muted-foreground'>· {reason}</span>
+                                </span>
+                              </p>
+                            )}
                           </div>
                           <Properties pr={pr} />
                           <Section
