@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
+import { useChrome } from '@/state/chrome'
 import {
   usePullRequest,
   usePullRequestThreads,
@@ -23,6 +24,7 @@ import {
   useThreadPullRequests,
   useUnlinkPullRequest,
   useLinkPullRequest,
+  useCachedPullRequestTitle,
   pullRequestKey,
   type LinkedThread,
   type PullRequestRef,
@@ -39,9 +41,11 @@ import {
   CircleXIcon,
 } from './central_icons'
 import { ContentEmpty } from './content_empty'
+import { DisabledTooltip } from './disabled_tooltip'
 import { MediaLightboxProvider } from './media_lightbox'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { adaptPullRequest } from './pull_request/adapter'
+import { PullRequestHeader } from './pull_request/header'
 import { JettyStyle } from './pull_request/jetty_style'
 import { AfterPrPaint, PrRuntimeContext } from './pull_request/runtime'
 
@@ -227,6 +231,8 @@ export function LivePullRequestView({
   standalone?: boolean
 }) {
   const { snapshot, refreshing } = usePullRequest(link)
+  const cachedTitle = useCachedPullRequestTitle(link)
+  const chrome = useChrome()
   const linkedThreads = usePullRequestThreads(link)
   const refresh = useRefreshPullRequest()
   const failure = snapshot && snapshot.status !== 'ready' && snapshot.status !== 'loading'
@@ -246,24 +252,62 @@ export function LivePullRequestView({
         />
       </MediaLightboxProvider>
     )
-  if (!failure) return <Loading label='Loading pull request…' />
   return (
-    <PullRequestUnavailable
-      title={unavailableTitle[snapshot.status]}
-      detail={
-        snapshot.status === 'unavailable' && snapshot.error
-          ? snapshot.error
-          : `${link.repo}#${link.number}`
-      }
-    >
-      <Button size='sm' disabled={refreshing} onClick={() => refresh(link)}>
-        Retry
-      </Button>
-      <Button variant='ghost-text' size='sm' nativeButton={false} render={externalLink(link.url)}>
-        Open on GitHub
-      </Button>
-      {threadId && <MoreMenu threadId={threadId} link={link} />}
-    </PullRequestUnavailable>
+    <div className='@container flex h-full min-h-0 flex-col'>
+      <PullRequestHeader
+        repo={link.repo}
+        number={link.number}
+        title={cachedTitle}
+        sidebar={standalone && <PageSidebarTrigger />}
+        navigation={
+          <nav
+            aria-label='Pull request view'
+            className='flex min-h-(--app-tab-bar-height) items-center gap-1'
+          >
+            {[
+              'Overview',
+              'Diff',
+              ...(chrome?.agentBehaviours?.guidedReviews === false ? [] : ['Guide']),
+            ].map((label) => (
+              <DisabledTooltip
+                key={label}
+                reason='Load the pull request to view its details'
+                wrap='inline-flex'
+              >
+                <Button variant='ghost' tone='muted' size='sm' disabled>
+                  {label}
+                </Button>
+              </DisabledTooltip>
+            ))}
+          </nav>
+        }
+        actions={<MoreMenu threadId={threadId} link={link} />}
+      />
+      {!failure ? (
+        <Loading label='Loading pull request…' />
+      ) : (
+        <PullRequestUnavailable
+          title={unavailableTitle[snapshot.status]}
+          detail={
+            snapshot.status === 'unavailable' && snapshot.error
+              ? snapshot.error
+              : `${link.repo}#${link.number}`
+          }
+        >
+          <Button size='sm' disabled={refreshing} onClick={() => refresh(link)}>
+            Retry
+          </Button>
+          <Button
+            variant='ghost-text'
+            size='sm'
+            nativeButton={false}
+            render={externalLink(link.url)}
+          >
+            Open on GitHub
+          </Button>
+        </PullRequestUnavailable>
+      )}
+    </div>
   )
 }
 
@@ -281,7 +325,7 @@ export function PullRequestUnavailable({
   children: ReactNode
 }) {
   return (
-    <div className='flex h-full flex-col items-center justify-center gap-3 p-4 text-center'>
+    <div className='flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-4 text-center'>
       <ContentEmpty icon={PullRequestErrorIcon} title={title} description={detail}>
         <div className='flex items-center gap-1'>{children}</div>
       </ContentEmpty>

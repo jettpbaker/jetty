@@ -112,6 +112,9 @@ import { keyTarget } from '../keybinds'
 import { githubUser, prFile } from './adapter'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
 import { GuideWide } from './guide_wide'
+import { PullRequestHeader } from './header'
+import '@/components/custom/charmed_icons.css'
+
 import {
   checkCounts,
   countLabel,
@@ -130,8 +133,6 @@ import {
   repoPath,
   visibleLines,
 } from './model'
-import '@/components/custom/charmed_icons.css'
-
 import {
   usePrRuntime,
   PrDiffLoaderContext,
@@ -2303,19 +2304,16 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                 data-perf-region='pr-panel'
                 className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
               >
-                <div className='flex shrink-0 flex-wrap items-center gap-x-3 border-b border-border px-4'>
-                  <div
-                    className='flex min-h-(--app-tab-bar-height) min-w-0 flex-1 basis-full items-center gap-2 @min-[800px]:max-w-80 @min-[800px]:basis-0'
-                    title={`${repoPath(pr)}#${pr.number} · ${pr.title}`}
-                  >
-                    {sidebar}
-                    <span className='shrink-0 font-mono text-xs text-muted-foreground'>
-                      <span className='sr-only'>{repoPath(pr)} </span>#{pr.number}
-                    </span>
-                    <span className='truncate text-sm font-medium'>{pr.title}</span>
-                  </div>
-                  <div className='flex min-h-(--app-tab-bar-height) min-w-0 flex-1 basis-full items-center justify-between gap-2 @min-[800px]:basis-0'>
-                    <nav aria-label='Pull request view' className='flex gap-1'>
+                <PullRequestHeader
+                  repo={repoPath(pr)}
+                  number={pr.number}
+                  title={pr.title}
+                  sidebar={sidebar}
+                  navigation={
+                    <nav
+                      aria-label='Pull request view'
+                      className='flex min-h-(--app-tab-bar-height) items-center gap-1'
+                    >
                       {(
                         [
                           ['overview', 'Overview', 'Overview · 1'],
@@ -2348,7 +2346,9 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           </DisabledTooltip>
                         ))}
                     </nav>
-                    <div className='ml-auto flex items-center gap-1'>
+                  }
+                  actions={
+                    <>
                       {tab === 'guide' && guide.state?.guide && (
                         <DiffDisplayOptions
                           trigger={
@@ -2375,16 +2375,16 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         <ReadyForReview pr={pr} onReady={() => setState('open')} compact />
                       ) : pr.state === 'open' ? (
                         <MergeButton reason={reason} action={mergeAction} compact />
-                      ) : (
+                      ) : tab !== 'overview' ? (
                         <span className='inline-flex h-7 items-center gap-1.5 px-2 text-13 text-muted-foreground'>
                           <StateGlyph state={pr.state} />
                           {pr.state === 'merged' ? 'Merged' : 'Closed'}
                         </span>
-                      )}
+                      ) : null}
                       {more}
-                    </div>
-                  </div>
-                </div>
+                    </>
+                  }
+                />
                 {
                   <div
                     className={cn(
