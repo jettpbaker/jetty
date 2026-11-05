@@ -177,7 +177,13 @@ function ContextDetails({ context }: { context: ContextUsage | null }) {
       {slices.length > 0 && (
         <>
           <CollapsibleTrigger
-            render={<Button variant='ghost-text' size='xs' className='self-start px-0' />}
+            render={
+              <Button
+                variant='ghost-text'
+                size='xs'
+                className='self-start px-0 [&[aria-expanded=true]>svg]:rotate-90'
+              />
+            }
           >
             <ChevronRightSmallIcon />
             Token breakdown
