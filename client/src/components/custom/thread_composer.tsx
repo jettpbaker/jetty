@@ -1,4 +1,4 @@
-import type { Draft, DraftTarget } from '@/state'
+import type { DraftTarget } from '@/state'
 import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
@@ -275,15 +275,13 @@ export function ThreadComposer({
     const noticed = item && performance.now() - shown.current.at >= noticeMs
     update({
       text,
-      typedFor: item && (noticed || saved.typedFor === item.id) ? item.id : undefined,
+      typedFor:
+        item && item.kind !== 'question' && (noticed || saved.typedFor === item.id)
+          ? item.id
+          : undefined,
     })
   }
   const stripDraft = answering ? saved : { ...saved, text: '' }
-  function stripUpdate({ text, ...patch }: Partial<Draft>) {
-    update(
-      answering ? { ...patch, ...(text !== undefined && { text }), typedFor: item?.id } : patch
-    )
-  }
 
   // The next item to show brings back whatever was typed for it earlier.
   function settled(entry: { id: string }) {
@@ -309,16 +307,16 @@ export function ThreadComposer({
   )
   const question = useQuestion(
     item?.kind === 'question' ? item : undefined,
-    stripDraft,
-    stripUpdate,
+    saved,
+    update,
     (entry, answers, progress) => {
       if (!threadId) return
-      respondQuestion(threadId, entry.id, answers, progress)
+      respondQuestion(threadId, entry.id, answers, progress, true)
       settled(entry)
     },
     (entry, progress) => {
       if (!threadId) return
-      dismissQuestion(threadId, entry.id, progress)
+      dismissQuestion(threadId, entry.id, progress, true)
       settled(entry)
     },
     keepKeyboardFocus
@@ -515,7 +513,6 @@ export function ThreadComposer({
                 ctl={question}
                 inputRef={questionInput}
                 item={item}
-                followUp={followUp}
                 header={header}
                 hideSource={Boolean(header)}
               />

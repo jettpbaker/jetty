@@ -577,6 +577,18 @@ export function useQuestion(
     update({ questions })
   }
 
+  useEffect(() => {
+    if (!item || !progress || saved.typedFor !== item.id || !saved.text) return
+    update({
+      text: '',
+      typedFor: undefined,
+      questions: {
+        ...saved.questions,
+        [item.id]: { ...progress, custom: progress.custom.with(step, saved.text) },
+      },
+    })
+  }, [item, progress, saved.typedFor, saved.text, saved.questions, step, update])
+
   function answerAt(state: QuestionProgress, index: number) {
     const typed = (state.custom[index] ?? '').trim()
     const picks = state.picks[index] ?? []
@@ -695,17 +707,21 @@ export function QuestionStrip({
   ctl,
   inputRef,
   item,
-  followUp,
   header,
   hideSource,
 }: {
   ctl: QuestionControl
   inputRef: RefObject<HTMLTextAreaElement | null>
   item: Question
-  followUp?: boolean
   header?: ReactNode
   hideSource?: boolean
 }) {
+  const previousStep = useRef(ctl.step)
+  useEffect(() => {
+    if (previousStep.current === ctl.step) return
+    previousStep.current = ctl.step
+    inputRef.current?.focus({ preventScroll: true })
+  }, [ctl.step, inputRef])
   const spec = ctl.spec
   if (!spec) return null
   return (
@@ -777,7 +793,6 @@ export function QuestionStrip({
           {ctl.answer && <Kbd>↵</Kbd>}
         </Button>
       </div>
-      {followUp && <FollowUpNote />}
     </FlushShell>
   )
 }
