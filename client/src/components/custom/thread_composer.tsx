@@ -26,7 +26,7 @@ import {
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
 import { useAttachments } from '@/hooks/use-attachments'
@@ -210,7 +210,6 @@ export function ThreadComposer({
     }
   }, [threadId, update, read])
   const meta = useThreadMeta(threadId)
-  const destination = useProject(projectId ?? meta?.projectId)
   const providerUnavailable = useProviderUnavailable(lockedProvider)
   const unavailable =
     lockedProvider && providerUnavailable && !running && !meta?.botId
@@ -585,8 +584,7 @@ export function ThreadComposer({
     <div
       className={cn(
         'mx-auto w-full max-w-[873px] px-6 pb-3',
-        ambient && 'flex min-h-0 flex-1 flex-col justify-center pb-16',
-        ambient && !threadId && 'max-w-[808px]'
+        ambient && 'flex min-h-0 flex-1 flex-col justify-center pb-16'
       )}
     >
       <output className='sr-only' aria-live='polite' aria-atomic='true'>
@@ -604,16 +602,7 @@ export function ThreadComposer({
       {ambient && (
         <Empty className='flex-none px-0 pt-6 pb-6'>
           <EmptyHeader className='max-w-lg'>
-            <EmptyTitle className='text-2xl font-semibold'>
-              {destination?.title || projectTitle
-                ? `New thread in ${destination?.title ?? projectTitle}`
-                : 'Start a new thread'}
-            </EmptyTitle>
-            <EmptyDescription>
-              {(meta?.environment ?? environment) === 'worktree'
-                ? 'Your first message starts work in a new worktree.'
-                : 'Your first message starts work in the current checkout.'}
-            </EmptyDescription>
+            <EmptyTitle className='text-2xl font-semibold'>New thread</EmptyTitle>
           </EmptyHeader>
         </Empty>
       )}
@@ -751,33 +740,35 @@ export function ThreadComposer({
         attachments={attachments}
         header={
           !threadId && (
-            <div
-              className='relative z-10 flex flex-wrap items-center gap-1 pb-2'
-              aria-label='Thread destination'
-            >
-              <ComposerProject
-                projectId={projectId}
-                onProjectChange={(id) => {
-                  draftPin = undefined
-                  if (id !== projectId)
-                    retarget({ projectId: id, environment: undefined, ref: undefined })
-                }}
-              />
-              <ComposerFooter
-                projectId={projectId}
-                environment={environment}
-                onEnvironmentChange={(next) => retarget({ environment: next })}
-                startingRef={startingRef}
-                onStartingRefChange={(ref) => retarget({ ref })}
-              />
+            <div className='relative z-10 flex flex-col gap-1 pb-2' aria-label='Thread destination'>
+              <div className='flex flex-wrap items-center gap-1'>
+                <ComposerProject
+                  projectId={projectId}
+                  onProjectChange={(id) => {
+                    draftPin = undefined
+                    if (id !== projectId)
+                      retarget({ projectId: id, environment: undefined, ref: undefined })
+                  }}
+                />
+                <ComposerFooter
+                  projectId={projectId}
+                  environment={environment}
+                  onEnvironmentChange={(next) => retarget({ environment: next })}
+                  startingRef={startingRef}
+                  onStartingRefChange={(ref) => retarget({ ref })}
+                />
+              </div>
               {setupGuide && (
-                <Button
-                  variant='ghost-text'
-                  size='sm'
-                  {...pressProps(() => setUpWorktrees(setupGuide))}
-                >
-                  Set up worktrees
-                </Button>
+                <div className='flex items-center gap-2 px-2 text-xs text-muted-foreground'>
+                  <span>Setup optional</span>
+                  <Button
+                    variant='ghost-text'
+                    size='xs'
+                    {...pressProps(() => setUpWorktrees(setupGuide))}
+                  >
+                    Set up worktrees
+                  </Button>
+                </div>
               )}
             </div>
           )
