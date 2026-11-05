@@ -166,7 +166,7 @@ export function ThreadOverview({
 
   return (
     <div ref={scroller} className='scrollbar-subtle h-full overflow-auto'>
-      <div className='flex min-h-full flex-col gap-6 p-2 text-13'>
+      <div className='flex min-h-full flex-col gap-5 p-2 text-13'>
         <ThreadProperties threadId={threadId} />
         {empty && (
           <ContentEmpty
@@ -400,12 +400,12 @@ function SubagentRow({ threadId, agent }: { threadId: string; agent: SubagentSum
     <Button
       variant='ghost'
       size='sm'
-      className='h-auto w-full justify-start gap-2 rounded-sm px-2.5 py-2 text-13 font-normal'
+      className='h-auto min-h-10 w-full justify-start gap-2 rounded-sm px-2.5 py-1 text-13 font-normal'
       onClick={() => open(threadId, agent.id)}
     >
       <StatusGlyph status={status} className='size-4 self-start mt-0.5' />
-      <span className='flex min-w-0 flex-col gap-0.5 text-left'>
-        <span className='truncate'>{agent.title}</span>
+      <span className='flex min-w-0 flex-1 flex-col gap-0.5 text-left'>
+        <span className='leading-5 wrap-anywhere whitespace-normal'>{agent.title}</span>
         <span className='text-xs text-muted-foreground'>
           {subagentGlyphLabel(state)}
           {durationMs !== undefined && (

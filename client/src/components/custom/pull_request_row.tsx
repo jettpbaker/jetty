@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 import { useOpenPullRequest, usePullRequestSummary } from '@/state'
 
 import { DiffCounts } from './diff/file_card'
-import { OverflowTitle } from './overflow_title'
 import { linkPresentation } from './thread_pull_request'
 import { TwoLineRow } from './two_line_row'
 
@@ -27,9 +26,9 @@ export function PullRequestRow({
     <TwoLineRow
       onClick={() => open(threadId, link)}
       heading={
-        <OverflowTitle focusable={false} className='text-13 font-normal leading-normal'>
+        <span className='min-w-0 text-13 leading-5 wrap-anywhere whitespace-normal'>
           {pull?.title ?? link.title ?? `${link.repo}#${link.number}`}
-        </OverflowTitle>
+        </span>
       }
       glyph={
         <span className={cn('flex shrink-0 items-center', pr.color)} title={pr.label}>

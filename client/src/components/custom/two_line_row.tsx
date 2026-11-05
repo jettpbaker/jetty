@@ -24,12 +24,12 @@ export function TwoLineRow({
       variant={variant}
       {...props}
       className={cn(
-        'h-auto w-full min-w-0 flex-col items-stretch gap-0.75 rounded-sm px-2.5 py-1 text-left font-normal',
+        'h-auto min-h-10 w-full min-w-0 flex-col items-stretch gap-0.75 rounded-sm px-2.5 py-1 text-left font-normal',
         className
       )}
     >
-      <span className='flex min-w-0 items-center gap-2 text-foreground'>
-        <span className='flex size-4 shrink-0 items-center justify-center'>{glyph}</span>
+      <span className='flex min-w-0 items-start gap-2 text-foreground'>
+        <span className='mt-0.5 flex size-4 shrink-0 items-center justify-center'>{glyph}</span>
         {heading}
       </span>
       <span

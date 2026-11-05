@@ -7,7 +7,6 @@ import { useChildThreadMetas, useModels, useThreadRowPrefetch } from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 
-import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 import { TwoLineRow } from './two_line_row'
@@ -65,9 +64,9 @@ function useOpenThread(): Open {
 
 function ChildTitle({ child }: { child: ChildThread }) {
   return (
-    <OverflowTitle focusable={false} className='text-13 font-normal leading-normal text-foreground'>
+    <span className='min-w-0 text-13 leading-5 wrap-anywhere whitespace-normal text-foreground'>
       {child.title}
-    </OverflowTitle>
+    </span>
   )
 }
 
