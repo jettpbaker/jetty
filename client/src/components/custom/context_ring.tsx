@@ -32,7 +32,15 @@ function nearCap(fraction: number) {
   return fraction >= 0.9
 }
 
-// How full a thread's context window is; red from 90%.
+function capacityTone(fraction: number) {
+  return nearCap(fraction)
+    ? 'text-destructive'
+    : fraction >= 0.75
+      ? 'text-status-attention'
+      : undefined
+}
+
+// How full a thread's context window is; amber from 75%, red from 90%.
 export function ContextRing({
   context,
   className,
@@ -45,7 +53,7 @@ export function ContextRing({
     <svg
       viewBox='0 0 256 256'
       aria-hidden='true'
-      className={cn(nearCap(fraction) ? 'text-destructive' : 'text-foreground', className)}
+      className={cn(capacityTone(fraction) ?? 'text-foreground', className)}
     >
       <circle
         cx='128'
@@ -142,13 +150,11 @@ function Headroom({ context }: { context: ContextUsage }) {
   )
 }
 
-// What fills the window sits behind the chevron, closed until asked for. Codex and Grok send only
-// a total, so they have no chevron.
 function ContextDetails({ context }: { context: ContextUsage | null }) {
   if (!context)
     return (
       <div className='flex flex-col gap-2'>
-        <span className='font-medium'>This thread</span>
+        <span className='font-medium'>Context window</span>
         <Gauge fraction={0} />
         <span className='text-muted-foreground'>No context reading yet.</span>
       </div>
@@ -156,50 +162,44 @@ function ContextDetails({ context }: { context: ContextUsage | null }) {
   const slices = context.slices.toSorted((a, b) => b.tokens - a.tokens)
   const fraction = fullness(context)
   return (
-    <Collapsible defaultOpen className='flex flex-col gap-2'>
+    <Collapsible className='flex flex-col gap-2'>
       <div className='flex items-center justify-between gap-3'>
-        {slices.length > 0 ? (
-          <CollapsibleTrigger
-            render={
-              <Button
-                variant='ghost-text'
-                size='xs'
-                className='group/details -my-1 h-6 gap-1 px-0 font-medium text-foreground not-disabled:hover:text-foreground aria-expanded:text-foreground'
-              />
-            }
-          >
-            This thread
-            <ChevronRightSmallIcon className='text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-hover/details:text-foreground group-aria-expanded/details:rotate-90 motion-reduce:transition-none' />
-          </CollapsibleTrigger>
-        ) : (
-          <span className='font-medium'>This thread</span>
-        )}
-        <Mono className='text-muted-foreground'>
-          {tokens(context.usedTokens)} / {tokens(context.maxTokens)} (
-          <span className={nearCap(fraction) ? 'text-destructive' : 'text-foreground'}>
-            {Math.round(fraction * 100)}%
-          </span>
-          )
-        </Mono>
+        <span className='font-medium'>Context window</span>
+        <Mono className={capacityTone(fraction)}>{Math.round(fraction * 100)}% used</Mono>
       </div>
       {slices.length > 0 ? <SliceGauge context={context} /> : <Gauge fraction={fraction} />}
-      <Headroom context={context} />
+      <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-muted-foreground'>
+        <Mono>
+          {tokens(context.usedTokens)} / {tokens(context.maxTokens)} tokens
+        </Mono>
+        <Headroom context={context} />
+      </div>
       {slices.length > 0 && (
-        <CollapsibleContent>
-          <div className='grid grid-cols-2 gap-x-4 gap-y-1 pt-0.5'>
-            {slices.map((slice) => (
-              <div key={slice.label} className='flex min-w-0 items-center gap-1.5'>
-                <span
-                  aria-hidden='true'
-                  className='size-2 shrink-0 rounded-xs'
-                  style={{ background: hue(slice.label) }}
-                />
-                <span className='min-w-0 flex-1 truncate text-muted-foreground'>{slice.label}</span>
-                <Mono className='text-muted-foreground'>{tokens(slice.tokens)}</Mono>
-              </div>
-            ))}
-          </div>
-        </CollapsibleContent>
+        <>
+          <CollapsibleTrigger
+            render={<Button variant='ghost-text' size='xs' className='self-start px-0' />}
+          >
+            <ChevronRightSmallIcon />
+            Token breakdown
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className='grid grid-cols-2 gap-x-4 gap-y-1 pt-0.5'>
+              {slices.map((slice) => (
+                <div key={slice.label} className='flex min-w-0 items-center gap-1.5'>
+                  <span
+                    aria-hidden='true'
+                    className='size-2 shrink-0 rounded-xs'
+                    style={{ background: hue(slice.label) }}
+                  />
+                  <span className='min-w-0 flex-1 truncate text-muted-foreground'>
+                    {slice.label}
+                  </span>
+                  <Mono className='text-muted-foreground'>{tokens(slice.tokens)}</Mono>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </>
       )}
     </Collapsible>
   )
@@ -256,9 +256,10 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         }
       >
         <ContextRing context={context} />
-        <span className='font-mono text-xs'>
+        <span className={cn('font-mono text-xs', capacityTone(fullness(context)))}>
           {context ? `${Math.round(fullness(context) * 100)}%` : '—'}
         </span>
+        <span className='text-xs'>context</span>
       </PopoverTrigger>
       <PopoverContent
         side='top'
