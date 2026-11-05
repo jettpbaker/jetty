@@ -2,6 +2,7 @@ import { Loading } from '@/components/custom/loading'
 import { Markdown } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { contentKey } from '@/lib/hash'
+import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { parseDiffFromFile, type DiffLineAnnotation, type FileDiffMetadata } from '@pierre/diffs'
 import { useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -21,11 +22,16 @@ import {
 import { ago, filePatch, personName, visibleLines } from './model'
 import { PrDiffLoaderContext, PrDiffRevisionContext } from './runtime'
 
-// A relative time, set apart from the sentence before it without a dot: faint on the page, muted on a
-// raised card, where faint is too faint.
-export function Ago({ at, raised = false }: { at: string; raised?: boolean }) {
+export function Ago({ at }: { at: string }) {
   return (
-    <span className={raised ? 'text-muted-foreground' : 'text-faint-foreground'}>{ago(at)}</span>
+    <time
+      dateTime={at}
+      aria-label={ago(at)}
+      title={new Date(at).toLocaleString()}
+      className='font-mono text-muted-foreground'
+    >
+      {formatAge(Date.parse(at), Date.now())}
+    </time>
   )
 }
 
@@ -344,7 +350,7 @@ export function Comment({
           className='size-5'
         />
         <span>{personName(comment.author)}</span>
-        <Ago at={comment.createdAt} raised />
+        <Ago at={comment.createdAt} />
         {menu && <span className='ml-auto'>{menu}</span>}
       </div>
       <div className={cn(reply && 'pl-7')}>
