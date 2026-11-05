@@ -4,20 +4,26 @@ import type { KeyboardEvent, RefObject, SyntheticEvent } from 'react'
 import { ArrowUpRightIcon, DotGrid2x3Icon, PlusMediumIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
+  Command,
+  CommandInput,
+  CommandList,
+  CommandGroup,
+  CommandItem,
+} from '@/components/ui/command'
+import {
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   describeLoadout,
   effortLabels,
@@ -43,6 +49,7 @@ import { useRef, useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, KeybindTooltip, keybinds, appShortcut } from './keybinds'
+import './option_picker.css'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 
@@ -54,7 +61,7 @@ const sensors = [
 ]
 const modifiers = [
   RestrictToElement.configure({
-    element: (operation) => operation.source?.element?.closest('[role="group"]') ?? null,
+    element: (operation) => operation.source?.element?.closest('[data-loadout-group]') ?? null,
   }),
 ]
 
@@ -93,46 +100,6 @@ function DragHandle({
   )
 }
 
-// A filled slot's settings arrow can't take focus inside its menu item, so → opens settings too.
-function slotKeys(
-  index: number,
-  onMove: (from: number, to: number) => void,
-  onOpenSettings: () => void
-) {
-  const move = moveOnKeys(index, onMove)
-  return (event: KeyboardEvent) => {
-    if (
-      event.key !== 'ArrowRight' ||
-      event.altKey ||
-      event.shiftKey ||
-      event.metaKey ||
-      event.ctrlKey
-    )
-      return move(event)
-    event.preventDefault()
-    event.stopPropagation()
-    onOpenSettings()
-  }
-}
-
-function SettingsArrow({ onOpenSettings }: { onOpenSettings: () => void }) {
-  return (
-    <button
-      type='button'
-      tabIndex={-1}
-      aria-label='Open loadout settings'
-      className='ml-auto flex size-5 shrink-0 items-center justify-center rounded-menu-item text-muted-foreground hover:text-foreground'
-      onClick={(event) => {
-        stopSelect(event)
-        onOpenSettings()
-      }}
-      onPointerUp={stopSelect}
-    >
-      <ArrowUpRightIcon className='size-3.5' />
-    </button>
-  )
-}
-
 function SortableLoadoutItem({
   id,
   index,
@@ -142,8 +109,9 @@ function SortableLoadoutItem({
   disabled,
   disabledReason,
   draggable,
+  checked,
   onMove,
-  onOpenSettings,
+  onSelect,
 }: {
   id: string
   index: number
@@ -153,8 +121,9 @@ function SortableLoadoutItem({
   disabled: boolean
   disabledReason?: string
   draggable: boolean
+  checked: boolean
   onMove: (from: number, to: number) => void
-  onOpenSettings: () => void
+  onSelect: () => void
 }) {
   const reducedMotion = useReducedMotion()
   const { ref, handleRef, isDragging } = useSortable({
@@ -167,52 +136,24 @@ function SortableLoadoutItem({
       reason={disabled ? (disabledReason ?? 'Threads can’t switch providers') : undefined}
       side='right'
     >
-      <DropdownMenuRadioItem
+      <CommandItem
         ref={ref}
-        value={id}
+        value={`configuration:${id}`}
         disabled={disabled}
-        className='group/loadout h-8! gap-0 pl-1.5 pr-1.5 data-checked:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden'
-        title={draggable ? 'Drag to reorder · Option+Shift+↑/↓ · → Settings' : '→ Settings'}
-        aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown ArrowRight'
-        onKeyDown={slotKeys(index, onMove, onOpenSettings)}
+        data-checked={checked}
+        data-loadout-index={index}
+        title={draggable ? 'Drag to reorder · Option+Shift+↑/↓' : undefined}
+        aria-keyshortcuts={draggable ? 'Alt+Shift+ArrowUp Alt+Shift+ArrowDown' : undefined}
+        onKeyDown={moveOnKeys(index, onMove)}
+        onSelect={onSelect}
       >
         {draggable && <DragHandle handleRef={handleRef} isDragging={isDragging} />}
-        <span className='flex items-center gap-1.5'>
-          <ProviderGlyph
-            provider={provider}
-            className='size-3 text-muted-foreground group-focus/loadout:text-current group-data-checked/loadout:text-current group-data-disabled/loadout:text-current'
-          />
-          {name}
-          <span className='text-muted-foreground'>{details}</span>
+        <ProviderGlyph provider={provider} className='size-3' />
+        <span className='min-w-0 flex-1 truncate'>
+          {name} <span className='text-muted-foreground'>{details}</span>
         </span>
-        <SettingsArrow onOpenSettings={onOpenSettings} />
-      </DropdownMenuRadioItem>
+      </CommandItem>
     </DisabledTooltip>
-  )
-}
-
-const emptyRowClass =
-  'flex h-8! w-full items-center gap-1.5 rounded-menu-item pr-1.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground outline-none'
-
-function EmptyRowLabel() {
-  return (
-    <span className='flex items-center gap-1.5'>
-      <PlusMediumIcon className='size-3 shrink-0' />
-      Add configuration
-    </span>
-  )
-}
-
-function EmptyLoadoutRow({ slot, onOpenSettings }: { slot: number; onOpenSettings: () => void }) {
-  return (
-    <DropdownMenuItem
-      onClick={onOpenSettings}
-      aria-label={`Add configuration to slot ${slot}`}
-      className={`${emptyRowClass} pl-2`}
-    >
-      <EmptyRowLabel />
-      <SettingsArrow onOpenSettings={onOpenSettings} />
-    </DropdownMenuItem>
   )
 }
 
@@ -278,7 +219,7 @@ export function ComposerLoadout({
   loading?: boolean
   modelMenuRef?: RefObject<(() => void) | null>
 }) {
-  const { model, name } = loadoutParts(catalog, value, allowedEfforts)
+  const { model, name, efforts } = loadoutParts(catalog, value, allowedEfforts)
   const allModels = useModels()
   const { refresh } = useModelRefresh()
   const equipped = loadouts.flatMap((slot) => {
@@ -292,18 +233,27 @@ export function ComposerLoadout({
     : catalog
 
   const [open, setOpen] = useState(false)
-  const [submenu, setSubmenu] = useState<'model' | 'effort'>()
-  const submenuPopup = useRef<HTMLDivElement>(null)
+  const [query, setQuery] = useState('')
+  const [focusEffort, setFocusEffort] = useState(false)
+  const effortRef = useRef<HTMLDivElement>(null)
+  const search = query.trim().toLowerCase()
+  const results = models.filter((item) =>
+    `${item.provider} ${modelLabelText(item)}`.toLowerCase().includes(search)
+  )
+  const configurations = equipped.filter(({ loadout }) =>
+    `${catalogModelName(allModels, loadout.provider, loadout.model)} ${describeLoadout(loadout)}`
+      .toLowerCase()
+      .includes(search)
+  )
 
   function openSubmenu(target: 'model' | 'effort') {
-    if (open) return
-    setSubmenu(target)
+    setFocusEffort(target === 'effort')
+    setQuery('')
     setOpen(true)
     refresh()
   }
 
   if (modelMenuRef) modelMenuRef.current = () => openSubmenu('model')
-
   const shortcuts = hotkeys && <LoadoutShortcuts openSubmenu={openSubmenu} />
 
   function reorder(from: number, to: number) {
@@ -318,27 +268,20 @@ export function ComposerLoadout({
   }
 
   return (
-    <DropdownMenu
-      modal={false}
+    <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        setSubmenu(undefined)
-        if (next) refresh()
-      }}
-      // A submenu opened without the keyboard leaves focus where it was; the shortcut moves it onto
-      // the current pick so the arrows choose straight away, and Esc backs out of both menus.
-      onOpenChangeComplete={(next) => {
-        const popup = submenuPopup.current
-        if (!next || !popup) return
-        const item =
-          popup.querySelector('[data-checked]') ?? popup.querySelector('[role^=menuitem]')
-        if (item instanceof HTMLElement) item.focus()
+        if (next) {
+          setFocusEffort(false)
+          setQuery('')
+          refresh()
+        }
       }}
     >
       {shortcuts}
       <KeybindTooltip binding={keybinds.model}>
-        <DropdownMenuTrigger
+        <PopoverTrigger
           aria-label={
             value
               ? `Loadout: ${[name, describeLoadout(value)].filter(Boolean).join(', ')}`
@@ -349,11 +292,7 @@ export function ComposerLoadout({
               variant='ghost'
               size='sm'
               tone={value ? 'default' : 'muted'}
-              className={cn(
-                'group/chip gap-1.5 rounded-sm',
-                value && 'text-primary not-disabled:hover:text-primary aria-expanded:text-primary',
-                loading && 'invisible'
-              )}
+              className={cn('group/chip gap-1.5 rounded-sm', loading && 'invisible')}
             />
           }
         >
@@ -361,90 +300,195 @@ export function ComposerLoadout({
             <>
               <ProviderGlyph provider={value.provider} className='size-3' />
               {model ? <ModelLabel model={model} /> : name}
-              <span className='text-muted-foreground group-hover/chip:text-foreground group-aria-expanded/chip:text-foreground'>
-                {describeLoadout(value)}
-              </span>
+              <span className='text-muted-foreground'>{describeLoadout(value)}</span>
             </>
           ) : (
             'Choose a model'
           )}
-        </DropdownMenuTrigger>
+        </PopoverTrigger>
       </KeybindTooltip>
-      <DropdownMenuContent align='start' className='w-max min-w-56'>
-        <DropdownMenuGroup>
-          <DragDropProvider
-            sensors={sensors}
-            modifiers={modifiers}
-            onDragEnd={(event) => {
-              if (event.canceled) return
-              const { source } = event.operation
-              if (isSortable(source)) reorder(source.initialIndex, source.index)
-            }}
-          >
-            <DropdownMenuRadioGroup
-              value={checked}
-              onValueChange={(id) => {
-                const picked = equipped.find(({ slot }) => slot.id === id)
-                if (picked) onChange(picked.loadout)
+      <PopoverContent
+        align='start'
+        className='search-picker w-80 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
+        initialFocus={() =>
+          focusEffort
+            ? (effortRef.current?.querySelector<HTMLButtonElement>('[aria-pressed=true], button') ??
+              true)
+            : true
+        }
+      >
+        <PopoverTitle className='sr-only'>Choose model and effort</PopoverTitle>
+        <Command
+          label='Choose a model'
+          shouldFilter={false}
+          onKeyDown={(event) => {
+            const active = event.currentTarget.querySelector<HTMLElement>(
+              '[data-selected=true][data-loadout-index]'
+            )
+            if (active && !search) moveOnKeys(Number(active.dataset.loadoutIndex), reorder)(event)
+          }}
+        >
+          <CommandInput
+            placeholder='Search models'
+            aria-label='Search models'
+            value={query}
+            onValueChange={setQuery}
+          />
+          <Separator />
+          <CommandList>
+            <div className='picker-results'>
+              {configurations.length > 0 && (
+                <CommandGroup heading='Configurations'>
+                  <DragDropProvider
+                    sensors={sensors}
+                    modifiers={modifiers}
+                    onDragEnd={(event) => {
+                      if (event.canceled) return
+                      const { source } = event.operation
+                      if (isSortable(source)) reorder(source.initialIndex, source.index)
+                    }}
+                  >
+                    <fieldset data-loadout-group aria-label='Saved configurations'>
+                      {configurations.map(({ slot, loadout }) => {
+                        const index = equipped.findIndex((item) => item.slot.id === slot.id)
+                        return (
+                          <SortableLoadoutItem
+                            key={slot.id}
+                            id={slot.id}
+                            index={index}
+                            draggable={equipped.length > 1 && !search}
+                            name={
+                              catalogModelName(allModels, loadout.provider, loadout.model) ??
+                              loadout.model
+                            }
+                            details={describeLoadout(loadout)}
+                            provider={loadout.provider}
+                            checked={checked === slot.id}
+                            disabled={
+                              !usable.some((item) => item.id === slot.id) ||
+                              Boolean(lockedProvider && lockedProvider !== loadout.provider) ||
+                              disabledProviders.includes(loadout.provider) ||
+                              Boolean(
+                                loadout.effort &&
+                                allowedEfforts &&
+                                !allowedEfforts.includes(loadout.effort)
+                              )
+                            }
+                            disabledReason={
+                              disabledProviders.includes(loadout.provider)
+                                ? 'Claude bots only for now'
+                                : loadout.effort &&
+                                    allowedEfforts &&
+                                    !allowedEfforts.includes(loadout.effort)
+                                  ? 'Max effort is not available to bots'
+                                  : undefined
+                            }
+                            onMove={reorder}
+                            onSelect={() => {
+                              onChange(loadout)
+                              setOpen(false)
+                            }}
+                          />
+                        )
+                      })}
+                    </fieldset>
+                  </DragDropProvider>
+                </CommandGroup>
+              )}
+              <CommandGroup heading='Models'>
+                {results.map((item) => (
+                  <CommandItem
+                    key={modelKey(item)}
+                    value={modelKey(item)}
+                    disabled={disabledProviders.includes(item.provider)}
+                    data-checked={model === item}
+                    onSelect={() => onChange(equipModel(value ?? { fast: false }, item))}
+                  >
+                    <ProviderGlyph provider={item.provider} className='size-3' />
+                    <span className='flex-1 truncate'>
+                      <ModelLabel model={item} />
+                    </span>
+                  </CommandItem>
+                ))}
+                {!results.length && (
+                  <p className='px-2 py-2 text-xs text-muted-foreground'>
+                    {models.length
+                      ? 'No matching models'
+                      : 'Connect a coding agent in Settings to choose a model.'}
+                  </p>
+                )}
+              </CommandGroup>
+            </div>
+          </CommandList>
+        </Command>
+        <Separator />
+        <div ref={effortRef} className='flex flex-col gap-2 p-3'>
+          <div className='flex items-center justify-between text-xs text-muted-foreground'>
+            <span>Effort</span>
+            {hotkeys && <KeybindChip binding={keybinds.effort} />}
+          </div>
+          {efforts.length ? (
+            <ToggleGroup
+              aria-label='Effort'
+              size='sm'
+              spacing={0}
+              variant='outline'
+              value={value?.effort ? [value.effort] : []}
+              onValueChange={(next) => {
+                const effort = efforts.find((level) => level === next[0])
+                if (value && effort) onChange({ ...value, effort })
               }}
-              className='flex flex-col gap-0.5'
+              className='w-full'
             >
-              {equipped.map(({ slot, loadout }, index) => {
-                const slotModel = findModel(allModels, loadout)
-                return (
-                  <SortableLoadoutItem
-                    key={slot.id}
-                    id={slot.id}
-                    index={index}
-                    draggable={equipped.length > 1}
-                    name={slotModel ? modelLabelText(slotModel) : loadout.model}
-                    details={describeLoadout(loadout)}
-                    provider={loadout.provider}
-                    disabled={
-                      !usable.some((item) => item.id === slot.id) ||
-                      Boolean(lockedProvider && lockedProvider !== loadout.provider) ||
-                      disabledProviders.includes(loadout.provider) ||
-                      Boolean(
-                        loadout.effort && allowedEfforts && !allowedEfforts.includes(loadout.effort)
-                      )
-                    }
-                    disabledReason={
-                      disabledProviders.includes(loadout.provider)
-                        ? 'Claude bots only for now'
-                        : loadout.effort &&
-                            allowedEfforts &&
-                            !allowedEfforts.includes(loadout.effort)
-                          ? 'Max effort is not available to bots'
-                          : undefined
-                    }
-                    onMove={reorder}
-                    onOpenSettings={onOpenSettings}
-                  />
-                )
-              })}
-            </DropdownMenuRadioGroup>
-          </DragDropProvider>
-          {loadouts.some((slot) => !slotLoadout(slot)) && (
-            <EmptyLoadoutRow
-              slot={loadouts.findIndex((slot) => !slotLoadout(slot)) + 1}
-              onOpenSettings={onOpenSettings}
-            />
+              {efforts.map((effort) => (
+                <ToggleGroupItem
+                  key={effort}
+                  value={effort}
+                  className='min-w-0 flex-1 px-2 text-xs'
+                >
+                  {effortLabels[effort]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          ) : (
+            <p className='text-xs text-muted-foreground'>
+              {value ? `${name} doesn’t support effort levels` : 'Choose a model first'}
+            </p>
           )}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <ModelMenuItems
-          catalog={catalog}
-          models={models}
-          value={value}
-          allowedEfforts={allowedEfforts}
-          disabledProviders={disabledProviders}
-          submenu={submenu}
-          submenuRef={submenuPopup}
-          keybindChips
-          onChange={onChange}
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <label className='flex items-center justify-between gap-3 text-xs'>
+            <span className='flex min-w-0 flex-col'>
+              <span>Fast</span>
+              {(!value || !model?.fast) && (
+                <span className='text-muted-foreground'>
+                  {value ? `${name} has no fast mode` : 'Choose a model first'}
+                </span>
+              )}
+            </span>
+            <Switch
+              size='sm'
+              disabled={!value || !model?.fast}
+              checked={value?.fast ?? false}
+              onCheckedChange={(fast) => value && onChange({ ...value, fast })}
+            />
+          </label>
+        </div>
+        <Separator />
+        <Button
+          variant='ghost'
+          size='sm'
+          className='m-1 justify-start'
+          onClick={() => {
+            setOpen(false)
+            onOpenSettings()
+          }}
+        >
+          {loadouts.some((slot) => !slotLoadout(slot)) ? <PlusMediumIcon /> : <ArrowUpRightIcon />}
+          {loadouts.some((slot) => !slotLoadout(slot))
+            ? 'Add configuration'
+            : 'Manage configurations'}
+        </Button>
+      </PopoverContent>
+    </Popover>
   )
 }
 
