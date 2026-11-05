@@ -301,10 +301,10 @@ export function ComposerLoadout({
           }
           render={
             <Button
-              variant='ghost'
+              variant='outline'
               size='sm'
               tone={value ? 'default' : 'muted'}
-              className={cn('group/chip gap-1.5 rounded-sm', loading && 'invisible')}
+              className={cn('group/chip gap-1.5 rounded-sm text-13', loading && 'invisible')}
             />
           }
         >
@@ -470,10 +470,10 @@ export function ComposerLoadout({
             </p>
           )}
           <div className='flex min-h-8 items-center justify-between gap-3 text-xs'>
-            <span className='flex flex-col gap-1'>
+            <span className='flex min-w-0 items-center gap-2'>
               <span>Fast</span>
               {fastUnavailable && (
-                <span id={fastHint} className='text-xs text-muted-foreground'>
+                <span id={fastHint} className='truncate text-xs text-muted-foreground'>
                   {fastUnavailable}
                 </span>
               )}

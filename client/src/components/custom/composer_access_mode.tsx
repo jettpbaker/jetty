@@ -85,7 +85,7 @@ export function ComposerAccessMode({
       >
         <DropdownMenuTrigger
           aria-label={`Access mode: ${label}`}
-          render={<Button variant='ghost' size='sm' />}
+          render={<Button variant='outline' size='sm' className='text-13' />}
         >
           <Icon className='text-muted-foreground' />
           {label}

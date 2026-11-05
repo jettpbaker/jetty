@@ -170,7 +170,7 @@ export function Composer({
     <div
       ref={root}
       data-perf-region='composer'
-      className='mx-auto flex w-full max-w-[825px] flex-col gap-1'
+      className='@container/composer mx-auto flex w-full max-w-[825px] flex-col gap-1'
     >
       {header}
       <div
@@ -244,9 +244,9 @@ export function Composer({
             </div>
             <InputGroupAddon
               align='block-end'
-              className={cn('justify-between', compact && 'hidden')}
+              className={cn('items-end justify-between', compact && 'hidden')}
             >
-              <div className='flex min-w-0 flex-1 flex-wrap items-center gap-0'>
+              <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1'>
                 <ComposerAttach
                   onAttach={attachments.add}
                   disabledReason={attachments.refused}
@@ -258,7 +258,11 @@ export function Composer({
                   model={model}
                   onChange={onAccessModeChange}
                 />
-                {context}
+                {context && (
+                  <div className='flex min-w-0 flex-1 @max-[560px]/composer:basis-full'>
+                    {context}
+                  </div>
+                )}
               </div>
               <div className='flex items-center gap-1'>
                 {stopping && (
