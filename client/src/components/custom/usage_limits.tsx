@@ -158,7 +158,8 @@ function UsageRow({
       window={window}
       className={cn(
         'col-span-full grid grid-cols-subgrid items-center gap-y-1',
-        !compact && 'min-h-12'
+        !compact && 'min-h-8 py-1',
+        !compact && left <= 5 && 'rounded-xs bg-destructive/5'
       )}
     >
       <span className='truncate text-xs text-muted-foreground'>{window.label}</span>
@@ -182,9 +183,7 @@ function UsageRow({
           </>
         )}
       </span>
-      {(!compact || pace) && (
-        <span className='col-[2/-1] min-h-4 text-xs text-muted-foreground'>{pace}</span>
-      )}
+      {pace && <span className='col-[2/-1] min-h-4 text-xs text-muted-foreground'>{pace}</span>}
     </WindowTip>
   )
 }
@@ -216,17 +215,6 @@ function UsageWindows({
   if (missing) return <p className='text-xs text-muted-foreground'>{missing}</p>
   return (
     <div data-usage-provider={usage.provider} className={cn('grid', windowsGrid(compact))}>
-      {!compact && (
-        <div
-          aria-hidden='true'
-          className='col-span-full grid grid-cols-subgrid pb-1 text-xs text-muted-foreground'
-        >
-          <span>Window</span>
-          <span>Usage</span>
-          <span className='text-right'>Used</span>
-          <span className='text-right'>Resets in</span>
-        </div>
-      )}
       {usage.windows.map((window) => (
         <UsageRow key={window.id} usage={usage} window={window} now={now} compact={compact} />
       ))}
@@ -272,6 +260,10 @@ export function UsagePage({
   failed: ReadonlySet<UsageProvider>
   onRefresh: () => void
 }) {
+  const unreported = providers.filter((provider) => {
+    const item = usage[provider]
+    return item?.connected && !item.failed && !failed.has(provider) && item.windows.length === 0
+  })
   return (
     <div className='flex h-full min-h-0 flex-col bg-background'>
       <header className='flex h-(--app-tab-bar-height,42px) shrink-0 items-center justify-between gap-2 border-b border-border pl-(--page-header-inset,16px) pr-3'>
@@ -307,39 +299,75 @@ export function UsagePage({
           </Tooltip>
         </div>
       </header>
-      <div className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-        <div className='@container mx-auto flex w-full max-w-160 flex-col gap-10 px-4 py-8'>
-          {providers.map((provider) => {
-            const item = usage[provider]
-            return (
-              <section
-                key={provider}
-                aria-labelledby={`usage-${provider}`}
-                aria-busy={item === undefined}
-                className='flex flex-col gap-4'
-              >
-                <div className='flex items-center gap-2 text-muted-foreground'>
-                  <ProviderGlyph provider={provider} className='size-4' />
-                  <h2 id={`usage-${provider}`} className='text-sm font-semibold text-foreground'>
-                    {providerNames[provider]}
-                  </h2>
-                  {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
-                    <span className='ml-auto text-xs'>
-                      Couldn’t refresh
-                      {item.asOf !== undefined && ` · last read ${updatedLabel(item.asOf, now)}`}
-                    </span>
+      <div className='scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
+        <div className='@container mx-auto flex w-full max-w-160 flex-col gap-6 px-4 pt-4 pb-8'>
+          <div
+            aria-hidden='true'
+            className={cn(
+              'sticky top-0 z-1 grid bg-background py-3 text-xs text-muted-foreground',
+              windowsGrid(false)
+            )}
+          >
+            <span>Window</span>
+            <span>Usage</span>
+            <span className='text-right'>Used</span>
+            <span className='text-right'>Resets in</span>
+          </div>
+          {providers
+            .filter((provider) => !unreported.includes(provider))
+            .map((provider) => {
+              const item = usage[provider]
+              return (
+                <section
+                  key={provider}
+                  aria-labelledby={`usage-${provider}`}
+                  aria-busy={item === undefined}
+                  className='flex flex-col gap-2'
+                >
+                  <div className='flex items-center gap-2 text-muted-foreground'>
+                    <ProviderGlyph provider={provider} className='size-4' />
+                    <h2 id={`usage-${provider}`} className='text-sm font-semibold text-foreground'>
+                      {providerNames[provider]}
+                    </h2>
+                    {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
+                      <span className='ml-auto text-xs'>
+                        Couldn’t refresh
+                        {item.asOf !== undefined && ` · last read ${updatedLabel(item.asOf, now)}`}
+                      </span>
+                    )}
+                  </div>
+                  {item ? (
+                    <UsageWindows usage={item} now={now} />
+                  ) : failed.has(provider) ? (
+                    <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
+                  ) : (
+                    <UsageSkeleton />
                   )}
-                </div>
-                {item ? (
-                  <UsageWindows usage={item} now={now} />
-                ) : failed.has(provider) ? (
-                  <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
-                ) : (
-                  <UsageSkeleton />
-                )}
-              </section>
-            )
-          })}
+                  {item?.windows.some((window) => window.pct >= 95) && (
+                    <div className='flex items-center justify-between gap-2 text-xs'>
+                      <span className='text-destructive'>
+                        {item.windows.some((window) => window.pct >= 100)
+                          ? 'Usage limit reached'
+                          : 'Approaching usage limit'}
+                      </span>
+                      <Button
+                        variant='ghost-text'
+                        size='xs'
+                        render={<Link to='/settings/$page' params={{ page: 'models' }} />}
+                      >
+                        Manage models
+                        <ArrowUpRightIcon />
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              )
+            })}
+          {unreported.length > 0 && (
+            <p className='text-xs text-muted-foreground'>
+              No limits reported: {unreported.map((provider) => providerNames[provider]).join(', ')}
+            </p>
+          )}
         </div>
       </div>
     </div>
