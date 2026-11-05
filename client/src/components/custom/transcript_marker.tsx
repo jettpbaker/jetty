@@ -387,7 +387,14 @@ export function PullRequestSeam({ item }: { item: PullRequestItem }) {
               <span className='truncate'>
                 {headline(lead, item.activity).replace(/^./, (letter) => letter.toUpperCase())}
               </span>
-              <span className='text-foreground'>and {count - 1} more</span>
+              <span className='text-foreground'>
+                {count === 2
+                  ? `· ${headline(
+                      item.activity.find((event) => event !== lead)!,
+                      item.activity
+                    )}`
+                  : `· ${count - 1} more events`}
+              </span>
               <span>on</span>
             </>
           ) : (
@@ -401,7 +408,7 @@ export function PullRequestSeam({ item }: { item: PullRequestItem }) {
     </span>
   )
   return (
-    <div className='flex min-w-0 justify-center py-0.5 text-xs leading-4 text-muted-foreground'>
+    <div className='flex min-w-0 justify-start py-0.5 text-xs leading-4 text-muted-foreground'>
       {summary ? (
         <Tooltip>
           <TooltipTrigger render={<span className='min-w-0' />}>{line}</TooltipTrigger>
@@ -439,7 +446,7 @@ export function PullRequestGroupSeam({ items }: { items: PullRequestItem[] }) {
     }
   }
   return (
-    <div className='flex min-w-0 justify-center py-0.5 text-xs leading-4 text-muted-foreground'>
+    <div className='flex min-w-0 justify-start py-0.5 text-xs leading-4 text-muted-foreground'>
       <DropdownMenu>
         <DropdownMenuTrigger className='flex min-w-0 items-center gap-[5px] rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50'>
           <span className='text-foreground'>{total}</span> updates on{' '}

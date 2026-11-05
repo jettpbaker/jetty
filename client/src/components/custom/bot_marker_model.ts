@@ -25,5 +25,5 @@ export function reportRuns(reports: readonly ChildReport[]) {
 }
 
 export function botMarkerHeight(lines: number) {
-  return Math.max(0, 24 * lines - 4)
+  return Math.max(0, 32 * lines - 4)
 }

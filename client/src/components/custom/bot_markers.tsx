@@ -146,8 +146,8 @@ function MarkerTallies({ markers, metas }: { markers: Marker[]; metas: readonly 
   ))
 }
 
-const rowClass = 'flex flex-col items-center gap-1 text-xs text-muted-foreground'
-const lineClass = 'flex h-5 max-w-full min-w-0 items-center justify-center whitespace-nowrap'
+const rowClass = 'flex flex-col items-start gap-1 text-xs text-muted-foreground'
+const lineClass = 'flex h-7 max-w-full min-w-0 items-center justify-start whitespace-nowrap'
 
 // The threads a bot started or messaged since its last words, a line for each run of one kind.
 export function ThreadMarkers({ botId, markers }: { botId: string; markers: Marker[] }) {
@@ -232,7 +232,7 @@ export function WorkerMessage({ from, text }: { from: MessageSource; text: strin
           </PopoverTrigger>
           <PopoverContent className='scrollbar-subtle max-h-80 w-96 overflow-y-auto rounded-sm p-3'>
             <PopoverTitle className='sr-only'>Message from {from.title}</PopoverTitle>
-            <Markdown className='thread-reply text-13 leading-relaxed'>{text}</Markdown>
+            <Markdown className='thread-reply text-[14px] leading-[22px]'>{text}</Markdown>
           </PopoverContent>
         </Popover>
       </div>
