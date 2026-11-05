@@ -53,11 +53,13 @@ import { useReducedMotion } from 'motion/react'
 import { use, useId, useImperativeHandle, useRef, useState } from 'react'
 
 import { ComposerMenuAnchorContext } from './composer_menu_anchor'
+import { ComposerModelUsage } from './composer_model_usage'
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, KeybindTooltip, keybinds, appShortcut } from './keybinds'
-import './option_picker.css'
 import { CatalogModelLabel, ModelLabel } from './model_label'
+import './option_picker.css'
 import { ProviderGlyph } from './provider_glyph'
+import { providerNames } from './usage_limits'
 
 export const subTriggerClass = 'gap-1 [&>svg:last-child]:ml-0'
 const sensors = [
@@ -238,9 +240,7 @@ export function ComposerLoadout({
     : !model?.fast
       ? `${name} has no fast mode`
       : undefined
-  const models = lockedProvider
-    ? catalog.filter((item) => item.provider === lockedProvider)
-    : catalog
+  const models = catalog
 
   const [open, setOpen] = useState(false)
   const [instant, setInstant] = useState(false)
@@ -429,29 +429,43 @@ export function ComposerLoadout({
                   </DragDropProvider>
                 </CommandGroup>
               )}
-              <CommandGroup heading='Models'>
-                {results.map((item) => (
-                  <CommandItem
-                    key={modelKey(item)}
-                    value={modelKey(item)}
-                    disabled={disabledProviders.includes(item.provider)}
-                    data-checked={(!showSaved || !checked) && model === item}
-                    onSelect={() => onChange(equipModel(value ?? { fast: false }, item))}
-                  >
-                    <ProviderGlyph provider={item.provider} className='size-3' />
-                    <span className='flex-1 truncate'>
-                      <ModelLabel model={item} />
-                    </span>
-                  </CommandItem>
-                ))}
-                {!results.length && (
-                  <p className='px-2 py-2 text-xs text-muted-foreground'>
-                    {models.length
-                      ? 'No matching models'
-                      : 'Connect a coding agent in Settings to choose a model.'}
-                  </p>
-                )}
-              </CommandGroup>
+              {[...new Set(results.map((item) => item.provider))].map((provider) => {
+                const locked = Boolean(lockedProvider && lockedProvider !== provider)
+                const disabled = disabledProviders.includes(provider)
+                return (
+                  <CommandGroup key={provider} heading={providerNames[provider]}>
+                    {(locked || disabled) && (
+                      <p className='px-2 pb-1 text-xs text-muted-foreground'>
+                        {disabled ? 'Claude bots only for now' : 'Available in a new thread'}
+                      </p>
+                    )}
+                    <ComposerModelUsage provider={provider} onNavigate={() => setOpen(false)} />
+                    {results
+                      .filter((item) => item.provider === provider)
+                      .map((item) => (
+                        <CommandItem
+                          key={modelKey(item)}
+                          value={modelKey(item)}
+                          disabled={locked || disabled}
+                          data-checked={(!showSaved || !checked) && model === item}
+                          onSelect={() => onChange(equipModel(value ?? { fast: false }, item))}
+                        >
+                          <ProviderGlyph provider={item.provider} className='size-3' />
+                          <span className='flex-1 truncate'>
+                            <ModelLabel model={item} />
+                          </span>
+                        </CommandItem>
+                      ))}
+                  </CommandGroup>
+                )
+              })}
+              {!results.length && (
+                <p className='px-2 py-2 text-xs text-muted-foreground'>
+                  {models.length
+                    ? 'No matching models'
+                    : 'Connect a coding agent in Settings to choose a model.'}
+                </p>
+              )}
             </div>
           </CommandList>
         </Command>
