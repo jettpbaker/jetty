@@ -183,7 +183,7 @@ export function Composer({
           <div
             className={cn(
               'flex flex-col overflow-hidden rounded-md bg-popover',
-              requestId && 'border-l-2 border-status-attention'
+              requestId && 'ring-1 ring-status-attention/40'
             )}
           >
             {strip}
