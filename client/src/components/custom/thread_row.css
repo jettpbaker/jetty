@@ -68,3 +68,29 @@
   width: var(--thread-row-action-size);
   height: var(--thread-row-action-size);
 }
+
+@container thread-sidebar (max-width: 320px) {
+  .thread-row-button {
+    min-height: 44px;
+    align-items: flex-start;
+    padding-block: 5px;
+  }
+  .thread-row-button > :first-child,
+  .thread-row-button > span[title] {
+    margin-top: 1px;
+  }
+  .thread-row [data-thread-title] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 18px;
+  }
+  .thread-row-age {
+    line-height: 18px;
+  }
+  .thread-row-actions {
+    top: 2px;
+  }
+}

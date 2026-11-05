@@ -42,3 +42,7 @@
 .app-sidebar [data-slot='button']:focus-visible {
   --tw-ring-color: var(--ring);
 }
+
+.app-sidebar {
+  container: thread-sidebar / inline-size;
+}

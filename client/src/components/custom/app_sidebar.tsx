@@ -165,10 +165,12 @@ export const AppSidebar = memo(function AppSidebar() {
     keybinds.sidebarRows[numbered.findIndex((row) => row.kind === kind && row.id === id)]
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
   const projectByThread = new Map(mainList?.threads.map((thread) => [thread.id, thread.projectId]))
-  const showProject =
-    grouping !== 'project' &&
-    new Set((groups ?? []).flatMap((group) => group.threads.map((id) => projectByThread.get(id))))
-      .size > 1
+  const multipleProjects =
+    new Set(
+      (groups ?? [])
+        .filter((group) => !group.archived || archivedOpen)
+        .flatMap((group) => group.threads.map((id) => projectByThread.get(id)))
+    ).size > 1
   const items = (groups ?? []).flatMap((group) => {
     return [
       {
@@ -176,12 +178,18 @@ export const AppSidebar = memo(function AppSidebar() {
         ...group,
         id: `heading:${group.id}`,
         count: group.threads.length,
+        projectLabel:
+          multipleProjects &&
+          group.projectId &&
+          (group.pinned || group.archived || grouping !== 'project')
+            ? group.project
+            : undefined,
       },
       ...(group.archived && !archivedOpen ? [] : group.threads).map((id) => ({
         kind: 'thread' as const,
         id,
         archived: group.archived,
-        showProject,
+        showProject: multipleProjects && !group.projectId,
       })),
     ]
   })
@@ -513,6 +521,11 @@ export const AppSidebar = memo(function AppSidebar() {
                         )}
                         <span className='flex min-w-0 flex-1 items-baseline gap-1.5'>
                           <span className='min-w-0 truncate font-medium'>{item.label}</span>
+                          {item.projectLabel && (
+                            <span className='min-w-0 truncate' title={item.projectLabel}>
+                              · {item.projectLabel}
+                            </span>
+                          )}
                           <span
                             className='shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
                             aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}

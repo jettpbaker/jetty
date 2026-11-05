@@ -193,6 +193,10 @@ export function sidebarGroups(list: SidebarList, view: ThreadListView, now: numb
         !group.pinned && !group.archived && view.grouping === 'status'
           ? threads[0]?.status
           : undefined,
+      projectId: threads.every((thread) => thread.projectId === threads[0]?.projectId)
+        ? threads[0]?.projectId
+        : undefined,
+      project: threads[0]?.project,
       projectIcon: threads[0]?.projectIcon,
       botId: threads[0]?.botId,
       threads: threads.map((thread) => thread.id),

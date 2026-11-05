@@ -130,10 +130,11 @@
   are Geist Sans, including Jetty tool targets ("Archived 3 threads").
 - Overflowing single-line text: fade when it scrolls on hover (`OverflowTitle`
   inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still. Sidebar
-  thread titles stay still and truncate; the hover card wraps the full title and holds PR
-  details. Project-grouped and single-project lists omit repeated project emoji. Mixed-project lists
-  keep a consistent project slot across groups, including pinned rows. The default sidebar is
-  300px and resizes from 200–400px.
+  thread titles stay still: two lines at sidebar widths up to 320px, one line above that;
+  the hover card wraps the full title and holds PR details. Single-project lists and groups
+  omit repeated project emoji. In a mixed-project list, a single-project group names its
+  project in the heading; mixed-project groups keep a consistent project slot, including Pinned.
+  The default sidebar is 300px and resizes from 200–400px.
 
 ## thread environments
 
