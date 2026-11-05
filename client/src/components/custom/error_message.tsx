@@ -71,7 +71,7 @@ export function ErrorMessage({
           <div className='flex items-center gap-2'>
             {failed && (
               <DisabledTooltip reason={unavailable} wrap='self-start'>
-                <Button size='xs' onClick={retry} disabled={!!unavailable}>
+                <Button variant='outline' size='xs' onClick={retry} disabled={!!unavailable}>
                   <ArrowRotateClockwiseIcon />
                   Retry
                 </Button>
