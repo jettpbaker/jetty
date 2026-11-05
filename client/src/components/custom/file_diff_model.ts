@@ -72,12 +72,16 @@ export function loadedFiles(
   return { oldFile: { name: diff.prevName ?? diff.name, contents: contents.before ?? '' }, newFile }
 }
 
-export function hydratedDiff(diff: FileDiffMetadata, files: FileDiffLoadedFiles) {
+export function hydratedDiff(
+  diff: FileDiffMetadata,
+  files: FileDiffLoadedFiles,
+  preserveContext = false
+) {
   if (!diff.isPartial) return diff
   const longContext = diff.hunks.some((hunk) =>
     hunk.hunkContent.some((content) => content.type === 'context' && content.lines > 6)
   )
-  if (!longContext) return hydratePartialDiff('clone', diff, files)
+  if (preserveContext || !longContext) return hydratePartialDiff('clone', diff, files)
   const patch = hunksPatch(
     diff,
     diff.hunks.map((_, index) => index)

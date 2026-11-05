@@ -163,7 +163,13 @@ export function Diff({
         const usable = !('unavailable' in contents) && patchMatchesContents(diff, contents)
         setContext({
           diff,
-          shown: usable ? hydratedDiff(diff, loadedFiles(diff, contents)) : withoutContext(diff),
+          shown: usable
+            ? hydratedDiff(
+                diff,
+                loadedFiles(diff, contents),
+                threads.some((thread) => !thread.outdated && thread.line !== null)
+              )
+            : withoutContext(diff),
         })
       },
       () => active && setContext({ diff, shown: withoutContext(diff) })
@@ -171,7 +177,7 @@ export function Diff({
     return () => {
       active = false
     }
-  }, [loadFile, suggestion, patch, hunks, diff, file.path, file.previousPath])
+  }, [loadFile, suggestion, patch, hunks, diff, file.path, file.previousPath, threads])
   const shown = context && context.diff === diff ? context.shown : diff
   const threadPatch = patch ?? file.patch
   const lines = useMemo(() => {
