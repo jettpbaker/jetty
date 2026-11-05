@@ -179,6 +179,7 @@ export function ThreadComposer({
   const latestProject = useNewThreadProject(!threadId && !picked, selectedId)
   const projectId =
     !threadId && chromeReady ? (picked ? target?.projectId : latestProject) : undefined
+  const project = useProject(projectId)
   const projectGit = useProjectGit(projectId)
   const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
   const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined
@@ -600,9 +601,11 @@ export function ThreadComposer({
                   : '')}
       </output>
       {ambient && (
-        <Empty className='flex-none px-0 pt-6 pb-6'>
-          <EmptyHeader className='max-w-lg'>
-            <EmptyTitle className='text-2xl font-semibold'>New thread</EmptyTitle>
+        <Empty className='flex-none items-start px-2 pt-6 pb-6 text-left'>
+          <EmptyHeader className='max-w-full items-start'>
+            <EmptyTitle className='text-2xl font-semibold'>
+              {project?.title ? `New thread in ${project.title}` : 'New thread'}
+            </EmptyTitle>
           </EmptyHeader>
         </Empty>
       )}
@@ -760,7 +763,7 @@ export function ThreadComposer({
               </div>
               {setupGuide && (
                 <div className='flex items-center gap-2 px-2 text-xs text-muted-foreground'>
-                  <span>Setup optional</span>
+                  <span>Worktree setup is optional</span>
                   <Button variant='ghost-text' size='xs' onClick={() => setUpWorktrees(setupGuide)}>
                     Set up worktrees
                   </Button>
