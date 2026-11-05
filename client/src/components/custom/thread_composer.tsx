@@ -761,11 +761,7 @@ export function ThreadComposer({
               {setupGuide && (
                 <div className='flex items-center gap-2 px-2 text-xs text-muted-foreground'>
                   <span>Setup optional</span>
-                  <Button
-                    variant='ghost-text'
-                    size='xs'
-                    {...pressProps(() => setUpWorktrees(setupGuide))}
-                  >
+                  <Button variant='ghost-text' size='xs' onClick={() => setUpWorktrees(setupGuide)}>
                     Set up worktrees
                   </Button>
                 </div>
