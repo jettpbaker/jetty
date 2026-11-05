@@ -259,9 +259,11 @@ export function ComposerQueue({
         {resumeInHeader && (
           <div
             data-strip='queue'
+            role={worktree?.state === 'failed' ? 'alert' : 'status'}
             className={cn(
               'flex gap-2 bg-popover px-2.5 py-3 text-sm first:rounded-t-md',
-              retrySetup && worktree?.error ? 'items-start' : 'items-center'
+              retrySetup && worktree?.error ? 'items-start' : 'items-center',
+              worktree?.state === 'failed' && 'border border-destructive/25 bg-destructive/10'
             )}
           >
             {settingUp ? (

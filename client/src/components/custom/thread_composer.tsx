@@ -616,7 +616,12 @@ export function ThreadComposer({
       {worktree && setupNotice && !hasQueue && (
         <div
           role={worktree.state === 'failed' ? 'alert' : 'status'}
-          className='flex items-center gap-2 pb-2 text-sm'
+          className={cn(
+            'flex items-center gap-2 text-sm',
+            worktree.state === 'failed'
+              ? 'mb-2 rounded-sm border border-destructive/25 bg-destructive/10 p-3'
+              : 'pb-2'
+          )}
         >
           {settingUp ? (
             <Spinner className='size-3.5 text-muted-foreground' />
