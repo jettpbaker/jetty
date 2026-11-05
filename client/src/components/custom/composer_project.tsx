@@ -26,7 +26,10 @@ export function ComposerProject({
   const projects = loaded ?? []
 
   return (
-    <div className='relative z-10 flex items-center px-2.5' aria-label='Project'>
+    <div
+      className='relative z-10 rounded-sm bg-background/90 py-1 flex items-center px-2.5'
+      aria-label='Project'
+    >
       {loaded && projects.length === 0 ? (
         <Button
           variant='ghost-text'

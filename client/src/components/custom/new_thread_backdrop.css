@@ -66,3 +66,11 @@
     }
   }
 }
+
+.new-thread-default-backdrop {
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    color-mix(in oklch, var(--primary) 9%, transparent),
+    transparent 65%
+  );
+}

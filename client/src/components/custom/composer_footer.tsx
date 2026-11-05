@@ -66,7 +66,7 @@ export function ComposerFooter({
 
   return (
     <div
-      className='relative z-10 flex flex-wrap items-center justify-between gap-1 px-2.5 opacity-100'
+      className='relative z-10 rounded-sm bg-background/90 py-1 flex flex-wrap items-center justify-between gap-1 px-2.5 opacity-100'
       aria-label='Environment and branch'
     >
       <ComposerEnvironment

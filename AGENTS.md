@@ -41,6 +41,7 @@
 
 ## ui feel
 
+- The default new-thread backdrop is static. Wallpaper motion is opt-in through uploaded video.
 - Performance is the #1 UX value. Interactions render synchronously from local
   state; the network is never on the critical path of a click. Thread switching
   must be instant — cached state first, catch-up patches after.
