@@ -62,7 +62,7 @@ export function ScrollToBottom({
         <ArrowDownIcon data-icon='inline-start' />
         {messages ? (
           <span aria-hidden className='inline-flex items-baseline gap-1'>
-            <RollingNumber value={messages} className='font-mono' bidirectional />
+            <RollingNumber value={messages} className='font-mono' />
             <span>{messages === 1 ? 'message' : 'messages'}</span>
           </span>
         ) : (
