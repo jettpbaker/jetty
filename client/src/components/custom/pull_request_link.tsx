@@ -5,6 +5,28 @@ import { useLinkPullRequest, useThreadMeta } from '@/state'
 import { useProject } from '@/state/chrome'
 import { useState, type FormEvent } from 'react'
 
+function validReference(value: string) {
+  const reference = value.trim()
+  const number = reference.match(/^#?([0-9]+)$/)?.[1]
+  if (number) return Number.isSafeInteger(Number(number)) && Number(number) > 0
+  try {
+    const url = new URL(reference.startsWith('github.com/') ? `https://${reference}` : reference)
+    const parts = url.pathname.split('/').filter(Boolean)
+    const pull = Number(parts[3])
+    return (
+      ['http:', 'https:'].includes(url.protocol) &&
+      url.hostname.toLowerCase() === 'github.com' &&
+      /^[A-Za-z0-9_.-]+$/.test(parts[0] ?? '') &&
+      /^[A-Za-z0-9_.-]+$/.test(parts[1] ?? '') &&
+      parts[2] === 'pull' &&
+      Number.isSafeInteger(pull) &&
+      pull > 0
+    )
+  } catch {
+    return false
+  }
+}
+
 export function LinkPullRequestDialog({
   threadId,
   open,
@@ -32,7 +54,7 @@ export function LinkPullRequestDialog({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const reference = draft.trim()
-    if (!reference || pending) return
+    if (!validReference(reference) || pending) return
     setPending(true)
     const failure = await link(threadId, reference)
     setPending(false)
@@ -77,7 +99,7 @@ export function LinkPullRequestDialog({
             <Button type='button' variant='ghost' onClick={() => change(false)}>
               Cancel
             </Button>
-            <Button type='submit' aria-busy={pending} disabled={!draft.trim() || pending}>
+            <Button type='submit' aria-busy={pending} disabled={!validReference(draft) || pending}>
               Link
             </Button>
           </DialogFooter>
