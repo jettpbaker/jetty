@@ -366,24 +366,26 @@ function AvailableModels() {
             {models.map((model) => {
               const checked = enabled[modelKey(model)] ?? true
               return (
-                <div
+                <label
                   key={modelKey(model)}
+                  htmlFor={`model-enabled-${modelKey(model)}`}
                   className={cn(
                     'flex h-8 items-center gap-2 text-13',
                     (!on || !checked) && 'text-muted-foreground'
                   )}
                 >
-                  <span className='grow truncate'>
-                    <ModelLabel model={model} />
-                  </span>
                   <Checkbox
+                    id={`model-enabled-${modelKey(model)}`}
                     tone='neutral'
                     aria-label={`Show ${model.name} in pickers`}
                     disabled={!on}
                     checked={checked}
                     onCheckedChange={(next) => setEnabled(model, next === true)}
                   />
-                </div>
+                  <span className='min-w-0 truncate'>
+                    <ModelLabel model={model} />
+                  </span>
+                </label>
               )
             })}
             {!models.length && (
