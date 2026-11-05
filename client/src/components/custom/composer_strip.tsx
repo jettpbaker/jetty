@@ -35,6 +35,7 @@ import {
   useRef,
   useState,
   type ComponentProps,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react'
 
@@ -645,15 +646,6 @@ export function useQuestion(
   }
   function onKey(event: KeyboardEvent) {
     if (event.defaultPrevented || !spec) return false
-    if (
-      event.key === 'Enter' &&
-      current &&
-      event.target instanceof Element &&
-      event.target.closest('[role="radio"], [role="checkbox"]')
-    ) {
-      next()
-      return true
-    }
     if (event.key === 'Escape') {
       onDismiss()
       return true
@@ -760,8 +752,16 @@ export function QuestionStrip({
 
 function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
   const spec = ctl.spec!
+  const id = useId()
+  function submit(event: ReactKeyboardEvent) {
+    if (event.key !== 'Enter' || !ctl.answer || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    ctl.next()
+  }
   const options = spec.options.map((option, index) => {
     const selected = ctl.picks.includes(option.label)
+    const describedBy =
+      option.description && option.description !== option.label ? `${id}-${index}` : undefined
     const className = cn(
       'flex min-w-0 items-center gap-3 rounded-menu-item px-2 py-2 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
       selected && 'bg-accent'
@@ -781,7 +781,9 @@ function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
         <span className='flex min-w-0 flex-1 flex-col'>
           <span className='text-sm leading-5'>{option.label}</span>
           {option.description && option.description !== option.label && (
-            <span className='text-xs leading-4 text-muted-foreground'>{option.description}</span>
+            <span id={describedBy} className='text-xs leading-4 text-muted-foreground'>
+              {option.description}
+            </span>
           )}
         </span>
         {index < 9 && <Kbd className='text-foreground'>{index + 1}</Kbd>}
@@ -791,7 +793,7 @@ function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
       <Checkbox.Root
         key={option.label}
         nativeButton
-        render={<button type='button' aria-label={option.label} />}
+        render={<button type='button' aria-label={option.label} aria-describedby={describedBy} />}
         checked={selected}
         onCheckedChange={() => ctl.pick(option.label)}
         className={className}
@@ -803,7 +805,7 @@ function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
         key={option.label}
         value={option.label}
         nativeButton
-        render={<button type='button' aria-label={option.label} />}
+        render={<button type='button' aria-label={option.label} aria-describedby={describedBy} />}
         className={className}
       >
         {content}
@@ -812,13 +814,14 @@ function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
   })
   const className = 'scroll-fade-y scrollbar-subtle flex max-h-72 flex-col gap-1 overflow-y-auto'
   return spec.multiSelect ? (
-    <fieldset className={className}>
+    <fieldset className={className} onKeyDownCapture={submit}>
       <legend className='sr-only'>{spec.question}</legend>
       {options}
     </fieldset>
   ) : (
     <RadioGroup
       key={ctl.step}
+      onKeyDownCapture={submit}
       className={className}
       aria-label={spec.question}
       value={ctl.picks[0] ?? null}
