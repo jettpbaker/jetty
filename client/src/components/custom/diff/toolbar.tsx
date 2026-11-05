@@ -39,7 +39,7 @@ export type DiffToggle = readonly [label: string, checked: boolean, set: (checke
 export function useDiffWrap() {
   return useStoredState<boolean>(
     'jetty.diff.wrap',
-    false,
+    true,
     (value): value is boolean => typeof value === 'boolean'
   )
 }

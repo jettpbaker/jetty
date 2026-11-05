@@ -12,7 +12,11 @@ import { DiffStyleContext, DiffWrapContext } from './model'
 // Review comments share the adjacent lines' wash; line numbers stay neutral and +/- marks identify changes.
 const diffCSS = `
 ${codeSurfaceCSS}
-:host { --diffs-min-number-column-width: 4ch; }
+:host { --diffs-min-number-column-width: 4ch; --diffs-scrollbar-gutter-override: 8px; }
+[data-overflow="scroll"] [data-code] { overflow-x: auto; }
+[data-code]::-webkit-scrollbar-thumb,
+:host(:hover) [data-code]::-webkit-scrollbar-thumb { background-color: var(--muted-foreground); }
+[data-code]:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 [data-line-annotation], [data-gutter-buffer="annotation"] { --diffs-annotation-bg: var(--diffs-bg); }
 [data-line-annotation] { z-index: 4; }
 [data-content-buffer] + [data-line-annotation]:has(+ [data-content-buffer]) {
@@ -114,7 +118,16 @@ export function DiffBody<T = undefined>({
         hunkSeparators: snippet || suggestion ? 'simple' : 'line-info',
         overflow: wrap ? 'wrap' : 'scroll',
         unsafeCSS: diffCSS + foldCSS + (diff.type === 'new' ? newFileCSS : ''),
-        onPostRender: nameExpanders,
+        onPostRender: (node) => {
+          nameExpanders(node)
+          for (const code of node.shadowRoot?.querySelectorAll<HTMLElement>(
+            '[data-overflow="scroll"] [data-code]'
+          ) ?? []) {
+            code.tabIndex = 0
+            code.setAttribute('role', 'region')
+            code.setAttribute('aria-label', `${diff.name} diff, scroll horizontally for long lines`)
+          }
+        },
       }}
     />
   )
