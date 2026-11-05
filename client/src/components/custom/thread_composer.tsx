@@ -72,6 +72,7 @@ import { PauseIcon } from './central_icons'
 import { DisabledTooltip } from './disabled_tooltip'
 import { ThreadFooter } from './thread_footer'
 import { StatusGlyph } from './thread_status'
+import { WorktreeSetupError } from './worktree_setup_error'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -626,16 +627,14 @@ export function ThreadComposer({
           ) : (
             <StatusGlyph status={worktree.state === 'failed' ? 'error' : 'stopped'} />
           )}
-          <span className='min-w-0 flex-1'>
+          <div className='flex min-w-0 flex-1 flex-col gap-1'>
             {settingUp
               ? 'Setting up worktree…'
               : worktree.state === 'failed'
                 ? 'Worktree setup failed'
                 : 'Worktree setup stopped'}
-            {!settingUp && worktree.error && (
-              <span className='text-muted-foreground'> · {worktree.error}</span>
-            )}
-          </span>
+            {!settingUp && worktree.error && <WorktreeSetupError error={worktree.error} />}
+          </div>
           {!settingUp && !messageHeld && (
             <Button variant='outline' size='sm' {...pressProps(retry)}>
               Retry setup

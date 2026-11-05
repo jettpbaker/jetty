@@ -33,6 +33,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 
 import { FileLines, isImageAttachment } from './attachment_files'
 import { StatusGlyph } from './thread_status'
+import { WorktreeSetupError } from './worktree_setup_error'
 
 type ComposerQueueState = {
   unsent: readonly QueuedMessage[]
@@ -269,7 +270,7 @@ export function ComposerQueue({
             ) : (
               <PauseIcon className='mt-1 size-4 text-muted-foreground' />
             )}
-            <span className='flex min-w-0 flex-1 flex-col gap-1'>
+            <div className='flex min-w-0 flex-1 flex-col gap-1'>
               <span>
                 {settingUp
                   ? 'Setting up worktree…'
@@ -282,12 +283,8 @@ export function ComposerQueue({
                         : 'Paused'}{' '}
                 · {queue.unsent.length} queued {queue.unsent.length === 1 ? 'message' : 'messages'}
               </span>
-              {retrySetup && worktree?.error && (
-                <span className='text-xs leading-5 text-muted-foreground wrap-anywhere'>
-                  {worktree.error}
-                </span>
-              )}
-            </span>
+              {retrySetup && worktree?.error && <WorktreeSetupError error={worktree.error} />}
+            </div>
             {!settingUp && (
               <Button
                 variant='default'
