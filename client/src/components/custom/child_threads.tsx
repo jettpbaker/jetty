@@ -104,9 +104,11 @@ function LastActivity({ child }: { child: ChildThread }) {
 export function ChildThreadList({
   threads,
   className,
+  showType,
 }: {
   threads: readonly ChildThread[]
   className?: string
+  showType?: boolean
 }) {
   const open = useOpenThread()
   const prefetch = useThreadRowPrefetch()
@@ -116,7 +118,13 @@ export function ChildThreadList({
   return (
     <div className={cn('flex flex-col p-2', className)}>
       {sorted.map((child) => (
-        <OwnedThreadRow key={child.id} child={child} open={open} prefetch={prefetch} />
+        <OwnedThreadRow
+          key={child.id}
+          child={child}
+          open={open}
+          prefetch={prefetch}
+          showType={showType}
+        />
       ))}
     </div>
   )
@@ -126,9 +134,11 @@ function OwnedThreadRow({
   child,
   open,
   prefetch,
+  showType,
 }: {
   child: ChildThread
   open: Open
+  showType?: boolean
   prefetch: ReturnType<typeof useThreadRowPrefetch>
 }) {
   return (
@@ -136,7 +146,16 @@ function OwnedThreadRow({
       onClick={() => open(child)}
       onPointerEnter={() => prefetch.enter(child.id)}
       onPointerLeave={() => prefetch.leave(child.id)}
-      heading={<ChildTitle child={child} />}
+      heading={
+        <>
+          <span className='min-w-0 flex-1'>
+            <ChildTitle child={child} />
+          </span>
+          {showType && (
+            <span className='shrink-0 pt-0.5 text-xs text-muted-foreground'>Thread</span>
+          )}
+        </>
+      }
       glyph={<StatusGlyph status={child.status} />}
     >
       <AgentMeta child={child} />

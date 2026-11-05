@@ -145,9 +145,10 @@ export function ThreadOverview({
   useLayoutEffect(() => {
     if (!revealing) return
     clearReveal()
-    setCollapsed((current) => current.filter((entry) => entry !== revealing))
+    const sectionId = ['subagents', 'threads'].includes(revealing) ? 'activity' : revealing
+    setCollapsed((current) => current.filter((entry) => entry !== sectionId))
     const element = scroller.current
-    const section = element?.querySelector(`[data-section='${revealing}']`)
+    const section = element?.querySelector(`[data-section='${sectionId}']`)
     if (!element || !section) return
     element.scrollTop +=
       section.getBoundingClientRect().top - element.getBoundingClientRect().top - sectionInset
@@ -197,9 +198,14 @@ export function ThreadOverview({
             </div>
           </Section>
         )}
-        {subagentItems.length > 0 && (
-          <Section label='Subagents' count={subagentItems.length} {...sectionProps('subagents')}>
-            <SubagentList threadId={threadId} agents={agents} />
+        {(subagentItems.length > 0 || childThreads.length > 0) && (
+          <Section
+            label='Activity'
+            count={subagentItems.length + childThreads.length}
+            {...sectionProps('activity')}
+          >
+            <SubagentList threadId={threadId} agents={agents} showType />
+            <ChildThreadList threads={childThreads} className='p-0' showType />
           </Section>
         )}
         {workflows.length > 0 && (
@@ -213,11 +219,6 @@ export function ThreadOverview({
                 onShowChat()
               }}
             />
-          </Section>
-        )}
-        {childThreads.length > 0 && (
-          <Section label='Threads' count={childThreads.length} {...sectionProps('threads')}>
-            <ChildThreadList threads={childThreads} className='p-0' />
           </Section>
         )}
         {pullRequests.length > 0 && (
@@ -366,20 +367,30 @@ function ThreadProperties({ threadId }: { threadId: string }) {
 export function SubagentList({
   threadId,
   agents,
+  showType,
 }: {
   threadId: string
   agents: readonly SubagentSummary[]
+  showType?: boolean
 }) {
   return (
     <div className='flex flex-col gap-0.5'>
       {agents.map((agent) => (
-        <SubagentRow key={agent.id} threadId={threadId} agent={agent} />
+        <SubagentRow key={agent.id} threadId={threadId} agent={agent} showType={showType} />
       ))}
     </div>
   )
 }
 
-function SubagentRow({ threadId, agent }: { threadId: string; agent: SubagentSummary }) {
+function SubagentRow({
+  threadId,
+  agent,
+  showType,
+}: {
+  threadId: string
+  agent: SubagentSummary
+  showType?: boolean
+}) {
   const open = useOpenSubagent()
   const now = useNow(1000, agent.status === 'running')
   const state = subagentGlyphState(agent.status, agent.waiting)
@@ -416,6 +427,9 @@ function SubagentRow({ threadId, agent }: { threadId: string; agent: SubagentSum
           )}
         </span>
       </span>
+      {showType && (
+        <span className='shrink-0 self-start pt-0.5 text-xs text-muted-foreground'>Subagent</span>
+      )}
     </Button>
   )
 }

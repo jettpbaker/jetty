@@ -24,7 +24,7 @@ import { inDialog, KeybindTooltip, keybinds } from './keybinds'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import './details_layout.css'
 
-const minWidth = 420
+const minWidth = 360
 const narrowWidth = 980
 
 export type DetailsLayoutState = ReturnType<typeof useDetailsLayout>
