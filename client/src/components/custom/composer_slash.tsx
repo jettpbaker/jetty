@@ -14,6 +14,7 @@ import {
   ShieldBreakIcon,
   Checkmark1MediumIcon,
 } from '@/components/custom/central_icons'
+import { Separator } from '@/components/ui/separator'
 import { inComposition } from '@/lib/composition'
 import { effortLabels, equipModel, findModel, modelKey } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
@@ -108,7 +109,6 @@ const accessDescriptions: Record<PermissionMode, string> = {
   auto: 'Allows routine work; asks before restricted actions',
   full_access: 'Runs commands and edits without asking',
 }
-const commandOrder = ['model', 'effort', 'fast', 'access', 'compact', 'usage', 'new']
 const commandLabels: Record<ValueCommand, string> = {
   model: 'Change model',
   effort: 'Set effort',
@@ -447,7 +447,12 @@ export function useComposerSlash(
 
   // Back lands on the row you came from: the command, or the Skills row after the commands.
   function up(range: SlashQuery) {
-    if (picking) go(range, { active: commandOrder.indexOf(picking) })
+    if (picking)
+      go(range, {
+        active: commandEntries(range)
+          .filter((entry) => !entry.disabled)
+          .findIndex((entry) => entry.id === `command:${picking}`),
+      })
     else if (section) go(range, { active: commandEntries(range).length })
   }
 
@@ -485,7 +490,12 @@ export function useComposerSlash(
     ]
   }
 
-  const entries = open && query ? entriesFor(query) : []
+  const entries =
+    open && query
+      ? entriesFor(query).toSorted(
+          (a, b) => Number(Boolean(a.disabled)) - Number(Boolean(b.disabled))
+        )
+      : []
   const usable = entries.flatMap((entry, at) => (entry.disabled ? [] : [at]))
   const first = usable.find((at) => entries[at]?.kind !== 'back') ?? usable[0] ?? -1
   const index = active !== undefined && usable.includes(active) ? active : first
@@ -721,7 +731,15 @@ export function SlashMenu({ slash }: { slash: Slash }) {
           </p>
         )}
         {slash.entries.map((entry, index) => (
-          <Row key={entry.id} slash={slash} entry={entry} index={index} />
+          <div key={entry.id} role='presentation'>
+            {entry.disabled && !slash.entries[index - 1]?.disabled && (
+              <>
+                <Separator className='my-1' />
+                <p className='px-2 py-1 text-xs text-muted-foreground'>Unavailable</p>
+              </>
+            )}
+            <Row slash={slash} entry={entry} index={index} />
+          </div>
         ))}
       </div>
     </div>
@@ -756,15 +774,28 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
     )
 
   return (
-    <div {...props} className={`${row} h-8`}>
+    <div {...props} className={cn(row, entry.disabled ? 'min-h-11 py-1.5' : 'h-8')}>
       {entry.icon}
-      <span className='shrink-0'>{entry.name}</span>
-      <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
-      {entry.binding && <KeybindChip binding={entry.binding} />}
-      {entry.kind === 'option' && entry.selected && (
-        <Checkmark1MediumIcon className='text-current' />
+      <span className='flex min-w-0 flex-1 flex-col'>
+        <span>{entry.name}</span>
+        {entry.disabled && (
+          <span className='text-xs text-muted-foreground'>{entry.description}</span>
+        )}
+      </span>
+      {!entry.disabled && entry.description && (
+        <span className='truncate text-muted-foreground'>{entry.description}</span>
       )}
-      {entry.opens && <ChevronRightSmallIcon className='text-muted-foreground' />}
+      {entry.binding && (
+        <span className='flex w-16 shrink-0 justify-end'>
+          <KeybindChip binding={entry.binding} />
+        </span>
+      )}
+      <span className='flex size-3 shrink-0 items-center'>
+        {entry.kind === 'option' && entry.selected && (
+          <Checkmark1MediumIcon className='text-current' />
+        )}
+        {entry.opens && <ChevronRightSmallIcon className='text-muted-foreground' />}
+      </span>
     </div>
   )
 }
