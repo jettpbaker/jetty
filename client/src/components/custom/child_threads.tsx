@@ -9,13 +9,7 @@ import { useNavigate } from '@tanstack/react-router'
 
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
-import {
-  quietStatus,
-  StatusGlyph,
-  statusPresentation,
-  threadStatus,
-  type ThreadStatus,
-} from './thread_status'
+import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
 export type ChildThread = {
@@ -71,13 +65,7 @@ function useOpenThread(): Open {
 
 function ChildTitle({ child }: { child: ChildThread }) {
   return (
-    <OverflowTitle
-      focusable={false}
-      className={cn(
-        'font-normal leading-normal',
-        quietStatus(child.status) && 'text-muted-foreground'
-      )}
-    >
+    <OverflowTitle focusable={false} className='text-13 font-normal leading-normal text-foreground'>
       {child.title}
     </OverflowTitle>
   )
@@ -87,7 +75,7 @@ function AgentMeta({ child }: { child: ChildThread }) {
   return (
     <span className='flex min-w-0 items-center gap-1.5'>
       {child.provider && <ProviderGlyph provider={child.provider} className='size-3 shrink-0' />}
-      <span className='truncate text-foreground/80'>{child.model}</span>
+      <span className='truncate text-muted-foreground'>{child.model}</span>
     </span>
   )
 }

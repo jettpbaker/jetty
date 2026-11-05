@@ -1,6 +1,10 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
-import { ChevronRightSmallIcon, ListBulletsIcon } from '@/components/custom/central_icons'
+import {
+  ChevronRightSmallIcon,
+  ListBulletsIcon,
+  ChangesIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
@@ -21,7 +25,6 @@ import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
 import { ContentEmpty } from './content_empty'
 import { DiffCounts } from './diff/file_card'
-import { CharmedFileIcon } from './diff/file_name'
 import { PullRequestRow } from './pull_request_row'
 import { RunningTaskRow } from './running_task_row'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
@@ -31,7 +34,6 @@ import { type Workflow } from './workflow_parts'
 
 // The list's top padding, kept above a revealed section.
 const sectionInset = 8
-const changedFileLimit = 8
 
 function threadWorkflows(items: readonly ThreadItem[]) {
   return items.filter((item): item is Workflow => item.kind === 'workflow')
@@ -216,23 +218,23 @@ export function ThreadOverview({
           </Section>
         )}
         {files.length > 0 && (
-          <Section label='Changes' count={files.length} {...sectionProps('changes')}>
-            <div className='flex flex-col'>
-              {files.slice(0, changedFileLimit).map((file) => (
-                <ChangedFileRow key={file.path} file={file} onOpen={onShowChanges} />
-              ))}
-              {files.length > changedFileLimit && (
-                <Button
-                  variant='ghost-text'
-                  size='sm'
-                  className='w-fit rounded-sm px-2.5 font-normal'
-                  onClick={onShowChanges}
-                >
-                  +{files.length - changedFileLimit} more
-                </Button>
-              )}
-            </div>
-          </Section>
+          <Button
+            variant='ghost'
+            size='sm'
+            data-section='changes'
+            className='h-9 w-full justify-start gap-2 rounded-sm px-2.5 text-13 font-normal'
+            onClick={onShowChanges}
+          >
+            <ChangesIcon />
+            {files.length} {files.length === 1 ? 'file' : 'files'} changed
+            <span className='ml-auto'>
+              <DiffCounts
+                files={files.map((file) => ({ additions: file.added, deletions: file.removed }))}
+                hideZero
+              />
+            </span>
+            <ChevronRightSmallIcon />
+          </Button>
         )}
       </div>
     </div>
@@ -297,28 +299,5 @@ export function Section({
         <div className='pt-2'>{children}</div>
       </CollapsibleContent>
     </Collapsible>
-  )
-}
-
-function ChangedFileRow({ file, onOpen }: { file: ChangedFile; onOpen: () => void }) {
-  const slash = file.path.lastIndexOf('/')
-  return (
-    <Button
-      variant='ghost'
-      onClick={onOpen}
-      title={file.path}
-      className='h-7 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-mono text-xs font-normal'
-    >
-      <span data-charmed='soft' className='inline-flex size-4 shrink-0'>
-        <CharmedFileIcon path={file.path} inline />
-      </span>
-      <span className='shrink-0 text-foreground'>{file.path.slice(slash + 1)}</span>
-      <span className='min-w-0 truncate text-muted-foreground'>
-        {file.path.slice(0, slash + 1)}
-      </span>
-      <span className='ml-auto'>
-        <DiffCounts files={[{ additions: file.added, deletions: file.removed }]} hideZero />
-      </span>
-    </Button>
   )
 }

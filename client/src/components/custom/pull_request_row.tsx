@@ -27,7 +27,7 @@ export function PullRequestRow({
     <TwoLineRow
       onClick={() => open(threadId, link)}
       heading={
-        <OverflowTitle focusable={false} className='font-normal leading-normal'>
+        <OverflowTitle focusable={false} className='text-13 font-normal leading-normal'>
           {pull?.title ?? link.title ?? `${link.repo}#${link.number}`}
         </OverflowTitle>
       }
