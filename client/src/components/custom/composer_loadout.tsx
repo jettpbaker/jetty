@@ -309,7 +309,7 @@ export function ComposerLoadout({
       </KeybindTooltip>
       <PopoverContent
         align='start'
-        className='search-picker w-80 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
+        className='search-picker w-86 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
         initialFocus={() =>
           focusEffort
             ? (effortRef.current?.querySelector<HTMLButtonElement>('[aria-pressed=true], button') ??
@@ -401,7 +401,7 @@ export function ComposerLoadout({
                     key={modelKey(item)}
                     value={modelKey(item)}
                     disabled={disabledProviders.includes(item.provider)}
-                    data-checked={model === item}
+                    data-checked={!checked && model === item}
                     onSelect={() => onChange(equipModel(value ?? { fast: false }, item))}
                   >
                     <ProviderGlyph provider={item.provider} className='size-3' />
@@ -431,8 +431,7 @@ export function ComposerLoadout({
             <ToggleGroup
               aria-label='Effort'
               size='sm'
-              spacing={0}
-              variant='outline'
+              spacing={1}
               value={value?.effort ? [value.effort] : []}
               onValueChange={(next) => {
                 const effort = efforts.find((level) => level === next[0])
@@ -444,7 +443,7 @@ export function ComposerLoadout({
                 <ToggleGroupItem
                   key={effort}
                   value={effort}
-                  className='min-w-0 flex-1 px-2 text-xs'
+                  className='h-7 min-w-0 flex-auto px-2 text-xs text-muted-foreground aria-pressed:bg-foreground/12 aria-pressed:text-foreground aria-pressed:inset-ring aria-pressed:inset-ring-primary/50'
                 >
                   {effortLabels[effort]}
                 </ToggleGroupItem>
@@ -455,22 +454,25 @@ export function ComposerLoadout({
               {value ? `${name} doesn’t support effort levels` : 'Choose a model first'}
             </p>
           )}
-          <label className='flex items-center justify-between gap-3 text-xs'>
-            <span className='flex min-w-0 flex-col'>
-              <span>Fast</span>
-              {(!value || !model?.fast) && (
-                <span className='text-muted-foreground'>
-                  {value ? `${name} has no fast mode` : 'Choose a model first'}
-                </span>
-              )}
-            </span>
-            <Switch
-              size='sm'
-              disabled={!value || !model?.fast}
-              checked={value?.fast ?? false}
-              onCheckedChange={(fast) => value && onChange({ ...value, fast })}
-            />
-          </label>
+          <DisabledTooltip
+            reason={
+              !value
+                ? 'Choose a model first'
+                : !model?.fast
+                  ? `${name} has no fast mode`
+                  : undefined
+            }
+          >
+            <label className='flex h-8 items-center justify-between gap-3 text-xs'>
+              Fast
+              <Switch
+                size='sm'
+                disabled={!value || !model?.fast}
+                checked={value?.fast ?? false}
+                onCheckedChange={(fast) => value && onChange({ ...value, fast })}
+              />
+            </label>
+          </DisabledTooltip>
         </div>
         <Separator />
         <Button
