@@ -280,52 +280,6 @@ function updatedLabel(at: number, now: number) {
   return now - at < minute ? 'just now' : `${duration(now - at)} ago`
 }
 
-function UsageSummary({
-  providers,
-  usage,
-  failed,
-  now,
-}: {
-  providers: readonly UsageProvider[]
-  usage: Partial<Record<UsageProvider, ProviderUsage>>
-  failed: ReadonlySet<UsageProvider>
-  now: number
-}) {
-  const limits = providers.flatMap((provider) => {
-    const item = usage[provider]
-    if (!item?.connected || item.failed || failed.has(provider)) return []
-    return item.windows
-      .filter((window) => window.resetsAt === undefined || window.resetsAt > now)
-      .map((window) => ({ provider, window }))
-  })
-  const limit = limits.toSorted((a, b) => b.window.pct - a.window.pct)[0]
-  if (!limit) return null
-  const { provider, window } = limit
-  const reset = resetIn(window, now)
-  return (
-    <p className='px-4 text-13 leading-5'>
-      <span className='font-medium'>
-        {window.pct < 100 && 'Most used: '}
-        {providerNames[provider]} · {window.label}
-        {window.pct >= 100 ? (
-          ' limit reached'
-        ) : (
-          <>
-            {' · '}
-            <Mono>{100 - percentLeft(window)}%</Mono> used
-          </>
-        )}
-      </span>
-      {reset && (
-        <span className='text-muted-foreground'>
-          {' · Resets in '}
-          <Mono>{reset}</Mono>
-        </span>
-      )}
-    </p>
-  )
-}
-
 // Each provider's section shows as soon as its own read lands; until then (and only if it never has) it holds skeleton rows.
 export function UsagePage({
   providers,
@@ -386,7 +340,6 @@ export function UsagePage({
       </header>
       <div className='scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
         <div className='@container mx-auto flex w-full max-w-190 flex-col gap-4 px-4 pt-4 pb-8'>
-          <UsageSummary providers={providers} usage={usage} failed={failed} now={now} />
           {providers
             .filter((provider) => !unreported.includes(provider))
             .map((provider) => {
