@@ -161,6 +161,7 @@ export function SubagentGroup({ threadId, batch }: { threadId: string; batch: Su
       verb={active ? 'Starting' : 'Started'}
       count={batch.agents.length}
       noun='subagent'
+      glyph={<SubagentGlyph state={active ? 'running' : 'done'} className='size-4' />}
       active={active}
       autoOpen={active}
     >

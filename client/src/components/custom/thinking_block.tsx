@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 
 import { ActivityContent } from './activity_content'
 import { ActivityChevron } from './activity_disclosure'
+import { SparklesThreeIcon } from './central_icons'
 import { Markdown } from './markdown'
 import { formatActivityDuration, workEnded, type ThinkingActivity } from './work_model'
 
@@ -95,11 +96,15 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
           aria-controls={contentId}
           onClick={() => setExpanded((value) => !value)}
         >
+          <SparklesThreeIcon aria-hidden='true' className='text-muted-foreground' />
           {heading}
           <ActivityChevron />
         </Button>
       ) : (
-        <div className='activity-header text-muted-foreground'>{heading}</div>
+        <div className='activity-header text-muted-foreground'>
+          <SparklesThreeIcon aria-hidden='true' className='size-4 shrink-0' />
+          {heading}
+        </div>
       )}
       {summary && (
         <ActivityContent id={contentId} open={expanded}>

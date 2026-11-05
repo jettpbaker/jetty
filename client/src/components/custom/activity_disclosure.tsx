@@ -66,10 +66,19 @@ export function ActivityDisclosure({
             onClick={toggle}
           >
             {heading}
-            <ActivityChevron />
             {summary && (
-              <span className='ml-auto pl-3 text-xs text-muted-foreground'>{summary}</span>
+              <span
+                className={
+                  flushHeader
+                    ? 'ml-1 flex items-center gap-2 text-xs text-muted-foreground'
+                    : 'ml-auto pl-3 text-xs text-muted-foreground'
+                }
+              >
+                {flushHeader && <span aria-hidden='true'>·</span>}
+                {summary}
+              </span>
             )}
+            <ActivityChevron />
           </Button>
         ) : (
           <div
