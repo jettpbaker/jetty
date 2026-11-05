@@ -212,6 +212,26 @@ export function SettingsRow({
   )
 }
 
+export function PlannedSettingsRow({
+  id,
+  title,
+  description,
+}: {
+  id?: string
+  title: string
+  description: string
+}) {
+  return (
+    <div
+      id={id && `settings-${id}`}
+      className='flex min-h-10 flex-wrap items-baseline gap-x-4 gap-y-0.5 py-2.5'
+    >
+      <span className='w-52 max-w-full shrink-0 text-13'>{title}</span>
+      <span className='min-w-40 flex-1 text-xs text-muted-foreground'>{description}</span>
+    </div>
+  )
+}
+
 export function UnavailableSettingsRow({
   value,
   ...props

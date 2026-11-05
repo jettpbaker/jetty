@@ -187,7 +187,6 @@ export function SettingsBots() {
           <SettingsRow
             title='Check-ins'
             description="A quiet bot looks over its area while you're around. About hourly on Claude, every 25 minutes on Codex and Copilot."
-            disabled
           >
             <SettingsSelect
               label='Check-ins'

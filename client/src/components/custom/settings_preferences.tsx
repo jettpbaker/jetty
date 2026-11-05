@@ -10,6 +10,7 @@ import { accessModes } from './composer_access_mode'
 import { environments } from './composer_environment'
 import {
   Mono,
+  PlannedSettingsRow,
   SettingsCard,
   SettingsPage,
   SettingsRow,
@@ -92,17 +93,15 @@ export function SettingsPreferences() {
       </SettingsSection>
       <SettingsSection title='Coming soon' description='Startup and sending preferences'>
         <SettingsCard>
-          <SettingsRow
+          <PlannedSettingsRow
             id='open-on-launch'
             title='Open on launch'
             description='Choose what Jetty shows when you open it'
-            disabled
           />
-          <SettingsRow
+          <PlannedSettingsRow
             id='send-key'
             title='Send messages with'
             description='Choose the send key. Shift-Enter always adds a new line.'
-            disabled
           />
         </SettingsCard>
       </SettingsSection>

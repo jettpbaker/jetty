@@ -1,6 +1,7 @@
 import { Bell2Icon } from './central_icons'
 import {
   ComingSoon,
+  PlannedSettingsRow,
   SettingsCard,
   SettingsPage,
   SettingsRow,
@@ -43,11 +44,10 @@ export function SettingsNotifications() {
       <SettingsSection title='Planned notifications'>
         <SettingsCard>
           {events.map((event) => (
-            <SettingsRow
+            <PlannedSettingsRow
               key={event.title}
               title={event.title}
               description={event.description}
-              disabled
             />
           ))}
         </SettingsCard>

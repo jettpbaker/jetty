@@ -32,6 +32,7 @@ import { DisabledTooltip } from './disabled_tooltip'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import {
+  PlannedSettingsRow,
   SettingsCard,
   SettingsLinkRow,
   SettingsPage,
@@ -276,11 +277,10 @@ export function SettingsIntelligence() {
       </SettingsSection>
       <SettingsSection title='Coming soon'>
         <SettingsCard>
-          <SettingsRow
+          <PlannedSettingsRow
             id='digest'
             title='Digest'
             description='Catches you up on every thread when you come back'
-            disabled
           />
         </SettingsCard>
       </SettingsSection>
@@ -354,15 +354,13 @@ export function SettingsGuidedReviews() {
       </SettingsSection>
       <SettingsSection title='Coming soon'>
         <SettingsCard>
-          <SettingsRow
+          <PlannedSettingsRow
             title='Skip small pull requests'
             description='Choose the minimum number of changed lines for a guide'
-            disabled
           />
-          <SettingsRow
+          <PlannedSettingsRow
             title='Instructions'
             description='Tell guides what to lead with, and what to skip'
-            disabled
           />
         </SettingsCard>
       </SettingsSection>
