@@ -74,7 +74,9 @@ export function ThreadRow({
               </span>
             )}
             <span className='flex min-w-0 flex-1 flex-col'>
-              <span className='truncate leading-6'>{title}</span>
+              <span data-thread-title className='truncate leading-5'>
+                {title}
+              </span>
               {detail && <span className='truncate text-xs leading-4'>{detail}</span>}
             </span>
             {pullRequests.length > 0 && (

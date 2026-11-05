@@ -402,7 +402,7 @@ export const AppSidebar = memo(function AppSidebar() {
                     onToggle={botThreads.get(bot.id)?.length ? () => toggleBot(bot.id) : undefined}
                   />
                   <CollapsibleContent>
-                    <div className='flex flex-col gap-0.5 pt-0.5'>
+                    <div className='flex flex-col gap-0.5 pt-0.5 pl-5'>
                       {(botThreads.get(bot.id) ?? []).map(({ id }) => (
                         <div
                           key={id}

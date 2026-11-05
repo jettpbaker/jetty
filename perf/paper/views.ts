@@ -7,7 +7,7 @@ import type { Page } from '../driver'
 import type { Fixtures } from '../seed'
 import type { Theme } from './tokens'
 
-import { click as clickElement, waitFor } from '../journey'
+import { click as clickElement, row as threadRow, waitFor } from '../journey'
 import { checkoutPrompt, checkoutTitle } from './fixtures'
 
 export type Context = {
@@ -149,13 +149,25 @@ export const views: View[] = [
     selector: '[data-perf-region="sidebar"]',
     ready: prompt,
     async setup({ page }) {
-      await page.evaluate(
-        `[...document.querySelectorAll('.thread-row')].find(e=>e.textContent.includes(${JSON.stringify(checkoutTitle)})).scrollIntoView({block:'nearest'})`
-      )
+      await page.evaluate(`(${threadRow(checkoutTitle)}).scrollIntoView({block:'nearest'})`)
       const at = await page.evaluate<{ x: number; y: number }>(
-        `(()=>{const r=[...document.querySelectorAll('.thread-row')].find(e=>e.textContent.includes(${JSON.stringify(checkoutTitle)})).getBoundingClientRect();return {x:r.x+80,y:r.y+20}})()`
+        `(()=>{const r=(${threadRow(checkoutTitle)}).getBoundingClientRect();return {x:r.x+80,y:r.y+r.height/2}})()`
       )
       await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', ...at })
+    },
+  },
+  {
+    area: 'Sidebar',
+    state: 'bot threads',
+    route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
+    selector: '[data-perf-region="sidebar"]',
+    themes: allThemes,
+    ready: prompt,
+    async setup({ page }) {
+      const toggle = `document.querySelector('[aria-label="Bots"] button[aria-expanded]')`
+      if (await page.evaluate(`(${toggle}).getAttribute('aria-expanded') !== 'true'`))
+        await click(page, toggle, 'bot threads')
+      await waitFor(page, `document.querySelector('[aria-label="Bots"] .thread-row')`, 'bot thread')
     },
   },
   {
@@ -504,7 +516,7 @@ views.push(
     selector: 'body',
     ready: prompt,
     async setup({ page }) {
-      const row = `[...document.querySelectorAll('.thread-row')].find(e=>e.textContent.includes(${JSON.stringify(checkoutTitle)}))`
+      const row = threadRow(checkoutTitle)
       await page.evaluate(`(${row}).scrollIntoView({block:'nearest'})`)
       const at = await page.evaluate<{ x: number; y: number }>(
         `(()=>{const r=(${row}).getBoundingClientRect();return {x:r.x+100,y:r.y+r.height/2}})()`
