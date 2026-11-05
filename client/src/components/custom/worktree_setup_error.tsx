@@ -16,7 +16,7 @@ export function WorktreeSetupError({ error }: { error: string }) {
             <Button
               variant='ghost-text'
               size='xs'
-              className='-ml-5.5 px-0 [&[aria-expanded=true]>svg]:rotate-90'
+              className='-ml-3.5 px-0 [&[aria-expanded=true]>svg]:rotate-90'
             />
           }
         >
