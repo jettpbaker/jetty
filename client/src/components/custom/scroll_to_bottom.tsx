@@ -45,8 +45,8 @@ export function ScrollToBottom({
         size='sm'
         aria-label={
           messages
-            ? `${messages} assistant ${messages === 1 ? 'message' : 'messages'} below. Scroll to the latest message`
-            : 'Scroll to the latest message'
+            ? `Jump to latest, ${messages} newer ${messages === 1 ? 'message' : 'messages'}`
+            : 'Jump to latest'
         }
         aria-hidden={!shown}
         tabIndex={shown ? undefined : -1}
@@ -60,14 +60,13 @@ export function ScrollToBottom({
         )}
       >
         <ArrowDownIcon data-icon='inline-start' />
+        <span>Jump to latest</span>
         {messages ? (
-          <span aria-hidden className='inline-flex items-baseline gap-1'>
+          <span aria-hidden className='inline-flex items-baseline gap-1 text-muted-foreground'>
             <RollingNumber value={messages} className='font-mono' />
             <span>{messages === 1 ? 'message' : 'messages'}</span>
           </span>
-        ) : (
-          <span>Latest</span>
-        )}
+        ) : null}
         {fresh && <Dot className='top-0.5 right-0.5' />}
       </Button>
     </div>
