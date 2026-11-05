@@ -400,18 +400,22 @@ function ProposedDiff(props: ComponentProps<typeof import('./proposed_diff').Pro
 
 function FullTarget({ item }: { item: Approval }) {
   return (
-    <div className='scrollbar-subtle flex max-h-28 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'>
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a long command scrolls; keyboard users need access to the entire request
+    <pre
+      tabIndex={0}
+      className='scrollbar-subtle flex max-h-28 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'
+    >
       <span className='whitespace-pre-wrap wrap-anywhere'>
         {item.run && <span className='text-muted-foreground select-none'>$ </span>}
         {item.target}
       </span>
       {item.detail && (
-        <span className='text-muted-foreground'>
+        <span className='whitespace-pre-wrap text-muted-foreground wrap-anywhere'>
           {item.run ? `in ${item.detail}` : item.detail}
         </span>
       )}
       {item.counts && <DiffCounts files={[item.counts]} />}
-    </div>
+    </pre>
   )
 }
 
