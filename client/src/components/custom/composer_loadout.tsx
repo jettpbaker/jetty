@@ -456,17 +456,18 @@ export function ComposerLoadout({
               {value ? `${name} doesn’t support effort levels` : 'Choose a model first'}
             </p>
           )}
-          <DisabledTooltip
-            reason={
-              !value
-                ? 'Choose a model first'
-                : !model?.fast
-                  ? `${name} has no fast mode`
-                  : undefined
-            }
-          >
-            <div className='flex h-8 items-center justify-between gap-3 text-xs'>
-              Fast
+          <div className='flex h-8 items-center justify-between gap-3 text-xs'>
+            <span>Fast</span>
+            <DisabledTooltip
+              reason={
+                !value
+                  ? 'Choose a model first'
+                  : !model?.fast
+                    ? `${name} has no fast mode`
+                    : undefined
+              }
+              wrap='flex'
+            >
               <Switch
                 size='sm'
                 aria-label='Fast'
@@ -474,8 +475,8 @@ export function ComposerLoadout({
                 checked={value?.fast ?? false}
                 onCheckedChange={(fast) => value && onChange({ ...value, fast })}
               />
-            </div>
-          </DisabledTooltip>
+            </DisabledTooltip>
+          </div>
         </div>
         <Separator />
         <Button
