@@ -730,11 +730,12 @@ function Issues({ pr }: { pr: PrPull }) {
   const first = issues[0]
   if (!first)
     return (
-      <div className='px-0.75'>
+      <div className='flex flex-wrap items-center gap-x-2 gap-y-1 px-0.75'>
         <Action className='gap-2'>
           <PlusMediumIcon className='size-4' />
           Link issue
         </Action>
+        <span className='text-xs text-muted-foreground'>Coming soon</span>
       </div>
     )
   return (
@@ -2355,7 +2356,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                   >
                     <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
                       <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                        <div className='mx-auto grid w-full max-w-[760px] grid-cols-1 auto-rows-max content-start items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1120px] @min-[1000px]:grid-cols-[minmax(0,1fr)_320px]'>
+                        <div className='mx-auto grid w-full max-w-[760px] flex-1 grid-cols-1 grid-rows-[auto_auto_auto_minmax(min-content,1fr)] items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1120px] @min-[1000px]:grid-cols-[minmax(0,1fr)_320px] @min-[1000px]:grid-rows-[auto_auto_minmax(min-content,1fr)]'>
                           <div className='flex min-w-0 flex-col gap-2 @min-[1000px]:col-start-1'>
                             <div className='flex flex-wrap items-center gap-2.5'>
                               <StatusMenu pr={pr} />
@@ -2445,7 +2446,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           </Section>
                           <Section
                             title='Activity'
-                            className='flex min-w-0 flex-1 flex-col @min-[1000px]:col-start-1'
+                            className='flex min-w-0 flex-1 flex-col self-stretch @min-[1000px]:col-start-1'
                             id={activityId}
                           >
                             <MemoizedActivity pr={pr} />
