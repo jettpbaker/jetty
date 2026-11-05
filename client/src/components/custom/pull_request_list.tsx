@@ -370,7 +370,24 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                       ? 'Pull requests you open will show here.'
                       : 'Pull requests for this view will show here.'
                 }
-              />
+              >
+                {pulls.length ? (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => {
+                      setIncluded([...pullRequestGroupOrder])
+                      setHiddenRepos([])
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                ) : tab === 'created' ? (
+                  <Button variant='outline' size='sm' onClick={() => onTabChange('for-you')}>
+                    View For you
+                  </Button>
+                ) : null}
+              </ContentEmpty>
             }
           />
           {list.truncated && (

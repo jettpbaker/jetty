@@ -25,10 +25,10 @@ export function ContentEmpty({
   return (
     <Empty className='min-h-full'>
       <EmptyHeader>
-        <EmptyMedia variant='icon'>
-          <Glyph aria-hidden='true' />
+        <EmptyMedia>
+          <Glyph aria-hidden='true' className='size-5 text-muted-foreground' />
         </EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyTitle className='text-sm tracking-normal'>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
       {children && <EmptyContent>{children}</EmptyContent>}
