@@ -309,7 +309,7 @@ export function FileEditor({
       ref={root}
       id={id}
       aria-label={path}
-      className='file-changes-viewer relative isolate flex h-full min-h-0 flex-col bg-background'
+      className='file-changes-viewer relative isolate flex h-full min-h-0 flex-col bg-(--diff-surface)'
     >
       {conflict && !readOnly && (
         <ConflictBar
