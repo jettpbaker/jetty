@@ -108,7 +108,6 @@ import { primeDiffHighlights } from '../diff_worker_pool'
 import { DisabledTooltip } from '../disabled_tooltip'
 import { parseFileChanges } from '../file_diff_model'
 import { keyTarget } from '../keybinds'
-import { ComingSoon } from '../settings_layout'
 import { githubUser, prFile } from './adapter'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
 import { GuideWide } from './guide_wide'
@@ -166,17 +165,18 @@ function Action({
   className?: string
 }) {
   return (
-    <Button
-      disabled
-      variant='ghost-text'
-      size='sm'
-      className={cn('h-7 px-0 font-normal disabled:text-muted-foreground', className)}
-      aria-label={label}
-      aria-description='Coming soon'
-    >
-      {children}
-      <ComingSoon />
-    </Button>
+    <DisabledTooltip reason='Coming soon' wrap='inline-flex'>
+      <Button
+        disabled
+        variant='ghost-text'
+        size='sm'
+        className={cn('h-7 px-0 font-normal disabled:text-muted-foreground', className)}
+        aria-label={label}
+        aria-description='Coming soon'
+      >
+        {children}
+      </Button>
+    </DisabledTooltip>
   )
 }
 function Composer({
@@ -822,17 +822,17 @@ function Properties({ pr }: { pr: PrPull }) {
             key={thread.id}
             variant='ghost'
             size='sm'
-            className='h-7 min-w-0 max-w-full shrink gap-2 rounded-sm px-0.75 font-normal'
+            className='h-auto min-h-7 min-w-0 max-w-full shrink items-start gap-2 rounded-sm px-0.75 py-1 text-left font-normal whitespace-normal'
             nativeButton={false}
             render={<Link to='/threads/$threadId' params={{ threadId: thread.id }} />}
           >
             <StatusGlyph
               status={threadStatus(thread.status, thread.readyForReview)}
-              className='size-4'
+              className='mt-0.5 size-4 shrink-0'
             />
             <span
               className={cn(
-                'truncate',
+                'line-clamp-2',
                 quietStatus(threadStatus(thread.status, thread.readyForReview)) &&
                   'text-muted-foreground'
               )}
@@ -2202,7 +2202,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                   >
                     <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
                       <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                        <div className='mx-auto grid w-full max-w-[760px] grid-cols-1 auto-rows-max content-start items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1040px] @min-[1000px]:grid-cols-[minmax(0,720px)_220px]'>
+                        <div className='mx-auto grid w-full max-w-[760px] grid-cols-1 auto-rows-max content-start items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1120px] @min-[1000px]:grid-cols-[minmax(0,1fr)_320px]'>
                           <div className='flex min-w-0 flex-col gap-2 @min-[1000px]:col-start-1'>
                             <div className='flex flex-wrap items-center gap-2.5'>
                               <StatusMenu pr={pr} />
@@ -2249,16 +2249,32 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               </span>
                             </div>
                             {pr.state === 'open' && reason && (
-                              <div className='flex flex-col items-start gap-3 rounded-md border border-border p-3'>
-                                <output className='flex items-center gap-2 text-sm'>
+                              <div
+                                className={cn(
+                                  'flex flex-col items-start gap-3 rounded-md border p-3',
+                                  reason === 'Checking mergeability'
+                                    ? 'border-border'
+                                    : 'border-destructive/20 bg-destructive/8'
+                                )}
+                              >
+                                <output className='flex items-start gap-2 text-sm'>
                                   <StatusGlyph
                                     status={
                                       reason === 'Checking mergeability' ? 'working' : 'error'
                                     }
+                                    className='mt-0.5 size-4 shrink-0'
                                   />
-                                  <span>
-                                    Merge blocked{' '}
-                                    <span className='text-muted-foreground'>· {reason}</span>
+                                  <span className='font-medium'>
+                                    {reason === 'Resolve merge conflicts first' ? (
+                                      <>This branch has conflicts with {pr.base}</>
+                                    ) : (
+                                      <>
+                                        Merge blocked{' '}
+                                        <span className='font-normal text-muted-foreground'>
+                                          · {reason}
+                                        </span>
+                                      </>
+                                    )}
                                   </span>
                                 </output>
                                 <div className='flex flex-wrap items-center gap-2'>
@@ -2274,7 +2290,9 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                                         />
                                       }
                                     >
-                                      Open linked thread
+                                      {reason === 'Resolve merge conflicts first'
+                                        ? 'Open thread to resolve'
+                                        : 'Open linked thread'}
                                     </Button>
                                   )}
                                   <Button

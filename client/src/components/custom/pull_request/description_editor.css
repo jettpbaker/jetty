@@ -49,6 +49,15 @@
 .description-document h3 {
   @apply mt-5 mb-1.5 text-base font-semibold;
 }
+[data-description-editor] .description-document :is(h1, h2) {
+  @apply mt-4 mb-1.5 text-[15px] font-semibold;
+}
+[data-description-editor] .description-document h3 {
+  @apply mt-4 mb-1.5 text-sm font-semibold;
+}
+[data-description-editor] .description-document :is(h1, h2, h3):first-child {
+  margin-top: 0;
+}
 .description-document blockquote {
   @apply my-4 border-l-4 border-muted-foreground/30 pl-4 text-muted-foreground italic;
 }
