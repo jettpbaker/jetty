@@ -266,6 +266,7 @@ function WorkHistory({
             data-quote={entry.type === 'text' ? entry.id : undefined}
             className={cn(
               entry.type !== 'text' && 'pl-3',
+              entry.type === 'text' && index > 0 && entries[index - 1]?.type !== 'text' && 'pt-4',
               entry.type !== 'text' &&
                 !initialEntries.has(entry.id) &&
                 (entry.type === 'tools' &&

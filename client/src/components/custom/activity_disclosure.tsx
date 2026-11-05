@@ -58,7 +58,7 @@ export function ActivityDisclosure({
       <div className={animateHeader ? 'work-raise-enter' : undefined}>
         {hasContent ? (
           <Button
-            variant={flushHeader ? 'ghost' : 'ghost-text'}
+            variant={flushHeader && !expanded ? 'ghost' : 'ghost-text'}
             className='activity-header'
             data-flush={flushHeader || undefined}
             aria-expanded={expanded}

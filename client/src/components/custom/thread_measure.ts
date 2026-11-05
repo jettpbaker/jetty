@@ -257,10 +257,13 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       if (row.settingUp && row.activities.length === 0) return 0
       if (workEnded(row.status)) return 28
       let height = 32
-      for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
+      const entries = groupWorkActivities(row.activities, false).slice(-previewCount)
+      for (const [index, entry] of entries.entries()) {
         height +=
           entry.type === 'text'
-            ? markdownHeight(entry.id, entry.text, Math.min(width, 706), rough, 22, 14) + 8
+            ? markdownHeight(entry.id, entry.text, Math.min(width, 706), rough, 22, 14) +
+              8 +
+              (index > 0 && entries[index - 1]?.type !== 'text' ? 16 : 0)
             : 28
       }
       return height
