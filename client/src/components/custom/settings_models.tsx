@@ -185,7 +185,7 @@ function SlotRow({
                       <DropdownMenuRadioItem
                         key={effort}
                         value={effort}
-                        className='h-auto py-2 whitespace-normal'
+                        className='h-auto! py-2 whitespace-normal [&>[data-slot=dropdown-menu-radio-item-indicator]]:top-2.5'
                       >
                         <span className='flex flex-col gap-0.5 py-0.5'>
                           <span>{effortLabels[effort]}</span>
