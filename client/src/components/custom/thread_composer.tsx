@@ -55,6 +55,7 @@ import {
   useRespondApproval,
   useRespondQuestion,
   useRespondSecret,
+  useRequestReveal,
   useSendTurn,
   useThreadLoadout,
   useThreadMeta,
@@ -174,6 +175,7 @@ export function ThreadComposer({
   const respondSecret = useRespondSecret()
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
+  const revealRequest = useRequestReveal()
   const navigate = useNavigate()
   const chromeReady = useChromeReady()
   const defaultEnvironment = useDefaultEnvironment()
@@ -289,6 +291,7 @@ export function ThreadComposer({
   function settled(entry: { id: string }) {
     const next = pending.find((candidate) => candidate.id !== entry.id)
     const parked = next && saved.parked?.[next.id]
+    if (next && threadId && next.kind !== 'secret_request') revealRequest(threadId, next.id)
     if (!next || parked === undefined || !answering) return
     const rest = { ...saved.parked }
     delete rest[next.id]
@@ -460,6 +463,7 @@ export function ThreadComposer({
   function choose(to: number) {
     const target = pending[to]
     if (!target || !item || target === item) return
+    if (threadId && target.kind !== 'secret_request') revealRequest(threadId, target.id)
     shown.current = { id: target.id, at: 0 }
     if (!answering) return update({ pendingId: target.id })
     const parked = Object.fromEntries(

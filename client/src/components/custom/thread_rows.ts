@@ -991,6 +991,7 @@ export function threadRows(
       (item.kind === 'approval' || item.kind === 'question') &&
       awaitsInput(item)
     ) {
+      openBlock(segment, item.turnId)
       rows.push({ kind: 'request', id: item.id })
       continue
     }
