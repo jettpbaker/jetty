@@ -47,6 +47,12 @@
   .thread-row:hover > button {
     background-color: var(--thread-row-surface);
   }
+  .thread-row[data-selected]:hover > button {
+    background-color: color-mix(in oklch, var(--foreground) 5%, var(--sidebar-accent));
+  }
+  .thread-row[data-selected]:hover .thread-row-actions {
+    background-color: color-mix(in oklch, var(--foreground) 5%, var(--sidebar-accent));
+  }
   .thread-row:hover .thread-row-actions {
     visibility: visible;
     pointer-events: auto;
