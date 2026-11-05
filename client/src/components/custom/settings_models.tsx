@@ -45,6 +45,7 @@ import {
   ArrowRotateClockwiseIcon,
 } from './central_icons'
 import { moveOnKeys, subTriggerClass } from './composer_loadout'
+import { DisabledTooltip } from './disabled_tooltip'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import { SettingsPage, SettingsSection, cardClass, selectTriggerClass } from './settings_layout'
@@ -310,10 +311,15 @@ function Loadout() {
           />
         ))}
         {configured.length === slots.length && (
-          <Button variant='ghost' className='my-2 justify-start' disabled>
-            <PlusMediumIcon />
-            Add configuration
-          </Button>
+          <DisabledTooltip
+            reason={`All ${slots.length} configuration slots are in use`}
+            wrap='inline-flex self-start my-2'
+          >
+            <Button variant='ghost' disabled>
+              <PlusMediumIcon />
+              Add configuration
+            </Button>
+          </DisabledTooltip>
         )}
       </div>
       <p role='status' aria-live='polite' className='sr-only'>
@@ -362,6 +368,7 @@ function AvailableModels() {
                     <ModelLabel model={model} />
                   </span>
                   <Checkbox
+                    tone='neutral'
                     aria-label={`Show ${model.name} in pickers`}
                     disabled={!on}
                     checked={checked}
