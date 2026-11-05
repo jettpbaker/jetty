@@ -626,7 +626,7 @@ export function ThreadList({
     overscan: 10,
     gap: rowGap,
     paddingStart: agentId ? agentInset : chatInset,
-    paddingEnd: rowGap,
+    paddingEnd: rowGap + 24,
     getItemKey,
     initialMeasurementsCache: saved?.sizes,
     // The virtualizer keeps only measurements that differ from the estimate, so a row whose
@@ -1170,6 +1170,7 @@ export function ThreadList({
         <section
           ref={scroller}
           className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] [scroll-timeline:--chat-top_block] [overflow-anchor:none] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+          style={{ maskImage: 'linear-gradient(to bottom, #000 calc(100% - 24px), transparent)' }}
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
