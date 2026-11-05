@@ -989,7 +989,7 @@ function Activity({ pr }: { pr: PrPull }) {
       key: `comment-${comment.id}`,
       at: comment.createdAt,
       content: (
-        <div className={cn('group/comment rounded-md border-[0.5px] border-border px-3', raised)}>
+        <div className='group/comment border-t border-border px-0 py-1'>
           <Comment comment={comment} menu={quoteReply(comment.body)} />
         </div>
       ),
@@ -1012,13 +1012,8 @@ function Activity({ pr }: { pr: PrPull }) {
             </span>
           </div>
         ) : (
-          <div
-            className={cn(
-              'group/comment overflow-hidden rounded-md border-[0.5px] border-border',
-              raised
-            )}
-          >
-            <div className='space-y-3 p-3'>
+          <div className='group/comment overflow-hidden border-t border-border'>
+            <div className='flex flex-col gap-3 py-3'>
               <div className='flex items-center gap-2 text-xs'>
                 <PersonAvatar
                   login={review.author.login}
@@ -1058,7 +1053,7 @@ function Activity({ pr }: { pr: PrPull }) {
     <QuoteContext
       value={(body) => setQuote((last) => ({ markdown: quoted(body), id: (last?.id ?? 0) + 1 }))}
     >
-      <div className='flex flex-1 flex-col space-y-4'>
+      <div className='flex flex-1 flex-col gap-4'>
         <CommitsLine
           icon={<StateGlyph state={pr.openedAsDraft ? 'draft' : 'open'} />}
           text={`Opened ${pr.openedAsDraft ? 'as draft ' : ''}by ${personName(pr.author)}${initial.length ? ' with' : ''}`}
