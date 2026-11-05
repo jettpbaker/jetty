@@ -654,9 +654,8 @@ export function ThreadComposer({
                 />
               )}
               {restartHeld && threadId && (
-                <div
+                <section
                   data-strip='restart'
-                  role='region'
                   aria-label='Paused after repeated restarts'
                   className='flex items-start gap-2 bg-popover p-3 text-sm first:rounded-t-md'
                 >
@@ -679,7 +678,7 @@ export function ThreadComposer({
                       Resume
                     </Button>
                   </DisabledTooltip>
-                </div>
+                </section>
               )}
               {usageBanner}
               {mode.strip}
