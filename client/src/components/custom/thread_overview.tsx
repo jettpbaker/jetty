@@ -282,7 +282,7 @@ export function Section({
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} data-section={id} className='min-w-0'>
       <CollapsibleTrigger
-        render={<Button variant='ghost' tone='muted' size='xs' />}
+        render={<Button variant='ghost-text' size='xs' />}
         className='group/section w-full justify-start gap-2 rounded-sm px-2.5'
       >
         {label}

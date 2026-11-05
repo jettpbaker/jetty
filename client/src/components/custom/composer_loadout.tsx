@@ -307,9 +307,13 @@ export function ComposerLoadout({
   const shortcuts = hotkeys && <LoadoutShortcuts openSubmenu={openSubmenu} />
 
   function reorder(from: number, to: number) {
-    if (from === to || to < 0 || to >= loadouts.length) return
+    const source = equipped[from]?.slot
+    const target = equipped[to]?.slot
+    if (from === to || !source || !target) return
+    const sourceIndex = loadouts.findIndex((slot) => slot.id === source.id)
+    const targetIndex = loadouts.findIndex((slot) => slot.id === target.id)
     const next = [...loadouts]
-    next.splice(to, 0, ...next.splice(from, 1))
+    next.splice(targetIndex, 0, ...next.splice(sourceIndex, 1))
     onReorder(next)
   }
 
@@ -385,9 +389,7 @@ export function ComposerLoadout({
               }}
               className='flex flex-col gap-0.5'
             >
-              {loadouts.map((slot, index) => {
-                const loadout = slotLoadout(slot)
-                if (!loadout) return null
+              {equipped.map(({ slot, loadout }, index) => {
                 const slotModel = findModel(allModels, loadout)
                 return (
                   <SortableLoadoutItem
