@@ -3,6 +3,7 @@ import type { ResultOf } from '@jetty/shared/wire'
 import {
   hydratePartialDiff,
   parsePatchFiles,
+  trimPatchContext,
   type FileDiffLoadedFiles,
   type FileDiffMetadata,
 } from '@pierre/diffs'
@@ -72,7 +73,18 @@ export function loadedFiles(
 }
 
 export function hydratedDiff(diff: FileDiffMetadata, files: FileDiffLoadedFiles) {
-  return diff.isPartial ? hydratePartialDiff('clone', diff, files) : diff
+  if (!diff.isPartial) return diff
+  const longContext = diff.hunks.some((hunk) =>
+    hunk.hunkContent.some((content) => content.type === 'context' && content.lines > 6)
+  )
+  if (!longContext) return hydratePartialDiff('clone', diff, files)
+  const patch = hunksPatch(
+    diff,
+    diff.hunks.map((_, index) => index)
+  )
+  const compact = parsePatchFiles(`--- a/file\n+++ b/file\n${trimPatchContext(patch, 3)}`)[0]
+    ?.files[0]
+  return hydratePartialDiff('clone', compact ? { ...diff, hunks: compact.hunks } : diff, files)
 }
 
 export function patchMatchesContents(
