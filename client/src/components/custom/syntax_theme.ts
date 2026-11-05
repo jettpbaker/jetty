@@ -9,8 +9,21 @@ export const syntaxTheme = { dark: 'vscode-2026-dark', light: 'vscode-2026-light
 
 // Pierre's code views on Jetty's code surface: the app's mono font, and Jetty's status colours for
 // added and removed lines instead of the theme's.
-export const codeSurfaceCSS =
-  ':host { --diffs-font-family: var(--font-mono); --diffs-font-size: var(--text-xs); --diffs-line-height: 20px; --diffs-bg: var(--diff-surface) !important; --diffs-addition-color-override: var(--status-success); --diffs-deletion-color-override: var(--status-error); --diffs-bg-addition-override: color-mix(in oklch, var(--status-success) 10%, var(--diff-surface)); --diffs-bg-deletion-override: color-mix(in oklch, var(--status-error) 10%, var(--diff-surface)); --diffs-gap-style: none; }'
+export const codeSurfaceCSS = `
+:host {
+  --diffs-font-family: var(--font-mono);
+  --diffs-font-size: var(--text-xs);
+  --diffs-line-height: 20px;
+  --diffs-bg: var(--diff-surface) !important;
+  --diffs-addition-color-override: var(--status-success);
+  --diffs-deletion-color-override: var(--status-error);
+  --diffs-gap-style: none;
+}
+[data-background] :is([data-line], [data-no-newline]) {
+  --mix-light: 90%;
+  --mix-dark: 90%;
+}
+`
 
 // Pierre draws the unmodified-lines expanders as icon-only buttons with no name.
 export function nameExpanders(node: HTMLElement) {
