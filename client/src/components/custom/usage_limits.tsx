@@ -2,7 +2,6 @@ import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 import type { ReactNode } from 'react'
 
 import {
-  ArrowUpRightIcon,
   ChevronRightSmallIcon,
   CrossSmallIcon,
   ArrowRotateClockwiseIcon,
@@ -18,6 +17,7 @@ import { Link } from '@tanstack/react-router'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { ProviderGlyph } from './provider_glyph'
+import { SettingsCard } from './settings_layout'
 import './usage_limits.css'
 
 export type UsageProvider = ProviderUsage['provider']
@@ -180,45 +180,47 @@ function UsageRow({
       <UsageBar window={window} className={compact ? 'h-0.75' : 'h-2'} />
       <span
         className={cn(
-          'text-right text-xs',
+          'text-right text-xs whitespace-nowrap',
           left <= 10 ? usageWarningColor(window) : 'text-foreground'
         )}
       >
         <span className='font-mono tabular-nums'>{100 - left}%</span>
-        <span className={compact ? undefined : 'sr-only'}> used</span>
+        <span> used</span>
       </span>
       <span
         className={cn(
           'flex items-center justify-end gap-1 text-xs tabular-nums',
+          !compact && 'flex-col items-end gap-0',
           left === 0 ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
         {reset && (
           <>
-            <span className={compact ? undefined : 'sr-only'}>Resets in</span>
+            <span>Resets in</span>
             <Mono>{reset}</Mono>
           </>
         )}
       </span>
-      {(!compact || note) && (
+      {(note || (!compact && window.pct >= 95)) && (
         <span
           className={cn(
-            'col-[2/-1] flex min-h-4 flex-wrap items-center gap-x-2 gap-y-1 text-xs',
+            'col-[2/-1] text-xs leading-5',
             warning ? usageWarningColor(window) : 'text-muted-foreground'
           )}
         >
-          {note && <span>{note}</span>}
+          {note}
           {!compact && window.pct >= 95 && (
-            <Button
-              variant='ghost-text'
-              size='xs'
-              className='-my-1 -ml-2 self-start'
-              aria-label={`Manage ${providerNames[usage.provider]} models`}
-              render={<Link to='/settings/$page' params={{ page: 'models' }} />}
-            >
-              Manage models
-              <ArrowUpRightIcon />
-            </Button>
+            <>
+              {' · '}
+              <Link
+                to='/settings/$page'
+                params={{ page: 'models' }}
+                aria-label={`Manage ${providerNames[usage.provider]} models`}
+                className='rounded-xs whitespace-nowrap text-primary outline-none hover:underline focus-visible:outline-2 focus-visible:outline-ring'
+              >
+                Manage models
+              </Link>
+            </>
           )}
         </span>
       )}
@@ -229,7 +231,7 @@ function UsageRow({
 function windowsGrid(compact: boolean) {
   return compact
     ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,8.75rem)_minmax(0,1fr)_3.5rem_5.25rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3rem_6rem] @max-md:gap-x-3'
+    : 'grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3.75rem_5.25rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3.75rem_5.25rem] @max-md:gap-x-3'
 }
 
 // Why a provider shows no windows, when it doesn't.
@@ -338,19 +340,7 @@ export function UsagePage({
         </div>
       </header>
       <div className='scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-        <div className='@container mx-auto flex w-full max-w-160 flex-col gap-6 px-4 pt-4 pb-8'>
-          <div
-            aria-hidden='true'
-            className={cn(
-              'sticky top-0 z-1 grid bg-background py-3 text-xs text-muted-foreground',
-              windowsGrid(false)
-            )}
-          >
-            <span>Window</span>
-            <span>Usage</span>
-            <span className='text-right'>Used</span>
-            <span className='text-right'>Resets in</span>
-          </div>
+        <div className='@container mx-auto flex w-full max-w-190 flex-col gap-4 px-4 pt-4 pb-8'>
           {providers
             .filter((provider) => !unreported.includes(provider))
             .map((provider) => {
@@ -360,27 +350,34 @@ export function UsagePage({
                   key={provider}
                   aria-labelledby={`usage-${provider}`}
                   aria-busy={item === undefined}
-                  className='flex flex-col gap-2'
                 >
-                  <div className='flex items-center gap-2 text-muted-foreground'>
-                    <ProviderGlyph provider={provider} className='size-4' />
-                    <h2 id={`usage-${provider}`} className='text-sm font-semibold text-foreground'>
-                      {providerNames[provider]}
-                    </h2>
-                    {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
-                      <span className='ml-auto text-xs'>
-                        Couldn’t refresh
-                        {item.asOf !== undefined && ` · last read ${updatedLabel(item.asOf, now)}`}
-                      </span>
-                    )}
-                  </div>
-                  {item ? (
-                    <UsageWindows usage={item} now={now} />
-                  ) : failed.has(provider) ? (
-                    <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
-                  ) : (
-                    <UsageSkeleton />
-                  )}
+                  <SettingsCard>
+                    <div className='flex min-h-12 items-center gap-2 text-muted-foreground'>
+                      <ProviderGlyph provider={provider} className='size-4' />
+                      <h2
+                        id={`usage-${provider}`}
+                        className='text-sm font-semibold text-foreground'
+                      >
+                        {providerNames[provider]}
+                      </h2>
+                      {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
+                        <span className='ml-auto text-xs'>
+                          Couldn’t refresh
+                          {item.asOf !== undefined &&
+                            ` · last read ${updatedLabel(item.asOf, now)}`}
+                        </span>
+                      )}
+                    </div>
+                    <div className='py-3'>
+                      {item ? (
+                        <UsageWindows usage={item} now={now} />
+                      ) : failed.has(provider) ? (
+                        <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
+                      ) : (
+                        <UsageSkeleton />
+                      )}
+                    </div>
+                  </SettingsCard>
                 </section>
               )
             })}
@@ -434,7 +431,7 @@ export function UsageBanner({
               />
             }
           >
-            <ArrowUpRightIcon />
+            <ChevronRightSmallIcon />
           </TooltipTrigger>
           <TooltipContent>Open Usage</TooltipContent>
         </Tooltip>
@@ -668,7 +665,7 @@ export function RingLimits({
         className='flex h-8 items-center gap-1 text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring'
       >
         All usage
-        <ArrowUpRightIcon className='size-3' />
+        <ChevronRightSmallIcon className='size-3' />
       </Link>
     </>
   )
