@@ -47,6 +47,7 @@ import {
 import { BotAvatar, botColorStyle } from './bot_avatar'
 import { ContextRing } from './context_ring'
 import { JettyBot } from './jetty_bot'
+import { KeybindChip, keybinds, type Keybind } from './keybinds'
 import { ProviderGlyph } from './provider_glyph'
 import './composer_slash.css'
 import {
@@ -87,8 +88,16 @@ type Entry = {
   opens?: boolean
   selected?: boolean
   disabled?: boolean
+  binding?: Keybind
   score: number
   run: () => void
+}
+
+const commandBindings: Partial<Record<string, Keybind>> = {
+  model: keybinds.model,
+  effort: keybinds.effort,
+  access: keybinds.access,
+  new: keybinds.newThread,
 }
 
 const accessLabels: Record<PermissionMode, string> = {
@@ -306,6 +315,7 @@ export function useComposerSlash(
       name,
       description,
       group: 'Commands',
+      binding: commandBindings[id],
       icon,
       opens,
       disabled,
@@ -688,26 +698,14 @@ export function SlashMirror({ slash, className }: { slash: Slash; className?: st
 /* Menu */
 
 export function SlashMenu({ slash }: { slash: Slash }) {
-  const popup = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const mentioning = slash.query?.trigger === '@'
-  useLayoutEffect(() => {
-    const anchor = slash.anchor.current
-    const field = slash.field.current
-    const mirror = slash.mirror.current
-    if (!popup.current || !anchor || !field || !mirror) return
-    popup.current.style.left = `${Math.max(0, Math.min(anchor.offsetLeft - 8, field.offsetWidth - popup.current.offsetWidth))}px`
-    popup.current.style.top = `${anchor.offsetTop - mirror.scrollTop - 6}px`
-  })
   useLayoutEffect(() => {
     list.current?.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest' })
   }, [slash.index, slash.entries.length])
 
   return (
-    <div
-      ref={popup}
-      className='absolute z-50 w-80 origin-bottom-left -translate-y-full overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border animate-(--motion-popup-enter) slide-in-from-bottom-1 fade-in-60 motion-reduce:animate-none'
-    >
+    <div className='absolute inset-x-0 bottom-full z-50 mb-2 w-full origin-bottom-left overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border animate-(--motion-popup-enter) slide-in-from-bottom-1 fade-in-60 motion-reduce:animate-none'>
       <div
         id='slash-menu'
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- preserve the sketchpad's div-based list markup
@@ -717,7 +715,7 @@ export function SlashMenu({ slash }: { slash: Slash }) {
         className='scroll-fade-y scrollbar-subtle max-h-72 scroll-py-1 overflow-y-auto overscroll-contain p-1'
       >
         {slash.entries.length === 0 && (
-          <p className='flex h-menu-item-compact items-center px-2 text-xs text-muted-foreground'>
+          <p className='flex h-8 items-center px-2 text-xs text-muted-foreground'>
             No {mentioning ? 'bots' : 'skills'} match “{slash.query?.trigger}
             {slash.query?.query}”
           </p>
@@ -747,23 +745,22 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
     onClick: entry.disabled ? undefined : entry.run,
   } as const
   const row =
-    "flex cursor-default items-center gap-2 rounded-menu-item px-2 text-xs select-none data-active:bg-accent data-active:text-accent-foreground data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:size-3 [&_svg]:shrink-0 [&:not([data-active],[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground"
+    "flex cursor-default items-center gap-2 rounded-menu-item px-2 text-13 select-none data-active:bg-accent data-active:text-accent-foreground data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:size-3 [&_svg]:shrink-0 [&:not([data-active],[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground"
 
   if (entry.kind === 'back')
     return (
-      <div {...props} className={`${row} h-menu-item-compact text-muted-foreground`}>
+      <div {...props} className={`${row} h-8 text-muted-foreground`}>
         <ChevronLeftSmallIcon />
         Backspace to go back
       </div>
     )
 
   return (
-    <div {...props} className={`${row} h-menu-item-compact`}>
+    <div {...props} className={`${row} h-8`}>
       {entry.icon}
       <span className='shrink-0'>{entry.name}</span>
-      <span className='min-w-0 flex-1 truncate text-muted-foreground'>
-        {entry.disabled ? 'Unavailable' : entry.description}
-      </span>
+      <span className='min-w-0 flex-1 truncate text-muted-foreground'>{entry.description}</span>
+      {entry.binding && <KeybindChip binding={entry.binding} />}
       {entry.kind === 'option' && entry.selected && (
         <Checkmark1MediumIcon className='text-current' />
       )}
