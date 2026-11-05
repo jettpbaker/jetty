@@ -168,10 +168,14 @@ function Action({
       disabled
       variant='ghost-text'
       size='sm'
-      className={cn('h-7 px-0 font-normal', className)}
+      className={cn('h-7 px-0 font-normal disabled:text-muted-foreground', className)}
       aria-label={label}
+      aria-description='Coming soon'
     >
       {children}
+      <span className='rounded-sm bg-foreground/6 px-1.5 py-0.5 text-xs text-muted-foreground'>
+        Soon
+      </span>
     </Button>
   )
 }
