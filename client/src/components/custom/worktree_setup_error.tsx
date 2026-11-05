@@ -5,8 +5,15 @@ import { useState } from 'react'
 import { ChevronRightSmallIcon } from './central_icons'
 import { CopyButton } from './copy_button'
 
-export function WorktreeSetupError({ error }: { error: string }) {
+export function WorktreeSetupError({
+  error,
+  stopped = false,
+}: {
+  error: string
+  stopped?: boolean
+}) {
   const [open, setOpen] = useState(false)
+  const copyLabel = stopped ? 'Copy setup details' : 'Copy error'
   const [summary, ...lines] = error.split('\n')
   const output = lines.join('\n').trim()
   return (
@@ -28,13 +35,13 @@ export function WorktreeSetupError({ error }: { error: string }) {
             <ChevronRightSmallIcon />
             View setup output
           </CollapsibleTrigger>
-          {!open && <CopyButton text={error} label='Copy error' showLabel />}
+          {!open && <CopyButton text={error} label={copyLabel} showLabel />}
         </div>
         <CollapsibleContent>
           <div className='mt-1 rounded-sm bg-background p-2'>
             <div className='mb-1 flex items-center justify-between text-muted-foreground'>
               <span>Setup output</span>
-              <CopyButton text={error} label='Copy setup output' />
+              <CopyButton text={error} label={copyLabel} />
             </div>
             <pre
               // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a bounded output scrollport

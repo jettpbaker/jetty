@@ -741,8 +741,14 @@ export function QuestionStrip({
       {spec.options.length > 0 && <QuestionOptions ctl={ctl} />}
       <div className='flex items-center justify-end gap-2 pt-2'>
         <Button size='sm' disabled={!ctl.answer} onClick={ctl.next}>
-          {ctl.last ? 'Answer' : 'Next'}
-          <Kbd>↵</Kbd>
+          {!ctl.answer
+            ? spec.options.length
+              ? 'Select an answer'
+              : 'Type an answer'
+            : ctl.last
+              ? 'Answer'
+              : 'Next'}
+          {ctl.answer && <Kbd>↵</Kbd>}
         </Button>
       </div>
       {followUp && <FollowUpNote />}

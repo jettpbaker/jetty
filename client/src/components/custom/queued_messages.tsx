@@ -293,7 +293,9 @@ export function ComposerQueue({
                 {queue.unsent.length} queued {queue.unsent.length === 1 ? 'message' : 'messages'}
                 {settingUp && ' · waiting for setup to finish'}
               </span>
-              {retrySetup && worktree?.error && <WorktreeSetupError error={worktree.error} />}
+              {retrySetup && worktree?.error && (
+                <WorktreeSetupError error={worktree.error} stopped={worktree.state === 'stopped'} />
+              )}
             </div>
             {!settingUp && (
               <Button
@@ -384,9 +386,9 @@ function QueuedRow({
       <div className='flex min-w-0 items-center gap-4'>
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           {position ? (
-            <span className='flex w-12 shrink-0 items-center gap-1 text-xs text-muted-foreground'>
+            <span className='flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground'>
               <span className='font-mono'>{position}</span>
-              {next && <span>Next</span>}
+              {next && <span>{setupBlocked ? 'Queued' : 'Next'}</span>}
             </span>
           ) : (
             <ClockIcon className='size-4 shrink-0 text-muted-foreground' />
@@ -425,7 +427,7 @@ function QueuedRow({
                 disabled={editing || setupBlocked}
                 onClick={() => act(() => actions.sendNow(threadId, entry))}
               >
-                {setupBlocked ? 'After setup' : running ? 'Steer now' : 'Run now'}
+                {setupBlocked ? 'Sends after setup' : running ? 'Steer now' : 'Run now'}
               </Button>
             </DisabledTooltip>
           )}

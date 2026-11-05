@@ -656,7 +656,9 @@ export function ThreadComposer({
                   ? 'Worktree setup failed'
                   : 'Worktree setup stopped'}
             </span>
-            {!settingUp && worktree.error && <WorktreeSetupError error={worktree.error} />}
+            {!settingUp && worktree.error && (
+              <WorktreeSetupError error={worktree.error} stopped={worktree.state === 'stopped'} />
+            )}
           </div>
           {!settingUp && !messageHeld && (
             <Button variant='outline' size='sm' {...pressProps(retry)}>
