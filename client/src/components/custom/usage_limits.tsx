@@ -187,12 +187,7 @@ function UsageRow({
         <span className='font-mono tabular-nums'>{100 - left}%</span>
         <span> used</span>
       </span>
-      <span
-        className={cn(
-          'flex items-center justify-end gap-1 text-xs whitespace-nowrap tabular-nums',
-          left === 0 ? 'text-foreground' : 'text-muted-foreground'
-        )}
-      >
+      <span className='flex items-center justify-end gap-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums'>
         {reset && (
           <>
             <span>{compact ? 'Resets in' : 'Resets'}</span>
