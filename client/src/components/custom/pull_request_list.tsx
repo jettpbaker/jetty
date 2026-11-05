@@ -370,7 +370,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
         <>
           <GroupedTable
             label='Pull requests'
-            className='w-full max-w-240 self-start'
+            className='w-full px-1.5'
             columns={columns}
             groups={groups}
             rowKey={(pull) => pull.url}
