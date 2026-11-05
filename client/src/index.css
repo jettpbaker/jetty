@@ -123,7 +123,7 @@
   --foreground: oklch(0.933 calc(var(--tint) * 0.3) var(--tint-h));
   --card: oklch(0.254 var(--tint) var(--tint-h));
   --card-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
-  --popover: oklch(0.256 var(--tint) var(--tint-h));
+  --popover: oklch(0.29 var(--tint) var(--tint-h));
   --popover-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
   --primary: oklch(0.772 0.119 282.178);
   --primary-foreground: oklch(0.205 0 0);
@@ -164,7 +164,7 @@
   --background: oklch(0.163 var(--tint) var(--tint-h));
   --diff-surface: oklch(0.201 0 0);
   --card: oklch(0.23 var(--tint) var(--tint-h));
-  --popover: oklch(0.232 var(--tint) var(--tint-h));
+  --popover: oklch(0.266 var(--tint) var(--tint-h));
   --secondary: oklch(0.245 var(--tint) var(--tint-h));
   --muted: oklch(0.245 var(--tint) var(--tint-h));
   --sidebar-accent: oklch(0.245 var(--tint) var(--tint-h));
