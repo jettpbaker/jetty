@@ -43,7 +43,7 @@ export function SidebarThreadControls({
   onShowArchivedChange: (show: boolean) => void
 }) {
   return (
-    <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
+    <div className='flex h-7 shrink-0 items-center gap-1 pr-2.5 pl-2.75'>
       <GhostInput
         icon={<MagnifyingGlass2Icon className='size-4' />}
         aria-label='Search threads'
@@ -61,7 +61,7 @@ export function SidebarThreadControls({
             <Button
               variant='ghost'
               size='icon-sm'
-              className='-mr-1.5 hover:bg-sidebar-accent'
+              className='-mr-1 hover:bg-sidebar-accent'
               aria-label={`Thread grouping: ${groupings[grouping]}`}
             />
           }

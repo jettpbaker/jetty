@@ -390,7 +390,7 @@ export const AppSidebar = memo(function AppSidebar() {
           className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-3'
         >
           {/* The plus lines up with the status glyphs below. */}
-          <div className='flex h-6 items-center justify-between pr-2 pl-2.5'>
+          <div className='flex h-6 items-center justify-between pr-2 pl-2.75'>
             <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
             <div className='flex items-center gap-0.5'>
               <Button
@@ -539,7 +539,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   ) : (
                     <h3
                       key={item.id}
-                      className='mt-3 flex h-6 items-center gap-1.5 px-2.5 text-xs font-medium text-muted-foreground first:mt-0'
+                      className='mt-3 flex h-6 items-center gap-1.5 px-2.75 text-xs font-medium text-muted-foreground first:mt-0'
                     >
                       {heading}
                     </h3>

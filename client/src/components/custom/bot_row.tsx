@@ -34,7 +34,7 @@ export function BotRow({
   const face = botFace(bot)
   const label = `${bot.name}, ${face === 'waiting' ? 'needs you' : face}${bot.unread && !selected ? ', unread' : ''}`
   const className = cn(
-    'flex h-8 w-full min-w-0 shrink-0 items-center gap-1.5 rounded-sm px-2.5 text-left text-sm [--jb-ring:var(--sidebar)]',
+    'flex h-8 w-full min-w-0 shrink-0 items-center gap-1.5 rounded-sm px-2.75 text-left text-sm [--jb-ring:var(--sidebar)]',
     onToggle && 'pr-9',
     selected && 'bg-sidebar-accent [--jb-ring:var(--sidebar-accent)]'
   )
@@ -57,7 +57,7 @@ export function BotRow({
         <Button
           variant='ghost-text'
           size='icon-xs'
-          className='absolute top-1 right-2.5'
+          className='absolute top-1 right-2'
           aria-expanded={expanded}
           aria-label={`${expanded ? 'Hide' : 'Show'} ${bot.name}'s threads`}
           onClick={onToggle}

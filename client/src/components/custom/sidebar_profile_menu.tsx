@@ -42,12 +42,14 @@ export function SidebarProfileMenu({ rowClass }: { rowClass: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant='ghost' className={rowClass} />}>
-        <Avatar className='size-5'>
-          {identity?.avatarUrl && <AvatarImage src={identity.avatarUrl} alt='' />}
-          <AvatarFallback className='text-[10px]'>{name.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
+        <span className='flex size-4 shrink-0 items-center justify-center'>
+          <Avatar className='size-5'>
+            {identity?.avatarUrl && <AvatarImage src={identity.avatarUrl} alt='' />}
+            <AvatarFallback className='text-[10px]'>{name.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
+        </span>
         <span className='truncate'>{name}</span>
-        <ChevronGrabberVerticalIcon className='ml-auto' />
+        <ChevronGrabberVerticalIcon className='mr-px ml-auto' />
       </DropdownMenuTrigger>
       <DropdownMenuContent side='top' align='start' className='w-(--anchor-width)'>
         <DropdownMenuItem onClick={() => void navigate({ to: '/settings' })}>
