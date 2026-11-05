@@ -56,7 +56,7 @@ export function SettingsPage({
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-190 flex-col gap-7 pb-16',
+        'flex w-full max-w-190 flex-col gap-7 pb-16 @min-[1000px]/settings:ml-16',
         back ? 'pt-5.5' : 'pt-4',
         className
       )}
@@ -200,6 +200,7 @@ export function SettingsRow({
   return (
     <div
       id={id && `settings-${id}`}
+      aria-disabled={disabled || undefined}
       className={cn(
         'flex flex-wrap items-center gap-y-2 py-3',
         icon ? 'min-h-16 gap-x-3' : 'min-h-15 gap-x-4'
@@ -221,15 +222,7 @@ export function PlannedSettingsRow({
   title: string
   description: string
 }) {
-  return (
-    <div
-      id={id && `settings-${id}`}
-      className='flex min-h-10 flex-wrap items-baseline gap-x-4 gap-y-0.5 py-2.5'
-    >
-      <span className='w-52 max-w-full shrink-0 text-13'>{title}</span>
-      <span className='min-w-40 flex-1 text-xs text-muted-foreground'>{description}</span>
-    </div>
-  )
+  return <UnavailableSettingsRow id={id} title={title} description={description} />
 }
 
 export function UnavailableSettingsRow({
