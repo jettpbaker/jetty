@@ -3,7 +3,6 @@ import type { QueuedMessage, ThreadMeta } from '@jetty/shared/wire'
 
 import {
   ArrowShareLeftIcon,
-  ArrowUpIcon,
   CrossSmallIcon,
   Pencil2Icon,
   PauseIcon,
@@ -223,7 +222,7 @@ function IconAction({
         render={
           <Button
             variant='ghost'
-            size='icon-xs'
+            size='icon-sm'
             aria-label={label}
             disabled={disabled}
             onClick={onClick}
@@ -373,13 +372,15 @@ function QueuedRow({
           >
             <Pencil2Icon />
           </IconAction>
-          <IconAction
-            label={running ? 'Steer with queued message' : 'Send queued message now'}
+          <Button
+            variant='ghost-text'
+            size='sm'
+            aria-label={running ? 'Steer with queued message' : 'Send queued message now'}
             disabled={editing}
             onClick={() => act(() => actions.sendNow(threadId, entry))}
           >
-            <ArrowUpIcon />
-          </IconAction>
+            Send now
+          </Button>
           <IconAction
             label='Remove from the queue'
             disabled={editing}
