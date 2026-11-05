@@ -182,7 +182,11 @@ function SlotRow({
                     }}
                   >
                     {model.efforts.map((effort) => (
-                      <DropdownMenuRadioItem key={effort} value={effort}>
+                      <DropdownMenuRadioItem
+                        key={effort}
+                        value={effort}
+                        className='h-auto py-2 whitespace-normal'
+                      >
                         <span className='flex flex-col gap-0.5 py-0.5'>
                           <span>{effortLabels[effort]}</span>
                           <span className='text-xs leading-4 text-muted-foreground'>
