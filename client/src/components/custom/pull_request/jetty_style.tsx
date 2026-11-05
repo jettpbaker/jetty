@@ -530,7 +530,7 @@ function ChecksPill({ pr }: { pr: PrPull }) {
         className='h-auto items-start py-2'
         onSelect={() => window.open(check.url, '_blank', 'noopener')}
       >
-        <span className={cn('shrink-0', tone)}>{glyph}</span>
+        <span className={cn('flex h-5 shrink-0 items-center', tone)}>{glyph}</span>
         <span className='min-w-0 flex-1 whitespace-normal wrap-anywhere'>
           {check.kind === 'run' && (
             <span className='text-muted-foreground'>{check.workflow ?? check.app} / </span>
@@ -1136,7 +1136,7 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
         </span>
         {!expanded && (
           <span className='flex w-full items-center gap-2 pl-5 text-13 leading-5 text-foreground'>
-            <span className='min-w-0 flex-1 truncate'>
+            <span className='line-clamp-2 min-w-0 flex-1 whitespace-normal'>
               {markdownText(thread.comments[0]?.body ?? '')}
             </span>
             <span
@@ -2198,7 +2198,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                   >
                     <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
                       <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                        <div className='mx-auto grid w-full max-w-[760px] flex-1 grid-cols-1 items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1040px] @min-[1000px]:grid-cols-[minmax(0,720px)_220px]'>
+                        <div className='mx-auto grid w-full max-w-[760px] grid-cols-1 auto-rows-max content-start items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1040px] @min-[1000px]:grid-cols-[minmax(0,720px)_220px]'>
                           <div className='flex min-w-0 flex-col gap-2 @min-[1000px]:col-start-1'>
                             <div className='flex flex-wrap items-center gap-2.5'>
                               <StatusMenu pr={pr} />
