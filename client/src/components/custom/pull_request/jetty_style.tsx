@@ -2079,7 +2079,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     isBoolean
   )
   const view = useRef<HTMLDivElement>(null)
-  const [wrap, setWrapChoice] = useDiffWrap(view)
+  const [wrap, setWrapChoice] = useDiffWrap()
   const [hideViewed, setHideViewed] = useStoredState('jetty.diff.hideViewed', false, isBoolean)
   const viewed = useMemo(
     () => new Set(pr.files.filter((file) => file.viewed).map((file) => file.path)),
@@ -2215,11 +2215,11 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                 className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
               >
                 <div className='flex shrink-0 flex-wrap items-center gap-x-3 border-b border-border px-4'>
-                  {sidebar}
                   <div
                     className='flex min-h-(--app-tab-bar-height) min-w-0 flex-1 basis-full items-center gap-2 @min-[800px]:max-w-80 @min-[800px]:basis-0'
                     title={`${repoPath(pr)}#${pr.number} · ${pr.title}`}
                   >
+                    {sidebar}
                     <span className='shrink-0 font-mono text-xs text-muted-foreground'>
                       <span className='sr-only'>{repoPath(pr)} </span>#{pr.number}
                     </span>

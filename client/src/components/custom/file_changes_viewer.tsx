@@ -48,7 +48,7 @@ export function FileChangesViewer({
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
   const [diffStyle, setDiffStyle] = useDiffStyle()
-  const [wrap, setWrap] = useDiffWrap(root)
+  const [wrap, setWrap] = useDiffWrap()
   const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set())
   const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
