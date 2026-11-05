@@ -108,7 +108,7 @@ export function Composer({
   // Deny with note, Submit and a queued follow-up stay reachable while Stop is up.
   const offerSend = !stopping || (Boolean(stop) && canSend)
   const [expandedRequest, setExpandedRequest] = useState<string>()
-  const compact = Boolean(requestId && expandedRequest !== requestId && empty)
+  const compact = Boolean(requestId && expandedRequest !== requestId && empty && !canSend)
   const menu = useComposerSlash(value, onValueChange, textarea, slash)
   const { field } = menu
 
