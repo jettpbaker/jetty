@@ -26,29 +26,36 @@ export function AccentPicker() {
       reason={autoAccent ? 'Matching the wallpaper' : undefined}
       wrap='flex shrink-0'
     >
-      <div role='radiogroup' aria-label='Accent' className='flex shrink-0 items-center gap-1.5'>
-        {accentPresets.map((preset) => (
-          <label key={preset.value} className='relative'>
-            <input
-              type='radio'
-              name={name}
-              value={preset.value}
-              aria-label={preset.label}
-              checked={accent === preset.value}
-              disabled={autoAccent}
-              onChange={() => setAccent(preset.value)}
-              className='peer sr-only'
-            />
-            <span
-              className={cn(
-                'flex size-6 cursor-pointer items-center justify-center rounded-full peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
-                accent === preset.value && 'border-2 border-primary'
-              )}
-            >
-              <span data-accent={preset.value} className='accent-swatch size-3.5 rounded-full' />
-            </span>
-          </label>
-        ))}
+      <div className='flex flex-wrap items-center justify-end gap-x-3 gap-y-2'>
+        <span className='text-xs text-muted-foreground'>
+          {autoAccent
+            ? 'Wallpaper'
+            : accentPresets.find((preset) => preset.value === accent)?.label}
+        </span>
+        <div role='radiogroup' aria-label='Accent' className='flex shrink-0 items-center gap-1.5'>
+          {accentPresets.map((preset) => (
+            <label key={preset.value} className='relative'>
+              <input
+                type='radio'
+                name={name}
+                value={preset.value}
+                aria-label={preset.label}
+                checked={accent === preset.value}
+                disabled={autoAccent}
+                onChange={() => setAccent(preset.value)}
+                className='peer sr-only'
+              />
+              <span
+                className={cn(
+                  'flex size-6 cursor-pointer items-center justify-center rounded-full peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
+                  accent === preset.value && 'border-2 border-primary'
+                )}
+              >
+                <span data-accent={preset.value} className='accent-swatch size-3.5 rounded-full' />
+              </span>
+            </label>
+          ))}
+        </div>
       </div>
     </DisabledTooltip>
   )
