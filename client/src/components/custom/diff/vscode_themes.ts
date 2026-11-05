@@ -2,7 +2,8 @@ import type { ThemeRegistration } from '@pierre/diffs'
 
 // Flattened from VS Code's bundled 2026 Dark and 2026 Light
 // (Visual Studio Code.app/Contents/Resources/app/extensions/theme-defaults/themes), with the themes
-// they include merged in: tokenColors as shipped, editor/diff/git colours kept.
+// they include merged in: editor/diff/git colours kept. Token foregrounds hold at least
+// 4.5:1 on Jetty’s code surface and its added/removed line washes.
 // semanticTokenColors dropped.
 export const vscodeDark: ThemeRegistration = {
   name: 'vscode-2026-dark',
@@ -104,13 +105,13 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: 'header',
       settings: {
-        foreground: '#000080',
+        foreground: '#8787ff',
       },
     },
     {
       scope: 'comment',
       settings: {
-        foreground: '#6A9955',
+        foreground: '#70a15a',
       },
     },
     {
@@ -133,7 +134,7 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: 'constant.regexp',
       settings: {
-        foreground: '#646695',
+        foreground: '#9092b5',
       },
     },
     {
@@ -173,7 +174,7 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: 'invalid',
       settings: {
-        foreground: '#f44747',
+        foreground: '#f66565',
       },
     },
     {
@@ -230,7 +231,7 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: 'punctuation.definition.quote.begin.markdown',
       settings: {
-        foreground: '#6A9955',
+        foreground: '#70a15a',
       },
     },
     {
@@ -249,7 +250,7 @@ export const vscodeDark: ThemeRegistration = {
       name: 'brackets of XML/HTML tags',
       scope: 'punctuation.definition.tag',
       settings: {
-        foreground: '#808080',
+        foreground: '#959595',
       },
     },
     {
@@ -321,7 +322,7 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: 'string.regexp',
       settings: {
-        foreground: '#d16969',
+        foreground: '#d67b7b',
       },
     },
     {
@@ -578,7 +579,7 @@ export const vscodeDark: ThemeRegistration = {
         'constant.character.set.regexp',
       ],
       settings: {
-        foreground: '#d16969',
+        foreground: '#d67b7b',
       },
     },
     {
@@ -614,7 +615,7 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: ['comment', 'punctuation.definition.comment', 'string.comment'],
       settings: {
-        foreground: '#8b949e',
+        foreground: '#8d969f',
       },
     },
     {
@@ -889,7 +890,7 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: ['markup.ignored', 'markup.untracked'],
       settings: {
-        foreground: '#0d1117',
+        foreground: '#8d969f',
       },
     },
     {
@@ -928,7 +929,7 @@ export const vscodeDark: ThemeRegistration = {
         'brackethighlighter.quote',
       ],
       settings: {
-        foreground: '#8b949e',
+        foreground: '#8d969f',
       },
     },
     {
@@ -958,13 +959,13 @@ export const vscodeDark: ThemeRegistration = {
     {
       scope: 'token.error-token',
       settings: {
-        foreground: '#F44747',
+        foreground: '#f66565',
       },
     },
     {
       scope: 'token.debug-token',
       settings: {
-        foreground: '#B267E6',
+        foreground: '#ba78e9',
       },
     },
   ],
@@ -1077,7 +1078,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'comment',
       settings: {
-        foreground: '#008000',
+        foreground: '#007f00',
       },
     },
     {
@@ -1094,7 +1095,7 @@ export const vscodeLight: ThemeRegistration = {
         'keyword.operator.minus.exponent',
       ],
       settings: {
-        foreground: '#098658',
+        foreground: '#087c52',
       },
     },
     {
@@ -1119,7 +1120,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'entity.other.attribute-name',
       settings: {
-        foreground: '#e50000',
+        foreground: '#dc0000',
       },
     },
     {
@@ -1141,7 +1142,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'invalid',
       settings: {
-        foreground: '#cd3131',
+        foreground: '#cb3131',
       },
     },
     {
@@ -1180,7 +1181,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'markup.inserted',
       settings: {
-        foreground: '#098658',
+        foreground: '#087c52',
       },
     },
     {
@@ -1232,7 +1233,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'meta.preprocessor.numeric',
       settings: {
-        foreground: '#098658',
+        foreground: '#087c52',
       },
     },
     {
@@ -1333,7 +1334,7 @@ export const vscodeLight: ThemeRegistration = {
         'source.coffee.embedded',
       ],
       settings: {
-        foreground: '#e50000',
+        foreground: '#dc0000',
       },
     },
     {
@@ -1380,7 +1381,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'keyword.other.unit',
       settings: {
-        foreground: '#098658',
+        foreground: '#087c52',
       },
     },
     {
@@ -1398,7 +1399,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'constant.sha.git-rebase',
       settings: {
-        foreground: '#098658',
+        foreground: '#087c52',
       },
     },
     {
@@ -1469,7 +1470,7 @@ export const vscodeLight: ThemeRegistration = {
         'storage.type.primitive.groovy',
       ],
       settings: {
-        foreground: '#267f99',
+        foreground: '#23758d',
       },
     },
     {
@@ -1484,7 +1485,7 @@ export const vscodeLight: ThemeRegistration = {
         'punctuation.separator.namespace.ruby',
       ],
       settings: {
-        foreground: '#267f99',
+        foreground: '#23758d',
       },
     },
     {
@@ -1519,7 +1520,7 @@ export const vscodeLight: ThemeRegistration = {
       name: 'Constants and enums',
       scope: ['variable.other.constant', 'variable.other.enummember'],
       settings: {
-        foreground: '#0070C1',
+        foreground: '#006fc0',
       },
     },
     {
@@ -1556,7 +1557,7 @@ export const vscodeLight: ThemeRegistration = {
         'support.other.parenthesis.regexp',
       ],
       settings: {
-        foreground: '#d16969',
+        foreground: '#c33c3c',
       },
     },
     {
@@ -1579,7 +1580,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: ['keyword.operator.or.regexp', 'keyword.control.anchor.regexp'],
       settings: {
-        foreground: '#EE0000',
+        foreground: '#dc0000',
       },
     },
     {
@@ -1591,7 +1592,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'constant.character.escape',
       settings: {
-        foreground: '#EE0000',
+        foreground: '#dc0000',
       },
     },
     {
@@ -1603,7 +1604,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: ['comment', 'punctuation.definition.comment', 'string.comment'],
       settings: {
-        foreground: '#6e7781',
+        foreground: '#656d77',
       },
     },
     {
@@ -1648,7 +1649,7 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: 'entity.name.function',
       settings: {
-        foreground: '#8250df',
+        foreground: '#804ddf',
       },
     },
     {
@@ -1737,7 +1738,7 @@ export const vscodeLight: ThemeRegistration = {
       scope: 'carriage-return',
       settings: {
         fontStyle: 'italic underline',
-        foreground: '#f6f8fa',
+        foreground: '#82071e',
       },
     },
     {
@@ -1878,13 +1879,13 @@ export const vscodeLight: ThemeRegistration = {
     {
       scope: ['markup.ignored', 'markup.untracked'],
       settings: {
-        foreground: '#eaeef2',
+        foreground: '#656d77',
       },
     },
     {
       scope: 'meta.diff.range',
       settings: {
-        foreground: '#8250df',
+        foreground: '#804ddf',
         fontStyle: 'bold',
       },
     },

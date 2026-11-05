@@ -95,7 +95,7 @@
   --status-attention: oklch(0.6 0.18 45);
   --status-error: var(--pr-closed);
   --status-error-glyph: var(--pr-closed);
-  --status-success: oklch(0.515 0.155 158.4);
+  --status-success: oklch(0.505 0.155 158.4);
   --status-idle: oklch(0.6 0 0);
   --tick-complete: var(--status-success);
   --status-complete-wash: color-mix(in oklch, var(--status-success) 18%, transparent);

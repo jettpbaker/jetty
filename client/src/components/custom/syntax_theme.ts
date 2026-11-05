@@ -21,6 +21,7 @@ export const codeSurfaceCSS = `
   --diffs-bg-deletion: color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-deletion-base));
   --diffs-gap-style: none;
 }
+[data-gutter] [data-column-number] { --mix-light: 100%; --mix-dark: 100%; color: var(--muted-foreground); }
 [data-background] :is([data-line], [data-no-newline]) {
   --mix-light: 92%;
   --mix-dark: 92%;

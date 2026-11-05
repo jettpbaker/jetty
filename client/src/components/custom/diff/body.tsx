@@ -22,7 +22,6 @@ ${codeSurfaceCSS}
   background-origin: border-box;
 }
 [data-gutter-buffer="buffer"] + [data-gutter-buffer="annotation"]:has(+ [data-gutter-buffer="buffer"]) { --diffs-annotation-bg: var(--diffs-bg-context-gutter); }
-[data-gutter] [data-column-number] { --mix-light: 100%; --mix-dark: 100%; color: var(--muted-foreground); }
 ${(['addition', 'deletion'] as const)
   .map(
     (kind) => `
