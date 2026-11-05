@@ -80,6 +80,24 @@ function thread(state: string): View {
   }
 }
 
+export async function openView(ctx: Context, origin: string, view: View, theme: Theme) {
+  const { page } = ctx
+  const script = await page.cdp<{ identifier: string }>('Page.addScriptToEvaluateOnNewDocument', {
+    source: `localStorage.clear();localStorage.setItem('jetty.theme',${JSON.stringify(theme)});localStorage.setItem('jetty.details-tabs',JSON.stringify({order:['overview','changes','files','threads'],closed:['files']}));`,
+  })
+  await page.navigate(`${origin}${view.route(ctx)}`)
+  await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: script.identifier })
+  await waitFor(page, view.ready ?? `document.querySelector('main')`, 'view ready', 30_000)
+  await page.evaluate('document.fonts.ready')
+  await Bun.sleep(view.settleMs ?? 350)
+  await view.setup?.(ctx)
+  await page.evaluate(
+    `document.querySelector('[data-perf-region="composer"]')?.parentElement.setAttribute('data-paper-composer-shell','')`
+  )
+  await Bun.sleep(view.settleMs ?? 250)
+  if (view.verify) await waitFor(page, view.verify, 'state verification')
+}
+
 export const views: View[] = [
   {
     area: 'Sidebar',

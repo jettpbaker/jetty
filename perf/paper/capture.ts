@@ -3,12 +3,11 @@ import { join, resolve } from 'node:path'
 
 import { repoRoot } from '../app'
 import { openPage, viewport, type Page } from '../driver'
-import { waitFor } from '../journey'
 import { writeFixtures } from './fixtures'
 import { connectPaper, fileId, payload } from './mcp'
 import { prepareHome, startStack } from './stack'
 import { foundationExpression, iconCatalogExpression, readTokens, type Theme } from './tokens'
-import { views, type Context, type View } from './views'
+import { openView, views, type Context, type View } from './views'
 
 type Info = { pages: { id: string; name: string }[]; artboards: { id: string; name: string }[] }
 type Capture = {
@@ -239,22 +238,7 @@ async function saveManifest() {
   )
 }
 
-async function navigate(view: View, theme: Theme) {
-  const script = await page.cdp<{ identifier: string }>('Page.addScriptToEvaluateOnNewDocument', {
-    source: `localStorage.clear();localStorage.setItem('jetty.theme',${JSON.stringify(theme)});localStorage.setItem('jetty.details-tabs',JSON.stringify({order:['overview','changes','files','threads'],closed:['files']}));`,
-  })
-  await page.navigate(`${stack.origin}${view.route(ctx)}`)
-  await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: script.identifier })
-  await waitFor(page, view.ready ?? `document.querySelector('main')`, 'view ready', 30_000)
-  await page.evaluate('document.fonts.ready')
-  await Bun.sleep(view.settleMs ?? 350)
-  await view.setup?.(ctx)
-  await page.evaluate(
-    `document.querySelector('[data-perf-region="composer"]')?.parentElement.setAttribute('data-paper-composer-shell','')`
-  )
-  await Bun.sleep(view.settleMs ?? 250)
-  if (view.verify) await waitFor(page, view.verify, 'state verification')
-}
+const navigate = (view: View, theme: Theme) => openView(ctx, stack.origin, view, theme)
 
 try {
   for (const view of selected) {
