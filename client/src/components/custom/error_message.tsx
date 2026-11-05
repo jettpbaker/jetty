@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
+import { cn } from '@/lib/utils'
 import {
   useBot,
   usePendingBotMessages,
@@ -14,6 +15,7 @@ import { useProviderUnavailable } from '@/state/models'
 import { ArrowRotateClockwiseIcon } from './central_icons'
 import { CopyButton } from './copy_button'
 import { DisabledTooltip } from './disabled_tooltip'
+import { errorSurface } from './error_surface'
 import { StatusGlyph } from './thread_status'
 import { providerNames } from './usage_limits'
 
@@ -64,7 +66,7 @@ export function ErrorMessage({
   }
   return (
     <Message align='start'>
-      <MessageContent className='flex-row items-start gap-2 rounded-sm border border-destructive/25 bg-destructive/10 p-3'>
+      <MessageContent className={cn('flex-row items-start gap-2 p-3', errorSurface)}>
         <StatusGlyph status='error' className='mt-1' />
         <div className='flex min-w-0 flex-1 flex-col gap-2'>
           <p className='text-sm text-foreground'>{message}</p>
