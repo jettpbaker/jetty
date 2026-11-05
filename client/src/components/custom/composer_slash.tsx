@@ -716,7 +716,7 @@ export function SlashMenu({ slash }: { slash: Slash }) {
   }, [slash.index, slash.entries.length])
 
   return (
-    <div className='absolute bottom-full left-0 z-50 mb-2 w-full max-w-112 origin-bottom-left overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border animate-(--motion-popup-enter) slide-in-from-bottom-1 fade-in-60 motion-reduce:animate-none'>
+    <div className='absolute bottom-full left-0 z-50 mb-2 w-full max-w-112 overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border'>
       <div
         id='slash-menu'
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- preserve the sketchpad's div-based list markup
@@ -769,7 +769,7 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
     onClick: entry.disabled ? undefined : entry.run,
   } as const
   const row =
-    "flex cursor-default items-center gap-2 rounded-menu-item px-2 text-13 select-none data-active:bg-accent data-active:text-accent-foreground data-disabled:cursor-not-allowed data-disabled:text-disabled-foreground data-disabled:[&_svg]:text-disabled-foreground [&_svg]:size-3 [&_svg]:shrink-0 [&:not([data-active],[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground"
+    "flex cursor-default items-center gap-2 rounded-menu-item px-2 text-13 select-none data-active:bg-accent data-active:text-accent-foreground data-disabled:cursor-not-allowed [&_svg]:size-3 [&_svg]:shrink-0 [&:not([data-active],[data-disabled])>:where(svg,.provider-icon):not([class*='text-'])]:text-muted-foreground"
 
   if (entry.kind === 'back')
     return (
@@ -791,16 +791,14 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
       {!entry.disabled && entry.description && (
         <span className='truncate text-muted-foreground'>{entry.description}</span>
       )}
-      {entry.binding && (
-        <span className='flex w-16 shrink-0 justify-end'>
+      <span className='flex w-12 shrink-0 items-center justify-end'>
+        {entry.binding ? (
           <KeybindChip binding={entry.binding} />
-        </span>
-      )}
-      <span className='flex size-3 shrink-0 items-center'>
-        {entry.kind === 'option' && entry.selected && (
+        ) : entry.kind === 'option' && entry.selected ? (
           <Checkmark1MediumIcon className='text-current' />
-        )}
-        {entry.opens && <ChevronRightSmallIcon className='text-muted-foreground' />}
+        ) : entry.opens ? (
+          <ChevronRightSmallIcon className='text-muted-foreground' />
+        ) : null}
       </span>
     </div>
   )

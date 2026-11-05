@@ -236,13 +236,14 @@ export function ComposerLoadout({
   const fastUnavailable = !value
     ? 'Choose a model first'
     : !model?.fast
-      ? 'Unavailable for this model'
+      ? `${name} has no fast mode`
       : undefined
   const models = lockedProvider
     ? catalog.filter((item) => item.provider === lockedProvider)
     : catalog
 
   const [open, setOpen] = useState(false)
+  const [instant, setInstant] = useState(false)
   const [query, setQuery] = useState('')
   const [focusEffort, setFocusEffort] = useState(false)
   const effortRef = useRef<HTMLDivElement>(null)
@@ -257,6 +258,7 @@ export function ComposerLoadout({
   )
 
   function openSubmenu(target: 'model' | 'effort') {
+    setInstant(true)
     setFocusEffort(target === 'effort')
     setQuery('')
     setOpen(true)
@@ -280,7 +282,8 @@ export function ComposerLoadout({
   return (
     <Popover
       open={open}
-      onOpenChange={(next) => {
+      onOpenChange={(next, details) => {
+        setInstant(next && details.event.type === 'keydown')
         setOpen(next)
         if (next) {
           setFocusEffort(false)
@@ -333,7 +336,10 @@ export function ComposerLoadout({
         side='top'
         sideOffset={8}
         align='start'
-        className='search-picker w-86 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0'
+        className={cn(
+          'search-picker w-86 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0',
+          instant && 'data-open:animate-none'
+        )}
         initialFocus={() =>
           focusEffort
             ? (effortRef.current?.querySelector<HTMLButtonElement>('[aria-pressed=true], button') ??
@@ -465,13 +471,13 @@ export function ComposerLoadout({
                 const effort = efforts.find((level) => level === next[0])
                 if (value && effort) onChange({ ...value, effort })
               }}
-              className='w-full'
+              className='grid w-full auto-cols-fr grid-flow-col'
             >
               {efforts.map((effort) => (
                 <ToggleGroupItem
                   key={effort}
                   value={effort}
-                  className='h-7 min-w-0 flex-auto px-2 text-xs text-muted-foreground aria-pressed:bg-foreground/12 aria-pressed:text-foreground aria-pressed:inset-ring aria-pressed:inset-ring-primary/50'
+                  className='h-7 w-full min-w-0 px-1 text-xs text-muted-foreground aria-pressed:bg-foreground/8 aria-pressed:text-foreground aria-pressed:inset-ring aria-pressed:inset-ring-primary/50'
                 >
                   {effortLabels[effort]}
                 </ToggleGroupItem>

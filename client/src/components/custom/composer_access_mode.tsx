@@ -14,6 +14,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { use, useState } from 'react'
 
@@ -54,11 +55,15 @@ export function ComposerAccessMode({
 }) {
   const anchor = use(ComposerMenuAnchorContext)
   const [open, setOpen] = useState(false)
+  const [instant, setInstant] = useState(false)
   const choosable = model?.autoMode !== false
   useHotkey(
     keybinds.access.hotkey,
     (event) => {
-      if (appShortcut(event)) setOpen(true)
+      if (appShortcut(event)) {
+        setInstant(true)
+        setOpen(true)
+      }
     },
     { enabled: choosable, requireReset: true, ignoreInputs: false }
   )
@@ -79,7 +84,14 @@ export function ComposerAccessMode({
     )
   const { label, Icon } = accessModes[value]
   return (
-    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+    <DropdownMenu
+      modal={false}
+      open={open}
+      onOpenChange={(next, details) => {
+        setInstant(next && details.event.type === 'keydown')
+        setOpen(next)
+      }}
+    >
       <KeybindTooltip
         binding={{
           ...keybinds.access,
@@ -102,7 +114,7 @@ export function ComposerAccessMode({
         side='top'
         sideOffset={8}
         align='start'
-        className='w-80 max-w-[calc(100vw-24px)]'
+        className={cn('w-80 max-w-[calc(100vw-24px)]', instant && 'data-open:animate-none')}
       >
         <DropdownMenuRadioGroup
           value={value}
