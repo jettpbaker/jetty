@@ -258,14 +258,17 @@ export function ComposerQueue({
         {!queue.held && queue.paused && queue.unsent.length > 0 && (
           <div
             data-strip='queue'
-            className='flex items-center gap-2 bg-popover px-2.5 py-3 text-sm first:rounded-t-md'
+            className={cn(
+              'flex gap-2 bg-popover px-2.5 py-3 text-sm first:rounded-t-md',
+              retrySetup && worktree?.error ? 'items-start' : 'items-center'
+            )}
           >
             {settingUp ? (
               <Spinner className='size-4 shrink-0 text-muted-foreground' />
             ) : retrySetup ? (
               <StatusGlyph
                 status={worktree?.state === 'failed' ? 'error' : 'stopped'}
-                className='size-4 shrink-0'
+                className={cn('size-4 shrink-0', worktree?.error && 'mt-1')}
               />
             ) : (
               <PauseIcon className='size-4 shrink-0 text-muted-foreground' />
