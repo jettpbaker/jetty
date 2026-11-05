@@ -261,7 +261,7 @@ export function Composer({
                     onChange={onAccessModeChange}
                   />
                   {context && (
-                    <div className='flex min-w-0 flex-1 @max-[420px]/composer:basis-full'>
+                    <div className='flex min-w-0 flex-1 @max-[480px]/composer:basis-full'>
                       {context}
                     </div>
                   )}
