@@ -102,7 +102,12 @@ export const settingsRows: SettingsRow[] = [
   { page: 'connected-accounts', id: 'copilot', title: 'GitHub Copilot', keywords: 'sign in' },
   { page: 'connected-accounts', id: 'opencode', title: 'OpenCode', keywords: 'sign in' },
   { page: 'connected-accounts', id: 'github', title: 'GitHub', keywords: 'gh, pull requests' },
-  { page: 'models', id: 'loadout', title: 'Loadout', keywords: 'slots, effort, Fast' },
+  {
+    page: 'models',
+    id: 'loadout',
+    title: 'Configurations',
+    keywords: 'loadout, pinned models, slots, effort, Fast',
+  },
   { page: 'models', id: 'available-models', title: 'Available models', keywords: 'refresh' },
   {
     page: 'intelligence',

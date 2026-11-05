@@ -273,7 +273,7 @@ function Loadout() {
     if (from === to || to < 0 || to >= slots.length) return
     const next = [...slots]
     next.splice(to, 0, ...next.splice(from, 1))
-    save(next, 'Loadout reordered.')
+    save(next, 'Configurations reordered.')
   }
   return (
     <DragDropProvider
@@ -389,12 +389,12 @@ export function SettingsModels() {
   return (
     <SettingsPage
       title='Models'
-      description='The loadout you switch between, and which models show up in pickers.'
+      description='Model configurations you switch between, and which models appear in pickers.'
     >
       <SettingsSection
         id='loadout'
-        title='Loadout'
-        description='Five slots to switch between in the composer. Drag to reorder.'
+        title='Configurations'
+        description='Save up to five model and effort combinations for the composer. Drag to reorder.'
       >
         <Loadout />
       </SettingsSection>
