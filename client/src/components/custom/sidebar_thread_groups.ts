@@ -153,7 +153,15 @@ function groupSidebarThreads(
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
     .sort((a, b) => b.listedAt - a.listedAt)
   const filtered = matching.filter((thread) => !thread.archived)
-  const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
+  const unpinned = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
+  const needsYou =
+    grouping === 'date'
+      ? unpinned.filter(
+          (thread) => thread.status === 'needs-attention' || thread.status === 'error'
+        )
+      : []
+  const needsYouIds = new Set(needsYou.map((thread) => thread.id))
+  const remaining = unpinned.filter((thread) => !needsYouIds.has(thread.id))
   const grouped = groupsFor(grouping, remaining, bots).map((group) => ({
     id: `${grouping}:${group.id}`,
     label: group.label,
@@ -173,6 +181,13 @@ function groupSidebarThreads(
           },
         ]
       : []),
+    {
+      id: 'needs-you',
+      label: 'Needs you',
+      pinned: false,
+      archived: false,
+      threads: needsYou,
+    },
     ...grouped,
     ...(showArchived
       ? [
