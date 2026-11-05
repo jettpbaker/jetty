@@ -273,8 +273,9 @@ function SubagentRow({ threadId, agent }: { threadId: string; agent: SubagentSum
         : agent.status === 'failed'
           ? 'error'
           : 'stopped'
-  const seconds =
-    (agent.durationMs ?? Math.max(0, (agent.completedAt ?? now) - agent.createdAt)) / 1000
+  const endedAt = agent.completedAt ?? (agent.status === 'running' ? now : undefined)
+  const durationMs =
+    agent.durationMs ?? (endedAt === undefined ? undefined : Math.max(0, endedAt - agent.createdAt))
   return (
     <Button
       variant='ghost'
@@ -286,7 +287,13 @@ function SubagentRow({ threadId, agent }: { threadId: string; agent: SubagentSum
       <span className='flex min-w-0 flex-col gap-0.5 text-left'>
         <span className='truncate'>{agent.title}</span>
         <span className='text-xs text-muted-foreground'>
-          {subagentGlyphLabel(state)} · <span className='font-mono'>{formatDuration(seconds)}</span>
+          {subagentGlyphLabel(state)}
+          {durationMs !== undefined && (
+            <>
+              {' '}
+              · <span className='font-mono'>{formatDuration(durationMs / 1000)}</span>
+            </>
+          )}
         </span>
       </span>
     </Button>
