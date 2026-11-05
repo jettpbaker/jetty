@@ -20,9 +20,9 @@
 }
 .activity-header[data-flush] {
   @apply h-7 text-foreground;
-  width: calc(100% + 0.5rem);
-  margin-inline: -0.25rem;
-  padding-inline: 0.25rem;
+  width: calc(100% + 1rem);
+  margin-inline: -0.5rem;
+  padding-inline: 0.5rem;
 }
 .activity-header[data-flush]:hover,
 .activity-header[data-flush]:focus-visible {
