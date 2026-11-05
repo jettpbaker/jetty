@@ -141,7 +141,7 @@ export function DiffFileCard({
           {file.binary ? (
             <span className='text-xs text-muted-foreground'>Binary</span>
           ) : (
-            <DiffCounts files={[file]} />
+            <DiffCounts files={[file]} hideZero />
           )}
           {actions}
         </div>

@@ -25,6 +25,7 @@ ${codeSurfaceCSS}
 ${(['addition', 'deletion'] as const)
   .map(
     (kind) => `
+[data-gutter] [data-line-type="change-${kind}"] { box-shadow: inset 2px 0 var(--diffs-${kind}-base); }
 [data-line-type="change-${kind}"] + :is([data-line-annotation], [data-gutter-buffer="annotation"]):has(+ [data-line-type="change-${kind}"]) { --diffs-annotation-bg: var(--diffs-bg-${kind}); }`
   )
   .join('')}`

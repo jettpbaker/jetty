@@ -17,11 +17,13 @@ export const codeSurfaceCSS = `
   --diffs-bg: var(--diff-surface) !important;
   --diffs-addition-color-override: var(--status-success);
   --diffs-deletion-color-override: var(--status-error);
+  --diffs-bg-addition: color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-addition-base));
+  --diffs-bg-deletion: color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-deletion-base));
   --diffs-gap-style: none;
 }
 [data-background] :is([data-line], [data-no-newline]) {
-  --mix-light: 90%;
-  --mix-dark: 90%;
+  --mix-light: 92%;
+  --mix-dark: 92%;
 }
 `
 
