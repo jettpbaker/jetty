@@ -90,6 +90,19 @@ function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: st
       )}
     </>
   )
+  if (batch.calls.every((call) => call.kind === 'terminal'))
+    return (
+      <div>
+        {batch.calls.map((call) => (
+          <ToolCall
+            key={call.id}
+            call={call}
+            threadId={threadId}
+            animate={autoOpen && !initialCalls.has(call.id)}
+          />
+        ))}
+      </div>
+    )
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger

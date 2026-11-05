@@ -77,7 +77,12 @@ export function ThinkingBlock({ activity }: { activity: ThinkingActivity }) {
   const heading = (
     <span>
       <span className={cn(active && 'shimmer')}>{state}</span>
-      {amount && <> for {amount}</>}
+      {amount && (
+        <>
+          {tokens ? ' · ' : ' for '}
+          {amount}
+        </>
+      )}
     </span>
   )
   return (

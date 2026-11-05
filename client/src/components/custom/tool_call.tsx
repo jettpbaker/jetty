@@ -6,6 +6,7 @@ import { use, type ReactNode } from 'react'
 
 import './charmed_icons.css'
 import { ActivityChevron } from './activity_disclosure'
+import { ChevronRightSmallIcon } from './central_icons'
 import { DiffCounts } from './diff/file_card'
 import { basename, CharmedFileIcon } from './diff/file_name'
 import { copyFilePath, OpenFileLink, ProjectFileRoot, projectRelativePath } from './file_link'
@@ -68,9 +69,10 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
         )}
       </section>
       {call.input !== undefined && (
-        <details>
-          <summary className='cursor-pointer rounded-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring'>
+        <details className='group/raw'>
+          <summary className='flex w-fit cursor-pointer list-none items-center gap-1 rounded-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'>
             Raw input
+            <ChevronRightSmallIcon className='size-3 group-open/raw:rotate-90' />
           </summary>
           <ToolOutput className='mt-2'>{call.input}</ToolOutput>
         </details>
