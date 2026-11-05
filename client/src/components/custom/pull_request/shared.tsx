@@ -37,17 +37,19 @@ export function Ago({ at }: { at: string }) {
 
 export function Section({
   title,
+  id,
   className,
   action,
   children,
 }: {
   title: string
+  id?: string
   className?: string
   action?: ReactNode
   children: ReactNode
 }) {
   return (
-    <section className={cn('space-y-3', className)}>
+    <section id={id} className={cn('space-y-3', className)}>
       <div className='flex h-4 items-center justify-between'>
         <h3 className='text-xs font-medium text-muted-foreground'>{title}</h3>
         {action}

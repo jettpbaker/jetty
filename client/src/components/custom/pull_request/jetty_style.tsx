@@ -464,18 +464,18 @@ function ChecksSummary({ pr }: { pr: PrPull }) {
   const summary = c.failed
     ? {
         tone: 'text-status-error',
-        glyph: <CircleXIcon filled className='size-3.5' />,
+        glyph: <CircleXIcon filled className='size-4' />,
         text: `${countLabel(c.failed, 'check')} failing`,
       }
     : c.running
       ? {
           tone: 'text-status-working',
-          glyph: <Progress50Icon className='size-3.5' />,
+          glyph: <Progress50Icon className='size-4' />,
           text: `${countLabel(c.running, 'check')} running`,
         }
       : {
           tone: 'text-status-success',
-          glyph: <CentralCircleCheckIcon filled className='size-3.5' />,
+          glyph: <CentralCircleCheckIcon filled className='size-4' />,
           text: 'All checks passed',
         }
   return (
@@ -567,7 +567,11 @@ function ChecksPill({ pr }: { pr: PrPull }) {
       <CollapsibleTrigger
         aria-label={open ? 'Hide checks' : 'Show checks'}
         render={
-          <Button variant='ghost' size='sm' className='max-w-full rounded-sm px-0.75 font-normal' />
+          <Button
+            variant='ghost'
+            size='sm'
+            className='-ml-0.75 max-w-full self-start rounded-sm px-0.75 font-normal'
+          />
         }
       >
         <ChecksSummary pr={pr} />
@@ -780,7 +784,7 @@ function Issues({ pr }: { pr: PrPull }) {
 
 // Rows run in this order: where it stands, what gates the merge, then context. The branch is in the
 // byline above.
-const propertyRows = ['Checks', 'Reviewers', 'Issues']
+const propertyRows = ['Reviewers', 'Issues']
 function Properties({ pr }: { pr: PrPull }) {
   const { ref, threads } = usePrRuntime()
   const setReviewRequest = useSetReviewRequest()
@@ -839,15 +843,10 @@ function Properties({ pr }: { pr: PrPull }) {
     Issues: <Issues pr={pr} />,
   }
   return (
-    <dl className='flex w-full flex-wrap gap-x-6 gap-y-3 @min-[1000px]:flex-nowrap @min-[1000px]:flex-col @min-[1000px]:gap-5'>
-      {[
-        ...propertyRows.filter(
-          (label) => label !== 'Checks' || !['open', 'draft'].includes(pr.state)
-        ),
-        ...(threads.length ? ['Thread'] : []),
-      ].map((label) => (
-        <div key={label} className='flex min-w-0 max-w-full flex-col gap-1 @min-[1000px]:w-full'>
-          <dt className='text-xs text-muted-foreground'>{label}</dt>
+    <dl className='flex w-full flex-col gap-3'>
+      {[...propertyRows, ...(threads.length ? ['Thread'] : [])].map((label) => (
+        <div key={label} className='grid min-w-0 grid-cols-[72px_minmax(0,1fr)] items-start gap-3'>
+          <dt className='pt-1.5 text-xs text-muted-foreground'>{label}</dt>
           <dd className='min-w-0 text-sm'>{values[label]}</dd>
         </div>
       ))}
@@ -1915,24 +1914,39 @@ function ReadyForReview({ pr, onReady }: { pr: PrPull; onReady: () => void }) {
 function MergeDecision({
   pr,
   reason,
-  onReady,
-  onMerge,
   onShowDiff,
+  onShowActivity,
 }: {
   pr: PrPull
   reason: string
-  onReady: () => void
-  onMerge: (method: PrMergeMethod) => Promise<boolean>
   onShowDiff: () => void
+  onShowActivity: () => void
 }) {
   const { threads } = usePrRuntime()
   const conflict = reason === 'Resolve merge conflicts first'
+  const discussions = pr.threads.filter((thread) => !thread.resolved).length
+  const review = pr.data.reviewDecision
+  const reviewed = pr.reviewers.some((reviewer) => reviewer.state === 'APPROVED')
   return (
     <section
-      aria-label='Merge pull request'
+      aria-label='Merge status'
       className='flex flex-col gap-3 rounded-md border border-border bg-card p-3'
     >
       <div className='flex flex-col gap-1 text-13'>
+        {(pr.state === 'merged' || pr.state === 'closed') && (
+          <p className='flex items-center gap-2 py-1'>
+            <StateGlyph state={pr.state} />
+            <span>
+              {pr.state === 'merged' ? 'Merged' : 'Closed'}
+              {pr.mergedAt && (
+                <>
+                  {' '}
+                  by {personName(pr.mergedBy ?? pr.author)} <Ago at={pr.mergedAt} />
+                </>
+              )}
+            </span>
+          </p>
+        )}
         {conflict && (
           <p className='flex items-center gap-2 py-1'>
             <CircleXIcon filled className='size-4 shrink-0 text-destructive' />
@@ -1942,15 +1956,29 @@ function MergeDecision({
           </p>
         )}
         <ChecksPill pr={pr} />
+        <Button
+          variant='ghost-text'
+          size='sm'
+          className='h-auto justify-start px-0 py-1 text-xs font-normal'
+          onClick={onShowActivity}
+        >
+          {review === 'APPROVED' || reviewed
+            ? 'Approved'
+            : review === 'CHANGES_REQUESTED'
+              ? 'Changes requested'
+              : review === 'REVIEW_REQUIRED'
+                ? 'Awaiting review'
+                : pr.reviews.length
+                  ? 'Reviewed'
+                  : 'No reviews yet'}
+          <span className='text-muted-foreground'>
+            · {countLabel(discussions, 'open discussion')}
+          </span>
+        </Button>
       </div>
       {pr.state === 'draft' ? (
-        <>
-          <p className='text-xs text-muted-foreground'>
-            Mark this draft ready to request a review.
-          </p>
-          <ReadyForReview pr={pr} onReady={onReady} />
-        </>
-      ) : (
+        <p className='text-xs text-muted-foreground'>Mark this draft ready to request a review.</p>
+      ) : pr.state === 'open' ? (
         <>
           {!conflict && (
             <p className='text-xs text-muted-foreground'>
@@ -1973,9 +2001,8 @@ function MergeDecision({
               </Button>
             </div>
           )}
-          <MergeButton pr={pr} reason={reason} onMerge={onMerge} />
         </>
-      )}
+      ) : null}
     </section>
   )
 }
@@ -2279,16 +2306,20 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         />
                       )}
                       {status}
-                      {tab !== 'overview' &&
-                        (pr.state === 'draft' ? (
-                          <ReadyForReview pr={pr} onReady={() => setState('open')} />
-                        ) : pr.state === 'open' ? (
-                          <MergeButton
-                            pr={pr}
-                            reason={reason}
-                            onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
-                          />
-                        ) : null)}
+                      {pr.state === 'draft' ? (
+                        <ReadyForReview pr={pr} onReady={() => setState('open')} />
+                      ) : pr.state === 'open' ? (
+                        <MergeButton
+                          pr={pr}
+                          reason={reason}
+                          onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
+                        />
+                      ) : (
+                        <span className='inline-flex h-7 items-center gap-1.5 px-2 text-13 text-muted-foreground'>
+                          <StateGlyph state={pr.state} />
+                          {pr.state === 'merged' ? 'Merged' : 'Closed'}
+                        </span>
+                      )}
                       {more}
                     </div>
                   </div>
@@ -2353,16 +2384,17 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             aria-label='Pull request properties'
                             className='flex min-w-0 flex-col gap-6 @min-[1000px]:sticky @min-[1000px]:top-7 @min-[1000px]:col-start-2 @min-[1000px]:row-start-1 @min-[1000px]:row-span-3'
                           >
+                            <MergeDecision
+                              pr={pr}
+                              reason={reason}
+                              onShowDiff={() => setTab('diff')}
+                              onShowActivity={() =>
+                                view.current
+                                  ?.querySelector('[data-pr-activity]')
+                                  ?.scrollIntoView({ block: 'start' })
+                              }
+                            />
                             <Properties pr={pr} />
-                            {(pr.state === 'open' || pr.state === 'draft') && (
-                              <MergeDecision
-                                pr={pr}
-                                reason={reason}
-                                onReady={() => setState('open')}
-                                onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
-                                onShowDiff={() => setTab('diff')}
-                              />
-                            )}
                           </aside>
                           <Section
                             title='Description'
@@ -2385,6 +2417,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           <Section
                             title='Activity'
                             className='flex min-w-0 flex-1 flex-col @min-[1000px]:col-start-1'
+                            id='pr-activity'
                           >
                             <MemoizedActivity pr={pr} />
                           </Section>
