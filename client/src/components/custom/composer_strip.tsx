@@ -450,7 +450,6 @@ export function ApprovalStrip({
       {header}
       {!hideSource && <RequestSource source={item.source} />}
       <div className='flex min-w-0 items-center gap-2'>
-        <Attention />
         {ctl.confirming ? (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
             <span className='shrink-0 text-muted-foreground'>Always allow</span>
@@ -463,8 +462,8 @@ export function ApprovalStrip({
           </span>
         ) : (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
-            <span className='shrink-0 text-muted-foreground'>
-              {item.run ? 'Run command' : item.action}
+            <span className='shrink-0 font-medium text-foreground'>
+              {item.run ? 'Run this command?' : item.action}
             </span>
             {!ctl.expanded && !item.run && (
               <Tooltip>
