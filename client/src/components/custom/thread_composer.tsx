@@ -26,7 +26,7 @@ import {
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -71,6 +71,7 @@ import { toast } from 'sonner'
 
 import { PauseIcon, WorktreeIcon } from './central_icons'
 import { DisabledTooltip } from './disabled_tooltip'
+import { errorSurface } from './error_surface'
 import { ThreadFooter } from './thread_footer'
 import { StatusGlyph } from './thread_status'
 import { WorktreeSetupError } from './worktree_setup_error'
@@ -322,6 +323,10 @@ export function ThreadComposer({
   const input = useRef<HTMLTextAreaElement>(null)
   const modelMenuRef = useRef<(() => void) | null>(null)
   const focusEdit = useRef(false)
+
+  useLayoutEffect(() => {
+    if (!threadId) input.current?.focus({ preventScroll: true })
+  }, [threadId])
 
   // The Edit button unmounts as its row turns into "Editing"; the loaded draft takes focus.
   useLayoutEffect(() => {
@@ -606,10 +611,13 @@ export function ThreadComposer({
       {ambient && (
         <Empty className='flex-none items-start px-2 pt-6 pb-6 text-left'>
           <EmptyHeader className='max-w-full items-start'>
-            <EmptyTitle className='text-2xl font-semibold'>
-              {threadId ? (meta?.title ?? 'Thread') : 'New thread'}
+            <EmptyTitle
+              className={
+                threadId ? 'text-sm font-normal text-muted-foreground' : 'text-2xl font-semibold'
+              }
+            >
+              {threadId ? 'No messages yet' : 'New thread'}
             </EmptyTitle>
-            {threadId && <EmptyDescription>No messages yet</EmptyDescription>}
           </EmptyHeader>
         </Empty>
       )}
@@ -618,9 +626,7 @@ export function ThreadComposer({
           role={worktree.state === 'failed' ? 'alert' : 'status'}
           className={cn(
             'flex items-center gap-2 text-sm',
-            worktree.state === 'failed'
-              ? 'mb-2 rounded-sm border border-destructive/25 bg-destructive/10 p-3'
-              : 'pb-2'
+            worktree.state === 'failed' ? cn('mb-2 p-3', errorSurface) : 'pb-2'
           )}
         >
           {settingUp ? (
@@ -629,11 +635,13 @@ export function ThreadComposer({
             <StatusGlyph status={worktree.state === 'failed' ? 'error' : 'stopped'} />
           )}
           <div className='flex min-w-0 flex-1 flex-col gap-1'>
-            {settingUp
-              ? 'Setting up worktree…'
-              : worktree.state === 'failed'
-                ? 'Worktree setup failed'
-                : 'Worktree setup stopped'}
+            <span className='font-medium'>
+              {settingUp
+                ? 'Setting up worktree…'
+                : worktree.state === 'failed'
+                  ? 'Worktree setup failed'
+                  : 'Worktree setup stopped'}
+            </span>
             {!settingUp && worktree.error && <WorktreeSetupError error={worktree.error} />}
           </div>
           {!settingUp && !messageHeld && (

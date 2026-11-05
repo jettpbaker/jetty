@@ -32,6 +32,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 
 import { FileLines, isImageAttachment } from './attachment_files'
 import { DisabledTooltip } from './disabled_tooltip'
+import { errorSurface } from './error_surface'
 import { StatusGlyph } from './thread_status'
 import { WorktreeSetupError } from './worktree_setup_error'
 
@@ -263,7 +264,7 @@ export function ComposerQueue({
             className={cn(
               'flex gap-2 bg-popover px-2.5 py-3 text-sm first:rounded-t-md',
               retrySetup && worktree?.error ? 'items-start' : 'items-center',
-              worktree?.state === 'failed' && 'border border-destructive/25 bg-destructive/10'
+              worktree?.state === 'failed' && errorSurface
             )}
           >
             {settingUp ? (
@@ -277,7 +278,7 @@ export function ComposerQueue({
               <PauseIcon className='size-4 shrink-0 text-muted-foreground' />
             )}
             <div className='flex min-w-0 flex-1 flex-col gap-1'>
-              <span>
+              <span className='font-medium'>
                 {settingUp
                   ? 'Setting up worktree…'
                   : worktree?.state === 'failed'
@@ -286,8 +287,11 @@ export function ComposerQueue({
                       ? 'Worktree setup stopped'
                       : worktree?.state === 'ready'
                         ? 'Worktree ready · agent paused'
-                        : 'Paused'}{' '}
-                · {queue.unsent.length} queued {queue.unsent.length === 1 ? 'message' : 'messages'}
+                        : 'Paused'}
+              </span>
+              <span className='text-xs text-muted-foreground'>
+                {queue.unsent.length} queued {queue.unsent.length === 1 ? 'message' : 'messages'}
+                {settingUp && ' · waiting for setup to finish'}
               </span>
               {retrySetup && worktree?.error && <WorktreeSetupError error={worktree.error} />}
             </div>
@@ -311,7 +315,7 @@ export function ComposerQueue({
         )}
         {(queue.own.length > 0 || queue.removed) && (
           <div className='scrollbar-subtle flex max-h-64 flex-col divide-y divide-border overflow-y-auto'>
-            {queue.own.map((entry) => (
+            {queue.own.map((entry, index) => (
               <QueuedRow
                 key={entry.id}
                 threadId={threadId}
@@ -319,13 +323,9 @@ export function ComposerQueue({
                 editing={isQueuedEditing(entry, queue.editing)}
                 running={running}
                 setupBlocked={settingUp || retrySetup}
-                hideSend={
-                  resumeInHeader &&
-                  queue.unsent.length === 1 &&
-                  resume?.id === entry.id &&
-                  !settingUp &&
-                  !retrySetup
-                }
+                position={queue.paused ? index + 1 : undefined}
+                next={resume?.id === entry.id}
+                hideSend={resumeInHeader && resume?.id === entry.id && !settingUp && !retrySetup}
               />
             ))}
             {queue.removed && (
@@ -347,6 +347,8 @@ function QueuedRow({
   running,
   setupBlocked,
   hideSend,
+  position,
+  next,
 }: {
   setupBlocked: boolean
   hideSend: boolean
@@ -354,6 +356,8 @@ function QueuedRow({
   entry: QueuedMessage
   editing: boolean
   running: boolean
+  position?: number
+  next: boolean
 }) {
   const actions = useQueueActions()
   const requestReveal = useRequestReveal()
@@ -379,7 +383,14 @@ function QueuedRow({
       />
       <div className='flex min-w-0 items-center gap-4'>
         <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <ClockIcon className='size-4 shrink-0 text-muted-foreground' />
+          {position ? (
+            <span className='flex w-12 shrink-0 items-center gap-1 text-xs text-muted-foreground'>
+              <span className='font-mono'>{position}</span>
+              {next && <span>Next</span>}
+            </span>
+          ) : (
+            <ClockIcon className='size-4 shrink-0 text-muted-foreground' />
+          )}
           <div className='min-w-0 flex-1'>
             <QueuedText entry={entry} muted={editing} />
           </div>
@@ -414,7 +425,7 @@ function QueuedRow({
                 disabled={editing || setupBlocked}
                 onClick={() => act(() => actions.sendNow(threadId, entry))}
               >
-                {setupBlocked ? 'After setup' : running ? 'Steer now' : 'Run this next'}
+                {setupBlocked ? 'After setup' : running ? 'Steer now' : 'Run now'}
               </Button>
             </DisabledTooltip>
           )}
