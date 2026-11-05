@@ -203,7 +203,7 @@ export function UserMessage({
                   id={id}
                   text={text}
                   filled={!!bot}
-                  className={cn('leading-relaxed', images.length > 0 && 'mt-2')}
+                  className={cn('text-[14px] leading-[22px]', images.length > 0 && 'mt-2')}
                 >
                   {skill ? `/${skill} ` : null}
                   <BotMentions text={text} />

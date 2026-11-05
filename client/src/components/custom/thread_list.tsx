@@ -288,7 +288,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
             <BubbleContent data-quote={row.item.id}>
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
               <Markdown
-                className='thread-reply text-13 leading-relaxed'
+                className='thread-reply text-[14px] leading-[22px]'
                 streaming={row.streaming}
                 // Claude often sends a reply written after a tool call all at once.
                 arrived={!row.streaming && completedAgo(row.item.id) < 1000}

@@ -220,7 +220,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       const { text, skill, attachments, from, replies } = row.item
       const images = attachments.some(isImageAttachment)
       const prose = skill ? `/${skill} ${text}` : text
-      const full = prose ? textHeight(row.id, prose, width * 0.8 - 22, true, rough) : 0
+      const full = prose ? textHeight(row.id, prose, width * 0.8 - 22, true, rough, 22, 14) : 0
       let height =
         12 +
         (prose || images ? 14 + footerRow : 24) +
@@ -239,7 +239,14 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'plan':
       // A streaming reply would be laid out again on every delta; it's measured once on screen.
       return (
-        markdownHeight(row.id, row.item.text, width, rough || row.streaming, 13 * 1.625, 13) +
+        markdownHeight(
+          row.id,
+          row.item.text,
+          Math.min(width, 720),
+          rough || row.streaming,
+          22,
+          14
+        ) +
         2 +
         (row.kind === 'plan' ? 20 : 0) +
         (row.footer === undefined ? 4 : footerRow)
