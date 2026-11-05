@@ -231,14 +231,13 @@ function SlotRow({
             aria-label={`Add configuration`}
             title='Option+Shift+↑/↓ to reorder'
             onKeyDown={moveOnKeys(index, onMove)}
-            className='group/add flex grow items-center gap-3 rounded-sm text-left text-13 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
+            className='group/add flex min-h-8 grow items-center gap-3 rounded-sm text-left text-13 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
           >
-            {number}
             {/* Without a handle, dnd-kit would mark the whole slot a disabled button. */}
             <span
               ref={handleRef}
               aria-hidden='true'
-              className='flex size-7 shrink-0 items-center justify-center rounded-[7px] border border-dashed border-border [&_svg]:size-3.5'
+              className='flex w-3 shrink-0 items-center justify-center [&_svg]:size-3'
             >
               <PlusMediumIcon />
             </span>
