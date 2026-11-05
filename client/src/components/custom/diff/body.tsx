@@ -12,6 +12,7 @@ import { DiffStyleContext, DiffWrapContext } from './model'
 // Review comments share the adjacent lines' wash; line numbers stay neutral and +/- marks identify changes.
 const diffCSS = `
 ${codeSurfaceCSS}
+:host { --diffs-min-number-column-width: 4ch; }
 [data-line-annotation], [data-gutter-buffer="annotation"] { --diffs-annotation-bg: var(--diffs-bg); }
 [data-line-annotation] { z-index: 4; }
 [data-content-buffer] + [data-line-annotation]:has(+ [data-content-buffer]) {
