@@ -792,9 +792,8 @@ export function TodoList({ list }: { list: readonly Todo[] }) {
           <TodoIcon status={todo.status} />
           <span
             className={cn(
-              'truncate',
-              todo.status === 'done' && 'text-muted-foreground line-through',
-              todo.status === 'pending' && 'text-muted-foreground'
+              'min-w-0 text-13 leading-5 whitespace-normal wrap-anywhere',
+              todo.status === 'done' ? 'text-muted-foreground line-through' : 'text-foreground'
             )}
           >
             {todo.text}

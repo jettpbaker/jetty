@@ -28,13 +28,13 @@ export function TwoLineRow({
         className
       )}
     >
-      <span className='flex min-w-0 items-center justify-between gap-3 text-foreground'>
+      <span className='flex min-w-0 items-center gap-2 text-foreground'>
+        <span className='flex size-4 shrink-0 items-center justify-center'>{glyph}</span>
         {heading}
-        {glyph}
       </span>
       <span
         className={cn(
-          'flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground',
+          'flex min-w-0 items-center gap-1.5 pl-6 text-xs text-muted-foreground',
           metaClassName
         )}
       >

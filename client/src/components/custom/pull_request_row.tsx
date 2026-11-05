@@ -5,6 +5,7 @@ import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useOpenPullRequest, usePullRequestSummary } from '@/state'
 
+import { DiffCounts } from './diff/file_card'
 import { OverflowTitle } from './overflow_title'
 import { linkPresentation } from './thread_pull_request'
 import { TwoLineRow } from './two_line_row'
@@ -47,10 +48,7 @@ export function PullRequestRow({
             <ChevronLeftSmallIcon className='icon-optical-down size-2.5 shrink-0' />
             <span className='truncate'>{pull.head.ref}</span>
           </span>
-          <span className='shrink-0 font-mono tabular-nums'>
-            <span className='text-status-success'>+{pull.additions}</span>{' '}
-            <span className='text-status-error'>−{pull.deletions}</span>
-          </span>
+          <DiffCounts files={[pull]} hideZero />
         </>
       ) : (
         <span className='truncate'>{link.repo}</span>

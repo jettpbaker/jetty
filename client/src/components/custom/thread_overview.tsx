@@ -19,6 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
+import { DiffCounts } from './diff/file_card'
 import { CharmedFileIcon } from './diff/file_name'
 import { PullRequestRow } from './pull_request_row'
 import { RunningTaskRow } from './running_task_row'
@@ -312,9 +313,8 @@ function ChangedFileRow({ file, onOpen }: { file: ChangedFile; onOpen: () => voi
       <span className='min-w-0 truncate text-muted-foreground'>
         {file.path.slice(0, slash + 1)}
       </span>
-      <span className='ml-auto flex shrink-0 gap-1.5 tabular-nums'>
-        <span className='text-status-success'>+{file.added}</span>
-        <span className='text-status-error'>−{file.removed}</span>
+      <span className='ml-auto'>
+        <DiffCounts files={[{ additions: file.added, deletions: file.removed }]} hideZero />
       </span>
     </Button>
   )
