@@ -85,9 +85,12 @@ function storedView(): SidebarView {
   } catch {}
   return {
     grouping:
-      saved.grouping === 'project' || saved.grouping === 'status' || saved.grouping === 'bot'
+      saved.grouping === 'project' ||
+      saved.grouping === 'status' ||
+      saved.grouping === 'bot' ||
+      saved.grouping === 'date'
         ? saved.grouping
-        : 'date',
+        : 'project',
     showPinned: saved.showPinned !== false,
     showArchived: saved.showArchived === true,
   }
@@ -335,7 +338,7 @@ export const AppSidebar = memo(function AppSidebar() {
       variant='inset'
       collapsible='offcanvas'
     >
-      <SidebarHeader className='shrink-0 px-1.5 pb-4 pt-2'>
+      <SidebarHeader className='shrink-0 px-1.5 pb-3 pt-2'>
         <nav aria-label='Main navigation'>
           <SidebarMenu className='gap-0.5'>
             <SidebarMenuItem>
@@ -348,18 +351,6 @@ export const AppSidebar = memo(function AppSidebar() {
                 New thread
                 <HoverKeybind binding={keybinds.newThread} className='ml-auto' />
               </Button>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
-                <Button
-                  variant='ghost'
-                  className={`${navigationButtonClass} pointer-events-none`}
-                  disabled
-                >
-                  <CircleDotIcon />
-                  Issues
-                </Button>
-              </DisabledTooltip>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <Button
@@ -376,6 +367,18 @@ export const AppSidebar = memo(function AppSidebar() {
                 Pull requests
               </Button>
             </SidebarMenuItem>
+            <SidebarMenuItem>
+              <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
+                <Button
+                  variant='ghost'
+                  className={`${navigationButtonClass} pointer-events-none`}
+                  disabled
+                >
+                  <CircleDotIcon />
+                  Issues
+                </Button>
+              </DisabledTooltip>
+            </SidebarMenuItem>
           </SidebarMenu>
         </nav>
       </SidebarHeader>
@@ -384,7 +387,7 @@ export const AppSidebar = memo(function AppSidebar() {
             thread search, the list and the account footer off the sidebar. */}
         <section
           aria-label='Bots'
-          className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-3.5'
+          className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-3'
         >
           {/* The plus lines up with the status glyphs below. */}
           <div className='flex h-6 items-center justify-between pr-2 pl-2.5'>
@@ -456,7 +459,7 @@ export const AppSidebar = memo(function AppSidebar() {
             </button>
           )}
         </section>
-        <div className='px-1.5 pb-4'>
+        <div className='px-1.5 pb-3'>
           <SidebarThreadControls
             query={query}
             onQueryChange={setQuery}
