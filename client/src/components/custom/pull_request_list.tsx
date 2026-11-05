@@ -20,17 +20,9 @@ import {
   useRefreshPullRequestList,
 } from '@/state'
 import { Link } from '@tanstack/react-router'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
 
-import {
-  ArrowRotateClockwiseIcon,
-  MergedIcon,
-  RequestClosedIcon,
-  DraftIcon,
-  BugIcon,
-  PeopleIcon,
-  PullRequestIcon,
-} from './central_icons'
+import { ArrowRotateClockwiseIcon, BugIcon, PeopleIcon, PullRequestIcon } from './central_icons'
 import { ListFilterMenu, ListFilterSection, ListGroupMenu } from './grouped_list_controls'
 import {
   GroupedTable,
@@ -48,7 +40,6 @@ import {
   pullRequestReadinessLabel,
   pullRequestReadinessOrder,
   type PullRequestGroup,
-  type PullRequestListGroup,
 } from './pull_request_list_model'
 import { linkPresentation } from './thread_pull_request'
 
@@ -59,41 +50,6 @@ type PullRequestListProps = {
 const unavailableTitle = {
   unavailable: 'GitHub unavailable',
   rate_limited: 'GitHub rate limit reached',
-}
-
-const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNode }> = {
-  open: {
-    color: 'var(--pr-open)',
-    icon: <PullRequestIcon className='size-3 text-pr-open' />,
-  },
-  draft: {
-    color: 'var(--muted-foreground)',
-    icon: <DraftIcon className='size-3 text-muted-foreground' />,
-  },
-  merged: { color: 'var(--pr-merged)', icon: <MergedIcon className='size-3 text-pr-merged' /> },
-  closed: {
-    color: 'var(--destructive)',
-    icon: <RequestClosedIcon className='size-3 text-destructive' />,
-  },
-}
-
-const readinessPresentation: Record<PullRequestListGroup, { color: string; icon: ReactNode }> = {
-  ready: groupPresentation.open,
-  'needs-you': {
-    color: 'var(--status-error)',
-    icon: <BugIcon className='size-3 text-status-error' />,
-  },
-  'in-review': {
-    color: 'var(--muted-foreground)',
-    icon: <PeopleIcon className='size-3 text-muted-foreground' />,
-  },
-  running: {
-    color: 'var(--pr-running)',
-    icon: <PullRequestIcon className='size-3 text-pr-running' />,
-  },
-  draft: groupPresentation.draft,
-  merged: groupPresentation.merged,
-  closed: groupPresentation.closed,
 }
 
 type GroupBy = 'readiness' | 'state' | 'repo'
@@ -172,7 +128,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       ? [...new Set(rows.map((pull) => pull.repo))].map((repo) => ({
           id: repo,
           label: repoName(repo),
-          color: 'var(--muted-foreground)',
           rows: rows.filter((pull) => pull.repo === repo),
         }))
       : groupBy === 'readiness'
@@ -180,8 +135,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             .map((group) => ({
               id: group,
               label: pullRequestReadinessLabel[group],
-              ...readinessPresentation[group],
-              labelColor: readinessPresentation[group].color,
               rows: rows.filter((pull) => pullRequestListGroup(pull) === group),
               defaultCollapsed: group === 'closed' || group === 'merged',
             }))
@@ -190,8 +143,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             .map((group) => ({
               id: group,
               label: pullRequestGroupLabel[group],
-              ...groupPresentation[group],
-              labelColor: groupPresentation[group].color,
               rows: rows.filter((pull) => pull.state === group),
               defaultCollapsed: group === 'closed' || group === 'merged',
             }))
@@ -207,7 +158,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'identifier',
       priority: 30,
-      width: groupBy === 'repo' ? 56 : 122,
+      width: groupBy === 'repo' ? 64 : 104,
       // A long repo name gives way before the number does.
       render: (pull) => (
         <span
@@ -235,14 +186,18 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'diff',
       priority: 20,
-      width: 100,
+      width: 108,
       render: (pull) => (
         <span
-          className='ml-auto flex gap-2 font-mono text-xs tabular-nums'
+          className='grid w-full grid-cols-2 gap-2 text-right font-mono text-xs tabular-nums'
           title={`+${pull.additions ?? '—'} −${pull.deletions ?? '—'}`}
         >
-          <span className='text-pr-open'>+{formatLines(pull.additions)}</span>
-          <span className='text-destructive'>−{formatLines(pull.deletions)}</span>
+          <span className={pull.additions ? 'text-pr-open' : 'text-muted-foreground'}>
+            +{formatLines(pull.additions)}
+          </span>
+          <span className={pull.deletions ? 'text-destructive' : 'text-muted-foreground'}>
+            −{formatLines(pull.deletions)}
+          </span>
         </span>
       ),
     },
@@ -266,10 +221,10 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'age',
       priority: 40,
-      width: 30,
+      width: 40,
       render: (pull) => (
         <span
-          className='font-mono text-xs text-muted-foreground tabular-nums'
+          className='ml-auto font-mono text-xs text-muted-foreground tabular-nums'
           title={new Date(pull.updatedAt).toLocaleString()}
         >
           {formatAge(pull.updatedAt, now)}

@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
   type ReactElement,
@@ -30,8 +29,6 @@ export type TableGroup<T> = {
   id: string
   label: string
   icon?: ReactNode
-  color: string
-  labelColor?: string
   rows: readonly T[]
   defaultCollapsed?: boolean
 }
@@ -151,10 +148,7 @@ export function GroupedTable<T>({
         const bodyId = `${id}-${group.id}-rows`
         return (
           <section key={group.id} className='grouped-table-group' aria-labelledby={headerId}>
-            <h2
-              className='grouped-table-heading'
-              style={{ '--group-color': group.color } as CSSProperties}
-            >
+            <h2 className='grouped-table-heading'>
               <Button
                 id={headerId}
                 variant='ghost-text'
@@ -179,11 +173,8 @@ export function GroupedTable<T>({
                   data-open={!closed}
                 />
                 {group.icon}
-                <span style={{ color: group.labelColor }}>{group.label}</span>
-                <span
-                  className='ml-auto font-normal text-muted-foreground tabular-nums'
-                  style={{ width: columns.at(-1)?.width }}
-                >
+                <span>{group.label}</span>
+                <span className='font-mono font-normal text-muted-foreground tabular-nums'>
                   {group.rows.length}
                 </span>
               </Button>
@@ -262,7 +253,7 @@ export function GroupedTableTitle({
     <span className='grouped-table-title' title={title}>
       <span className='truncate'>{title}</span>
       <span className='grouped-table-secondary' data-tucked={tucked} aria-hidden={!tucked}>
-        <span className='truncate font-mono text-[11px] text-muted-foreground'>{secondary}</span>
+        <span className='truncate font-mono text-xs text-muted-foreground'>{secondary}</span>
       </span>
     </span>
   )

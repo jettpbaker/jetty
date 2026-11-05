@@ -35,16 +35,7 @@
   inset: 0;
   z-index: -1;
   border-radius: 6px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--group-color) var(--group-wash, 5%), transparent),
-      transparent 60%
-    ),
-    color-mix(in oklch, var(--foreground) 3%, transparent);
-}
-.dark .grouped-table-heading::before {
-  --group-wash: 8%;
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
 }
 .grouped-table-group-button[data-slot='button'] {
   width: 100%;
