@@ -12,6 +12,7 @@ import {
   WorkerMessage,
 } from '@/components/custom/bot_markers'
 import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
+import { CopyButton } from '@/components/custom/copy_button'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { ProjectFileRoot } from '@/components/custom/file_link'
 import { GalleryMessage } from '@/components/custom/gallery_message'
@@ -284,11 +285,26 @@ const ThreadItemRow = memo(function ThreadItemRow({
       // Mid-run messages have no footer; with the list's 12px row gap, pb-1 makes a paragraph's gap.
       <Message align='start' className={cn(row.footer === undefined && 'pb-1')}>
         <MessageContent>
-          <Bubble variant='ghost' align='start' className='w-full'>
-            <BubbleContent className='w-full' data-quote={row.item.id}>
-              {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
+          <Bubble
+            variant={row.kind === 'plan' ? 'outline' : 'ghost'}
+            align='start'
+            className='w-full max-w-full'
+          >
+            <BubbleContent
+              className={cn('w-full', row.kind === 'plan' && 'rounded-md p-4')}
+              data-quote={row.item.id}
+            >
+              {row.kind === 'plan' && (
+                <div className='mb-3 flex h-6 items-center justify-between'>
+                  <span className='text-xs font-medium text-muted-foreground'>Plan</span>
+                  <CopyButton text={row.item.text} label='Copy plan' />
+                </div>
+              )}
               <Markdown
-                className='thread-reply text-[14px] leading-[22px]'
+                className={cn(
+                  'thread-reply text-[14px] leading-[22px]',
+                  row.kind === 'plan' && 'thread-plan'
+                )}
                 streaming={row.streaming}
                 // Claude often sends a reply written after a tool call all at once.
                 arrived={!row.streaming && completedAgo(row.item.id) < 1000}

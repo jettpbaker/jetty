@@ -242,13 +242,13 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
         markdownHeight(
           row.id,
           row.item.text,
-          Math.min(width, 706),
+          Math.min(row.kind === 'plan' ? width - 32 : width, 706),
           rough || row.streaming,
           22,
           14
         ) +
         2 +
-        (row.kind === 'plan' ? 20 : 0) +
+        (row.kind === 'plan' ? 68 : 0) +
         (row.footer === undefined ? 4 : footerRow)
       )
     case 'work': {

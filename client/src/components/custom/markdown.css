@@ -84,3 +84,18 @@
 .thread-reply > :first-child {
   margin-block-start: 0;
 }
+
+.thread-plan h1 {
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.thread-plan :is(h2, h3) {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.thread-plan > :is(h1, h2, h3):first-child {
+  font-size: 18px;
+  line-height: 26px;
+}
