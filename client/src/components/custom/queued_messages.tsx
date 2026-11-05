@@ -254,7 +254,7 @@ export function ComposerQueue({
   const resume = queue.unsent.find((entry) => !isQueuedEditing(entry, queue.editing))
   return (
     <MediaLightboxProvider>
-      <div className='scrollbar-subtle flex max-h-64 flex-col divide-y divide-border overflow-y-auto first:rounded-t-md'>
+      <div className='flex flex-col divide-y divide-border first:rounded-t-md'>
         {!queue.held && queue.paused && queue.unsent.length > 0 && (
           <div
             data-strip='queue'
@@ -299,18 +299,22 @@ export function ComposerQueue({
             )}
           </div>
         )}
-        {queue.own.map((entry) => (
-          <QueuedRow
-            key={entry.id}
-            threadId={threadId}
-            entry={entry}
-            editing={isQueuedEditing(entry, queue.editing)}
-            running={running}
-          />
-        ))}
-        {queue.removed && (
-          <div data-strip='queue' className='bg-popover px-3 py-2 first:rounded-t-md'>
-            <QueueRemoved threadId={threadId} />
+        {(queue.own.length > 0 || queue.removed) && (
+          <div className='scrollbar-subtle flex max-h-64 flex-col divide-y divide-border overflow-y-auto'>
+            {queue.own.map((entry) => (
+              <QueuedRow
+                key={entry.id}
+                threadId={threadId}
+                entry={entry}
+                editing={isQueuedEditing(entry, queue.editing)}
+                running={running}
+              />
+            ))}
+            {queue.removed && (
+              <div data-strip='queue' className='bg-popover px-3 py-2 first:rounded-t-md'>
+                <QueueRemoved threadId={threadId} />
+              </div>
+            )}
           </div>
         )}
       </div>
