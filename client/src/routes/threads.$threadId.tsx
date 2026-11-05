@@ -1,4 +1,3 @@
-import { BotTabStrip } from '@/components/custom/bot_tab_strip'
 import { EditSmall1Icon } from '@/components/custom/central_icons'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
@@ -44,7 +43,6 @@ function Thread() {
   const started = meta?.turnStartedAt !== undefined || meta?.provider !== undefined
   const empty =
     overlay.empty && !meta?.pendingMessages?.length && (thread !== undefined || !started)
-  const composerOnly = empty && !meta?.pullRequests?.length
   const composer = (
     <ThreadComposer
       key={threadId}
@@ -70,46 +68,36 @@ function Thread() {
     )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      {composerOnly &&
-        (ownerId ? (
-          <BotTabStrip botId={ownerId} threadId={threadId} />
-        ) : (
-          <PageSidebarTrigger standalone />
-        ))}
-      {composerOnly ? (
-        <div className='flex min-h-0 flex-1 flex-col'>{composer}</div>
-      ) : (
-        <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
-          <ThreadHeader
+      <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
+        <ThreadHeader
+          threadId={threadId}
+          botId={ownerId}
+          onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
+        />
+        {empty ? (
+          <div className='flex min-h-0 flex-1 flex-col'>{composer}</div>
+        ) : thread || !overlay.empty ? (
+          <ThreadList
+            // The composer beside it is keyed by the thread too; a shared key leaves the last
+            // thread's transcript behind.
+            key={`${threadId}:list`}
             threadId={threadId}
-            botId={ownerId}
-            onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
+            history={thread?.history}
+            summary={thread?.summary}
+            items={overlay.items}
+            status={thread?.status ?? 'idle'}
+            running={overlay.running}
+            settingUp={settingUpWorktree(meta)}
+            outcomes={thread?.turnOutcomes}
+            loadouts={thread?.turnLoadouts}
+            projectPath={projectPath}
+            provider={meta?.provider}
           />
-          {empty ? (
-            <div className='flex min-h-0 flex-1 flex-col'>{composer}</div>
-          ) : thread || !overlay.empty ? (
-            <ThreadList
-              // The composer beside it is keyed by the thread too; a shared key leaves the last
-              // thread's transcript behind.
-              key={`${threadId}:list`}
-              threadId={threadId}
-              history={thread?.history}
-              summary={thread?.summary}
-              items={overlay.items}
-              status={thread?.status ?? 'idle'}
-              running={overlay.running}
-              settingUp={settingUpWorktree(meta)}
-              outcomes={thread?.turnOutcomes}
-              loadouts={thread?.turnLoadouts}
-              projectPath={projectPath}
-              provider={meta?.provider}
-            />
-          ) : (
-            <div className='min-h-0 flex-1' />
-          )}
-          {!empty && composer}
-        </ThreadDetailsLayout>
-      )}
+        ) : (
+          <div className='min-h-0 flex-1' />
+        )}
+        {!empty && composer}
+      </ThreadDetailsLayout>
     </section>
   )
 }

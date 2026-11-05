@@ -26,7 +26,7 @@ import {
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
 import { useAttachments } from '@/hooks/use-attachments'
@@ -606,8 +606,13 @@ export function ThreadComposer({
         <Empty className='flex-none items-start px-2 pt-6 pb-6 text-left'>
           <EmptyHeader className='max-w-full items-start'>
             <EmptyTitle className='text-2xl font-semibold'>
-              {project?.title ? `New thread in ${project.title}` : 'New thread'}
+              {threadId
+                ? (meta?.title ?? 'Thread')
+                : project?.title
+                  ? `New thread in ${project.title}`
+                  : 'New thread'}
             </EmptyTitle>
+            {threadId && <EmptyDescription>No messages yet</EmptyDescription>}
           </EmptyHeader>
         </Empty>
       )}
