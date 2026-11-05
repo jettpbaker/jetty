@@ -68,7 +68,7 @@ export function LinkPullRequestDialog({
         <DialogTitle>Link pull request</DialogTitle>
         <form className='flex flex-col gap-4' onSubmit={submit}>
           <div className='flex flex-col gap-2'>
-            <label htmlFor='pull-request-reference' className='sr-only'>
+            <label htmlFor='pull-request-reference' className='text-13 font-medium'>
               Pull request
             </label>
             <Input
@@ -78,7 +78,7 @@ export function LinkPullRequestDialog({
               }
               aria-label='Pull request URL or number'
               aria-invalid={error ? true : undefined}
-              placeholder='#123 or GitHub URL'
+              placeholder='#123 or https://github.com/owner/repo/pull/123'
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value)
