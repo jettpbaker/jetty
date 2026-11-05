@@ -549,15 +549,17 @@ export function ThreadComposer({
           strip: answer?.strip,
           placeholder: restartHeld
             ? 'Add instructions before resuming'
-            : settingUp || (hasQueue && composerQueue?.paused)
-              ? 'Queue another message'
-              : meta?.status === 'error'
-                ? 'Tell the agent what to try instead'
-                : running
-                  ? 'Queue a follow-up while the agent works'
-                  : ambient
-                    ? 'What should this thread change? · / for commands'
-                    : 'Ask for follow-up changes · / for commands',
+            : setupNotice
+              ? 'Queue a message for when setup finishes'
+              : hasQueue && composerQueue?.paused
+                ? 'Queue another message'
+                : meta?.status === 'error'
+                  ? 'Tell the agent what to try instead'
+                  : running
+                    ? 'Queue a follow-up while the agent works'
+                    : ambient
+                      ? 'What should this thread change? · / for commands'
+                      : 'Ask for follow-up changes · / for commands',
           sendLabel: editingEntry
             ? 'Save'
             : running
@@ -645,6 +647,7 @@ export function ThreadComposer({
         onChooseModel={needsModel ? () => modelMenuRef.current?.() : undefined}
         running={running && !item && !editingEntry}
         stop={running && turnActive && !editingEntry && item !== undefined}
+        requestId={item?.id}
         strip={
           hasQueue || restartHeld || usageBanner || mode.strip ? (
             <>
@@ -664,10 +667,9 @@ export function ThreadComposer({
                 >
                   <PauseIcon className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
                   <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                    <span className='font-medium'>
-                      Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes
-                    </span>
+                    <span className='font-medium'>Resume after repeated restarts</span>
                     <span className='text-xs leading-5 text-muted-foreground'>
+                      Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes.
                       Resume to continue where the agent left off.
                     </span>
                   </div>

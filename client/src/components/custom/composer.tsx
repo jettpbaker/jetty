@@ -28,6 +28,7 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
   type RefObject,
@@ -43,6 +44,7 @@ export function Composer({
   running,
   stop,
   strip,
+  requestId,
   reply,
   placeholder = 'What should this thread change? · / for commands',
   sendLabel = 'Send',
@@ -74,6 +76,7 @@ export function Composer({
   // that can send sits beside it; otherwise Stop takes Send's place, as on an empty running turn.
   stop?: boolean
   strip?: ReactNode
+  requestId?: string
   // The quote the message carries, at the top of the field.
   reply?: ReactNode
   placeholder?: string
@@ -104,6 +107,8 @@ export function Composer({
   const stopping = stop || (running && empty)
   // Deny with note, Submit and a queued follow-up stay reachable while Stop is up.
   const offerSend = !stopping || (Boolean(stop) && canSend)
+  const [expandedRequest, setExpandedRequest] = useState<string>()
+  const compact = Boolean(requestId && expandedRequest !== requestId && empty)
   const menu = useComposerSlash(value, onValueChange, textarea, slash)
   const { field } = menu
 
@@ -168,9 +173,19 @@ export function Composer({
       className='mx-auto flex w-full max-w-[825px] flex-col gap-1'
     >
       {header}
-      <div className={cn('flex flex-col', strip && 'overflow-hidden rounded-md bg-popover')}>
+      <div
+        className={cn(
+          'flex flex-col',
+          requestId ? 'gap-2' : strip && 'overflow-hidden rounded-md bg-popover'
+        )}
+      >
         {strip ? (
-          <div className={cn('flex flex-col', strip && 'overflow-hidden rounded-md bg-popover')}>
+          <div
+            className={cn(
+              'flex flex-col overflow-hidden rounded-md bg-popover',
+              requestId && 'border-l-2 border-status-attention'
+            )}
+          >
             {strip}
           </div>
         ) : null}
@@ -184,7 +199,7 @@ export function Composer({
           <InputGroup
             className={cn(
               'relative w-full max-w-[825px] border-0 bg-popover dark:bg-popover',
-              strip && 'rounded-t-none',
+              strip && !requestId && 'rounded-t-none',
               // Over a wallpaper the ambient shadow does the lifting.
               ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
             )}
@@ -202,6 +217,10 @@ export function Composer({
                 aria-label='Thread prompt'
                 spellCheck={false}
                 {...menu.input}
+                onFocus={() => {
+                  if (requestId) setExpandedRequest(requestId)
+                  menu.input.onFocus()
+                }}
                 placeholder={placeholder}
                 onPaste={attachments.paste}
                 onKeyDown={(event) => {
@@ -223,7 +242,10 @@ export function Composer({
               />
               {menu.open && <SlashMenu slash={menu} />}
             </div>
-            <InputGroupAddon align='block-end' className='justify-between'>
+            <InputGroupAddon
+              align='block-end'
+              className={cn('justify-between', compact && 'hidden')}
+            >
               <div className='flex min-w-0 flex-1 flex-wrap items-center gap-0'>
                 <ComposerAttach
                   onAttach={attachments.add}

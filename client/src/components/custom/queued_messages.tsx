@@ -258,17 +258,17 @@ export function ComposerQueue({
         {!queue.held && queue.paused && queue.unsent.length > 0 && (
           <div
             data-strip='queue'
-            className='flex items-start gap-2 bg-popover px-3 py-3 text-sm first:rounded-t-md'
+            className='flex items-center gap-2 bg-popover px-2.5 py-3 text-sm first:rounded-t-md'
           >
             {settingUp ? (
-              <Spinner className='mt-1 size-4 text-muted-foreground' />
+              <Spinner className='size-4 shrink-0 text-muted-foreground' />
             ) : retrySetup ? (
               <StatusGlyph
                 status={worktree?.state === 'failed' ? 'error' : 'stopped'}
-                className='mt-1 size-4'
+                className='size-4 shrink-0'
               />
             ) : (
-              <PauseIcon className='mt-1 size-4 text-muted-foreground' />
+              <PauseIcon className='size-4 shrink-0 text-muted-foreground' />
             )}
             <div className='flex min-w-0 flex-1 flex-col gap-1'>
               <span>
@@ -279,7 +279,7 @@ export function ComposerQueue({
                     : worktree?.state === 'stopped'
                       ? 'Worktree setup stopped'
                       : worktree?.state === 'ready'
-                        ? 'Worktree ready'
+                        ? 'Worktree ready · agent paused'
                         : 'Paused'}{' '}
                 · {queue.unsent.length} queued {queue.unsent.length === 1 ? 'message' : 'messages'}
               </span>
