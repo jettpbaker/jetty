@@ -1,6 +1,6 @@
 import type { ThreadItem } from '@jetty/shared/items'
 
-import { ChevronRightSmallIcon } from '@/components/custom/central_icons'
+import { ChevronRightSmallIcon, ListBulletsIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
@@ -19,6 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 
 import { ChildThreadList, type ChildThread } from './child_threads'
 import { TodoList } from './composer_strip'
+import { ContentEmpty } from './content_empty'
 import { DiffCounts } from './diff/file_card'
 import { CharmedFileIcon } from './diff/file_name'
 import { PullRequestRow } from './pull_request_row'
@@ -151,9 +152,11 @@ export function ThreadOverview({
 
   if (empty)
     return (
-      <div className='flex h-full items-center justify-center p-4'>
-        <p className='text-13 text-muted-foreground'>Nothing yet</p>
-      </div>
+      <ContentEmpty
+        icon={ListBulletsIcon}
+        title='No activity yet'
+        description='Plans, subagents and linked pull requests will appear here as work progresses.'
+      />
     )
 
   return (
@@ -170,7 +173,7 @@ export function ThreadOverview({
         )}
         {todos.length > 0 && (
           <Section label='Todos' count={`${done}/${todos.length}`} {...sectionProps('todos')}>
-            <div className='px-2.5 py-1.5'>
+            <div className='px-2.5 py-1.5 [&_li>svg]:size-4'>
               <TodoList list={todos} />
             </div>
           </Section>
@@ -256,7 +259,7 @@ export function SubagentList({
         >
           <SubagentGlyph
             state={subagentGlyphState(agent.status, agent.waiting)}
-            className='size-3.25'
+            className='size-4'
           />
           <span className='truncate'>{agent.title}</span>
         </Button>
