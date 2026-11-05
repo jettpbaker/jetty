@@ -21,7 +21,7 @@ const well = 'bg-[color-mix(in_oklch,var(--muted)_60%,var(--background))]'
 // Separate borders, or the rounded border doesn't draw. Inline code steps down to the table's size and
 // wraps rather than running into the next column, but a short token stays whole.
 const table =
-  'w-full border-separate border-spacing-0 rounded-md border border-border text-xs tabular-nums [&_code]:px-1 [&_code]:py-px [&_code]:text-xs [&_code]:wrap-anywhere [&_code[data-token]]:whitespace-nowrap'
+  'w-full border-separate border-spacing-0 rounded-md border border-border text-13 leading-5 tabular-nums [&_code]:px-1 [&_code]:py-px [&_code]:text-xs [&_code]:wrap-anywhere [&_code[data-token]]:whitespace-nowrap'
 
 // Long tables show this many rows behind a "Show all" toggle; two over isn't worth hiding.
 const rowLimit = 8
@@ -101,7 +101,7 @@ export function MarkdownTableHeader({ node: _node, className: _className, ...pro
   return (
     <th
       className={cn(
-        'h-8 border-b border-border px-3 font-normal whitespace-nowrap text-muted-foreground first:rounded-tl-[calc(var(--radius-md)-1px)] last:rounded-tr-[calc(var(--radius-md)-1px)]',
+        'h-8 border-b border-border px-3 text-xs font-medium whitespace-nowrap text-muted-foreground first:rounded-tl-[calc(var(--radius-md)-1px)] last:rounded-tr-[calc(var(--radius-md)-1px)]',
         well,
         align
       )}
