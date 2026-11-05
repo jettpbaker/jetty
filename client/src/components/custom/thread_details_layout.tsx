@@ -68,8 +68,6 @@ export function ThreadDetailsLayout({
   projectPath?: string
   children: ReactNode
 }) {
-  const layout = useDetailsLayout()
-  const { open, ready, narrow, full, expanded, setExpanded, setChatSlot, show: showPane } = layout
   const [pickedTab, setTab] = useState('changes')
   const meta = useThreadMeta(threadId)
   const git = useProjectGit(meta?.projectId)?.git
@@ -85,6 +83,8 @@ export function ThreadDetailsLayout({
     (changesDisabled && pickedTab === 'changes') || (filesDisabled && pickedTab === 'files')
       ? 'overview'
       : pickedTab
+  const layout = useDetailsLayout({ compact: tab === 'overview' })
+  const { open, ready, narrow, full, expanded, setExpanded, setChatSlot, show: showPane } = layout
   // An open pane has Changes mounted already.
   useThreadChangesPrefetch(
     threadId,
