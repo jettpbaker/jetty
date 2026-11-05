@@ -465,13 +465,13 @@ function ChecksSummary({ pr }: { pr: PrPull }) {
     ? {
         tone: 'text-status-error',
         glyph: <CircleXIcon filled className='size-3.5' />,
-        text: `${c.failed} failing`,
+        text: `${countLabel(c.failed, 'check')} failing`,
       }
     : c.running
       ? {
           tone: 'text-status-working',
           glyph: <Progress50Icon className='size-3.5' />,
-          text: `${c.running} running`,
+          text: `${countLabel(c.running, 'check')} running`,
         }
       : {
           tone: 'text-status-success',
@@ -1741,8 +1741,6 @@ const mergeMethodOptions: { method: PrMergeMethod; label: string; description: s
     description: 'Rebases commits onto the base branch',
   },
 ]
-// Merging wears the open-PR green, as on GitHub; dark text, as on Jetty's lilac primary.
-
 // GitHub's split merge button: it merges by the picked method, and its caret, there when the repo
 // allows more than one, picks another. A blocked merge dims both halves, but the caret still picks.
 const mergeMethods = ['MERGE', 'SQUASH', 'REBASE'] as const
@@ -1932,9 +1930,17 @@ function MergeDecision({
   return (
     <section
       aria-label='Merge pull request'
-      className='flex flex-col gap-3 rounded-md border border-border p-3'
+      className='flex flex-col gap-3 rounded-md border border-border bg-card p-3'
     >
-      <div className='text-13'>
+      <div className='flex flex-col gap-1 text-13'>
+        {conflict && (
+          <p className='flex items-center gap-2 py-1'>
+            <CircleXIcon filled className='size-4 shrink-0 text-destructive' />
+            <span>
+              Conflicts with <span className='font-mono'>{pr.base}</span>
+            </span>
+          </p>
+        )}
         <ChecksPill pr={pr} />
       </div>
       {pr.state === 'draft' ? (
@@ -1946,27 +1952,28 @@ function MergeDecision({
         </>
       ) : (
         <>
-          <p className={cn('text-xs', conflict ? 'text-destructive' : 'text-muted-foreground')}>
-            {conflict
-              ? `This branch has conflicts with ${pr.base}`
-              : reason || 'This branch can be merged into the base branch.'}
-          </p>
-          <MergeButton pr={pr} reason={reason} onMerge={onMerge} />
-          {reason && threads[0] && (
-            <Button
-              variant='outline'
-              size='sm'
-              nativeButton={false}
-              render={<Link to='/threads/$threadId' params={{ threadId: threads[0].id }} />}
-            >
-              {conflict ? 'Open thread to resolve' : 'Open linked thread'}
-            </Button>
+          {!conflict && (
+            <p className='text-xs text-muted-foreground'>
+              {reason || 'This branch can be merged into the base branch.'}
+            </p>
           )}
           {reason && (
-            <Button variant='ghost-text' size='xs' className='self-start' onClick={onShowDiff}>
-              View diff
-            </Button>
+            <div className='flex flex-wrap items-center gap-2'>
+              {threads[0] && (
+                <Button
+                  size='sm'
+                  nativeButton={false}
+                  render={<Link to='/threads/$threadId' params={{ threadId: threads[0].id }} />}
+                >
+                  {conflict ? 'Open thread to resolve' : 'Open linked thread'}
+                </Button>
+              )}
+              <Button variant='ghost-text' size='sm' onClick={onShowDiff}>
+                View diff
+              </Button>
+            </div>
           )}
+          <MergeButton pr={pr} reason={reason} onMerge={onMerge} />
         </>
       )}
     </section>
