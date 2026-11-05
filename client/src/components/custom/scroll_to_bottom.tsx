@@ -38,7 +38,12 @@ export function ScrollToBottom({
   onScroll: () => void
 }) {
   return (
-    <div className={cn('flex h-10 shrink-0 items-center justify-center', !shown && 'hidden')}>
+    <div
+      className={cn(
+        'mx-auto flex h-10 w-full max-w-[873px] shrink-0 items-center justify-end px-6',
+        !shown && 'hidden'
+      )}
+    >
       <Button
         variant='ghost'
         tone='muted'
@@ -60,13 +65,14 @@ export function ScrollToBottom({
         )}
       >
         <ArrowDownIcon data-icon='inline-start' />
-        <span>Jump to latest</span>
         {messages ? (
-          <span aria-hidden className='inline-flex items-baseline gap-1 text-muted-foreground'>
+          <span className='inline-flex items-baseline gap-1'>
             <RollingNumber value={messages} className='font-mono' />
-            <span>{messages === 1 ? 'message' : 'messages'}</span>
+            <span>newer {messages === 1 ? 'message' : 'messages'}</span>
           </span>
-        ) : null}
+        ) : (
+          <span>Jump to latest</span>
+        )}
         {fresh && <Dot className='top-0.5 right-0.5' />}
       </Button>
     </div>
