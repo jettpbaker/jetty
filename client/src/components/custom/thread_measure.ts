@@ -207,6 +207,8 @@ export function rowEstimateChanged(previous: ThreadRow, row: ThreadRow) {
 // Rough estimates count lines from text length instead of laying the text out.
 export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {
+    case 'request':
+      return 200
     case 'subagentDone':
       return lineHeight + 6
     case 'reports': {

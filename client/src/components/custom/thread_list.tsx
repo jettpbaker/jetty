@@ -16,6 +16,7 @@ import { CopyButton } from '@/components/custom/copy_button'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { ProjectFileRoot } from '@/components/custom/file_link'
 import { GalleryMessage } from '@/components/custom/gallery_message'
+import { InlineRequestTarget } from '@/components/custom/inline_request'
 import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { AgentMessageFooter } from '@/components/custom/message_footer'
@@ -204,6 +205,8 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'compaction':
       return `${row.state}:${row.reason ?? ''}`
+    case 'request':
+      return ''
     case 'secret':
       return `${row.item.outcome}:${row.item.label}`
     case 'pullRequest':
@@ -280,6 +283,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         steering={row.steering}
       />
     )
+  if (row.kind === 'request') return <InlineRequestTarget id={row.id} />
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'wake') return <WakeMarker reports={row.reports} wake={row.wake} />
   if (row.kind === 'workerMessage') return <WorkerMessage from={row.from} text={row.text} />
@@ -444,6 +448,7 @@ export function ThreadList({
   provider,
   agentId,
   settingUp,
+  inlineRequests,
   bot,
   onOpenRoom,
   history,
@@ -461,6 +466,7 @@ export function ThreadList({
   provider?: string
   agentId?: string
   settingUp?: boolean
+  inlineRequests?: boolean
   // A bot's chat: its other bots, and whether check-ins and tidies show.
   bot?: BotRows
   onOpenRoom?: (room: Room) => void
@@ -483,6 +489,7 @@ export function ThreadList({
         threadId,
         agentId,
         settingUp,
+        inlineRequests,
         bot: rowBot,
         botIds,
         history,
@@ -499,6 +506,7 @@ export function ThreadList({
       threadId,
       agentId,
       settingUp,
+      inlineRequests,
       rowBot,
       botIds,
       history,

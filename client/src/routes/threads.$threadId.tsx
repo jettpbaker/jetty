@@ -1,4 +1,5 @@
 import { EditSmall1Icon } from '@/components/custom/central_icons'
+import { InlineRequests } from '@/components/custom/inline_request'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
@@ -6,6 +7,7 @@ import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
 import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 import { pressProps } from '@/lib/press'
 import { settingUpWorktree } from '@/lib/thread_worktree'
 import { perf } from '@/perf'
@@ -68,36 +70,46 @@ function Thread() {
     )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
-        <ThreadHeader
-          threadId={threadId}
-          botId={ownerId}
-          onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
-        />
-        {empty ? (
-          <div className='flex min-h-0 flex-1 flex-col'>{composer}</div>
-        ) : thread || !overlay.empty ? (
-          <ThreadList
-            // The composer beside it is keyed by the thread too; a shared key leaves the last
-            // thread's transcript behind.
-            key={`${threadId}:list`}
+      <InlineRequests key={threadId}>
+        <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
+          <ThreadHeader
             threadId={threadId}
-            history={thread?.history}
-            summary={thread?.summary}
-            items={overlay.items}
-            status={thread?.status ?? 'idle'}
-            running={overlay.running}
-            settingUp={settingUpWorktree(meta)}
-            outcomes={thread?.turnOutcomes}
-            loadouts={thread?.turnLoadouts}
-            projectPath={projectPath}
-            provider={meta?.provider}
+            botId={ownerId}
+            onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
-        ) : (
-          <div className='min-h-0 flex-1' />
-        )}
-        {!empty && composer}
-      </ThreadDetailsLayout>
+          {empty ? (
+            <Empty className='px-6'>
+              <EmptyHeader>
+                <EmptyTitle>Ready when you are</EmptyTitle>
+                <EmptyDescription>
+                  Describe what you’d like to change in {project?.title ?? 'this project'}.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : thread || !overlay.empty ? (
+            <ThreadList
+              // The composer beside it is keyed by the thread too; a shared key leaves the last
+              // thread's transcript behind.
+              key={`${threadId}:list`}
+              threadId={threadId}
+              history={thread?.history}
+              summary={thread?.summary}
+              items={overlay.items}
+              status={thread?.status ?? 'idle'}
+              running={overlay.running}
+              settingUp={settingUpWorktree(meta)}
+              inlineRequests
+              outcomes={thread?.turnOutcomes}
+              loadouts={thread?.turnLoadouts}
+              projectPath={projectPath}
+              provider={meta?.provider}
+            />
+          ) : (
+            <div className='min-h-0 flex-1' />
+          )}
+          {composer}
+        </ThreadDetailsLayout>
+      </InlineRequests>
     </section>
   )
 }

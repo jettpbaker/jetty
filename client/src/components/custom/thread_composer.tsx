@@ -15,6 +15,7 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { pendingItems } from '@/components/custom/composer_strip_model'
+import { useInlineRequestTarget } from '@/components/custom/inline_request'
 import {
   ComposerQueue,
   QueuedEditNote,
@@ -67,6 +68,7 @@ import { heldByRestarts, RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/
 import { worktreeSetupPrompt } from '@jetty/shared/wire'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import { PauseIcon, WorktreeIcon } from './central_icons'
@@ -547,6 +549,8 @@ export function ThreadComposer({
               onKeyDown: keyHandler(() => false),
             }
           : undefined
+  const inlineDecision = item?.kind === 'approval' || item?.kind === 'question'
+  const requestTarget = useInlineRequestTarget(inlineDecision ? item.id : undefined)
   const mode =
     answer && (answering || item?.kind === 'secret_request')
       ? answer
@@ -608,16 +612,26 @@ export function ThreadComposer({
                   ? `${meta.title}: finished`
                   : '')}
       </output>
-      {ambient && (
+      {inlineDecision &&
+        requestTarget &&
+        createPortal(
+          <fieldset
+            className='overflow-hidden rounded-md border border-status-attention/40'
+            onKeyDownCapture={(event) => {
+              if (!event.nativeEvent.isComposing) mode.onKeyDown(event.nativeEvent)
+            }}
+          >
+            <legend className='sr-only'>
+              {item.kind === 'approval' ? 'Pending approval' : 'Pending question'}
+            </legend>
+            {mode.strip}
+          </fieldset>,
+          requestTarget
+        )}
+      {ambient && !threadId && (
         <Empty className='flex-none items-start px-2 pt-6 pb-6 text-left'>
           <EmptyHeader className='max-w-full items-start'>
-            <EmptyTitle
-              className={
-                threadId ? 'text-sm font-normal text-muted-foreground' : 'text-2xl font-semibold'
-              }
-            >
-              {threadId ? 'No messages yet' : 'New thread'}
-            </EmptyTitle>
+            <EmptyTitle className='text-2xl font-semibold'>New thread</EmptyTitle>
           </EmptyHeader>
         </Empty>
       )}
@@ -664,7 +678,7 @@ export function ThreadComposer({
         stop={running && turnActive && !editingEntry && item !== undefined}
         requestId={item?.id}
         strip={
-          hasQueue || restartHeld || usageBanner || mode.strip ? (
+          hasQueue || restartHeld || usageBanner || (!inlineDecision && mode.strip) ? (
             <>
               {hasQueue && threadId && composerQueue && (
                 <ComposerQueue
@@ -700,7 +714,7 @@ export function ThreadComposer({
                 </section>
               )}
               {usageBanner}
-              {mode.strip}
+              {!inlineDecision && mode.strip}
             </>
           ) : undefined
         }

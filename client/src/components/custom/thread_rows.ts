@@ -98,6 +98,7 @@ export type ThreadRow =
     }
   | { kind: 'compaction'; id: string; state: CompactionState; reason?: string }
   | { kind: 'secret'; id: string; item: SecretItem }
+  | { kind: 'request'; id: string }
   | { kind: 'pullRequest'; id: string; item: PullRequestItem }
   | { kind: 'pullRequestGroup'; id: string; items: PullRequestItem[] }
   | { kind: 'restart'; id: string }
@@ -476,6 +477,7 @@ type ThreadRowsOptions = {
   threadId?: string
   agentId?: string
   settingUp?: boolean
+  inlineRequests?: boolean
   bot?: BotRows
   botIds?: ReadonlySet<string>
   summary?: ThreadSummary
@@ -659,6 +661,7 @@ export function threadRows(
     threadId,
     agentId,
     settingUp = false,
+    inlineRequests = false,
     bot,
     botIds,
     summary,
@@ -983,6 +986,14 @@ export function threadRows(
       for (const agent of launched)
         if ((agent.completedAt ?? Infinity) > item.createdAt) talkedPast.add(agent.id)
     const segment = segments[index]!
+    if (
+      inlineRequests &&
+      (item.kind === 'approval' || item.kind === 'question') &&
+      awaitsInput(item)
+    ) {
+      rows.push({ kind: 'request', id: item.id })
+      continue
+    }
     if (isStep(item) || (item.kind === 'assistant_message' && foldsIntoWork(item))) {
       const block = openBlock(segment, item.turnId)
       block.steps.push(item)
