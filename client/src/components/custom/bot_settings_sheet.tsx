@@ -177,7 +177,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
                     addRule()
                   }
                 }}
-                className='min-h-9 bg-transparent px-[11px] py-2 text-13 outline-none placeholder:text-muted-foreground'
+                className='min-h-9 rounded-sm bg-transparent px-[11px] py-2 text-13 outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground'
               />
             </div>
           </div>

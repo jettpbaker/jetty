@@ -396,7 +396,7 @@ export function BotNameInput({
       autoComplete='off'
       placeholder='Bot'
       maxLength={BOT_NAME_MAX}
-      className='w-full rounded-sm bg-transparent px-2 py-1 text-center text-base font-medium text-foreground outline-none placeholder:text-muted-foreground'
+      className='w-full rounded-sm bg-transparent px-2 py-1 text-center text-base font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground'
       {...props}
     />
   )
