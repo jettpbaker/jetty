@@ -189,14 +189,13 @@ function UsageRow({
       </span>
       <span
         className={cn(
-          'flex items-center justify-end gap-1 text-xs tabular-nums',
-          !compact && 'flex-col items-end gap-0',
+          'flex items-center justify-end gap-1 text-xs whitespace-nowrap tabular-nums',
           left === 0 ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
         {reset && (
           <>
-            <span>Resets in</span>
+            <span>{compact ? 'Resets in' : 'Resets'}</span>
             <Mono>{reset}</Mono>
           </>
         )}
@@ -231,7 +230,7 @@ function UsageRow({
 function windowsGrid(compact: boolean) {
   return compact
     ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3.75rem_5.25rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3.75rem_5.25rem] @max-md:gap-x-3'
+    : 'grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3.75rem_7rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3.75rem_7rem] @max-md:gap-x-3'
 }
 
 // Why a provider shows no windows, when it doesn't.
@@ -279,6 +278,52 @@ function UsageSkeleton({ compact = false }: { compact?: boolean }) {
 
 function updatedLabel(at: number, now: number) {
   return now - at < minute ? 'just now' : `${duration(now - at)} ago`
+}
+
+function UsageSummary({
+  providers,
+  usage,
+  failed,
+  now,
+}: {
+  providers: readonly UsageProvider[]
+  usage: Partial<Record<UsageProvider, ProviderUsage>>
+  failed: ReadonlySet<UsageProvider>
+  now: number
+}) {
+  const limits = providers.flatMap((provider) => {
+    const item = usage[provider]
+    if (!item?.connected || item.failed || failed.has(provider)) return []
+    return item.windows
+      .filter((window) => window.resetsAt === undefined || window.resetsAt > now)
+      .map((window) => ({ provider, window }))
+  })
+  const limit = limits.toSorted((a, b) => b.window.pct - a.window.pct)[0]
+  if (!limit) return null
+  const { provider, window } = limit
+  const reset = resetIn(window, now)
+  return (
+    <p className='px-4 text-13 leading-5'>
+      <span className='font-medium'>
+        {window.pct < 100 && 'Most used: '}
+        {providerNames[provider]} · {window.label}
+        {window.pct >= 100 ? (
+          ' limit reached'
+        ) : (
+          <>
+            {' · '}
+            <Mono>{100 - percentLeft(window)}%</Mono> used
+          </>
+        )}
+      </span>
+      {reset && (
+        <span className='text-muted-foreground'>
+          {' · Resets in '}
+          <Mono>{reset}</Mono>
+        </span>
+      )}
+    </p>
+  )
 }
 
 // Each provider's section shows as soon as its own read lands; until then (and only if it never has) it holds skeleton rows.
@@ -341,6 +386,7 @@ export function UsagePage({
       </header>
       <div className='scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
         <div className='@container mx-auto flex w-full max-w-190 flex-col gap-4 px-4 pt-4 pb-8'>
+          <UsageSummary providers={providers} usage={usage} failed={failed} now={now} />
           {providers
             .filter((provider) => !unreported.includes(provider))
             .map((provider) => {
@@ -382,9 +428,14 @@ export function UsagePage({
               )
             })}
           {unreported.length > 0 && (
-            <p className='text-xs text-muted-foreground'>
-              No limits reported: {unreported.map((provider) => providerNames[provider]).join(', ')}
-            </p>
+            <SettingsCard>
+              <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1 py-3 text-xs'>
+                <span className='font-medium'>No limits reported</span>
+                <span className='text-muted-foreground'>
+                  {unreported.map((provider) => providerNames[provider]).join(', ')}
+                </span>
+              </div>
+            </SettingsCard>
           )}
         </div>
       </div>
