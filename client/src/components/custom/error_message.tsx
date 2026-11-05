@@ -64,20 +64,20 @@ export function ErrorMessage({
   }
   return (
     <Message align='start'>
-      <MessageContent className='flex-row items-start gap-2 rounded-sm bg-destructive/8 p-3'>
+      <MessageContent className='flex-row items-start gap-2 rounded-sm border border-destructive/25 bg-destructive/10 p-3'>
         <StatusGlyph status='error' className='mt-1' />
         <div className='flex min-w-0 flex-1 flex-col gap-2'>
           <p className='text-sm text-foreground'>{message}</p>
           <div className='flex items-center gap-2'>
             {failed && (
               <DisabledTooltip reason={unavailable} wrap='self-start'>
-                <Button variant='outline' size='xs' onClick={retry} disabled={!!unavailable}>
+                <Button size='xs' onClick={retry} disabled={!!unavailable}>
                   <ArrowRotateClockwiseIcon />
                   Retry
                 </Button>
               </DisabledTooltip>
             )}
-            <CopyButton text={message} label='Copy error' />
+            <CopyButton text={message} label='Copy error' showLabel />
           </div>
         </div>
       </MessageContent>

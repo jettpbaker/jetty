@@ -7,10 +7,12 @@ export function CopyButton({
   text,
   label,
   className,
+  showLabel = false,
 }: {
   text: string
   label: string
   className?: string
+  showLabel?: boolean
 }) {
   const [copied, setCopied] = useState(false)
   useEffect(() => {
@@ -20,8 +22,8 @@ export function CopyButton({
   }, [copied])
   return (
     <Button
-      variant='ghost'
-      size='icon-xs'
+      variant={showLabel ? 'ghost-text' : 'ghost'}
+      size={showLabel ? 'xs' : 'icon-xs'}
       className={className}
       aria-label={copied ? 'Copied' : label}
       onClick={() =>
@@ -32,6 +34,7 @@ export function CopyButton({
       }
     >
       {copied ? <Checkmark1MediumIcon /> : <SquareBehindSquare1Icon />}
+      {showLabel && (copied ? 'Copied' : label)}
     </Button>
   )
 }
