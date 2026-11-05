@@ -141,6 +141,7 @@ function SortableLoadoutItem({
   provider,
   disabled,
   disabledReason,
+  draggable,
   onMove,
   onOpenSettings,
 }: {
@@ -151,6 +152,7 @@ function SortableLoadoutItem({
   provider: ProviderId
   disabled: boolean
   disabledReason?: string
+  draggable: boolean
   onMove: (from: number, to: number) => void
   onOpenSettings: () => void
 }) {
@@ -170,11 +172,11 @@ function SortableLoadoutItem({
         value={id}
         disabled={disabled}
         className='group/loadout h-8! gap-0 pl-1.5 pr-1.5 data-checked:bg-accent [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden'
-        title='Drag to reorder · Option+Shift+↑/↓ · → Settings'
+        title={draggable ? 'Drag to reorder · Option+Shift+↑/↓ · → Settings' : '→ Settings'}
         aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown ArrowRight'
         onKeyDown={slotKeys(index, onMove, onOpenSettings)}
       >
-        <DragHandle handleRef={handleRef} isDragging={isDragging} />
+        {draggable && <DragHandle handleRef={handleRef} isDragging={isDragging} />}
         <span className='flex items-center gap-1.5'>
           <ProviderGlyph
             provider={provider}
@@ -208,40 +210,6 @@ function EmptyLoadoutRow({ slot, onOpenSettings }: { slot: number; onOpenSetting
       aria-label={`Add configuration to slot ${slot}`}
       className={`${emptyRowClass} pl-2`}
     >
-      <EmptyRowLabel />
-      <SettingsArrow onOpenSettings={onOpenSettings} />
-    </DropdownMenuItem>
-  )
-}
-
-function SortableEmptyRow({
-  id,
-  index,
-  onMove,
-  onOpenSettings,
-}: {
-  id: string
-  index: number
-  onMove: (from: number, to: number) => void
-  onOpenSettings: () => void
-}) {
-  const reducedMotion = useReducedMotion()
-  const { ref, handleRef, isDragging } = useSortable({
-    id,
-    index,
-    transition: reducedMotion ? null : { duration: 150, easing: 'ease-out' },
-  })
-  return (
-    <DropdownMenuItem
-      ref={ref}
-      onClick={onOpenSettings}
-      aria-label={`Add configuration to slot ${index + 1}`}
-      title='Drag to reorder · Option+Shift+↑/↓'
-      aria-keyshortcuts='Alt+Shift+ArrowUp Alt+Shift+ArrowDown'
-      onKeyDown={moveOnKeys(index, onMove)}
-      className={`${emptyRowClass} gap-0 pl-1.5`}
-    >
-      <DragHandle handleRef={handleRef} isDragging={isDragging} />
       <EmptyRowLabel />
       <SettingsArrow onOpenSettings={onOpenSettings} />
     </DropdownMenuItem>
@@ -419,30 +387,14 @@ export function ComposerLoadout({
             >
               {loadouts.map((slot, index) => {
                 const loadout = slotLoadout(slot)
-                if (equipped.length === 0)
-                  return (
-                    <EmptyLoadoutRow
-                      key={slot.id}
-                      slot={index + 1}
-                      onOpenSettings={onOpenSettings}
-                    />
-                  )
-                if (!loadout)
-                  return (
-                    <SortableEmptyRow
-                      key={slot.id}
-                      id={slot.id}
-                      index={index}
-                      onMove={reorder}
-                      onOpenSettings={onOpenSettings}
-                    />
-                  )
+                if (!loadout) return null
                 const slotModel = findModel(allModels, loadout)
                 return (
                   <SortableLoadoutItem
                     key={slot.id}
                     id={slot.id}
                     index={index}
+                    draggable={equipped.length > 1}
                     name={slotModel ? modelLabelText(slotModel) : loadout.model}
                     details={describeLoadout(loadout)}
                     provider={loadout.provider}
@@ -470,6 +422,12 @@ export function ComposerLoadout({
               })}
             </DropdownMenuRadioGroup>
           </DragDropProvider>
+          {loadouts.some((slot) => !slotLoadout(slot)) && (
+            <EmptyLoadoutRow
+              slot={loadouts.findIndex((slot) => !slotLoadout(slot)) + 1}
+              onOpenSettings={onOpenSettings}
+            />
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <ModelMenuItems

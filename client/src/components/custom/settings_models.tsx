@@ -319,7 +319,12 @@ function AvailableModels() {
   const [enabledProviders] = useProviderEnabled()
   const discovery = useChrome()?.modelDiscovery
   return (
-    <div className={cn(cardClass, 'flex gap-6 px-4 pt-3.5 pb-2.5')}>
+    <div
+      className={cn(
+        cardClass,
+        'grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-x-8 gap-y-5 p-4'
+      )}
+    >
       {providers.map((provider) => {
         const models = catalog.filter((model) => model.provider === provider.id)
         const on = enabledProviders[provider.id]
@@ -328,7 +333,7 @@ function AvailableModels() {
             key={provider.id}
             role='group'
             aria-label={`${provider.name} models`}
-            className='flex min-w-0 grow basis-0 flex-col'
+            className='flex min-w-0 flex-col'
           >
             <h3 className='flex h-6 items-center gap-1.5 text-xs font-medium text-muted-foreground [&>.provider-icon]:size-3'>
               <ProviderGlyph provider={provider.id} />
