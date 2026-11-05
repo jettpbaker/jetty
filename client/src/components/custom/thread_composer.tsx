@@ -567,11 +567,13 @@ export function ThreadComposer({
                 ? 'Queue another message'
                 : meta?.status === 'error'
                   ? 'Tell the agent what to try instead'
-                  : running
-                    ? 'Queue a follow-up while the agent works'
-                    : ambient
-                      ? 'Describe a task or ask a question · / for commands'
-                      : 'Ask for follow-up changes · / for commands',
+                  : item?.kind === 'question'
+                    ? 'Add context while you answer above'
+                    : running
+                      ? 'Queue a follow-up while the agent works'
+                      : ambient
+                        ? 'Describe a task or ask a question · / for commands'
+                        : 'Ask for follow-up changes · / for commands',
           sendLabel: editingEntry
             ? 'Save'
             : running
@@ -725,6 +727,11 @@ export function ThreadComposer({
             className='mx-1 mt-1 self-stretch rounded-[calc(var(--radius-md)-4px)]'
           />
         ))}
+        inputNotice={
+          item?.kind === 'question'
+            ? 'Question pending · follow-ups wait for your answer'
+            : undefined
+        }
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
         sendDisabled={!!unavailable || mode.sendDisabled}

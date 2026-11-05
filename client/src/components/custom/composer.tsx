@@ -49,6 +49,7 @@ export function Composer({
   strip,
   requestId,
   reply,
+  inputNotice,
   placeholder = 'Describe a task or ask a question · / for commands',
   sendLabel = 'Send',
   sendDisabled,
@@ -83,6 +84,7 @@ export function Composer({
   requestId?: string
   // The quote the message carries, at the top of the field.
   reply?: ReactNode
+  inputNotice?: string
   placeholder?: string
   sendLabel?: string
   // defaults to disabled while empty
@@ -217,6 +219,9 @@ export function Composer({
                 ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
               )}
             >
+              {inputNotice && (
+                <p className='w-full px-2.5 pt-2 text-xs text-muted-foreground'>{inputNotice}</p>
+              )}
               {reply}
               <ComposerAttachments items={attachments.items} onRemove={attachments.remove} />
               <div

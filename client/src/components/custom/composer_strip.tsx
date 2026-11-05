@@ -460,7 +460,6 @@ export function ApprovalStrip({
       {header}
       {!hideSource && <RequestSource source={item.source} />}
       <div className='flex min-w-0 items-center gap-2'>
-        <Attention />
         {ctl.confirming ? (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
             <span className='shrink-0 text-muted-foreground'>Always allow</span>
@@ -731,9 +730,6 @@ export function QuestionStrip({
       <div
         className={cn('flex min-w-0 gap-3 pb-1', spec.multiSelect ? 'items-start' : 'items-center')}
       >
-        <span className='flex h-5 shrink-0 items-center'>
-          <Attention />
-        </span>
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
           <p className='text-sm leading-5 font-medium whitespace-pre-line'>{spec.question}</p>
           {spec.multiSelect && (
