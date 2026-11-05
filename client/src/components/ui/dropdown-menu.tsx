@@ -19,14 +19,19 @@ function DropdownMenuContent({
   align = 'start',
   alignOffset = 0,
   side = 'bottom',
-  sideOffset = 4,
+  sideOffset = 8,
+  anchor,
   className,
   ...props
 }: MenuPrimitive.Popup.Props &
-  Pick<MenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+  Pick<
+    MenuPrimitive.Positioner.Props,
+    'align' | 'alignOffset' | 'side' | 'sideOffset' | 'anchor'
+  >) {
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
+        anchor={anchor}
         className='isolate z-50 outline-none'
         align={align}
         alignOffset={alignOffset}
@@ -36,7 +41,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot='dropdown-menu-content'
           className={cn(
-            'z-50 max-h-(--available-height) w-max min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-sm bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-border outline-none data-[side=bottom]:slide-in-from-top-1 data-[side=inline-end]:slide-in-from-left-1 data-[side=inline-start]:slide-in-from-right-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-(--motion-popup-enter) motion-reduce:animate-none data-open:fade-in-60 data-closed:animate-none data-closed:overflow-hidden',
+            'z-50 max-h-(--available-height) w-max min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-sm bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-[color-mix(in_oklch,var(--border),var(--foreground)_12%)] outline-none data-[side=bottom]:slide-in-from-top-1 data-[side=inline-end]:slide-in-from-left-1 data-[side=inline-start]:slide-in-from-right-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-(--motion-popup-enter) motion-reduce:data-open:animate-none data-open:fade-in-60 data-closed:animate-none data-closed:overflow-hidden',
             className
           )}
           {...props}
@@ -161,7 +166,7 @@ function DropdownMenuSubContent({
     <DropdownMenuContent
       data-slot='dropdown-menu-sub-content'
       className={cn(
-        'w-auto min-w-[96px] rounded-sm bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-border data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-(--motion-popup-enter) motion-reduce:animate-none data-open:fade-in-60 data-closed:animate-none',
+        'w-auto min-w-[96px] rounded-sm bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-[color-mix(in_oklch,var(--border),var(--foreground)_12%)] data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-(--motion-popup-enter) motion-reduce:data-open:animate-none data-open:fade-in-60 data-closed:animate-none',
         className
       )}
       align={align}

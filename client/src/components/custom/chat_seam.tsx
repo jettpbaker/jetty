@@ -3,13 +3,13 @@ import type { ComponentProps, ComponentType, ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-// A centred line in the transcript that carries a short state between messages: queued, paused,
+// An activity line in the transcript that carries a short state between messages: queued, paused,
 // compacted, a report arriving. The content stays one line.
 export function ChatSeam({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        'flex min-h-6 min-w-0 items-center justify-center text-sm text-muted-foreground',
+        'flex min-h-6 min-w-0 items-center justify-start text-sm text-muted-foreground',
         className
       )}
     >

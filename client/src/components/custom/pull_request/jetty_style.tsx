@@ -25,7 +25,7 @@ import { markdownText } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { ReviewerPicker } from '@/components/custom/reviewer_picker'
 import { prPresentation } from '@/components/custom/thread_pull_request'
-import { quietStatus, StatusGlyph, threadStatus } from '@/components/custom/thread_status'
+import { StatusGlyph, threadStatus } from '@/components/custom/thread_status'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -71,11 +71,11 @@ import {
   isValidElement,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   useLayoutEffect,
-  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from 'react'
@@ -106,11 +106,15 @@ import {
   useDiffWrap,
 } from '../diff/toolbar'
 import { primeDiffHighlights } from '../diff_worker_pool'
+import { DisabledTooltip } from '../disabled_tooltip'
 import { parseFileChanges } from '../file_diff_model'
 import { keyTarget } from '../keybinds'
 import { githubUser, prFile } from './adapter'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
 import { GuideWide } from './guide_wide'
+import { PullRequestHeader } from './header'
+import '@/components/custom/charmed_icons.css'
+
 import {
   checkCounts,
   countLabel,
@@ -129,8 +133,6 @@ import {
   repoPath,
   visibleLines,
 } from './model'
-import '@/components/custom/charmed_icons.css'
-
 import {
   usePrRuntime,
   PrDiffLoaderContext,
@@ -165,15 +167,18 @@ function Action({
   className?: string
 }) {
   return (
-    <Button
-      disabled
-      variant='ghost-text'
-      size='sm'
-      className={cn('h-7 px-0 font-normal', className)}
-      aria-label={label}
-    >
-      {children}
-    </Button>
+    <DisabledTooltip reason='Coming soon' wrap='inline-flex'>
+      <Button
+        disabled
+        variant='ghost-text'
+        size='sm'
+        className={cn('h-7 px-0 font-normal disabled:text-muted-foreground', className)}
+        aria-label={label}
+        aria-description='Coming soon'
+      >
+        {children}
+      </Button>
+    </DisabledTooltip>
   )
 }
 function Composer({
@@ -285,7 +290,7 @@ function VerdictGlyph({ state, className }: { state: string; className: string }
 }
 function ReviewTag({ state }: { state: string }) {
   return (
-    <span className='inline-flex items-center gap-1 rounded-sm bg-accent px-2 py-0.5 text-muted-foreground'>
+    <span className='inline-flex items-center gap-1 text-muted-foreground'>
       <VerdictGlyph state={state} className='size-3' />
       {reviewWords[state] ?? 'Reviewed'}
     </span>
@@ -461,18 +466,18 @@ function ChecksSummary({ pr }: { pr: PrPull }) {
   const summary = c.failed
     ? {
         tone: 'text-status-error',
-        glyph: <CircleXIcon filled className='size-3.5' />,
-        text: `${c.failed} failing`,
+        glyph: <CircleXIcon filled className='size-4' />,
+        text: `${countLabel(c.failed, 'check')} failing`,
       }
     : c.running
       ? {
           tone: 'text-status-working',
-          glyph: <Progress50Icon className='size-3.5' />,
-          text: `${c.running} running`,
+          glyph: <Progress50Icon className='size-4' />,
+          text: `${countLabel(c.running, 'check')} running`,
         }
       : {
           tone: 'text-status-success',
-          glyph: <CentralCircleCheckIcon filled className='size-3.5' />,
+          glyph: <CentralCircleCheckIcon filled className='size-4' />,
           text: 'All checks passed',
         }
   return (
@@ -498,6 +503,7 @@ function checkTone(check: PrCheck) {
 
 // The checks list, in the app's search-picker style (as the reviewer and branch pickers).
 function ChecksPill({ pr }: { pr: PrPull }) {
+  const [open, setOpen] = useState(false)
   const [showSkipped, setShowSkipped] = useState(false)
   const [query, setQuery] = useState('')
   const search = query.trim().toLowerCase()
@@ -523,10 +529,11 @@ function ChecksPill({ pr }: { pr: PrPull }) {
       <CommandItem
         key={check.id}
         value={`check:${check.id}`}
+        className='h-auto items-start py-2'
         onSelect={() => window.open(check.url, '_blank', 'noopener')}
       >
-        <span className={cn('shrink-0', tone)}>{glyph}</span>
-        <span className='min-w-0 truncate'>
+        <span className={cn('flex h-5 shrink-0 items-center', tone)}>{glyph}</span>
+        <span className='min-w-0 flex-1 whitespace-normal wrap-anywhere'>
           {check.kind === 'run' && (
             <span className='text-muted-foreground'>{check.workflow ?? check.app} / </span>
           )}
@@ -550,24 +557,29 @@ function ChecksPill({ pr }: { pr: PrPull }) {
     )
   }
   return (
-    <Popover
+    <Collapsible
+      open={open}
       onOpenChange={(open) => {
+        setOpen(open)
         if (!open) return
         setQuery('')
         setShowSkipped(false)
       }}
     >
-      <PopoverTrigger
-        render={<Button variant='ghost' size='sm' className='rounded-sm px-0.75 font-normal' />}
+      <CollapsibleTrigger
+        aria-label={open ? 'Hide checks' : 'Show checks'}
+        render={
+          <Button
+            variant='ghost'
+            size='sm'
+            className='-ml-0.75 max-w-full self-start rounded-sm px-0.75 font-normal'
+          />
+        }
       >
         <ChecksSummary pr={pr} />
-      </PopoverTrigger>
-      <PopoverContent
-        align='start'
-        side='bottom'
-        className='search-picker w-[440px] max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-sm p-0 ring-border data-open:fade-in-60 data-closed:animate-none'
-      >
-        <PopoverTitle className='sr-only'>Checks</PopoverTitle>
+        <ChevronDownSmallIcon className={cn('shrink-0', open && 'rotate-180')} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className='search-picker mt-2 overflow-hidden rounded-sm border border-border [&_[data-slot=command-item]]:h-auto [&_[data-slot=command-item]]:py-2'>
         <Command label='Search checks' shouldFilter={false}>
           <CommandInput
             placeholder='Search checks'
@@ -631,8 +643,8 @@ function ChecksPill({ pr }: { pr: PrPull }) {
             </div>
           </CommandList>
         </Command>
-      </PopoverContent>
-    </Popover>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 const StatusChange = createContext<(state: PrPull['state']) => void>(() => {})
@@ -640,12 +652,7 @@ const statusOptions = ['open', 'draft', 'closed'] as const
 
 function StatusMenu({ pr }: { pr: PrPull }) {
   const change = useContext(StatusChange)
-  if (pr.state === 'merged')
-    return (
-      <div className='flex h-7 items-center px-1'>
-        <PropertyStatus pr={pr} />
-      </div>
-    )
+  if (pr.state === 'merged') return <StatusPill pr={pr} />
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -653,13 +660,13 @@ function StatusMenu({ pr }: { pr: PrPull }) {
           <Button
             variant='ghost'
             size='sm'
-            className='h-7 rounded-sm px-0.75 font-normal'
+            className='h-auto rounded-full p-0'
             disabled={!editable(pr)}
             aria-label={`Status: ${prPresentation[pr.state].label}`}
           />
         }
       >
-        <PropertyStatus pr={pr} />
+        <StatusPill pr={pr} editable={editable(pr)} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' className='w-44'>
         <DropdownMenuRadioGroup
@@ -681,18 +688,18 @@ function StatusMenu({ pr }: { pr: PrPull }) {
   )
 }
 
-// GitHub's state pill, leading the byline. It only shows the state; the Status row changes it. When
-// a merge lands, its colour crossfades from green to purple.
-// The status pill on its own line above the title, beside the repo and number.
-function StatusPill({ pr }: { pr: PrPull }) {
-  const { icon: Icon, label } = prPresentation[pr.state]
+function StatusPill({ pr, editable = false }: { pr: PrPull; editable?: boolean }) {
+  const { icon: Icon, label, color } = prPresentation[pr.state]
   return (
     <span
-      style={{ '--pill': `var(--pr-${pr.state})` } as CSSProperties}
-      className='inline-flex h-7 items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--pill)_16%,transparent)] px-2.5 text-sm font-medium text-[oklch(from_var(--pill)_min(l,0.5)_c_h)] transition-[background-color,color] duration-300 dark:text-[color-mix(in_oklch,var(--pill)_70%,white)]'
+      className={cn(
+        'inline-flex h-7 items-center gap-1.5 rounded-full bg-foreground/6 px-2.5 text-sm font-medium',
+        color
+      )}
     >
       <Icon className='size-3.5' />
-      {label}
+      <span className='text-foreground'>{label}</span>
+      {editable && <ChevronDownSmallIcon className='size-3.5' />}
     </span>
   )
 }
@@ -722,13 +729,16 @@ function issueLabel(pr: PrPull, issue: PrIssue) {
 function Issues({ pr }: { pr: PrPull }) {
   const issues = pr.issues ?? []
   const first = issues[0]
+  if (!first && (pr.state === 'merged' || pr.state === 'closed'))
+    return <span className='inline-flex min-h-7 items-center px-0.75 text-xs'>None</span>
   if (!first)
     return (
-      <div className='px-0.75'>
+      <div className='flex flex-wrap items-center gap-x-2 gap-y-1 px-0.75'>
         <Action className='gap-2'>
           <PlusMediumIcon className='size-4' />
           Link issue
         </Action>
+        <span className='text-xs text-muted-foreground'>Coming soon</span>
       </div>
     )
   return (
@@ -779,10 +789,11 @@ function Issues({ pr }: { pr: PrPull }) {
 
 // Rows run in this order: where it stands, what gates the merge, then context. The branch is in the
 // byline above.
-const propertyRows = ['Status', 'Checks', 'Reviewers', 'Issues']
+const propertyRows = ['Reviewers', 'Issues']
 function Properties({ pr }: { pr: PrPull }) {
   const { ref, threads } = usePrRuntime()
   const setReviewRequest = useSetReviewRequest()
+  const terminal = pr.state === 'merged' || pr.state === 'closed'
   const picker = (
     <ReviewerPicker
       repo={ref.repo}
@@ -800,8 +811,25 @@ function Properties({ pr }: { pr: PrPull }) {
     />
   )
   const values: Record<string, ReactNode> = {
-    Status: <StatusMenu pr={pr} />,
-    Reviewers: pr.reviewers.length ? (
+    Reviewers: terminal ? (
+      <div className='flex min-h-7 flex-col justify-center gap-2 px-0.75 text-xs'>
+        {pr.reviewers.length
+          ? pr.reviewers.map(({ user, state }) => (
+              <span key={user.login} className='flex items-center gap-2'>
+                <PersonAvatar
+                  login={user.login}
+                  src={user.avatarUrl || undefined}
+                  className='size-4'
+                />
+                <span>{personName(user)}</span>
+                {capyWords[state] && (
+                  <span className='text-muted-foreground'>{capyWords[state]}</span>
+                )}
+              </span>
+            ))
+          : 'None'}
+      </div>
+    ) : pr.reviewers.length ? (
       <ReviewerList people={pr.reviewers}>{picker}</ReviewerList>
     ) : (
       <div className='px-0.75'>
@@ -816,29 +844,21 @@ function Properties({ pr }: { pr: PrPull }) {
       </div>
     ),
     Thread: (
-      <div className='flex flex-wrap items-center gap-x-2'>
+      <div className='flex min-w-0 flex-wrap items-center gap-x-2'>
         {threads.map((thread) => (
           <Button
             key={thread.id}
             variant='ghost'
             size='sm'
-            className='h-7 max-w-full gap-2 rounded-sm px-0.75 font-normal'
+            className='h-auto min-h-7 min-w-0 max-w-full shrink items-start gap-2 rounded-sm px-0.75 py-1 text-left font-normal whitespace-normal'
             nativeButton={false}
             render={<Link to='/threads/$threadId' params={{ threadId: thread.id }} />}
           >
             <StatusGlyph
               status={threadStatus(thread.status, thread.readyForReview)}
-              className='size-4'
+              className='mt-0.5 size-4 shrink-0'
             />
-            <span
-              className={cn(
-                'truncate',
-                quietStatus(threadStatus(thread.status, thread.readyForReview)) &&
-                  'text-muted-foreground'
-              )}
-            >
-              {thread.title}
-            </span>
+            <span className='line-clamp-2 text-foreground'>{thread.title}</span>
           </Button>
         ))}
       </div>
@@ -847,15 +867,17 @@ function Properties({ pr }: { pr: PrPull }) {
     Issues: <Issues pr={pr} />,
   }
   return (
-    <div className='space-y-1'>
+    <dl className='flex w-full flex-col gap-2'>
       {[...propertyRows, ...(threads.length ? ['Thread'] : [])].map((label) => (
-        <div key={label} className='grid min-h-7 grid-cols-[92px_minmax(0,1fr)] items-start gap-2'>
-          {/* Top-aligned for values that run several lines; the padding centres it on the first. */}
-          <div className='py-1.5 text-xs text-muted-foreground'>{label}</div>
-          <div className='min-w-0 text-sm'>{values[label]}</div>
+        <div
+          key={label}
+          className='grid min-h-8 min-w-0 grid-cols-[72px_minmax(0,1fr)] items-start gap-3'
+        >
+          <dt className='pt-1.5 text-xs text-muted-foreground'>{label}</dt>
+          <dd className='min-w-0 text-13'>{values[label]}</dd>
         </div>
       ))}
-    </div>
+    </dl>
   )
 }
 
@@ -965,16 +987,6 @@ const statusEventCopy: Record<PrStatusEvent['kind'], { state: PrPull['state']; t
 
 // Property rows share one 16px glyph slot, an 8px gap (the reviewers row needs it for the verdict
 // badge on the avatar's corner) and a 4px inset; a Button's 1px border counts towards that inset.
-function PropertyStatus({ pr }: { pr: PrPull }) {
-  const { icon: Icon, color, label } = prPresentation[pr.state]
-  return (
-    <span className='inline-flex items-center gap-2 text-xs'>
-      <Icon className={cn('size-4 shrink-0', color)} />
-      {label}
-    </span>
-  )
-}
-
 function StateGlyph({ state }: { state: PrPull['state'] }) {
   const { icon: Icon, color } = prPresentation[state]
   return <Icon className={`size-3.5 shrink-0 ${color}`} />
@@ -1004,7 +1016,7 @@ function Activity({ pr }: { pr: PrPull }) {
       key: `comment-${comment.id}`,
       at: comment.createdAt,
       content: (
-        <div className={cn('group/comment rounded-md border-[0.5px] border-border px-3', raised)}>
+        <div className='group/comment border-t border-border px-0 py-1'>
           <Comment comment={comment} menu={quoteReply(comment.body)} />
         </div>
       ),
@@ -1027,13 +1039,8 @@ function Activity({ pr }: { pr: PrPull }) {
             </span>
           </div>
         ) : (
-          <div
-            className={cn(
-              'group/comment overflow-hidden rounded-md border-[0.5px] border-border',
-              raised
-            )}
-          >
-            <div className='space-y-3 p-3'>
+          <div className='group/comment overflow-hidden border-t border-border'>
+            <div className='flex flex-col gap-3 py-3'>
               <div className='flex items-center gap-2 text-xs'>
                 <PersonAvatar
                   login={review.author.login}
@@ -1041,7 +1048,7 @@ function Activity({ pr }: { pr: PrPull }) {
                   className='size-5'
                 />
                 <span>{personName(review.author)}</span>
-                <Ago at={review.submittedAt} raised />
+                <Ago at={review.submittedAt} />
                 <ReviewTag state={review.state} />
                 {review.body.trim() && <span className='ml-auto'>{quoteReply(review.body)}</span>}
               </div>
@@ -1073,7 +1080,7 @@ function Activity({ pr }: { pr: PrPull }) {
     <QuoteContext
       value={(body) => setQuote((last) => ({ markdown: quoted(body), id: (last?.id ?? 0) + 1 }))}
     >
-      <div className='flex flex-1 flex-col space-y-4'>
+      <div className='flex flex-1 flex-col gap-4'>
         <CommitsLine
           icon={<StateGlyph state={pr.openedAsDraft ? 'draft' : 'open'} />}
           text={`Opened ${pr.openedAsDraft ? 'as draft ' : ''}by ${personName(pr.author)}${initial.length ? ' with' : ''}`}
@@ -1097,11 +1104,35 @@ function Activity({ pr }: { pr: PrPull }) {
   )
 }
 function ActivityThreads({ threads, author }: { threads: PrThread[]; author?: PrUser }) {
+  const open = threads
+    .filter((thread) => !thread.resolved)
+    .toSorted((a, b) => a.path.localeCompare(b.path))
+  const resolved = threads
+    .filter((thread) => thread.resolved)
+    .toSorted((a, b) => a.path.localeCompare(b.path))
   return (
     <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
-      {threads.map((thread) => (
+      {open.map((thread) => (
         <ActivityThread key={thread.id} thread={thread} author={author} />
       ))}
+      {resolved.length > 0 && (
+        <Collapsible>
+          <CollapsibleTrigger
+            render={<Button variant='ghost-text' size='sm' />}
+            className='group/resolved h-8 w-full justify-start rounded-none px-3 text-xs font-normal'
+          >
+            <ChevronRightSmallIcon className='group-aria-expanded/resolved:rotate-90' />
+            {countLabel(resolved.length, 'resolved discussion')}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className='divide-y-[0.5px] divide-border border-t-[0.5px] border-border'>
+              {resolved.map((thread) => (
+                <ActivityThread key={thread.id} thread={thread} author={author} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   )
 }
@@ -1138,22 +1169,18 @@ function ActivityThread({ thread, author }: { thread: PrThread; author?: PrUser 
           </span>
           {thread.outdated && <span className='shrink-0 text-muted-foreground'>Outdated</span>}
           {thread.resolved ? (
-            <CentralCircleCheckIcon
-              filled
-              className='size-3.5 shrink-0 text-status-success'
-              aria-label='Resolved'
-            />
+            <span className='shrink-0 text-muted-foreground'>Resolved</span>
           ) : (
             <span className='inline-flex shrink-0 items-center gap-1 text-foreground'>Open</span>
           )}
         </span>
         {!expanded && (
-          <span className='flex w-full items-center gap-2 pl-5 text-xs text-muted-foreground'>
-            <span className='min-w-0 flex-1 truncate'>
+          <span className='flex w-full items-center gap-2 pl-5 text-13 leading-5 text-foreground'>
+            <span className='line-clamp-2 min-w-0 flex-1 whitespace-normal'>
               {markdownText(thread.comments[0]?.body ?? '')}
             </span>
             <span
-              className='inline-flex shrink-0 items-center gap-1 font-mono'
+              className='inline-flex shrink-0 items-center gap-1 font-mono text-xs text-muted-foreground'
               aria-label={`${thread.comments.length} comments`}
             >
               <VerdictGlyph state='COMMENTED' className='size-3.5' />
@@ -1687,7 +1714,7 @@ function TitleEditor({
       contentEditable={disabled ? false : 'plaintext-only'}
       suppressContentEditableWarning
       spellCheck={false}
-      className='outline-none'
+      className='rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background'
       onKeyDown={(e) => {
         if (inComposition(e.nativeEvent)) return
         if (e.key === 'Enter') {
@@ -1735,9 +1762,6 @@ const mergeMethodOptions: { method: PrMergeMethod; label: string; description: s
     description: 'Rebases commits onto the base branch',
   },
 ]
-// Merging wears the open-PR green, as on GitHub; dark text, as on Jetty's lilac primary.
-const mergeTone = 'bg-pr-open not-disabled:hover:bg-pr-open/80 aria-expanded:bg-pr-open/80'
-
 // GitHub's split merge button: it merges by the picked method, and its caret, there when the repo
 // allows more than one, picks another. A blocked merge dims both halves, but the caret still picks.
 const mergeMethods = ['MERGE', 'SQUASH', 'REBASE'] as const
@@ -1752,15 +1776,7 @@ function isMergeMethodMap(value: unknown): value is Record<string, PrMergeMethod
   return true
 }
 
-function MergeButton({
-  pr,
-  reason,
-  onMerge,
-}: {
-  pr: PrPull
-  reason: string
-  onMerge: (method: PrMergeMethod) => Promise<boolean>
-}) {
+function useMergeAction(pr: PrPull, onMerge: (method: PrMergeMethod) => Promise<boolean>) {
   const options = mergeMethodOptions.filter((option) => pr.mergeMethods.includes(option.method))
   const repo = repoPath(pr)
   // GitHub's viewer default only moves after a merge on github.com. A merge from Jetty is
@@ -1781,12 +1797,9 @@ function MergeButton({
   const current =
     options.find((option) => option.method === method) ?? options[0] ?? mergeMethodOptions[0]!
   const split = options.length > 1
-  const edge = split && 'rounded-r-none'
   const runningCount = checkCounts(pr).running
   // Quiet while GitHub still allows the merge and some checks are in progress.
-  const pending = !reason && runningCount > 0
-  const variant = pending ? 'outline' : 'default'
-  const tone = pending ? '' : mergeTone
+  const pending = runningCount > 0
   function runMerge(chosen: PrMergeMethod) {
     if (merging) return
     setMerging(true)
@@ -1796,11 +1809,39 @@ function MergeButton({
       })
       .finally(() => setMerging(false))
   }
+  return {
+    options,
+    lastUsed,
+    current,
+    split,
+    pending,
+    runningCount,
+    setPicked,
+    merging,
+    runMerge,
+  }
+}
+
+function MergeButton({
+  reason,
+  action,
+  compact = false,
+}: {
+  reason: string
+  action: ReturnType<typeof useMergeAction>
+  compact?: boolean
+}) {
+  const { options, lastUsed, current, split, pending, runningCount, setPicked, merging, runMerge } =
+    action
+  const edge = split && 'rounded-r-none'
+  const variant = compact || pending || reason ? 'outline' : 'default'
   const face = (
     <Button
       variant={variant}
       size='sm'
-      className={cn('rounded-sm', edge, tone, merging && 'pointer-events-none')}
+      className={cn('rounded-sm disabled:opacity-100', !compact && 'min-w-0 flex-1', edge)}
+      disabled={merging}
+      focusableWhenDisabled
       aria-busy={merging}
       onClick={() => runMerge(current.method)}
     >
@@ -1810,37 +1851,44 @@ function MergeButton({
         <span
           className={cn('col-start-1 row-start-1 flex items-center gap-1', merging && 'invisible')}
         >
-          {pending ? (
-            <Progress50Icon className='size-3.5 text-status-working' />
-          ) : (
-            <MergedIcon className='size-3.5' />
-          )}
+          {pending ? <Progress50Icon className='text-status-working' /> : <MergedIcon />}
           {current.label}
         </span>
         <span
           className={cn('col-start-1 row-start-1 flex items-center gap-1', !merging && 'invisible')}
         >
-          {merging ? <Spinner className='size-3.5' /> : <span className='size-3.5' />}
+          {merging ? <Spinner /> : <span className='size-4' />}
           Merging
         </span>
       </span>
     </Button>
   )
   const primary = reason ? (
-    <Hint text={reason}>
-      <Button disabled size='sm' className={cn('rounded-sm', edge, mergeTone)}>
-        <MergedIcon className='size-3.5' />
+    <DisabledTooltip reason={reason} wrap={compact ? 'inline-flex' : 'flex min-w-0 flex-1'}>
+      <Button
+        disabled
+        variant='outline'
+        size='sm'
+        aria-description={reason}
+        className={cn('rounded-sm', !compact && 'min-w-0 flex-1', edge)}
+      >
+        <MergedIcon />
         {current.label}
       </Button>
-    </Hint>
+    </DisabledTooltip>
   ) : pending ? (
-    <Hint text={`${countLabel(runningCount, 'check')} still running`}>{face}</Hint>
+    <Hint
+      text={`${countLabel(runningCount, 'check')} still running`}
+      className={compact ? 'inline-flex min-w-0' : 'flex min-w-0 flex-1'}
+    >
+      {face}
+    </Hint>
   ) : (
     face
   )
   if (!split) return primary
   return (
-    <div className='flex'>
+    <div className={cn('flex', !compact && 'w-full')}>
       {primary}
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -1848,14 +1896,11 @@ function MergeButton({
             <Button
               variant={variant}
               size='icon-sm'
-              className={cn(
-                'rounded-sm rounded-l-none border-l-0',
-                tone,
-                reason && 'opacity-50',
-                merging && 'pointer-events-none'
-              )}
+              className='rounded-sm rounded-l-none border-l-0'
+              focusableWhenDisabled
             />
           }
+          disabled={merging}
           aria-label='Select merge method'
         >
           <ChevronDownSmallIcon />
@@ -1889,6 +1934,127 @@ function MergeButton({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  )
+}
+
+function ReadyForReview({
+  pr,
+  onReady,
+  compact = false,
+}: {
+  pr: PrPull
+  onReady: () => void
+  compact?: boolean
+}) {
+  const reason = !editable(pr)
+    ? `Only ${personName(pr.author)} can mark this pull request ready`
+    : undefined
+  return (
+    <DisabledTooltip reason={reason} wrap='inline-flex self-start'>
+      <Button
+        variant={compact ? 'outline' : 'default'}
+        size='sm'
+        disabled={!!reason}
+        onClick={onReady}
+      >
+        Ready for review
+      </Button>
+    </DisabledTooltip>
+  )
+}
+
+function MergeDecision({
+  pr,
+  reason,
+  onShowDiff,
+  onShowActivity,
+  action,
+}: {
+  pr: PrPull
+  reason: string
+  onShowDiff: () => void
+  onShowActivity: () => void
+  action: ReactNode
+}) {
+  const { threads } = usePrRuntime()
+  const conflict = reason === 'Resolve merge conflicts first'
+  const discussions = pr.threads.filter((thread) => !thread.resolved).length
+  const review = pr.data.reviewDecision
+  const reviewed = pr.reviewers.some((reviewer) => reviewer.state === 'APPROVED')
+  return (
+    <section
+      aria-label='Merge status'
+      className='flex flex-col gap-3 rounded-md border border-border bg-card p-3'
+    >
+      <div className='flex flex-col gap-1 text-13'>
+        {(pr.state === 'merged' || pr.state === 'closed') && (
+          <p className='flex items-center gap-2 py-1'>
+            <StateGlyph state={pr.state} />
+            <span>
+              {pr.state === 'merged' ? 'Merged' : 'Closed'}
+              {pr.mergedAt && (
+                <>
+                  {' '}
+                  by {personName(pr.mergedBy ?? pr.author)} <Ago at={pr.mergedAt} />
+                </>
+              )}
+            </span>
+          </p>
+        )}
+        {conflict && (
+          <p className='flex items-center gap-2 py-1'>
+            <CircleXIcon filled className='size-4 shrink-0 text-destructive' />
+            <span>
+              Conflicts with <span className='font-mono'>{pr.base}</span>
+            </span>
+          </p>
+        )}
+        <ChecksPill pr={pr} />
+        <Button
+          variant='ghost-text'
+          size='sm'
+          className='h-auto justify-start px-0 py-1 text-xs font-normal'
+          onClick={onShowActivity}
+        >
+          {review === 'CHANGES_REQUESTED'
+            ? 'Changes requested'
+            : review === 'REVIEW_REQUIRED'
+              ? 'Awaiting review'
+              : review === 'APPROVED' || reviewed
+                ? 'Approved'
+                : pr.reviews.length
+                  ? 'Reviewed'
+                  : 'No reviews yet'}
+          <span className='text-muted-foreground'>
+            · {countLabel(discussions, 'open discussion')}
+          </span>
+        </Button>
+      </div>
+      {pr.state === 'draft' ? (
+        <p className='text-xs text-muted-foreground'>Mark this draft ready to request a review.</p>
+      ) : pr.state === 'open' ? (
+        <>
+          {reason && !conflict && <p className='text-xs text-muted-foreground'>{reason}</p>}
+          {reason && (
+            <div className='flex flex-wrap items-center gap-2'>
+              {threads[0] && (
+                <Button
+                  size='sm'
+                  nativeButton={false}
+                  render={<Link to='/threads/$threadId' params={{ threadId: threads[0].id }} />}
+                >
+                  {conflict ? 'Open thread to resolve' : 'Open linked thread'}
+                </Button>
+              )}
+              <Button variant='ghost-text' size='sm' onClick={onShowDiff}>
+                View diff
+              </Button>
+            </div>
+          )}
+        </>
+      ) : null}
+      {action && <div className='flex border-t border-border pt-3'>{action}</div>}
+    </section>
   )
 }
 
@@ -1954,6 +2120,7 @@ function GuidePane({
 export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const pr = original
   const { actions, ref, status, more, sidebar } = usePrRuntime()
+  const mergeAction = useMergeAction(pr, (method) => actions.merge(method, pr.data.pull.head.sha))
   useNow(60_000)
   const setState = (state: PrPull['state']) => {
     if (state !== 'merged') void actions.state(state)
@@ -1991,7 +2158,21 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     isBoolean
   )
   const view = useRef<HTMLDivElement>(null)
-  const [wrap, setWrapChoice] = useDiffWrap(view)
+  const overviewScrollerRef = useRef<HTMLDivElement>(null)
+  const mergeDecisionRef = useRef<HTMLDivElement>(null)
+  const [mergeDecisionVisible, setMergeDecisionVisible] = useState(true)
+  useEffect(() => {
+    const decision = mergeDecisionRef.current
+    const root = overviewScrollerRef.current
+    if (!decision || !root) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setMergeDecisionVisible(entry?.isIntersecting ?? false),
+      { root }
+    )
+    observer.observe(decision)
+    return () => observer.disconnect()
+  }, [])
+  const [wrap, setWrapChoice] = useDiffWrap()
   const [hideViewed, setHideViewed] = useStoredState('jetty.diff.hideViewed', false, isBoolean)
   const viewed = useMemo(
     () => new Set(pr.files.filter((file) => file.viewed).map((file) => file.path)),
@@ -2113,6 +2294,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const inView = files.some((f) => f.path === scrolledTo) ? scrolledTo : (files[0]?.path ?? null)
   inViewRef.current = inView
   const reason = mergeReason(pr)
+  const activityId = useId()
   const [attachSlot, setAttachSlot] = useState<HTMLDivElement | null>(null)
   const byline = (pr.state === 'merged' && pr.mergedBy) || pr.author
   return (
@@ -2126,76 +2308,87 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                 data-perf-region='pr-panel'
                 className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
               >
-                <div className='flex shrink-0 items-center justify-between px-4 pt-3 pb-2'>
-                  {sidebar}
-                  <nav aria-label='Pull request view' className='flex gap-1'>
-                    {(
-                      [
-                        ['overview', 'Overview', 'Overview · 1'],
-                        ['diff', 'Diff', 'Diff · 2'],
-                        ['guide', 'Guide', guideReason ?? 'Guide · 3'],
-                      ] as const
-                    )
-                      .filter(([value]) => value !== 'guide' || guidesOn)
-                      .map(([value, label, hint]) => (
-                        <Hint key={value} text={hint}>
-                          <Button
-                            variant='ghost'
-                            tone='muted'
-                            size='sm'
-                            aria-pressed={tab === value}
-                            disabled={value === 'guide' && !!guideReason}
-                            aria-description={value === 'guide' ? guideReason : undefined}
-                            className='rounded-sm font-normal aria-pressed:bg-accent'
-                            {...pressProps(() => {
-                              if (value === 'diff') perf.start('pr.diff')
-                              setTab(value)
-                            })}
+                <PullRequestHeader
+                  repo={repoPath(pr)}
+                  number={pr.number}
+                  title={pr.title}
+                  sidebar={sidebar}
+                  navigation={
+                    <nav
+                      aria-label='Pull request view'
+                      className='flex min-h-(--app-tab-bar-height) items-center gap-1'
+                    >
+                      {(
+                        [
+                          ['overview', 'Overview', 'Overview · 1'],
+                          ['diff', 'Diff', 'Diff · 2'],
+                          ['guide', 'Guide', guideReason ?? 'Guide · 3'],
+                        ] as const
+                      )
+                        .filter(([value]) => value !== 'guide' || guidesOn)
+                        .map(([value, label, hint]) => (
+                          <DisabledTooltip
+                            key={value}
+                            reason={hint}
+                            wrap={value === 'guide' && guideReason ? 'inline-flex' : undefined}
                           >
-                            {label}
-                          </Button>
-                        </Hint>
-                      ))}
-                  </nav>
-                  <div className='ml-auto flex items-center gap-1'>
-                    {tab === 'guide' && guide.state?.guide && (
-                      <DiffDisplayOptions
-                        trigger={
-                          <Button
-                            variant='ghost'
-                            tone='muted'
-                            size='icon'
-                            aria-label='Diff display options'
-                          />
-                        }
-                        diffStyle={diffStyle}
-                        onDiffStyleChange={setDiffStyle}
-                        toggles={[
-                          ['Hide generated', hideGenerated, setHideGenerated],
-                          ['Wrap lines', wrap, setWrapChoice],
-                        ]}
-                      />
-                    )}
-                    {status}
-                    {pr.state === 'draft' ? (
-                      <Button
-                        size='sm'
-                        className='rounded-sm'
-                        disabled={!editable(pr)}
-                        onClick={() => setState('open')}
-                      >
-                        Ready for review
-                      </Button>
-                    ) : pr.state === 'open' ? (
-                      <MergeButton
-                        pr={pr}
-                        reason={reason}
-                        onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
-                      />
-                    ) : null}
-                    {more}
-                  </div>
-                </div>
+                            <Button
+                              variant='ghost'
+                              tone='muted'
+                              size='sm'
+                              aria-pressed={tab === value}
+                              disabled={value === 'guide' && !!guideReason}
+                              aria-description={value === 'guide' ? guideReason : undefined}
+                              className='rounded-sm font-normal aria-pressed:bg-accent'
+                              {...pressProps(() => {
+                                if (value === 'diff') perf.start('pr.diff')
+                                setTab(value)
+                              })}
+                            >
+                              {label}
+                            </Button>
+                          </DisabledTooltip>
+                        ))}
+                    </nav>
+                  }
+                  actions={
+                    <>
+                      {tab === 'guide' && guide.state?.guide && (
+                        <DiffDisplayOptions
+                          trigger={
+                            <Button
+                              variant='ghost'
+                              tone='muted'
+                              size='icon'
+                              aria-label='Diff display options'
+                            />
+                          }
+                          diffStyle={diffStyle}
+                          onDiffStyleChange={setDiffStyle}
+                          toggles={[
+                            ['Hide generated', hideGenerated, setHideGenerated],
+                            ['Wrap lines', wrap, setWrapChoice],
+                          ]}
+                        />
+                      )}
+                      {status}
+                      {tab === 'overview' &&
+                      mergeDecisionVisible &&
+                      (pr.state === 'draft' || pr.state === 'open') ? null : pr.state ===
+                        'draft' ? (
+                        <ReadyForReview pr={pr} onReady={() => setState('open')} compact />
+                      ) : pr.state === 'open' ? (
+                        <MergeButton reason={reason} action={mergeAction} compact />
+                      ) : tab !== 'overview' ? (
+                        <span className='inline-flex h-7 items-center gap-1.5 px-2 text-13 text-muted-foreground'>
+                          <StateGlyph state={pr.state} />
+                          {pr.state === 'merged' ? 'Merged' : 'Closed'}
+                        </span>
+                      ) : null}
+                      {more}
+                    </>
+                  }
+                />
                 {
                   <div
                     className={cn(
@@ -2203,12 +2396,15 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       tab !== 'overview' && 'hidden'
                     )}
                   >
-                    <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
+                    <div
+                      ref={overviewScrollerRef}
+                      className='scrollbar-subtle min-h-0 flex-1 overflow-auto'
+                    >
                       <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                        <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
-                          <div className='space-y-1'>
+                        <div className='mx-auto grid w-full max-w-[760px] flex-1 grid-cols-1 grid-rows-[auto_auto_auto_minmax(min-content,1fr)] items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1120px] @min-[1000px]:grid-cols-[minmax(0,1fr)_320px] @min-[1000px]:grid-rows-[auto_auto_minmax(min-content,1fr)]'>
+                          <div className='flex min-w-0 flex-col gap-2 @min-[1000px]:col-start-1'>
                             <div className='flex flex-wrap items-center gap-2.5'>
-                              <StatusPill pr={pr} />
+                              <StatusMenu pr={pr} />
                               <Hint text='Opens in GitHub'>
                                 <a
                                   href={pr.url}
@@ -2252,10 +2448,34 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               </span>
                             </div>
                           </div>
-                          <Properties pr={pr} />
+                          <aside
+                            aria-label='Pull request properties'
+                            className='flex min-w-0 flex-col gap-6 @min-[1000px]:sticky @min-[1000px]:top-7 @min-[1000px]:col-start-2 @min-[1000px]:row-start-1 @min-[1000px]:row-span-3'
+                          >
+                            <div ref={mergeDecisionRef}>
+                              <MergeDecision
+                                pr={pr}
+                                reason={reason}
+                                action={
+                                  pr.state === 'draft' ? (
+                                    <ReadyForReview pr={pr} onReady={() => setState('open')} />
+                                  ) : pr.state === 'open' ? (
+                                    <MergeButton reason={reason} action={mergeAction} />
+                                  ) : null
+                                }
+                                onShowDiff={() => setTab('diff')}
+                                onShowActivity={() =>
+                                  document
+                                    .getElementById(activityId)
+                                    ?.scrollIntoView({ block: 'start' })
+                                }
+                              />
+                            </div>
+                            <Properties pr={pr} />
+                          </aside>
                           <Section
                             title='Description'
-                            className='group/description'
+                            className='group/description min-w-0 @min-[1000px]:col-start-1'
                             action={<div ref={setAttachSlot} className='flex' />}
                           >
                             <DescriptionEditor
@@ -2271,7 +2491,11 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                               }}
                             />
                           </Section>
-                          <Section title='Activity' className='flex flex-1 flex-col'>
+                          <Section
+                            title='Activity'
+                            className='flex min-w-0 flex-1 flex-col self-stretch @min-[1000px]:col-start-1'
+                            id={activityId}
+                          >
                             <MemoizedActivity pr={pr} />
                           </Section>
                         </div>

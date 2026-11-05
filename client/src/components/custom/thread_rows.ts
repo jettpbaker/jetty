@@ -98,6 +98,7 @@ export type ThreadRow =
     }
   | { kind: 'compaction'; id: string; state: CompactionState; reason?: string }
   | { kind: 'secret'; id: string; item: SecretItem }
+  | { kind: 'request'; id: string }
   | { kind: 'pullRequest'; id: string; item: PullRequestItem }
   | { kind: 'pullRequestGroup'; id: string; items: PullRequestItem[] }
   | { kind: 'restart'; id: string }
@@ -476,6 +477,7 @@ type ThreadRowsOptions = {
   threadId?: string
   agentId?: string
   settingUp?: boolean
+  inlineRequests?: boolean
   bot?: BotRows
   botIds?: ReadonlySet<string>
   summary?: ThreadSummary
@@ -659,6 +661,7 @@ export function threadRows(
     threadId,
     agentId,
     settingUp = false,
+    inlineRequests = false,
     bot,
     botIds,
     summary,
@@ -946,12 +949,19 @@ export function threadRows(
   // A monitor's line follows the turn that started it. A background command has none: it's a step
   // in its turn's work, and the details pane lists it while it runs.
   const started: BackgroundItem[] = []
+  const stoppedBackgroundTurns = new Set(
+    items.filter((item) => item.kind === 'background_stopped').map((item) => item.turnId)
+  )
   function finishTurn(resumed: boolean) {
     if (!currentTurnId) return
     for (const item of started.splice(0)) rows.push({ kind: 'background', id: item.id, item })
     const id = `${currentTurnId}:restart`
-    if (heldTurns.has(currentTurnId)) rows.push({ kind: 'restartLimit', id, resumed })
-    else if (outcomes[currentTurnId] === 'server_restarted') rows.push({ kind: 'restart', id })
+    if (heldTurns.has(currentTurnId) && resumed) rows.push({ kind: 'restartLimit', id, resumed })
+    else if (
+      (heldTurns.has(currentTurnId) || outcomes[currentTurnId] === 'server_restarted') &&
+      !stoppedBackgroundTurns.has(currentTurnId)
+    )
+      rows.push({ kind: 'restart', id })
   }
   for (const [index, item] of items.entries()) {
     if (currentTurnId && currentTurnId !== item.turnId) finishTurn(lastFollowUp >= index)
@@ -976,6 +986,15 @@ export function threadRows(
       for (const agent of launched)
         if ((agent.completedAt ?? Infinity) > item.createdAt) talkedPast.add(agent.id)
     const segment = segments[index]!
+    if (
+      inlineRequests &&
+      (item.kind === 'approval' || item.kind === 'question') &&
+      awaitsInput(item)
+    ) {
+      openBlock(segment, item.turnId)
+      rows.push({ kind: 'request', id: item.id })
+      continue
+    }
     if (isStep(item) || (item.kind === 'assistant_message' && foldsIntoWork(item))) {
       const block = openBlock(segment, item.turnId)
       block.steps.push(item)

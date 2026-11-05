@@ -40,8 +40,8 @@ export type Page = {
 }
 
 // Chrome is spawned once per lab process; every page is a fresh tab in it.
-export async function openPage(): Promise<Page> {
-  const path = await ensureChrome()
+export async function openPage(executable?: string): Promise<Page> {
+  const path = executable ?? process.env.JETTY_PERF_CHROME ?? (await ensureChrome())
   const view = new Bun.WebView({
     backend: {
       type: 'chrome',

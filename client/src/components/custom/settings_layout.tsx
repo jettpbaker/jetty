@@ -6,7 +6,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { Link } from '@tanstack/react-router'
@@ -57,8 +56,8 @@ export function SettingsPage({
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-160 flex-col gap-10 pb-16',
-        back ? 'pt-5.5' : 'pt-14',
+        'mx-auto flex w-full max-w-190 flex-col gap-7 pb-16',
+        back ? 'pt-5.5' : 'pt-4',
         className
       )}
     >
@@ -131,16 +130,16 @@ export function SettingsCard({ className, children }: { className?: string; chil
   )
 }
 
-// The last folder tells paths apart, so a long path gives way before it does.
 export function PathText({ path, className }: { path: string; className?: string }) {
-  const slash = path.lastIndexOf('/', path.length - 2)
   return (
     <span
-      className={cn('flex min-w-0 font-mono text-xs text-muted-foreground', className)}
+      className={cn(
+        'min-w-0 truncate text-left font-mono text-xs text-muted-foreground [direction:rtl]',
+        className
+      )}
       title={path}
     >
-      <span className='truncate'>{path.slice(0, slash)}</span>
-      <span className='max-w-full shrink-0 truncate'>{path.slice(slash)}</span>
+      <bdi dir='ltr'>{path}</bdi>
     </span>
   )
 }
@@ -175,13 +174,11 @@ function RowText({
 }) {
   return (
     <span className='flex min-w-0 grow basis-48 flex-col gap-0.5'>
-      <span className={cn('text-13', disabled && 'text-muted-foreground')}>{title}</span>
+      <span className={cn('text-13', disabled ? 'text-muted-foreground' : 'text-foreground')}>
+        {title}
+      </span>
       {description && (
-        <span
-          className={cn('text-xs', disabled ? 'text-disabled-foreground' : 'text-muted-foreground')}
-        >
-          {description}
-        </span>
+        <span className='text-13 leading-5 text-muted-foreground'>{description}</span>
       )}
     </span>
   )
@@ -207,6 +204,7 @@ export function SettingsRow({
   return (
     <div
       id={id && `settings-${id}`}
+      aria-disabled={disabled || undefined}
       className={cn(
         'flex flex-wrap items-center gap-y-2 py-3',
         icon ? 'min-h-16 gap-x-3' : 'min-h-15 gap-x-4'
@@ -216,6 +214,42 @@ export function SettingsRow({
       <RowText title={title} description={description} disabled={disabled} />
       {children}
     </div>
+  )
+}
+
+export function PlannedSettingsSection(
+  props: Omit<ComponentProps<typeof SettingsSection>, 'action'>
+) {
+  return <SettingsSection {...props} />
+}
+
+export function PlannedSettingsRow({
+  id,
+  title,
+  description,
+}: {
+  id?: string
+  title: string
+  description: string
+}) {
+  return (
+    <SettingsRow id={id} title={title} description={description} disabled>
+      <ComingSoon />
+    </SettingsRow>
+  )
+}
+
+export function UnavailableSettingsRow({
+  value,
+  ...props
+}: Omit<ComponentProps<typeof SettingsRow>, 'disabled' | 'children'> & { value?: ReactNode }) {
+  return (
+    <SettingsRow {...props} disabled>
+      <span className='flex shrink-0 items-center gap-3 text-13 text-muted-foreground'>
+        {value}
+        <ComingSoon />
+      </span>
+    </SettingsRow>
   )
 }
 
@@ -255,24 +289,19 @@ export function SettingsLinkRow({
 }
 
 export function ComingSoon() {
-  return <span className='shrink-0 pr-1 text-13 text-muted-foreground'>{comingSoon}</span>
-}
-
-// A switch that isn't wired yet: its designed state, dimmed, with the reason on hover.
-export function DisabledSwitch({ checked, label }: { checked: boolean; label: string }) {
   return (
-    <DisabledTooltip reason={comingSoon} wrap='flex'>
-      <Switch checked={checked} disabled aria-label={label} className='pointer-events-none' />
-    </DisabledTooltip>
+    <span className='shrink-0 rounded-sm bg-foreground/8 px-1.5 py-0.5 text-xs text-foreground'>
+      {comingSoon}
+    </span>
   )
 }
 
 export const selectTriggerClass =
-  'h-7 gap-1.5 rounded-sm pr-1.5 pl-2.5 text-13 font-normal text-foreground [&_svg]:text-muted-foreground disabled:text-disabled-foreground'
+  'h-7 gap-1.5 rounded-sm border-border pr-1.5 pl-2.5 text-13 font-normal text-foreground [&_svg]:text-muted-foreground disabled:text-muted-foreground'
 
 export type SettingsOption<T extends string> = { value: T; label: ReactNode; icon?: ReactNode }
 
-// The select trigger (variation A): the value and a chevron, filled only on hover.
+// A visible control boundary distinguishes editable values from row descriptions.
 export function SettingsSelect<T extends string>({
   label,
   value,
@@ -287,26 +316,26 @@ export function SettingsSelect<T extends string>({
   disabled?: boolean
 }) {
   const current = options.find((option) => option.value === value)
-  const trigger = (
-    <DropdownMenuTrigger
-      disabled={disabled}
-      aria-label={label}
-      render={<Button variant='ghost' className={selectTriggerClass} />}
-    >
-      {current?.icon}
-      {current?.label}
-      <ChevronDownSmallIcon />
-    </DropdownMenuTrigger>
-  )
+  if (disabled)
+    return (
+      <DisabledTooltip reason={`${label} customization is coming soon`} wrap='inline-flex shrink-0'>
+        <Button variant='ghost-text' size='sm' disabled>
+          {current?.icon}
+          {current?.label}
+        </Button>
+      </DisabledTooltip>
+    )
   return (
     <DropdownMenu modal={false}>
-      {disabled ? (
-        <DisabledTooltip reason={comingSoon} wrap='flex shrink-0'>
-          {trigger}
-        </DisabledTooltip>
-      ) : (
-        trigger
-      )}
+      <DropdownMenuTrigger
+        disabled={disabled}
+        aria-label={label}
+        render={<Button variant='ghost' className={selectTriggerClass} />}
+      >
+        {current?.icon}
+        {current?.label}
+        <ChevronDownSmallIcon />
+      </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuRadioGroup
           value={value}

@@ -9,7 +9,6 @@ import {
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { useNow } from '@/hooks/use-now'
-import { describeLoadout } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
 import {
@@ -20,15 +19,15 @@ import {
   useSubagents,
   useThreadRowPrefetch,
 } from '@/state'
-import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 
 import { BotSettingsSheet } from './bot_settings_sheet'
+import { CatalogModelLabel } from './model_label'
 import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
 import { sidebarThread } from './sidebar_thread_groups'
 import { Section, SubagentList, useCollapsedSections } from './thread_overview'
-import { quietStatus, StatusGlyph, statusPresentation } from './thread_status'
+import { StatusGlyph, statusPresentation } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
 export function BotOverview({
@@ -76,7 +75,6 @@ export function BotOverview({
 // Opens the bot's settings.
 function ModelRow({ bot }: { bot: Bot }) {
   const models = useModels()
-  const loadout = describeLoadout(bot)
   return (
     <BotSettingsSheet bot={bot}>
       <Button
@@ -86,9 +84,14 @@ function ModelRow({ bot }: { bot: Bot }) {
         <span className='w-21 shrink-0 text-left text-muted-foreground'>Model</span>
         <ProviderGlyph provider={bot.provider} className='size-3.5 text-muted-foreground' />
         <span className='truncate text-foreground'>
-          {catalogModelName(models, bot.provider, bot.model)}
+          <CatalogModelLabel
+            catalog={models}
+            provider={bot.provider}
+            model={bot.model}
+            effort={bot.effort}
+            fast={bot.fast}
+          />
         </span>
-        {loadout && <span className='text-muted-foreground'>{loadout}</span>}
         <ChevronRightSmallIcon className='ml-auto size-3' />
       </Button>
     </BotSettingsSheet>
@@ -180,10 +183,7 @@ function BotThreadList({ threads }: { threads: readonly ThreadMeta[] }) {
             heading={
               <OverflowTitle
                 focusable={false}
-                className={cn(
-                  'font-normal leading-normal',
-                  quietStatus(row.status) && 'text-muted-foreground'
-                )}
+                className='font-normal leading-normal text-foreground'
               >
                 {row.title}
               </OverflowTitle>

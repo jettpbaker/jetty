@@ -6,7 +6,6 @@ import { useResolvedTheme } from '@/lib/theme'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
-import { DitherDrift } from './dither_drift'
 import { DownwardBlur } from './downward_blur'
 import { DriftingDither } from './drifting_dither'
 import { OpacityFade } from './opacity_fade'
@@ -48,11 +47,12 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const light = resolvedTheme === 'light'
   const fade = { ...initialFadeSettings, topOpacity: light ? 0.9 : 0.8 }
   if (!image && !video)
-    return hasWebGL() ? (
-      <OpacityFade settings={fade} background={fadeBackground}>
-        <DitherDrift />
-      </OpacityFade>
-    ) : null
+    return (
+      <div
+        className='new-thread-default-backdrop pointer-events-none absolute inset-0'
+        aria-hidden='true'
+      />
+    )
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
       {video ? (

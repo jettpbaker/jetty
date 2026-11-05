@@ -1,6 +1,5 @@
-import { WorktreeIcon, SettingsGear1Icon, PlusMediumIcon } from '@/components/custom/central_icons'
+import { SettingsGear1Icon, PlusMediumIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
-import { pressProps } from '@/lib/press'
 import { useCreateProject, useProjects } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -12,12 +11,9 @@ import { ProjectGlyph } from './project_glyph'
 export function ComposerProject({
   projectId,
   onProjectChange,
-  onSetUpWorktrees,
 }: {
   projectId?: string
   onProjectChange: (projectId: string) => void
-  // Offered while the project has no worktree config.
-  onSetUpWorktrees?: () => void
 }) {
   const loaded = useProjects()
   const createProject = useCreateProject()
@@ -26,7 +22,7 @@ export function ComposerProject({
   const projects = loaded ?? []
 
   return (
-    <div className='relative z-10 flex items-center px-2.5' aria-label='Project'>
+    <div className='flex min-w-0 items-center' aria-label='Project'>
       {loaded && projects.length === 0 ? (
         <Button
           variant='ghost-text'
@@ -60,19 +56,6 @@ export function ComposerProject({
           }))}
           onValueChange={onProjectChange}
         />
-      )}
-      {onSetUpWorktrees && (
-        <Button
-          variant='ghost-text'
-          size='sm'
-          className='gap-1.5 rounded-sm'
-          // Keeps focus in the composer the prompt was just written into.
-          onMouseDown={(event) => event.preventDefault()}
-          {...pressProps(onSetUpWorktrees)}
-        >
-          <WorktreeIcon />
-          Set up worktrees
-        </Button>
       )}
       <ProjectFolderDialog
         open={adding}

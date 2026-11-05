@@ -1,5 +1,5 @@
-import { BotTabStrip } from '@/components/custom/bot_tab_strip'
 import { EditSmall1Icon } from '@/components/custom/central_icons'
+import { InlineRequests } from '@/components/custom/inline_request'
 import { Loading } from '@/components/custom/loading'
 import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { ThreadComposer } from '@/components/custom/thread_composer'
@@ -7,6 +7,7 @@ import { ThreadDetailsLayout } from '@/components/custom/thread_details_layout'
 import { ThreadHeader } from '@/components/custom/thread_header'
 import { ThreadList } from '@/components/custom/thread_list'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 import { pressProps } from '@/lib/press'
 import { settingUpWorktree } from '@/lib/thread_worktree'
 import { perf } from '@/perf'
@@ -44,7 +45,6 @@ function Thread() {
   const started = meta?.turnStartedAt !== undefined || meta?.provider !== undefined
   const empty =
     overlay.empty && !meta?.pendingMessages?.length && (thread !== undefined || !started)
-  const composerOnly = empty && !meta?.pullRequests?.length
   const composer = (
     <ThreadComposer
       key={threadId}
@@ -70,15 +70,7 @@ function Thread() {
     )
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
-      {composerOnly &&
-        (ownerId ? (
-          <BotTabStrip botId={ownerId} threadId={threadId} />
-        ) : (
-          <PageSidebarTrigger standalone />
-        ))}
-      {composerOnly ? (
-        <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
-      ) : (
+      <InlineRequests>
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
             threadId={threadId}
@@ -86,7 +78,14 @@ function Thread() {
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
           {empty ? (
-            <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
+            <Empty className='px-6'>
+              <EmptyHeader>
+                <EmptyTitle>Ready when you are</EmptyTitle>
+                <EmptyDescription>
+                  Describe a task or ask a question in {project?.title ?? 'this project'}.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : thread || !overlay.empty ? (
             <ThreadList
               // The composer beside it is keyed by the thread too; a shared key leaves the last
@@ -99,6 +98,7 @@ function Thread() {
               status={thread?.status ?? 'idle'}
               running={overlay.running}
               settingUp={settingUpWorktree(meta)}
+              inlineRequests
               outcomes={thread?.turnOutcomes}
               loadouts={thread?.turnLoadouts}
               projectPath={projectPath}
@@ -107,9 +107,9 @@ function Thread() {
           ) : (
             <div className='min-h-0 flex-1' />
           )}
-          {!empty && composer}
+          {composer}
         </ThreadDetailsLayout>
-      )}
+      </InlineRequests>
     </section>
   )
 }

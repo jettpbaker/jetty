@@ -1,6 +1,6 @@
-import type { ProjectIcon, PullRequestLink } from '@jetty/shared/wire'
+import type { ProjectIcon, PullRequestLink, ThreadMeta } from '@jetty/shared/wire'
 
-import { formatAge, formatElapsed } from '@/lib/time'
+import { formatAge } from '@/lib/time'
 import { listedAt, type SidebarList, type SidebarRow } from '@/state/sidebar'
 
 import type { ThreadPullRequest } from './thread_pull_request'
@@ -15,6 +15,7 @@ export type SidebarThread = {
   project: string
   projectIcon?: ProjectIcon
   status: ThreadStatus
+  detail?: string
   lastActivity: string
   pinned: boolean
   archived: boolean
@@ -23,21 +24,39 @@ export type SidebarThread = {
   pullRequest?: ThreadPullRequest
 }
 
-export function sidebarThread({ thread, project }: SidebarRow, now: number): SidebarThread {
+export function sidebarThread(
+  { thread, project, restartHeld }: SidebarRow,
+  now: number
+): SidebarThread {
   return {
     id: thread.id,
     title: thread.title,
     project: project?.title ?? '',
     projectIcon: project?.icon,
-    status: threadStatus(thread.status, thread.readyForReview),
+    status: restartHeld ? 'idle' : threadStatus(thread.status, thread.readyForReview),
+    detail: threadNavigationDetail(thread, restartHeld),
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length
-        ? formatElapsed(now - Math.min(...thread.backgroundTasks.map((task) => task.startedAt)))
+        ? formatAge(Math.min(...thread.backgroundTasks.map((task) => task.startedAt)), now)
         : formatAge(listedAt(thread), now),
     pinned: thread.pinned,
     archived: thread.archived,
     ...threadPullRequests(thread.pullRequests ?? []),
   }
+}
+
+export function threadNavigationDetail(thread: ThreadMeta, restartHeld = false) {
+  if (restartHeld) return 'Paused after restarts'
+  if (thread.worktree?.state === 'pending' || thread.worktree?.state === 'setting_up')
+    return 'Setting up worktree'
+  if (thread.worktree?.state === 'failed') return 'Worktree setup failed'
+  if (thread.worktree?.state === 'stopped') return 'Worktree setup stopped'
+  if (thread.status === 'awaiting_approval') return 'Input needed'
+  if (thread.status === 'error') return 'Turn failed'
+  const queued = thread.pendingMessages?.length ?? 0
+  if (thread.queuePaused && queued) return `Paused · ${queued} queued`
+  if (queued) return `Queued · ${queued} message${queued === 1 ? '' : 's'}`
+  return undefined
 }
 
 const stateRank = { open: 0, draft: 1, merged: 2, closed: 3 }
@@ -136,7 +155,15 @@ function groupSidebarThreads(
     .filter((thread) => `${thread.title} ${thread.project}`.toLowerCase().includes(search))
     .sort((a, b) => b.listedAt - a.listedAt)
   const filtered = matching.filter((thread) => !thread.archived)
-  const remaining = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
+  const unpinned = showPinned ? filtered.filter((thread) => !thread.pinned) : filtered
+  const needsYou =
+    grouping === 'date'
+      ? unpinned.filter(
+          (thread) => thread.status === 'needs-attention' || thread.status === 'error'
+        )
+      : []
+  const needsYouIds = new Set(needsYou.map((thread) => thread.id))
+  const remaining = unpinned.filter((thread) => !needsYouIds.has(thread.id))
   const grouped = groupsFor(grouping, remaining, bots).map((group) => ({
     id: `${grouping}:${group.id}`,
     label: group.label,
@@ -156,6 +183,13 @@ function groupSidebarThreads(
           },
         ]
       : []),
+    {
+      id: 'needs-you',
+      label: 'Needs you',
+      pinned: false,
+      archived: false,
+      threads: needsYou,
+    },
     ...grouped,
     ...(showArchived
       ? [
@@ -180,6 +214,10 @@ export function sidebarGroups(list: SidebarList, view: ThreadListView, now: numb
         !group.pinned && !group.archived && view.grouping === 'status'
           ? threads[0]?.status
           : undefined,
+      projectId: threads.every((thread) => thread.projectId === threads[0]?.projectId)
+        ? threads[0]?.projectId
+        : undefined,
+      project: threads[0]?.project,
       projectIcon: threads[0]?.projectIcon,
       botId: threads[0]?.botId,
       threads: threads.map((thread) => thread.id),

@@ -13,3 +13,10 @@ function sameOwner(previous: ProviderUsage, usage: ProviderUsage) {
   if (usage.provider === 'claude') return !!usage.identity && previous.identity === usage.identity
   return previous.account === usage.account
 }
+
+export function formatUsageDuration(ms: number) {
+  const minutes = Math.max(0, Math.ceil(ms / 60_000))
+  if (minutes >= 1440) return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  return `${minutes}m`
+}

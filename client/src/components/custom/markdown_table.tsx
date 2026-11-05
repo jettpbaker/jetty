@@ -16,12 +16,9 @@ import {
 type Props<T extends keyof React.JSX.IntrinsicElements> = ComponentProps<T> & ExtraProps
 
 const align = 'text-left [&[align=center]]:text-center [&[align=right]]:text-right'
-const well = 'bg-[color-mix(in_oklch,var(--muted)_60%,var(--background))]'
-// A bordered card, full width; a table whose content can't fit grows past the column and scrolls.
-// Separate borders, or the rounded border doesn't draw. Inline code steps down to the table's size and
-// wraps rather than running into the next column, but a short token stays whole.
+// Wide tables scroll; code tokens stay whole unless a long cell needs to wrap.
 const table =
-  'w-full border-separate border-spacing-0 rounded-md border border-border text-xs tabular-nums [&_code]:px-1 [&_code]:py-px [&_code]:text-xs [&_code]:wrap-anywhere [&_code[data-token]]:whitespace-nowrap'
+  'w-full border-separate border-spacing-0 text-13 leading-5 tabular-nums [&_code]:px-1 [&_code]:py-px [&_code]:text-xs [&_code]:wrap-anywhere [&_code[data-token]]:whitespace-nowrap'
 
 // Long tables show this many rows behind a "Show all" toggle; two over isn't worth hiding.
 const rowLimit = 8
@@ -95,14 +92,11 @@ export function MarkdownTableRow({ node: _node, className: _className, ...props 
   return <tr {...props} />
 }
 
-// The header row is a band on the code-block well, flush across the top. Its corner cells carry the
-// radius, since a table doesn't clip its cells to its own.
 export function MarkdownTableHeader({ node: _node, className: _className, ...props }: Props<'th'>) {
   return (
     <th
       className={cn(
-        'h-8 border-b border-border px-3 font-normal whitespace-nowrap text-muted-foreground first:rounded-tl-[calc(var(--radius-md)-1px)] last:rounded-tr-[calc(var(--radius-md)-1px)]',
-        well,
+        'h-8 border-b border-border px-3 text-xs font-medium whitespace-nowrap text-muted-foreground',
         align
       )}
       {...props}
@@ -126,7 +120,10 @@ export function MarkdownTableCell({
   ...props
 }: Props<'td'>) {
   return (
-    <td className={cn('border-b border-border px-3 py-2 align-top', align)} {...props}>
+    <td
+      className={cn('border-b border-border px-3 py-2 align-top first:font-medium', align)}
+      {...props}
+    >
       <div
         className={cn(
           'max-w-96 [[align=center]>&]:mx-auto [[align=right]>&]:ml-auto',

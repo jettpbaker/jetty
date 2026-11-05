@@ -2,19 +2,23 @@ import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 import type { ReactNode } from 'react'
 
 import {
-  ArrowUpRightIcon,
+  ChevronRightSmallIcon,
   CrossSmallIcon,
   ArrowRotateClockwiseIcon,
-  ArrowRotateCounterClockwiseIcon,
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatUsageDuration as duration } from '@/lib/provider-usage'
 import { cn } from '@/lib/utils'
+import { Link } from '@tanstack/react-router'
 
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { ProviderGlyph } from './provider_glyph'
+import { SettingsCard } from './settings_layout'
 import './usage_limits.css'
 
 export type UsageProvider = ProviderUsage['provider']
@@ -57,13 +61,6 @@ function timeLeft(window: UsageWindow, now: number) {
   return clamp((window.resetsAt - now) / (window.minutes * minute), 0, 1)
 }
 
-function duration(ms: number) {
-  const minutes = Math.max(0, Math.ceil(ms / minute))
-  if (minutes >= 1440) return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`
-  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-  return `${minutes}m`
-}
-
 // Spending at the rate so far hits the limit before the reset: said only when that's more than five points ahead of an even pace.
 function paceOf(window: UsageWindow, now: number) {
   const left = timeLeft(window, now)
@@ -82,20 +79,27 @@ function resetIn(window: UsageWindow, now: number) {
   return window.resetsAt <= now ? 'now' : duration(window.resetsAt - now)
 }
 
+function usageColor(window: UsageWindow) {
+  return window.pct >= 100
+    ? 'text-destructive'
+    : window.pct >= 90
+      ? 'text-status-attention'
+      : 'text-primary'
+}
+
+function usageWarningColor(window: UsageWindow) {
+  return window.pct >= 100 ? 'usage-text-exhausted' : 'usage-text-attention'
+}
+
 function UsageBar({ window, className }: { window: UsageWindow; className?: string }) {
   const left = percentLeft(window)
   return (
-    <span
-      aria-hidden='true'
-      className={cn('relative overflow-hidden rounded-full bg-accent', className)}
-    >
-      {left > 0 && (
-        <span
-          className='absolute inset-y-0 left-0 rounded-full bg-(--usage-color)'
-          style={{ width: `${left}%` }}
-        />
-      )}
-    </span>
+    <progress
+      aria-label={`${window.label} usage`}
+      value={100 - left}
+      max={100}
+      className={cn('usage-bar w-full', usageColor(window), className)}
+    />
   )
 }
 
@@ -150,42 +154,72 @@ function UsageRow({
   const left = percentLeft(window)
   const reset = resetIn(window, now)
   const pace = paceOf(window, now)
+  const warning =
+    !compact && window.pct >= 100
+      ? 'Usage limit reached'
+      : !compact && window.pct >= 90
+        ? 'Approaching usage limit'
+        : undefined
+  const note = [warning, pace].filter(Boolean).join(' · ')
   return (
     <WindowTip
       usage={usage}
       window={window}
-      className='col-span-full grid grid-cols-subgrid items-center gap-y-1'
+      className={cn(
+        'col-span-full grid grid-cols-subgrid items-center gap-y-1',
+        !compact && 'min-h-8 py-1'
+      )}
     >
       <span className='truncate text-xs text-muted-foreground'>{window.label}</span>
-      <UsageBar window={window} className={compact ? 'h-0.75' : 'h-1'} />
-      <span
-        className={cn('text-right text-xs', left <= 10 ? 'text-destructive' : 'text-foreground')}
-      >
-        <span className='font-mono tabular-nums'>{left}%</span> left
-      </span>
+      <UsageBar window={window} className={compact ? 'h-0.75' : 'h-2'} />
       <span
         className={cn(
-          'flex items-center justify-end gap-1 font-mono text-xs tabular-nums',
-          left === 0 ? 'text-foreground' : 'text-muted-foreground'
+          'text-right text-xs whitespace-nowrap',
+          left <= 10 ? usageWarningColor(window) : 'text-foreground'
         )}
       >
+        <span className='font-mono tabular-nums'>{100 - left}%</span>
+        <span> used</span>
+      </span>
+      <span className='flex items-center justify-end gap-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums'>
         {reset && (
           <>
-            <ArrowRotateCounterClockwiseIcon aria-hidden='true' className='size-3' />
-            <span className='sr-only'>Resets in</span>
-            {reset}
+            <span>{compact ? 'Resets in' : 'Resets'}</span>
+            <Mono>{reset}</Mono>
           </>
         )}
       </span>
-      {pace && <span className='col-[2/-1] text-xs text-muted-foreground'>{pace}</span>}
+      {(note || (!compact && window.pct >= 95)) && (
+        <span
+          className={cn(
+            'col-[2/-1] text-xs leading-5',
+            warning ? usageWarningColor(window) : 'text-muted-foreground'
+          )}
+        >
+          {note}
+          {!compact && window.pct >= 95 && (
+            <>
+              {' · '}
+              <Link
+                to='/settings/$page'
+                params={{ page: 'models' }}
+                aria-label={`Manage ${providerNames[usage.provider]} models`}
+                className='rounded-xs whitespace-nowrap text-primary outline-none hover:underline focus-visible:outline-2 focus-visible:outline-ring'
+              >
+                Manage models
+              </Link>
+            </>
+          )}
+        </span>
+      )}
     </WindowTip>
   )
 }
 
 function windowsGrid(compact: boolean) {
   return compact
-    ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_4.5rem_4.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] @max-md:gap-x-3'
+    ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] gap-x-3 gap-y-2'
+    : 'grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_3.75rem_7rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3.75rem_7rem] @max-md:gap-x-3'
 }
 
 // Why a provider shows no windows, when it doesn't.
@@ -222,7 +256,7 @@ function UsageSkeleton({ compact = false }: { compact?: boolean }) {
       {[0, 1].map((row) => (
         <div key={row} className='col-span-full grid h-4 grid-cols-subgrid items-center'>
           <Skeleton className='h-3 w-12 rounded-xs' />
-          <Skeleton className={cn('rounded-full', compact ? 'h-0.75' : 'h-1')} />
+          <Skeleton className={cn('rounded-full', compact ? 'h-0.75' : 'h-2')} />
         </div>
       ))}
     </div>
@@ -254,8 +288,12 @@ export function UsagePage({
   failed: ReadonlySet<UsageProvider>
   onRefresh: () => void
 }) {
+  const unreported = providers.filter((provider) => {
+    const item = usage[provider]
+    return item?.connected && !item.failed && !failed.has(provider) && item.windows.length === 0
+  })
   return (
-    <div className='flex h-full min-h-0 flex-col bg-background'>
+    <div className='usage-page flex h-full min-h-0 flex-col bg-background'>
       <header className='flex h-(--app-tab-bar-height,42px) shrink-0 items-center justify-between gap-2 border-b border-border pl-(--page-header-inset,16px) pr-3'>
         <div className='flex min-w-0 items-center gap-3'>
           <PageSidebarTrigger />
@@ -289,39 +327,58 @@ export function UsagePage({
           </Tooltip>
         </div>
       </header>
-      <div className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-        <div className='@container mx-auto flex w-full max-w-[708px] flex-col gap-10 px-6 py-8'>
-          {providers.map((provider) => {
-            const item = usage[provider]
-            return (
-              <section
-                key={provider}
-                aria-labelledby={`usage-${provider}`}
-                aria-busy={item === undefined}
-                className='flex flex-col gap-4'
-              >
-                <div className='flex items-center gap-2 text-muted-foreground'>
-                  <ProviderGlyph provider={provider} className='size-4' />
-                  <h2 id={`usage-${provider}`} className='text-sm font-medium'>
-                    {providerNames[provider]}
-                  </h2>
-                  {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
-                    <span className='ml-auto text-xs'>
-                      Couldn’t refresh
-                      {item.asOf !== undefined && ` · last read ${updatedLabel(item.asOf, now)}`}
-                    </span>
-                  )}
-                </div>
-                {item ? (
-                  <UsageWindows usage={item} now={now} />
-                ) : failed.has(provider) ? (
-                  <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
-                ) : (
-                  <UsageSkeleton />
-                )}
-              </section>
-            )
-          })}
+      <div className='scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain'>
+        <div className='@container mx-auto flex w-full max-w-190 flex-col gap-4 px-4 pt-4 pb-8'>
+          {providers
+            .filter((provider) => !unreported.includes(provider))
+            .map((provider) => {
+              const item = usage[provider]
+              return (
+                <section
+                  key={provider}
+                  aria-labelledby={`usage-${provider}`}
+                  aria-busy={item === undefined}
+                >
+                  <SettingsCard>
+                    <div className='flex min-h-12 items-center gap-2 text-muted-foreground'>
+                      <ProviderGlyph provider={provider} className='size-4' />
+                      <h2
+                        id={`usage-${provider}`}
+                        className='text-sm font-semibold text-foreground'
+                      >
+                        {providerNames[provider]}
+                      </h2>
+                      {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
+                        <span className='ml-auto text-xs'>
+                          Couldn’t refresh
+                          {item.asOf !== undefined &&
+                            ` · last read ${updatedLabel(item.asOf, now)}`}
+                        </span>
+                      )}
+                    </div>
+                    <div className='py-3'>
+                      {item ? (
+                        <UsageWindows usage={item} now={now} />
+                      ) : failed.has(provider) ? (
+                        <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
+                      ) : (
+                        <UsageSkeleton />
+                      )}
+                    </div>
+                  </SettingsCard>
+                </section>
+              )
+            })}
+          {unreported.length > 0 && (
+            <SettingsCard>
+              <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1 py-3 text-xs'>
+                <span className='font-medium'>No limits reported</span>
+                <span className='text-muted-foreground'>
+                  {unreported.map((provider) => providerNames[provider]).join(', ')}
+                </span>
+              </div>
+            </SettingsCard>
+          )}
         </div>
       </div>
     </div>
@@ -367,7 +424,7 @@ export function UsageBanner({
               />
             }
           >
-            <ArrowUpRightIcon />
+            <ChevronRightSmallIcon />
           </TooltipTrigger>
           <TooltipContent>Open Usage</TooltipContent>
         </Tooltip>
@@ -394,20 +451,6 @@ export function UsageBanner({
 
 /* The context ring's popover: this thread's provider in full, each other connected one's tightest window */
 
-// Jett's zones for a limit's bar and figure: the accent, amber from 75%, red from 90%.
-const warnAt = 75
-const limitAt = 90
-
-function limitTone(pct: number) {
-  if (pct >= limitAt) return { bar: 'bg-destructive', text: 'text-destructive' }
-  if (pct >= warnAt) return { bar: 'bg-status-attention', text: 'text-status-attention' }
-  return { bar: 'bg-primary', text: 'text-foreground' }
-}
-
-function used(window: UsageWindow) {
-  return Math.round(clamp(window.pct, 0, 100))
-}
-
 function tightest(windows: readonly UsageWindow[]) {
   return windows.reduce((a, b) => (b.pct > a.pct ? b : a))
 }
@@ -422,7 +465,7 @@ export function Mono({ children, className }: { children: ReactNode; className?:
 }
 
 function Rule() {
-  return <div className='-mx-3 border-t border-border' />
+  return <Separator className='-mx-3 w-auto' />
 }
 
 function PlanHeading({
@@ -437,7 +480,7 @@ function PlanHeading({
   return (
     <div className='flex items-center gap-1.5'>
       <ProviderGlyph provider={provider} className='size-3 text-muted-foreground' />
-      <span className='font-medium'>{providerNames[provider]}</span>
+      <span className='font-medium'>{providerNames[provider]} limits</span>
       {plan && <span className='text-muted-foreground'>{plan}</span>}
       {children && <span className='ml-auto'>{children}</span>}
     </div>
@@ -474,8 +517,7 @@ function LimitLine({
   now: number
   pace?: boolean
 }) {
-  const value = used(window)
-  const tone = limitTone(value)
+  const left = percentLeft(window)
   const note = pace ? paceOf(window, now) : undefined
   return (
     <WindowTip usage={usage} window={window} className='flex flex-col gap-1.5'>
@@ -483,18 +525,12 @@ function LimitLine({
         <span className='flex min-w-0 items-center gap-1.5'>{label}</span>
         <span className='flex shrink-0 items-center gap-2.5'>
           <ResetLabel window={window} now={now} />
-          <Mono className={cn('w-8 text-right', tone.text)}>{value}%</Mono>
+          <span className={cn('w-16 text-right', left <= 10 && usageWarningColor(window))}>
+            <Mono>{100 - left}%</Mono> used
+          </span>
         </span>
       </div>
-      <span
-        aria-hidden='true'
-        className='relative block h-1 overflow-hidden rounded-full bg-accent'
-      >
-        <span
-          className={cn('absolute inset-y-0 left-0 rounded-full', tone.bar)}
-          style={{ width: `${value}%` }}
-        />
-      </span>
+      <UsageBar window={window} className='block h-1' />
       {note && <span className='text-muted-foreground'>{note}</span>}
     </WindowTip>
   )
@@ -572,32 +608,58 @@ export function RingLimits({
       {connected.length > 0 && (
         <>
           <Rule />
-          <div className='flex flex-col gap-3'>
-            {connected.map((item) => {
-              const window = tightest(item.windows)
-              return (
-                <LimitLine
-                  key={item.provider}
-                  usage={item}
-                  window={window}
-                  now={now}
-                  pace={false}
-                  label={
-                    <>
-                      <ProviderGlyph
-                        provider={item.provider}
-                        className='size-3 shrink-0 text-muted-foreground'
-                      />
-                      <span>{providerNames[item.provider]}</span>
-                      <span className='truncate text-muted-foreground'>{windowName(window)}</span>
-                    </>
-                  }
+          <Collapsible>
+            <CollapsibleTrigger
+              render={
+                <Button
+                  variant='ghost-text'
+                  size='sm'
+                  className='group h-8 w-full justify-start px-0 font-normal'
                 />
-              )
-            })}
-          </div>
+              }
+            >
+              <ChevronRightSmallIcon className='group-aria-expanded:rotate-90' />
+              Other accounts
+              <span className='ml-auto font-mono text-muted-foreground'>{connected.length}</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className='flex flex-col gap-3 pt-2'>
+                {connected.map((item) => {
+                  const window = tightest(item.windows)
+                  return (
+                    <LimitLine
+                      key={item.provider}
+                      usage={item}
+                      window={window}
+                      now={now}
+                      pace={false}
+                      label={
+                        <>
+                          <ProviderGlyph
+                            provider={item.provider}
+                            className='size-3 shrink-0 text-muted-foreground'
+                          />
+                          <span>{providerNames[item.provider]}</span>
+                          <span className='truncate text-muted-foreground'>
+                            {windowName(window)}
+                          </span>
+                        </>
+                      }
+                    />
+                  )
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </>
       )}
+      <Link
+        to='/usage'
+        className='flex h-8 items-center gap-1 text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring'
+      >
+        All usage
+        <ChevronRightSmallIcon className='size-3' />
+      </Link>
     </>
   )
 }

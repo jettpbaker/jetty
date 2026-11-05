@@ -1,6 +1,6 @@
 :root {
   --bot-accent-body: oklch(0.772 0.119 282.178);
-  --bot-accent-deep: oklch(0.5 0.28 282.178);
+  --bot-accent-deep: oklch(0.5 0.19 282.178);
 }
 
 [data-accent='coral'] {
@@ -29,7 +29,7 @@
   --accent-primary-oled: oklch(0.772 0.015 260);
 }
 [data-accent='lilac'] {
-  --accent-primary-light: oklch(0.5 0.28 282.178);
+  --accent-primary-light: oklch(0.5 0.19 282.178);
   --accent-primary-dark: oklch(0.772 0.119 282.178);
   --accent-primary-oled: oklch(0.732 0.156 282.178);
 }

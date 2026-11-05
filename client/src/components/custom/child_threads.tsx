@@ -7,15 +7,8 @@ import { useChildThreadMetas, useModels, useThreadRowPrefetch } from '@/state'
 import { catalogModelName } from '@jetty/shared/model-name'
 import { useNavigate } from '@tanstack/react-router'
 
-import { OverflowTitle } from './overflow_title'
 import { ProviderGlyph } from './provider_glyph'
-import {
-  quietStatus,
-  StatusGlyph,
-  statusPresentation,
-  threadStatus,
-  type ThreadStatus,
-} from './thread_status'
+import { StatusGlyph, statusPresentation, threadStatus, type ThreadStatus } from './thread_status'
 import { TwoLineRow } from './two_line_row'
 
 export type ChildThread = {
@@ -71,15 +64,9 @@ function useOpenThread(): Open {
 
 function ChildTitle({ child }: { child: ChildThread }) {
   return (
-    <OverflowTitle
-      focusable={false}
-      className={cn(
-        'font-normal leading-normal',
-        quietStatus(child.status) && 'text-muted-foreground'
-      )}
-    >
+    <span className='min-w-0 text-13 leading-5 wrap-anywhere whitespace-normal text-foreground'>
       {child.title}
-    </OverflowTitle>
+    </span>
   )
 }
 
@@ -87,7 +74,7 @@ function AgentMeta({ child }: { child: ChildThread }) {
   return (
     <span className='flex min-w-0 items-center gap-1.5'>
       {child.provider && <ProviderGlyph provider={child.provider} className='size-3 shrink-0' />}
-      <span className='truncate text-foreground/80'>{child.model}</span>
+      <span className='truncate text-muted-foreground'>{child.model}</span>
     </span>
   )
 }
@@ -117,9 +104,11 @@ function LastActivity({ child }: { child: ChildThread }) {
 export function ChildThreadList({
   threads,
   className,
+  showType,
 }: {
   threads: readonly ChildThread[]
   className?: string
+  showType?: boolean
 }) {
   const open = useOpenThread()
   const prefetch = useThreadRowPrefetch()
@@ -129,7 +118,13 @@ export function ChildThreadList({
   return (
     <div className={cn('flex flex-col p-2', className)}>
       {sorted.map((child) => (
-        <OwnedThreadRow key={child.id} child={child} open={open} prefetch={prefetch} />
+        <OwnedThreadRow
+          key={child.id}
+          child={child}
+          open={open}
+          prefetch={prefetch}
+          showType={showType}
+        />
       ))}
     </div>
   )
@@ -139,9 +134,11 @@ function OwnedThreadRow({
   child,
   open,
   prefetch,
+  showType,
 }: {
   child: ChildThread
   open: Open
+  showType?: boolean
   prefetch: ReturnType<typeof useThreadRowPrefetch>
 }) {
   return (
@@ -149,7 +146,16 @@ function OwnedThreadRow({
       onClick={() => open(child)}
       onPointerEnter={() => prefetch.enter(child.id)}
       onPointerLeave={() => prefetch.leave(child.id)}
-      heading={<ChildTitle child={child} />}
+      heading={
+        <>
+          <span className='min-w-0 flex-1'>
+            <ChildTitle child={child} />
+          </span>
+          {showType && (
+            <span className='shrink-0 pt-0.5 text-xs text-muted-foreground'>Thread</span>
+          )}
+        </>
+      }
       glyph={<StatusGlyph status={child.status} />}
     >
       <AgentMeta child={child} />

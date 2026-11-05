@@ -14,8 +14,11 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } 
 
 import type { FileTarget } from './file_link'
 
+import { FilesIcon } from './central_icons'
 import { ChangesScopePicker } from './changes_scope'
+import { ContentEmpty } from './content_empty'
 import { byTreeOrder } from './diff/model'
+import { DiffToolbarFrame } from './diff/toolbar_frame'
 import { diffViewer, primeDiffHighlights } from './diff_worker_pool'
 
 // A file link lands here first; `found` says whether it's among the changed files.
@@ -131,15 +134,14 @@ export function ThreadChanges({
   if (diff.diff === '')
     return (
       <div className='flex h-full min-h-0 flex-col'>
-        <div className='flex h-9 shrink-0 items-center border-b border-border pl-2'>
+        <DiffToolbarFrame>
           <ChangesScopePicker value={scope} onChange={setScope} />
-        </div>
-        <div className='flex flex-1 flex-col items-center justify-center gap-1 p-4 text-center'>
-          <p className='text-sm'>No changes</p>
-          <p className='text-xs text-muted-foreground'>
-            Edits in this thread&apos;s working folder will show here.
-          </p>
-        </div>
+        </DiffToolbarFrame>
+        <ContentEmpty
+          icon={FilesIcon}
+          title='No changes'
+          description="Edits in this thread's working folder will show here."
+        />
         {notShown.length > 0 && <NotShown paths={notShown} />}
       </div>
     )

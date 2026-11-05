@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { freePort, repoRoot, startServer, type Tree } from '../app'
-import { cloneHome, goldenHome } from '../seed'
+import { cloneHome, goldenHome, prNumbers, prRepo } from '../seed'
 import { prepareReplay } from './replay'
 
 export async function prepareHome(out: string) {
@@ -13,7 +13,7 @@ export async function prepareHome(out: string) {
   mkdirSync(dir, { recursive: true })
   const home = join(dir, 'home')
   await cloneHome(golden, home)
-  const repo = join(dir, 'repo')
+  const repo = join(dir, 'storefront')
   const pulls = await prepareReplay(join(dir, 'replay'))
   const db = new Database(join(home, 'jetty.db'))
   try {
@@ -25,6 +25,29 @@ export async function prepareHome(out: string) {
       stderr: 'pipe',
     })
     if (await clone.exited) throw new Error(await new Response(clone.stderr).text())
+    const analytics = Bun.spawn(
+      ['git', 'clone', '--quiet', '--no-hardlinks', project.path, join(dir, 'analytics')],
+      {
+        stdout: 'ignore',
+        stderr: 'pipe',
+      }
+    )
+    if (await analytics.exited) throw new Error(await new Response(analytics.stderr).text())
+    mkdirSync(join(repo, 'src/checkout'), { recursive: true })
+    mkdirSync(join(repo, 'src/discounts'), { recursive: true })
+    mkdirSync(join(repo, 'docs'), { recursive: true })
+    await Bun.write(
+      join(repo, 'docs/checkout.md'),
+      '# Acme Storefront\n\nCheckout, payments and order management for the Acme store.\n\n## Development\n\n```sh\nbun install\nbun run dev\n```\n\n## Checkout\n\nAll prices use integer cents. A checkout session keeps the cart,\nshipping address and discount code together. Codes are revalidated\nwhenever the quote changes.\n\nRun `bun test src/checkout` before changing the pricing pipeline.\n'
+    )
+    await Bun.write(
+      join(repo, 'src/checkout/recalculate.ts'),
+      `import { resolveDiscount } from '../discounts/validate'\nimport { priceCart } from './pricing'\nimport type { Address, Cart } from './types'\n\nexport async function recalculate(cart: Cart, address: Address) {\n  const discount = await resolveDiscount(cart.discountCode)\n  const quote = await priceCart(cart, address, discount)\n\n  return {\n    ...quote,\n    discountCode: discount?.code ?? null,\n  }\n}\n`
+    )
+    await Bun.write(
+      join(repo, 'src/discounts/validate.ts'),
+      `type Discount = { code: string; expiresAt: number; percent: number }\n\nconst promotions = new Map<string, Discount>()\n\nexport async function resolveDiscount(code?: string) {\n  if (!code) return null\n\n  const discount = promotions.get(code.trim().toUpperCase())\n  if (!discount || discount.expiresAt <= Date.now()) return null\n\n  return discount\n}\n`
+    )
     const remote = Bun.spawn(
       ['git', 'remote', 'set-url', 'origin', 'https://github.com/jettpbaker/pr-lab.git'],
       { cwd: repo, stdout: 'ignore', stderr: 'pipe' }
@@ -83,6 +106,19 @@ export async function startStack(prepared: Awaited<ReturnType<typeof prepareHome
   process.on('SIGTERM', onSignal)
   process.on('SIGINT', onSignal)
   try {
+    const rpc = await server.connect()
+    try {
+      const pulls = await Promise.all(
+        prNumbers.map((number) => rpc.request('pullRequest.refresh', { repo: prRepo, number }))
+      )
+      for (const pull of pulls)
+        if (pull.status !== 'ready')
+          throw new Error(
+            `Could not prepare ${prRepo}#${pull.number}: ${pull.error ?? pull.status}`
+          )
+    } finally {
+      await rpc.close()
+    }
     for (let i = 0; i < 150; i++) {
       if (
         await fetch(origin).then(

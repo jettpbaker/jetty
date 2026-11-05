@@ -1,33 +1,22 @@
 import type { TurnLoadout } from '@jetty/shared/events'
 
 import { CopyButton } from '@/components/custom/copy_button'
-import { describeLoadout } from '@/lib/loadout'
 import { formatSentAt } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useModels } from '@/state'
-import { catalogModelName } from '@jetty/shared/model-name'
 
+import { CatalogModelLabel } from './model_label'
 import { SourceLabel } from './source_label'
 
-// True reveals the whole footer on message hover or keyboard focus; false keeps the time and
-// model showing and reveals only the copy button. Touch has no hover, so there it always shows.
-const revealWholeFooter = true
-
-const hidden = 'opacity-0 group-hover/message:opacity-100 [@media(hover:none)]:opacity-100'
-const line = 'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground'
-const footer = cn(
-  line,
-  revealWholeFooter &&
-    `${hidden} transition-opacity has-focus-visible:opacity-100 motion-reduce:transition-none`
-)
-const copy = cn(
-  !revealWholeFooter &&
-    `${hidden} transition-[color,background-color,opacity] focus-visible:opacity-100`
-)
+const footer = 'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground'
+const reveal =
+  'opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100'
+const copy =
+  'opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100 transition-[color,background-color,opacity] motion-reduce:transition-none'
 
 function SentAt({ createdAt }: { createdAt: number }) {
   return (
-    <time className='text-faint-foreground' dateTime={new Date(createdAt).toISOString()}>
+    <time className='font-mono text-muted-foreground' dateTime={new Date(createdAt).toISOString()}>
       {formatSentAt(createdAt)}
     </time>
   )
@@ -48,12 +37,13 @@ export function UserMessageFooter({
 }) {
   if (steering)
     return (
-      <div className={cn(line, 'self-end')}>
+      <div className={cn(footer, 'self-end')}>
         <span className='shimmer px-1'>Steering…</span>
       </div>
     )
   return (
-    <div className={cn(footer, 'self-end')}>
+    <div className={cn(footer, 'self-end', !steered && reveal)}>
+      {text && <CopyButton text={text} label='Copy message' className={copy} />}
       {steered && (
         <>
           <span>Steered</span>
@@ -61,7 +51,6 @@ export function UserMessageFooter({
         </>
       )}
       <SentAt createdAt={createdAt} />
-      {text && <CopyButton text={text} label='Copy message' className={copy} />}
     </div>
   )
 }
@@ -71,27 +60,41 @@ export function AgentMessageFooter({
   createdAt,
   loadout,
   provider,
+  latest,
 }: {
   text: string
   createdAt: number
   loadout?: TurnLoadout
   provider?: string
+  latest?: boolean
 }) {
   return (
-    <div className={cn(footer, 'self-start')}>
-      <CopyButton text={text} label='Copy message' className={copy} />
-      {loadout && <TurnModel loadout={loadout} provider={provider} />}
+    <div className={cn(footer, 'self-start gap-2', !latest && reveal)}>
+      {loadout && (
+        <>
+          <TurnModel loadout={loadout} provider={provider} />
+          <span aria-hidden='true'>·</span>
+        </>
+      )}
       <SentAt createdAt={createdAt} />
+      <CopyButton text={text} label='Copy message' className={copy} />
     </div>
   )
 }
 
 function TurnModel({ loadout, provider }: { loadout: TurnLoadout; provider?: string }) {
-  const name = catalogModelName(useModels(), provider, loadout.model)
-  const details = describeLoadout({ effort: loadout.effort, fast: loadout.fast ?? false })
+  const models = useModels()
   return (
     <SourceLabel provider={provider}>
-      <span className='truncate'>{[name, details].filter(Boolean).join(' ')}</span>
+      <span className='truncate'>
+        <CatalogModelLabel
+          catalog={models}
+          provider={provider}
+          model={loadout.model}
+          effort={loadout.effort}
+          fast={loadout.fast}
+        />
+      </span>
     </SourceLabel>
   )
 }

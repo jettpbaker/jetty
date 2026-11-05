@@ -3,11 +3,9 @@ import type { Bot } from '@jetty/shared/wire'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useShowQuietTurns } from '@/lib/bot-quiet-turns'
-import { effortLabels, findModel } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useArchiveBot, useArchivedBots, useBots, useChrome } from '@/state'
 import { homePath, useSettingsInfo } from '@/state/models'
-import { modelLabelText } from '@jetty/shared/model-name'
 import { useState } from 'react'
 
 import { DeleteBotDialog } from './bot_archive'
@@ -21,6 +19,7 @@ import {
 } from './central_icons'
 import { accessModes } from './composer_access_mode'
 import { copyFilePath } from './file_link'
+import { CatalogModelLabel } from './model_label'
 import { NewBotDialog } from './new_bot_dialog'
 import {
   PathText,
@@ -29,13 +28,11 @@ import {
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  SettingsSelect,
   cardClass,
 } from './settings_layout'
 
 function BotRow({ bot }: { bot: Bot }) {
   const chrome = useChrome()
-  const model = findModel(chrome?.models ?? [], { provider: bot.provider, model: bot.model })
   const project = bot.projectId
     ? chrome?.projects.find((entry) => entry.id === bot.projectId)?.title
     : 'All projects'
@@ -54,9 +51,13 @@ function BotRow({ bot }: { bot: Bot }) {
           <span className='text-13'>{bot.name}</span>
           <span className='flex min-w-0 items-center gap-2 text-xs text-muted-foreground'>
             <span className='truncate'>
-              {[model ? modelLabelText(model) : bot.model, bot.effort && effortLabels[bot.effort]]
-                .filter(Boolean)
-                .join(' ')}
+              <CatalogModelLabel
+                catalog={chrome?.models}
+                provider={bot.provider}
+                model={bot.model}
+                effort={bot.effort}
+                fast={bot.fast}
+              />
             </span>
             {bot.permissionMode === 'full_access' && (
               <span className='flex shrink-0 items-center gap-1 [&_svg]:size-3'>
@@ -162,7 +163,7 @@ export function SettingsBots() {
           </div>
           <pre className='scrollbar-subtle max-h-60 overflow-auto px-4 pt-3 pb-3.5 text-xs leading-5 whitespace-pre-wrap'>
             {info?.sharedPreferences.trim() || (
-              <span className='text-muted-foreground'>
+              <span className='font-sans text-muted-foreground'>
                 Nothing yet. Bots add what they learn about how you work.
               </span>
             )}
@@ -173,13 +174,13 @@ export function SettingsBots() {
         <SettingsCard>
           <SettingsRow
             id='show-quiet-turns'
-            title='Show check-ins and tidies'
+            title='Show bot maintenance updates'
             description='Show what a bot did when Jetty woke it, even when it had nothing to tell you'
           >
             <Switch
               checked={showQuietTurns}
               onCheckedChange={setShowQuietTurns}
-              aria-label='Show check-ins and tidies'
+              aria-label='Show bot maintenance updates'
             />
           </SettingsRow>
         </SettingsCard>
@@ -189,14 +190,8 @@ export function SettingsBots() {
           <SettingsRow
             title='Check-ins'
             description="A quiet bot looks over its area while you're around. About hourly on Claude, every 25 minutes on Codex and Copilot."
-            disabled
           >
-            <SettingsSelect
-              label='Check-ins'
-              value='automatic'
-              options={[{ value: 'automatic', label: 'Automatic' }]}
-              disabled
-            />
+            <span className='text-13 text-foreground'>Automatic</span>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

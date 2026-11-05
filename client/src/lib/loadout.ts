@@ -1,5 +1,5 @@
 import { EffortLevel } from '@jetty/shared/events'
-import { findProviderModel } from '@jetty/shared/model-name'
+import { effortLabels, findProviderModel } from '@jetty/shared/model-name'
 import { ProviderId, type ProviderModel } from '@jetty/shared/wire'
 import { Schema } from 'effect'
 
@@ -16,12 +16,14 @@ const slotCount = 5
 const isProvider = Schema.is(ProviderId)
 const isEffort = Schema.is(EffortLevel)
 
-export const effortLabels: Record<EffortLevel, string> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  xhigh: 'Extra high',
-  max: 'Max',
+export { effortLabels } from '@jetty/shared/model-name'
+
+export const effortDescriptions: Record<EffortLevel, string> = {
+  low: 'Less reasoning for quick, focused changes.',
+  medium: 'Balances reasoning depth and response time.',
+  high: 'More reasoning for complex changes; takes longer.',
+  xhigh: 'Extended reasoning for difficult problems; takes more time.',
+  max: 'Most reasoning available; allow the most time.',
 }
 
 export function modelKey(model: { provider: ProviderId; id: string }) {

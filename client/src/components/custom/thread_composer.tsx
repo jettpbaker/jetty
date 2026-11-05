@@ -1,4 +1,4 @@
-import type { Draft, DraftTarget } from '@/state'
+import type { DraftTarget } from '@/state'
 import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
@@ -15,6 +15,7 @@ import {
   useQuestion,
 } from '@/components/custom/composer_strip'
 import { pendingItems } from '@/components/custom/composer_strip_model'
+import { useInlineRequestTarget } from '@/components/custom/inline_request'
 import {
   ComposerQueue,
   QueuedEditNote,
@@ -26,18 +27,21 @@ import {
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
 import { useAttachments } from '@/hooks/use-attachments'
 import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
+import { cn } from '@/lib/utils'
 import {
   useAccessMode,
   useChatComposer,
   useChromeReady,
   useDefaultEnvironment,
   useContinueThread,
+  useContinuing,
   useCreateThread,
   useDismissQuestion,
   useDraft,
@@ -49,6 +53,7 @@ import {
   useRespondApproval,
   useRespondQuestion,
   useRespondSecret,
+  useRequestReveal,
   useSendTurn,
   useThreadLoadout,
   useThreadMeta,
@@ -58,13 +63,17 @@ import { createItemSelection } from '@/state/item_selection'
 import { useProviderUnavailable } from '@/state/models'
 import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
-import { heldByRestarts } from '@jetty/shared/items'
+import { heldByRestarts, RESTART_LIMIT, RESTART_WINDOW_MS } from '@jetty/shared/items'
 import { worktreeSetupPrompt } from '@jetty/shared/wire'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
+import { PauseIcon, WorktreeIcon } from './central_icons'
+import { DisabledTooltip } from './disabled_tooltip'
 import { ThreadFooter } from './thread_footer'
+import { WorktreeSetupNotice } from './worktree_setup_notice'
 
 const noItems: readonly ThreadItem[] = []
 
@@ -154,12 +163,15 @@ export function ThreadComposer({
   const sendTurn = useSendTurn()
   const interruptTurn = useInterruptTurn()
   const continueThread = useContinueThread()
+  const continuing = useContinuing(threadId ?? '')
+  const restartHeld = Boolean(threadId && heldByRestarts(items) && !continuing)
   const createThread = useCreateThread()
   const respondApproval = useRespondApproval()
   const respondQuestion = useRespondQuestion()
   const respondSecret = useRespondSecret()
   const dismissQuestion = useDismissQuestion()
   const queueActions = useQueueActions()
+  const revealRequest = useRequestReveal()
   const navigate = useNavigate()
   const chromeReady = useChromeReady()
   const defaultEnvironment = useDefaultEnvironment()
@@ -169,6 +181,7 @@ export function ThreadComposer({
   const latestProject = useNewThreadProject(!threadId && !picked, selectedId)
   const projectId =
     !threadId && chromeReady ? (picked ? target?.projectId : latestProject) : undefined
+  const project = useProject(projectId)
   const projectGit = useProjectGit(projectId)
   const noGit = projectGit?.git === 'missing' || projectGit?.git === 'not-git'
   const projectDefault = projectGit?.git === 'ok' ? projectGit.defaultEnvironment : undefined
@@ -218,7 +231,8 @@ export function ThreadComposer({
     if (threadId) retrySetup(threadId)
   }
   const worktree = meta?.worktree
-  const setupNotice = worktree?.state === 'failed' || worktree?.state === 'stopped'
+  const settingUp = worktree?.state === 'pending' || worktree?.state === 'setting_up'
+  const setupNotice = settingUp || worktree?.state === 'failed' || worktree?.state === 'stopped'
   const messageHeld = Boolean(meta?.queuePaused && unsent.length > 0)
   const needsModel = !threadId && !loadout
   // Each /usage asks again; 0 is closed.
@@ -254,26 +268,26 @@ export function ThreadComposer({
   // Text keeps the intent it was started with: a request that shows up mid-message, or just
   // before it, leaves Enter queueing or sending it rather than answering the request.
   const typed = draft.trim() !== ''
-  const answering = Boolean(item) && (!typed || saved.typedFor === item?.id)
+  const answering =
+    Boolean(item && item.kind !== 'question') && (!typed || saved.typedFor === item?.id)
   function setDraft(text: string) {
     if (typed || !text.trim()) return update({ text })
     const noticed = item && performance.now() - shown.current.at >= noticeMs
     update({
       text,
-      typedFor: item && (noticed || saved.typedFor === item.id) ? item.id : undefined,
+      typedFor:
+        item && item.kind !== 'question' && (noticed || saved.typedFor === item.id)
+          ? item.id
+          : undefined,
     })
   }
   const stripDraft = answering ? saved : { ...saved, text: '' }
-  function stripUpdate({ text, ...patch }: Partial<Draft>) {
-    update(
-      answering ? { ...patch, ...(text !== undefined && { text }), typedFor: item?.id } : patch
-    )
-  }
 
   // The next item to show brings back whatever was typed for it earlier.
   function settled(entry: { id: string }) {
     const next = pending.find((candidate) => candidate.id !== entry.id)
     const parked = next && saved.parked?.[next.id]
+    if (next && threadId && next.kind !== 'secret_request') revealRequest(threadId, next.id)
     if (!next || parked === undefined || !answering) return
     const rest = { ...saved.parked }
     delete rest[next.id]
@@ -293,23 +307,36 @@ export function ThreadComposer({
   )
   const question = useQuestion(
     item?.kind === 'question' ? item : undefined,
-    stripDraft,
-    stripUpdate,
+    saved,
+    update,
     (entry, answers, progress) => {
       if (!threadId) return
-      respondQuestion(threadId, entry.id, answers, progress)
+      respondQuestion(threadId, entry.id, answers, progress, true)
       settled(entry)
     },
     (entry, progress) => {
       if (!threadId) return
-      dismissQuestion(threadId, entry.id, progress)
+      dismissQuestion(threadId, entry.id, progress, true)
       settled(entry)
     },
     keepKeyboardFocus
   )
   const input = useRef<HTMLTextAreaElement>(null)
+  const questionInput = useRef<HTMLTextAreaElement>(null)
   const modelMenuRef = useRef<(() => void) | null>(null)
   const focusEdit = useRef(false)
+
+  // Focusability reads layout, so wait for font metrics before focusing a new prompt.
+  useEffect(() => {
+    if (threadId) return
+    let active = true
+    void document.fonts.ready.then(() => {
+      if (active) input.current?.focus({ preventScroll: true })
+    })
+    return () => {
+      active = false
+    }
+  }, [threadId])
 
   // The Edit button unmounts as its row turns into "Editing"; the loaded draft takes focus.
   useLayoutEffect(() => {
@@ -441,6 +468,7 @@ export function ThreadComposer({
   function choose(to: number) {
     const target = pending[to]
     if (!target || !item || target === item) return
+    if (threadId && target.kind !== 'secret_request') revealRequest(threadId, target.id)
     shown.current = { id: target.id, at: 0 }
     if (!answering) return update({ pendingId: target.id })
     const parked = Object.fromEntries(
@@ -491,8 +519,8 @@ export function ThreadComposer({
             strip: (
               <QuestionStrip
                 ctl={question}
+                inputRef={questionInput}
                 item={item}
-                followUp={followUp}
                 header={header}
                 hideSource={Boolean(header)}
               />
@@ -530,18 +558,30 @@ export function ThreadComposer({
               onKeyDown: keyHandler(() => false),
             }
           : undefined
+  const inlineDecision = item?.kind === 'approval' || item?.kind === 'question'
+  const requestTarget = useInlineRequestTarget(inlineDecision ? item.id : undefined)
   const mode =
     answer && (answering || item?.kind === 'secret_request')
       ? answer
       : {
           strip: answer?.strip,
-          placeholder: !threadId
-            ? undefined
-            : running
-              ? 'Queue a follow-up while the agent works'
-              : ambient
-                ? 'What would you like to work on?'
-                : 'Ask for follow-up changes',
+          placeholder: restartHeld
+            ? 'Add instructions before resuming'
+            : setupNotice
+              ? settingUp
+                ? 'Queue a message for when setup finishes'
+                : 'Add a message for the retry'
+              : hasQueue && composerQueue?.paused
+                ? 'Queue another message'
+                : meta?.status === 'error'
+                  ? 'Tell the agent what to try instead'
+                  : item?.kind === 'question'
+                    ? 'Add context while you answer above'
+                    : running
+                      ? 'Queue a follow-up while the agent works'
+                      : ambient
+                        ? 'Describe a task or ask a question · / for commands'
+                        : 'Ask for follow-up changes · / for commands',
           sendLabel: editingEntry
             ? 'Save'
             : running
@@ -566,23 +606,49 @@ export function ThreadComposer({
         }
 
   return (
-    <div className='mx-auto w-full max-w-[873px] px-6 pb-1'>
-      {worktree && setupNotice && (
-        <div
-          role={worktree.state === 'failed' ? 'alert' : 'status'}
-          className='flex items-center gap-2 pb-2 text-xs'
-        >
-          <span
-            className={worktree.state === 'failed' ? 'text-destructive' : 'text-muted-foreground'}
+    <div
+      className={cn(
+        'mx-auto w-full max-w-[873px] shrink-0 px-6 pb-3',
+        threadId && 'mt-auto',
+        ambient && !threadId && 'flex min-h-0 flex-1 flex-col justify-center pb-16'
+      )}
+    >
+      <output className='sr-only' aria-live='polite' aria-atomic='true'>
+        {meta &&
+          (restartHeld
+            ? `${meta.title}: paused after repeated restarts`
+            : meta.status === 'awaiting_approval'
+              ? `${meta.title}: needs your input`
+              : meta.status === 'error'
+                ? `${meta.title}: failed`
+                : meta.readyForReview
+                  ? `${meta.title}: finished`
+                  : '')}
+      </output>
+      {inlineDecision &&
+        requestTarget &&
+        createPortal(
+          <fieldset
+            className='overflow-hidden rounded-md border border-status-attention/40'
+            onKeyDownCapture={(event) => {
+              if (!event.nativeEvent.isComposing) answer?.onKeyDown(event.nativeEvent)
+            }}
           >
-            {worktree.error}
-          </span>
-          {!messageHeld && (
-            <Button variant='outline' size='sm' {...pressProps(retry)}>
-              Retry
-            </Button>
-          )}
-        </div>
+            <legend className='sr-only'>
+              {item.kind === 'approval' ? 'Pending approval' : 'Pending question'}
+            </legend>
+            {mode.strip}
+          </fieldset>,
+          requestTarget
+        )}
+      {ambient && !threadId && (
+        <Empty className='flex-none items-start px-2 pt-6 pb-6 text-left'>
+          <EmptyHeader className='max-w-full items-start'>
+            <EmptyTitle className='text-xl font-semibold'>
+              What would you like to do{project ? ` in ${project.title}` : ''}?
+            </EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       )}
       <Composer
         value={draft}
@@ -592,25 +658,72 @@ export function ThreadComposer({
         onInterrupt={() => {
           if (threadId) interruptTurn(threadId)
         }}
-        onContinue={
-          threadId && heldByRestarts(items)
-            ? () => {
-                if (!unavailable) continueThread(threadId)
-              }
-            : undefined
-        }
-        continueDisabledReason={unavailable}
         onChooseModel={needsModel ? () => modelMenuRef.current?.() : undefined}
-        running={running && !item && !editingEntry}
+        running={running && !settingUp && !item && !editingEntry}
         stop={running && turnActive && !editingEntry && item !== undefined}
+        requestId={item?.id}
         strip={
-          hasQueue || usageBanner || mode.strip ? (
+          hasQueue ||
+          setupNotice ||
+          restartHeld ||
+          usageBanner ||
+          (!inlineDecision && mode.strip) ? (
             <>
+              {worktree && setupNotice && !hasQueue && (
+                <WorktreeSetupNotice
+                  worktree={worktree}
+                  detail={settingUp ? 'Messages you send now wait for setup.' : undefined}
+                >
+                  {settingUp ? (
+                    <Button
+                      variant='ghost-text'
+                      size='sm'
+                      onClick={() => threadId && interruptTurn(threadId)}
+                    >
+                      Cancel setup
+                    </Button>
+                  ) : !messageHeld ? (
+                    <Button variant='outline' size='sm' {...pressProps(retry)}>
+                      Retry setup
+                    </Button>
+                  ) : null}
+                </WorktreeSetupNotice>
+              )}
               {hasQueue && threadId && composerQueue && (
-                <ComposerQueue threadId={threadId} queue={composerQueue} running={running} />
+                <ComposerQueue
+                  threadId={threadId}
+                  queue={composerQueue}
+                  running={running}
+                  worktree={worktree}
+                />
+              )}
+              {restartHeld && threadId && (
+                <section
+                  data-strip='restart'
+                  aria-label='Paused after repeated restarts'
+                  className='flex items-start gap-2 bg-popover p-3 text-sm first:rounded-t-md'
+                >
+                  <PauseIcon className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
+                  <div className='flex min-w-0 flex-1 flex-col gap-1'>
+                    <span className='font-medium'>Resume after repeated restarts</span>
+                    <span className='text-xs leading-5 text-muted-foreground'>
+                      Paused after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000} minutes.
+                      Resume to continue where the agent left off.
+                    </span>
+                  </div>
+                  <DisabledTooltip reason={unavailable} wrap='flex'>
+                    <Button
+                      size='sm'
+                      disabled={!!unavailable}
+                      onClick={() => continueThread(threadId)}
+                    >
+                      Resume
+                    </Button>
+                  </DisabledTooltip>
+                </section>
               )}
               {usageBanner}
-              {mode.strip}
+              {!inlineDecision && mode.strip}
             </>
           ) : undefined
         }
@@ -622,6 +735,11 @@ export function ThreadComposer({
             className='mx-1 mt-1 self-stretch rounded-[calc(var(--radius-md)-4px)]'
           />
         ))}
+        inputNotice={
+          item?.kind === 'question'
+            ? 'Question pending · follow-ups wait for your answer'
+            : undefined
+        }
         placeholder={mode.placeholder}
         sendLabel={mode.sendLabel}
         sendDisabled={!!unavailable || mode.sendDisabled}
@@ -669,58 +787,78 @@ export function ThreadComposer({
         onAccessModeChange={setAccessMode}
         attachments={attachments}
         header={
-          threadId ? (
-            // Holds the project row's height so an empty thread's composer sits where the new thread's did.
-            ambient && <div className='h-7' />
-          ) : (
-            <ComposerProject
-              projectId={projectId}
-              onProjectChange={(id) => {
-                draftPin = undefined
-                if (id !== projectId)
-                  retarget({ projectId: id, environment: undefined, ref: undefined })
-              }}
-              onSetUpWorktrees={setupGuide ? () => setUpWorktrees(setupGuide) : undefined}
-            />
+          !threadId && (
+            <div
+              className='flex w-full flex-wrap items-center gap-1'
+              aria-label='Thread destination'
+            >
+              <ComposerProject
+                projectId={projectId}
+                onProjectChange={(id) => {
+                  draftPin = undefined
+                  if (id !== projectId)
+                    retarget({ projectId: id, environment: undefined, ref: undefined })
+                }}
+              />
+              <ComposerFooter
+                projectId={projectId}
+                environment={environment}
+                onEnvironmentChange={(next) => retarget({ environment: next })}
+                startingRef={startingRef}
+                onStartingRefChange={(ref) => retarget({ ref })}
+              />
+            </div>
           )
         }
         context={
-          threadId ? (
-            // Holds the environment/branch footer's height so the composer sits where it did on the new thread.
-            <div className='flex w-full flex-col'>
-              <ThreadFooter
-                threadId={threadId}
-                environment={meta?.environment}
-                branch={meta && threadBranch(meta)}
-                path={projectPath}
-                provider={provider}
-                ring={!ambient}
-                note={
-                  unavailable ? (
-                    <span className='truncate'>{unavailable}</span>
-                  ) : editingEntry ? (
-                    <QueuedEditNote items={items} />
-                  ) : left !== undefined ? (
-                    <QueuedEditNote left={left} items={items} />
-                  ) : undefined
-                }
-              />
-            </div>
-          ) : (
-            <ComposerFooter
-              projectId={projectId}
-              environment={environment}
-              onEnvironmentChange={(next) => retarget({ environment: next })}
-              startingRef={startingRef}
-              onStartingRefChange={(ref) => retarget({ ref })}
+          threadId && (
+            <ThreadFooter
+              threadId={threadId}
+              environment={meta?.environment}
+              branch={meta && threadBranch(meta)}
+              path={projectPath}
+              provider={provider}
+              ring={!ambient}
+              note={
+                unavailable ? (
+                  <span className='truncate'>{unavailable}</span>
+                ) : editingEntry ? (
+                  <QueuedEditNote items={items} />
+                ) : left !== undefined ? (
+                  <QueuedEditNote left={left} items={items} />
+                ) : undefined
+              }
             />
           )
         }
-        rows={hasQueue || item ? 1 : rows}
+        rows={hasQueue ? 1 : rows}
         ambient={ambient}
         inputRef={input}
+        onTypeToFocus={(key) => {
+          if (item?.kind !== 'question' || typed || editingEntry || !requestTarget) return false
+          if (threadId) revealRequest(threadId, item.id)
+          question.write(question.custom + key)
+          questionInput.current?.focus({ preventScroll: true })
+          return true
+        }}
         slash={{ threadId, projectId: projectId ?? meta?.projectId, onUsage: showUsage }}
       />
+      {!threadId && setupGuide && (
+        <div className='flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-2'>
+          <Button
+            variant='ghost-text'
+            size='sm'
+            className='-ml-2'
+            onClick={() => setUpWorktrees(setupGuide)}
+          >
+            <WorktreeIcon />
+            Set up worktrees
+          </Button>
+          <span className='text-xs text-muted-foreground'>
+            Optional: add setup and cleanup commands for new worktrees.
+          </span>
+        </div>
+      )}
     </div>
   )
 }

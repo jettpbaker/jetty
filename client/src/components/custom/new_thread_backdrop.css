@@ -47,22 +47,16 @@
 @keyframes new-thread-backdrop-in {
   from {
     opacity: 0;
-    filter: blur(3px);
   }
   to {
     opacity: 1;
-    filter: blur(0);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  @keyframes new-thread-backdrop-in {
-    from {
-      opacity: 0;
-      filter: none;
-    }
-    to {
-      opacity: 1;
-      filter: none;
-    }
-  }
+
+.new-thread-default-backdrop {
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    color-mix(in oklch, var(--primary) 9%, transparent),
+    transparent 65%
+  );
 }

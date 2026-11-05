@@ -57,6 +57,8 @@ export const keybinds = {
   findFile: { hotkey: 'Mod+P', label: '⌘P', name: 'Find a file', modifiers: ['Meta'] },
   addToPrompt: { hotkey: 'Mod+L', label: '⌘L', name: 'Add to prompt', modifiers: ['Meta'] },
   // The composer handles these keys itself; they're here to be listed and shown.
+  allowOnce: { hotkey: 'Mod+Enter', label: '⌘↵', name: 'Allow once', modifiers: ['Meta'] },
+  denyApproval: { hotkey: 'Escape', label: 'Esc', name: 'Deny approval', modifiers: [] },
   send: { hotkey: 'Enter', label: '↵', name: 'Send', modifiers: [] },
   steer: {
     hotkey: 'Mod+Enter',
@@ -203,17 +205,14 @@ export function KeybindChip({
     <Kbd
       aria-label={binding.label}
       className={cn(
-        'keybind-chip h-4 min-w-4 gap-0 rounded-[3px] bg-foreground/8 px-1 font-sans text-[10px] font-normal leading-none text-muted-foreground',
+        'keybind-chip h-4 min-w-4 gap-0.5 rounded-[3px] bg-foreground/8 px-1 font-sans text-[10px] font-normal leading-none text-muted-foreground',
         // Kbd clears its fill inside tooltips; a chip keeps it everywhere.
         'in-data-[slot=tooltip-content]:min-w-4 in-data-[slot=tooltip-content]:bg-foreground/8 in-data-[slot=tooltip-content]:px-1',
         className
       )}
     >
-      {/* One fixed cell per key, like a macOS menu, so ⌥⌘M and ⌥⌘E are the same width. */}
-      {[...label].map((key, index) => (
-        <span key={index} className='inline-block min-w-[0.9em] text-center'>
-          {key}
-        </span>
+      {label.match(/[⌘⌥⇧⌃]|[^⌘⌥⇧⌃]+/gu)?.map((key, index) => (
+        <span key={index}>{key}</span>
       ))}
     </Kbd>
   )

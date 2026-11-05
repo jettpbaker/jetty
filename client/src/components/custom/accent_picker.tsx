@@ -1,7 +1,7 @@
 import { accentChangeEvent, accentPresets, loadAccent, setAccent } from '@/lib/accent'
 import { useAppearance } from '@/lib/appearance'
 import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 
@@ -12,6 +12,7 @@ function presetAccent() {
 // While the accent comes from the wallpaper, no preset is chosen and the swatches wait.
 export function AccentPicker() {
   const { autoAccent } = useAppearance()
+  const name = useId()
   const [accent, setAccentState] = useState(presetAccent)
 
   useEffect(() => {
@@ -25,24 +26,36 @@ export function AccentPicker() {
       reason={autoAccent ? 'Matching the wallpaper' : undefined}
       wrap='flex shrink-0'
     >
-      <div role='radiogroup' aria-label='Accent' className='flex shrink-0 items-center gap-1.5'>
-        {accentPresets.map((preset) => (
-          <button
-            key={preset.value}
-            type='button'
-            role='radio'
-            aria-checked={accent === preset.value}
-            aria-label={preset.label}
-            disabled={autoAccent}
-            onClick={() => setAccent(preset.value)}
-            className={cn(
-              'flex size-6 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
-              accent === preset.value && 'border-2 border-primary'
-            )}
-          >
-            <span data-accent={preset.value} className='accent-swatch size-3.5 rounded-full' />
-          </button>
-        ))}
+      <div className='flex flex-wrap items-center justify-end gap-x-3 gap-y-2'>
+        <span className='text-xs text-muted-foreground'>
+          {autoAccent
+            ? 'Wallpaper'
+            : accentPresets.find((preset) => preset.value === accent)?.label}
+        </span>
+        <div role='radiogroup' aria-label='Accent' className='flex shrink-0 items-center gap-1.5'>
+          {accentPresets.map((preset) => (
+            <label key={preset.value} className='relative'>
+              <input
+                type='radio'
+                name={name}
+                value={preset.value}
+                aria-label={preset.label}
+                checked={accent === preset.value}
+                disabled={autoAccent}
+                onChange={() => setAccent(preset.value)}
+                className='peer sr-only'
+              />
+              <span
+                className={cn(
+                  'flex size-6 cursor-pointer items-center justify-center rounded-full peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
+                  accent === preset.value && 'border-2 border-primary'
+                )}
+              >
+                <span data-accent={preset.value} className='accent-swatch size-3.5 rounded-full' />
+              </span>
+            </label>
+          ))}
+        </div>
       </div>
     </DisabledTooltip>
   )

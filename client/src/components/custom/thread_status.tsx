@@ -83,14 +83,26 @@ function FilledCircleCheckIcon(props: SVGProps<SVGSVGElement>) {
   return <CircleCheckIcon filled {...props} />
 }
 
-export function StatusGlyph({ status, className }: { status: Status; className?: string }) {
+export function StatusGlyph({
+  status,
+  className,
+  idleDot = false,
+}: {
+  status: Status
+  className?: string
+  idleDot?: boolean
+}) {
   const { icon: Icon, label, color } = statusPresentation[status]
   return (
     <span
-      className={cn('flex size-3.5 shrink-0 items-center justify-center', color, className)}
+      className={cn('flex size-4 shrink-0 items-center justify-center', color, className)}
       title={label}
     >
-      <Icon aria-hidden='true' className='size-full' />
+      {idleDot && status === 'idle' ? (
+        <span aria-hidden='true' className='size-1.5 rounded-full bg-current' />
+      ) : (
+        <Icon aria-hidden='true' className='size-full' />
+      )}
       <span className='sr-only'>{label}</span>
     </span>
   )

@@ -2,6 +2,7 @@ import { Loading } from '@/components/custom/loading'
 import { Markdown } from '@/components/custom/markdown'
 import { PersonAvatar } from '@/components/custom/person_avatar'
 import { contentKey } from '@/lib/hash'
+import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { parseDiffFromFile, type DiffLineAnnotation, type FileDiffMetadata } from '@pierre/diffs'
 import { useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -21,27 +22,34 @@ import {
 import { ago, filePatch, personName, visibleLines } from './model'
 import { PrDiffLoaderContext, PrDiffRevisionContext } from './runtime'
 
-// A relative time, set apart from the sentence before it without a dot: faint on the page, muted on a
-// raised card, where faint is too faint.
-export function Ago({ at, raised = false }: { at: string; raised?: boolean }) {
+export function Ago({ at }: { at: string }) {
   return (
-    <span className={raised ? 'text-muted-foreground' : 'text-faint-foreground'}>{ago(at)}</span>
+    <time
+      dateTime={at}
+      aria-label={ago(at)}
+      title={new Date(at).toLocaleString()}
+      className='font-mono text-muted-foreground'
+    >
+      {formatAge(Date.parse(at), Date.now())}
+    </time>
   )
 }
 
 export function Section({
   title,
+  id,
   className,
   action,
   children,
 }: {
   title: string
+  id?: string
   className?: string
   action?: ReactNode
   children: ReactNode
 }) {
   return (
-    <section className={cn('space-y-3', className)}>
+    <section id={id} className={cn('space-y-3', className)}>
       <div className='flex h-4 items-center justify-between'>
         <h3 className='text-xs font-medium text-muted-foreground'>{title}</h3>
         {action}
@@ -145,6 +153,7 @@ export function Diff({
   // A mounted body fetches its file's contents, as the Changes view does, so folds and the trailing
   // context are exact rather than "may be available"; without them the hunks render bare.
   const [context, setContext] = useState<{ diff: FileDiffMetadata; shown: FileDiffMetadata }>()
+  const preserveContext = threads.some((thread) => !thread.outdated && thread.line !== null)
   useEffect(() => {
     if (!loadFile || suggestion || patch !== undefined || hunks || !diff?.isPartial) return
     if (diff.type !== 'change' && diff.type !== 'rename-changed') return
@@ -155,7 +164,9 @@ export function Diff({
         const usable = !('unavailable' in contents) && patchMatchesContents(diff, contents)
         setContext({
           diff,
-          shown: usable ? hydratedDiff(diff, loadedFiles(diff, contents)) : withoutContext(diff),
+          shown: usable
+            ? hydratedDiff(diff, loadedFiles(diff, contents), preserveContext)
+            : withoutContext(diff),
         })
       },
       () => active && setContext({ diff, shown: withoutContext(diff) })
@@ -163,7 +174,7 @@ export function Diff({
     return () => {
       active = false
     }
-  }, [loadFile, suggestion, patch, hunks, diff, file.path, file.previousPath])
+  }, [loadFile, suggestion, patch, hunks, diff, file.path, file.previousPath, preserveContext])
   const shown = context && context.diff === diff ? context.shown : diff
   const threadPatch = patch ?? file.patch
   const lines = useMemo(() => {
@@ -344,7 +355,7 @@ export function Comment({
           className='size-5'
         />
         <span>{personName(comment.author)}</span>
-        <Ago at={comment.createdAt} raised />
+        <Ago at={comment.createdAt} />
         {menu && <span className='ml-auto'>{menu}</span>}
       </div>
       <div className={cn(reply && 'pl-7')}>

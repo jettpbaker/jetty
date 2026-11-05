@@ -1,6 +1,7 @@
 import type { ProviderModel } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -21,6 +22,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   clearSlot,
   effortLabels,
+  effortDescriptions,
   equipModel,
   findModel,
   modelKey,
@@ -44,6 +46,7 @@ import {
   ArrowRotateClockwiseIcon,
 } from './central_icons'
 import { moveOnKeys, subTriggerClass } from './composer_loadout'
+import { DisabledTooltip } from './disabled_tooltip'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import { SettingsPage, SettingsSection, cardClass, selectTriggerClass } from './settings_layout'
@@ -166,7 +169,7 @@ function SlotRow({
               {slot.effort && effortLabels[slot.effort]}
               <ChevronDownSmallIcon />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' className='min-w-44'>
+            <DropdownMenuContent align='end' className='w-80'>
               {model.efforts.length > 0 && (
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>Effort</DropdownMenuLabel>
@@ -179,8 +182,17 @@ function SlotRow({
                     }}
                   >
                     {model.efforts.map((effort) => (
-                      <DropdownMenuRadioItem key={effort} value={effort}>
-                        {effortLabels[effort]}
+                      <DropdownMenuRadioItem
+                        key={effort}
+                        value={effort}
+                        className='h-auto! py-2 whitespace-normal [&>[data-slot=dropdown-menu-radio-item-indicator]]:top-2.5'
+                      >
+                        <span className='flex flex-col gap-0.5 py-0.5'>
+                          <span>{effortLabels[effort]}</span>
+                          <span className='text-xs leading-4 text-muted-foreground'>
+                            {effortDescriptions[effort]}
+                          </span>
+                        </span>
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>
@@ -219,28 +231,27 @@ function SlotRow({
                   <ModelChoices groups={groups} onPick={equip} />
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-              <DropdownMenuItem onClick={onClear}>Remove from loadout</DropdownMenuItem>
+              <DropdownMenuItem onClick={onClear}>Remove configuration</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </>
       ) : (
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger
-            aria-label={`Add a model to slot ${index + 1}`}
+            aria-label={`Add configuration`}
             title='Option+Shift+↑/↓ to reorder'
             onKeyDown={moveOnKeys(index, onMove)}
-            className='group/add flex grow items-center gap-3 rounded-sm text-left text-13 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
+            className='group/add flex min-h-8 grow items-center gap-3 rounded-sm text-left text-13 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
           >
-            {number}
             {/* Without a handle, dnd-kit would mark the whole slot a disabled button. */}
             <span
               ref={handleRef}
               aria-hidden='true'
-              className='flex size-7 shrink-0 items-center justify-center rounded-[7px] border border-dashed border-border [&_svg]:size-3.5'
+              className='flex w-3 shrink-0 items-center justify-center [&_svg]:size-3'
             >
               <PlusMediumIcon />
             </span>
-            Add a model
+            Add configuration
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start' className='min-w-48'>
             <ModelChoices groups={groups} onPick={equip} />
@@ -252,7 +263,9 @@ function SlotRow({
 }
 
 function Loadout() {
-  const { loadouts: slots, catalog, setLoadouts } = useLoadouts()
+  const { loadouts, catalog, setLoadouts } = useLoadouts()
+  const configured = loadouts.filter((slot) => slot.model !== null)
+  const slots = [...configured, ...loadouts.filter((slot) => slot.model === null)]
   const [enabledProviders] = useProviderEnabled()
   const [announcement, setAnnouncement] = useState('')
   const groups = providers
@@ -270,10 +283,10 @@ function Loadout() {
     )
   }
   function move(from: number, to: number) {
-    if (from === to || to < 0 || to >= slots.length) return
+    if (from === to || to < 0 || to >= configured.length) return
     const next = [...slots]
     next.splice(to, 0, ...next.splice(from, 1))
-    save(next, 'Loadout reordered.')
+    save(next, 'Configurations reordered.')
   }
   return (
     <DragDropProvider
@@ -286,10 +299,10 @@ function Loadout() {
     >
       <div
         role='group'
-        aria-label='Model loadout'
+        aria-label='Model configurations'
         className={cn(cardClass, 'flex flex-col divide-y divide-border px-4')}
       >
-        {slots.map((slot, index) => (
+        {slots.slice(0, Math.min(configured.length + 1, slots.length)).map((slot, index) => (
           <SlotRow
             key={slot.id}
             slot={slot}
@@ -306,6 +319,17 @@ function Loadout() {
             }
           />
         ))}
+        {configured.length === slots.length && (
+          <DisabledTooltip
+            reason={`All ${slots.length} configuration slots are in use`}
+            wrap='inline-flex self-start my-2'
+          >
+            <Button variant='ghost' disabled>
+              <PlusMediumIcon />
+              Add configuration
+            </Button>
+          </DisabledTooltip>
+        )}
       </div>
       <p role='status' aria-live='polite' className='sr-only'>
         {announcement}
@@ -319,7 +343,12 @@ function AvailableModels() {
   const [enabledProviders] = useProviderEnabled()
   const discovery = useChrome()?.modelDiscovery
   return (
-    <div className={cn(cardClass, 'flex gap-6 px-4 pt-3.5 pb-2.5')}>
+    <div
+      className={cn(
+        cardClass,
+        'grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-x-8 gap-y-5 p-4'
+      )}
+    >
       {providers.map((provider) => {
         const models = catalog.filter((model) => model.provider === provider.id)
         const on = enabledProviders[provider.id]
@@ -328,7 +357,7 @@ function AvailableModels() {
             key={provider.id}
             role='group'
             aria-label={`${provider.name} models`}
-            className='flex min-w-0 grow basis-0 flex-col'
+            className='flex min-w-0 flex-col'
           >
             <h3 className='flex h-6 items-center gap-1.5 text-xs font-medium text-muted-foreground [&>.provider-icon]:size-3'>
               <ProviderGlyph provider={provider.id} />
@@ -337,24 +366,26 @@ function AvailableModels() {
             {models.map((model) => {
               const checked = enabled[modelKey(model)] ?? true
               return (
-                <div
+                <label
                   key={modelKey(model)}
+                  htmlFor={`model-enabled-${modelKey(model)}`}
                   className={cn(
                     'flex h-8 items-center gap-2 text-13',
                     (!on || !checked) && 'text-muted-foreground'
                   )}
                 >
-                  <span className='grow truncate'>
-                    <ModelLabel model={model} />
-                  </span>
-                  <Switch
-                    size='sm'
+                  <Checkbox
+                    id={`model-enabled-${modelKey(model)}`}
+                    tone='neutral'
                     aria-label={`Show ${model.name} in pickers`}
                     disabled={!on}
                     checked={checked}
-                    onCheckedChange={(next) => setEnabled(model, next)}
+                    onCheckedChange={(next) => setEnabled(model, next === true)}
                   />
-                </div>
+                  <span className='min-w-0 truncate'>
+                    <ModelLabel model={model} />
+                  </span>
+                </label>
               )
             })}
             {!models.length && (
@@ -378,18 +409,24 @@ function AvailableModels() {
 
 export function SettingsModels() {
   const { refreshing, refresh } = useModelRefresh()
+  const { loadouts } = useLoadouts()
   useEffect(() => {
     refresh()
   }, [refresh])
   return (
     <SettingsPage
       title='Models'
-      description='The loadout you switch between, and which models show up in pickers.'
+      description='Model configurations you switch between, and which models appear in pickers.'
     >
       <SettingsSection
         id='loadout'
-        title='Loadout'
-        description='Five slots to switch between in the composer. Drag to reorder.'
+        title='Configurations'
+        action={
+          <span className='pr-4 font-mono text-xs text-muted-foreground'>
+            {loadouts.filter((slot) => slot.model !== null).length} of {loadouts.length}
+          </span>
+        }
+        description='Save up to five model and effort combinations for the composer. Drag to reorder.'
       >
         <Loadout />
       </SettingsSection>
@@ -401,8 +438,9 @@ export function SettingsModels() {
           <div className='flex shrink-0 items-center gap-2 pr-1'>
             {refreshing && <span className='text-xs text-muted-foreground'>Checking…</span>}
             <Button
-              variant='ghost'
-              className='h-7 gap-1.5 rounded-sm pr-2.5 pl-2 text-13'
+              variant='ghost-text'
+              tone='muted'
+              size='xs'
               aria-busy={refreshing}
               onClick={() => refresh(true)}
             >

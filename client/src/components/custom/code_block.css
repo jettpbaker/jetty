@@ -6,3 +6,10 @@
   color: var(--shiki-dark);
   font-style: var(--shiki-dark-font-style);
 }
+
+.chat-code-token {
+  color: color-mix(in oklch, var(--sdm-c, currentColor) 75%, var(--foreground));
+}
+.dark .chat-code-token {
+  color: var(--shiki-dark, var(--sdm-c, inherit));
+}

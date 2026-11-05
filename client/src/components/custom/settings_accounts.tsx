@@ -1,10 +1,8 @@
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
@@ -19,14 +17,14 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import {
-  ChevronDownSmallIcon,
+  DotGrid1x3VerticalTightIcon,
   ArrowUpRightIcon,
   SquareBehindSquare1Icon,
   ArrowRotateClockwiseIcon,
 } from './central_icons'
 import { GithubIcon } from './github_icon'
 import { ProviderGlyph } from './provider_glyph'
-import { Mono, SettingsPage, SettingsSection, cardClass } from './settings_layout'
+import { Mono, SettingsPage, SettingsSection, SettingsCard } from './settings_layout'
 
 const providers = [
   {
@@ -66,7 +64,7 @@ const providers = [
   },
 ] as const
 
-type Status = 'connected' | 'signed-out' | 'missing' | 'error' | 'checking' | 'off'
+type Status = 'connected' | 'signed-out' | 'missing' | 'error' | 'checking'
 
 const statusLabels: Record<Status, string> = {
   connected: 'Connected',
@@ -74,7 +72,6 @@ const statusLabels: Record<Status, string> = {
   missing: 'Not installed',
   error: 'Couldn’t check',
   checking: 'Checking…',
-  off: 'Off',
 }
 
 function AccountCard({
@@ -95,10 +92,7 @@ function AccountCard({
   children: ReactNode
 }) {
   return (
-    <div
-      id={`settings-${id}`}
-      className={cn(cardClass, 'flex min-h-16 items-center gap-3 px-4 py-3')}
-    >
+    <div id={`settings-${id}`} className='flex min-h-16 flex-wrap items-center gap-3 py-3'>
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-md [&>.provider-icon]:size-4',
@@ -107,14 +101,14 @@ function AccountCard({
       >
         {icon}
       </span>
-      <span className='flex min-w-0 grow basis-0 flex-col gap-0.5'>
+      <span className='flex min-w-0 grow basis-64 flex-col gap-0.5'>
         <span className='flex items-baseline gap-1.5 text-13'>
           <span className={disabled ? 'text-muted-foreground' : undefined}>{title}</span>
           {detail && <span className='text-muted-foreground'>{detail}</span>}
         </span>
         <span
           className={cn(
-            'truncate text-xs',
+            'text-xs whitespace-normal',
             disabled ? 'text-disabled-foreground' : 'text-muted-foreground'
           )}
         >
@@ -136,51 +130,47 @@ async function copyCommand(command: string) {
 }
 
 // The account's state, and a menu of what can be done with it.
+function AccountStatus({ status }: { status: Status }) {
+  return (
+    <span role='status' className='flex w-27 shrink-0 items-center gap-2 text-13'>
+      {status !== 'checking' && (
+        <span
+          aria-hidden='true'
+          className={cn(
+            'size-1.5 shrink-0 rounded-full',
+            status === 'connected'
+              ? 'bg-status-success'
+              : status === 'error'
+                ? 'bg-destructive'
+                : 'bg-muted-foreground'
+          )}
+        />
+      )}
+      {statusLabels[status]}
+    </span>
+  )
+}
+
 function AccountMenu({
   name,
   status,
   login,
   install,
   onCheck,
-  enabled,
-  onEnabledChange,
 }: {
   name: string
   status: Status
   login: string
   install: string
   onCheck: () => void
-  enabled?: boolean
-  onEnabledChange?: (enabled: boolean) => void
 }) {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
-        aria-label={`${name}: ${statusLabels[status]}`}
-        render={
-          <Button
-            variant='ghost'
-            className='h-7 shrink-0 gap-1.5 rounded-sm pr-1.5 pl-2.5 text-13 font-normal [&_svg]:text-muted-foreground'
-          />
-        }
+        aria-label={`${name} account actions`}
+        render={<Button variant='ghost' size='icon-sm' />}
       >
-        {status !== 'checking' && status !== 'off' && (
-          <span
-            aria-hidden='true'
-            className={cn(
-              'size-1.5 shrink-0 rounded-full',
-              status === 'connected'
-                ? 'bg-status-success'
-                : status === 'error'
-                  ? 'bg-destructive'
-                  : 'bg-muted-foreground'
-            )}
-          />
-        )}
-        <span className={status === 'checking' || status === 'off' ? 'text-muted-foreground' : ''}>
-          {statusLabels[status]}
-        </span>
-        <ChevronDownSmallIcon />
+        <DotGrid1x3VerticalTightIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='end'
@@ -201,30 +191,6 @@ function AccountMenu({
             Install
           </DropdownMenuItem>
         )}
-        {onEnabledChange && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
-              checked={enabled}
-              closeOnClick={false}
-              onCheckedChange={onEnabledChange}
-              className='h-auto min-h-11 gap-2 py-1 pr-2 pl-8 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-            >
-              <span className='flex grow flex-col whitespace-normal'>
-                <span className='text-13'>Use in Jetty</span>
-                <span className='text-xs text-muted-foreground'>Off hides its models</span>
-              </span>
-              <Switch
-                render={<span />}
-                size='sm'
-                checked={enabled}
-                tabIndex={-1}
-                aria-hidden='true'
-                className='pointer-events-none'
-              />
-            </DropdownMenuCheckboxItem>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -236,9 +202,8 @@ function ProviderCard({ provider }: { provider: (typeof providers)[number] }) {
   const { catalog } = useModelAvailability()
   const account = reads[provider.id]?.usage
   const on = enabled[provider.id]
-  const status: Status = !on
-    ? 'off'
-    : account?.installed === false
+  const status: Status =
+    account?.installed === false
       ? 'missing'
       : account?.connected
         ? 'connected'
@@ -264,15 +229,33 @@ function ProviderCard({ provider }: { provider: (typeof providers)[number] }) {
         </>
       }
     >
-      <AccountMenu
-        name={provider.name}
-        status={status}
-        login={provider.login}
-        install={provider.install}
-        onCheck={() => refresh([provider.id])}
-        enabled={on}
-        onEnabledChange={(value) => setEnabled({ ...enabled, [provider.id]: value })}
-      />
+      {status === 'signed-out' && (
+        <Button variant='outline' size='sm' onClick={() => void copyCommand(provider.login)}>
+          Copy sign-in command
+        </Button>
+      )}
+      <div className='ml-auto flex shrink-0 items-center gap-4'>
+        <label
+          htmlFor={`provider-enabled-${provider.id}`}
+          className='flex items-center gap-2 text-xs text-muted-foreground'
+        >
+          Enabled
+          <Switch
+            id={`provider-enabled-${provider.id}`}
+            aria-label={`Use ${provider.name} in Jetty`}
+            checked={on}
+            onCheckedChange={(value) => setEnabled({ ...enabled, [provider.id]: value })}
+          />
+        </label>
+        <AccountStatus status={status} />
+        <AccountMenu
+          name={provider.name}
+          status={status}
+          login={provider.login}
+          install={provider.install}
+          onCheck={() => refresh([provider.id])}
+        />
+      </div>
     </AccountCard>
   )
 }
@@ -315,6 +298,12 @@ function GitHubCard() {
         </>
       }
     >
+      {state === 'signed-out' && (
+        <Button variant='outline' size='sm' onClick={() => void copyCommand('gh auth login')}>
+          Copy sign-in command
+        </Button>
+      )}
+      <AccountStatus status={state} />
       <AccountMenu
         name='GitHub'
         status={state}
@@ -343,16 +332,18 @@ export function SettingsAccounts() {
     >
       <SettingsSection
         title='Coding agents'
-        description='Each one brings its own models. Turn one off to hide it everywhere.'
+        description='Enable an agent to show its models in Jetty. Turning it off keeps the account signed in.'
       >
-        <div className='flex flex-col gap-2'>
+        <SettingsCard>
           {providers.map((provider) => (
             <ProviderCard key={provider.id} provider={provider} />
           ))}
-        </div>
+        </SettingsCard>
       </SettingsSection>
       <SettingsSection title='Code' description='Pull requests, reviews and checks.'>
-        <GitHubCard />
+        <SettingsCard>
+          <GitHubCard />
+        </SettingsCard>
       </SettingsSection>
     </SettingsPage>
   )

@@ -16,8 +16,8 @@
 }
 
 @utility inline-code {
-  background-color: color-mix(in oklch, var(--primary) 12%, transparent);
-  color: color-mix(in oklab, var(--primary) 35%, currentColor);
+  background-color: color-mix(in oklch, var(--foreground) 7%, transparent);
+  color: inherit;
 }
 
 :root {
@@ -69,11 +69,11 @@
   --card-foreground: var(--foreground);
   --popover: oklch(1 var(--tint) var(--tint-h));
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.5 0.28 282.178);
+  --primary: oklch(0.5 0.19 282.178);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.935 var(--tint) var(--tint-h));
   --secondary-foreground: var(--foreground);
-  --muted-foreground: oklch(0.56 calc(var(--tint) * 0.5) var(--tint-h));
+  --muted-foreground: oklch(0.5 calc(var(--tint) * 0.5) var(--tint-h));
   --disabled-foreground: oklch(0.56 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
   --accent: oklch(0.91 var(--tint) var(--tint-h));
   --accent-foreground: var(--foreground);
@@ -95,7 +95,7 @@
   --status-attention: oklch(0.6 0.18 45);
   --status-error: var(--pr-closed);
   --status-error-glyph: var(--pr-closed);
-  --status-success: oklch(0.515 0.155 158.4);
+  --status-success: oklch(0.505 0.155 158.4);
   --status-idle: oklch(0.6 0 0);
   --tick-complete: var(--status-success);
   --status-complete-wash: color-mix(in oklch, var(--status-success) 18%, transparent);
@@ -123,14 +123,14 @@
   --foreground: oklch(0.933 calc(var(--tint) * 0.3) var(--tint-h));
   --card: oklch(0.254 var(--tint) var(--tint-h));
   --card-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
-  --popover: oklch(0.256 var(--tint) var(--tint-h));
+  --popover: oklch(0.29 var(--tint) var(--tint-h));
   --popover-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
   --primary: oklch(0.772 0.119 282.178);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 var(--tint) var(--tint-h));
   --secondary-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
   --muted: oklch(0.269 var(--tint) var(--tint-h));
-  --muted-foreground: oklch(0.66 calc(var(--tint) * 0.5) var(--tint-h));
+  --muted-foreground: oklch(0.7 calc(var(--tint) * 0.5) var(--tint-h));
   --disabled-foreground: oklch(0.66 calc(var(--tint) * 0.5) var(--tint-h) / 50%);
   --accent: oklch(0.32 var(--tint) var(--tint-h));
   --accent-foreground: oklch(0.985 calc(var(--tint) * 0.3) var(--tint-h));
@@ -164,7 +164,7 @@
   --background: oklch(0.163 var(--tint) var(--tint-h));
   --diff-surface: oklch(0.201 0 0);
   --card: oklch(0.23 var(--tint) var(--tint-h));
-  --popover: oklch(0.232 var(--tint) var(--tint-h));
+  --popover: oklch(0.266 var(--tint) var(--tint-h));
   --secondary: oklch(0.245 var(--tint) var(--tint-h));
   --muted: oklch(0.245 var(--tint) var(--tint-h));
   --sidebar-accent: oklch(0.245 var(--tint) var(--tint-h));
@@ -197,7 +197,7 @@
   --spacing-glyph: 1.125rem;
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
-  --text-xs: 0.6875rem;
+  --text-xs: 0.75rem;
   --text-xs--line-height: calc(1 / 0.6875);
   --text-sm: 0.8125rem;
   --text-sm--line-height: calc(1.25 / 0.8125);

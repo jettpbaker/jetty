@@ -2,7 +2,6 @@ import { PageSidebarTrigger } from '@/components/custom/page_sidebar_trigger'
 import { pullRequestListSearch } from '@/components/custom/pull_request_list_model'
 import { LivePullRequestView, PullRequestUnavailable } from '@/components/custom/pull_request_view'
 import { Button } from '@/components/ui/button'
-import { usePullRequest } from '@/state'
 import { createFileRoute, Link } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/pull-requests/$owner/$repo/$number')({
@@ -32,10 +31,8 @@ function PullRequestPage() {
 }
 
 function LivePullRequestPage({ repo, number }: { repo: string; number: number }) {
-  const { snapshot } = usePullRequest({ repo, number })
   return (
     <section className='flex h-full min-h-0 flex-col' aria-label='Pull request'>
-      {!snapshot?.data && <PageSidebarTrigger standalone />}
       <LivePullRequestView
         key={`${repo}#${number}`}
         link={{ repo, number, url: `https://github.com/${repo}/pull/${number}` }}

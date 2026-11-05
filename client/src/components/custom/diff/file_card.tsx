@@ -55,8 +55,16 @@ export function DiffCounts({
       className='inline-flex shrink-0 gap-1.5 font-mono text-xs tabular-nums'
       aria-label={`${additions} lines added, ${deletions} lines removed`}
     >
-      {(!hideZero || additions > 0) && <span className='text-status-success'>+{additions}</span>}
-      {(!hideZero || deletions > 0) && <span className='text-status-error'>−{deletions}</span>}
+      {(!hideZero || additions > 0) && (
+        <span className={additions ? 'text-status-success' : 'text-muted-foreground'}>
+          +{additions}
+        </span>
+      )}
+      {(!hideZero || deletions > 0) && (
+        <span className={deletions ? 'text-status-error' : 'text-muted-foreground'}>
+          −{deletions}
+        </span>
+      )}
     </span>
   )
 }
@@ -133,7 +141,7 @@ export function DiffFileCard({
           {file.binary ? (
             <span className='text-xs text-muted-foreground'>Binary</span>
           ) : (
-            <DiffCounts files={[file]} />
+            <DiffCounts files={[file]} hideZero />
           )}
           {actions}
         </div>

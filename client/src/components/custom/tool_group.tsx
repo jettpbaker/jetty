@@ -12,7 +12,7 @@ import { jettyResultTools } from './jetty_tool_results'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
-import { ToolCall, toolCallDetails } from './tool_call'
+import { ToolCall, ToolStatusGlyph, toolCallDetails } from './tool_call'
 import {
   describeToolBatch,
   workEnded,
@@ -90,6 +90,19 @@ function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: st
       )}
     </>
   )
+  if (batch.calls.every((call) => call.kind === 'terminal'))
+    return (
+      <div>
+        {batch.calls.map((call) => (
+          <ToolCall
+            key={call.id}
+            call={call}
+            threadId={threadId}
+            animate={autoOpen && !initialCalls.has(call.id)}
+          />
+        ))}
+      </div>
+    )
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger
@@ -97,6 +110,14 @@ function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: st
         className='activity-header'
         aria-label={`${label.verb} ${label.target}${label.noticeText ? `, ${label.noticeText}` : ''}`}
       >
+        <ToolStatusGlyph
+          kind={batch.calls[0]!.kind}
+          status={
+            batch.calls.find((call) => call.status === 'failed')?.status ??
+            batch.calls.find((call) => !workEnded(call.status))?.status ??
+            batch.calls.at(-1)!.status
+          }
+        />
         {heading}
         <ActivityChevron />
       </CollapsibleTrigger>
@@ -141,6 +162,7 @@ export function SubagentGroup({ threadId, batch }: { threadId: string; batch: Su
       verb={active ? 'Starting' : 'Started'}
       count={batch.agents.length}
       noun='subagent'
+      glyph={<SubagentGlyph state={active ? 'running' : 'done'} className='size-4' />}
       active={active}
       autoOpen={active}
     >

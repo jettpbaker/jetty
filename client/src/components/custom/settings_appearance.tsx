@@ -37,6 +37,9 @@ function TilePanel({ tile }: { tile?: 'light' | 'dark' }) {
         <span />
         <span />
       </span>
+      <span className='theme-tile-composer'>
+        <span />
+      </span>
     </div>
   )
 }
@@ -91,8 +94,6 @@ function IconAction({
     </Tooltip>
   )
 }
-
-const textButtonClass = 'h-7 rounded-sm px-2.5 text-13'
 
 export function SettingsAppearance() {
   const { theme, setTheme } = useAnimatedTheme()
@@ -193,13 +194,34 @@ export function SettingsAppearance() {
   return (
     <SettingsPage title='Appearance' description='How Jetty looks on this device.'>
       <SettingsSection id='theme' title='Theme'>
-        <div role='radiogroup' aria-label='Theme' className='flex gap-3'>
+        <div role='radiogroup' aria-label='Theme' className='flex gap-3 px-4'>
           {themes.map(({ value, label }) => (
             <button
               key={value}
               type='button'
               role='radio'
               aria-checked={theme === value}
+              tabIndex={theme === value ? 0 : -1}
+              onKeyDown={(event) => {
+                const direction = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[
+                  event.key
+                ]
+                const current = themes.findIndex((item) => item.value === value)
+                const next =
+                  event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? themes.length - 1
+                      : direction
+                        ? (current + direction + themes.length) % themes.length
+                        : undefined
+                if (next === undefined) return
+                event.preventDefault()
+                setTheme(themes[next]!.value)
+                event.currentTarget.parentElement
+                  ?.querySelectorAll<HTMLButtonElement>('[role=radio]')
+                  [next]?.focus()
+              }}
               onClick={() => setTheme(value)}
               className='group/tile flex min-w-0 flex-1 basis-0 flex-col gap-2 rounded-lg text-left outline-none'
             >
@@ -207,14 +229,14 @@ export function SettingsAppearance() {
                 className={cn(
                   'rounded-lg group-focus-visible/tile:ring-2 group-focus-visible/tile:ring-ring',
                   theme === value &&
-                    '[&>.theme-tile]:outline-2 [&>.theme-tile]:-outline-offset-2 [&>.theme-tile]:outline-primary'
+                    '[&>.theme-tile]:outline-2 [&>.theme-tile]:outline-offset-2 [&>.theme-tile]:outline-ring'
                 )}
               >
                 <ThemeTile theme={value} />
               </span>
               <span
                 className={cn(
-                  'pl-0.5 text-13',
+                  'text-13',
                   theme === value
                     ? 'text-foreground'
                     : 'text-muted-foreground group-hover/tile:text-foreground'
@@ -290,8 +312,8 @@ export function SettingsAppearance() {
               </div>
             ) : (
               <Button
-                variant='ghost'
-                className={textButtonClass}
+                variant='outline'
+                size='sm'
                 disabled={uploading}
                 onClick={() => void chooseImage()}
               >
@@ -330,8 +352,8 @@ export function SettingsAppearance() {
               </div>
             ) : (
               <Button
-                variant='ghost'
-                className={textButtonClass}
+                variant='outline'
+                size='sm'
                 disabled={uploading}
                 onClick={() => void chooseVideo()}
               >

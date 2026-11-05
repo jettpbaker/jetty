@@ -1385,7 +1385,7 @@ export function MarkdownEditor({
               onBlur={(event) => {
                 if (!event.currentTarget.form?.contains(event.relatedTarget)) closeLink()
               }}
-              className='h-6 min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground'
+              className='h-6 min-w-0 flex-1 rounded-sm bg-transparent text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground'
             />
             {marks?.link && (
               <>

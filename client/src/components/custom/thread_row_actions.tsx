@@ -19,14 +19,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
-import { HoverKeybind, KeybindChip, type Keybind } from './keybinds'
+import { KeybindChip, type Keybind } from './keybinds'
 
 type ActionOverlay = 'closed' | 'menu' | 'edit'
 
 export type ThreadRowActionsProps = {
   title: string
-  // The row's ⌥N, which hover shows here since these actions cover the title row's end.
-  shortcut?: Keybind
   pinned: boolean
   archived?: boolean
   onArchive: () => void
@@ -38,7 +36,6 @@ export type ThreadRowActionsProps = {
 
 export function ThreadRowActions({
   title,
-  shortcut,
   pinned,
   archived = false,
   onArchive,
@@ -73,18 +70,6 @@ export function ThreadRowActions({
   return (
     <>
       <div className='thread-row-actions' data-overlay={overlay}>
-        {shortcut && (
-          <HoverKeybind binding={shortcut} className='h-(--thread-row-action-size) items-center' />
-        )}
-        <Button
-          variant='ghost-text'
-          size='icon'
-          className='thread-row-action'
-          aria-label={`${archived ? 'Unarchive' : 'Archive'} ${title}`}
-          onClick={onArchive}
-        >
-          {archived ? <ArrowOutOfBoxIcon className='size-3' /> : <ArchiveIcon className='size-3' />}
-        </Button>
         <DropdownMenu
           open={overlay === 'menu'}
           onOpenChange={(open) => changeOverlay('menu', open)}
@@ -103,9 +88,13 @@ export function ThreadRowActions({
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-36'>
             <DropdownMenuGroup>
+              <DropdownMenuItem onClick={onArchive}>
+                {archived ? <ArrowOutOfBoxIcon /> : <ArchiveIcon />}
+                {archived ? 'Unarchive' : 'Archive'}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={editTitle}>
                 <Pencil2Icon />
-                Edit
+                Rename
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onPin}>
                 <PinIcon filled={pinned} />
@@ -125,7 +114,7 @@ export function ThreadRowActions({
       </div>
       <Dialog open={overlay === 'edit'} onOpenChange={(open) => changeOverlay('edit', open)}>
         <DialogContent>
-          <DialogTitle>Edit thread</DialogTitle>
+          <DialogTitle>Rename thread</DialogTitle>
           <form className='flex flex-col gap-4' onSubmit={saveTitle}>
             <Input
               ref={titleInput}

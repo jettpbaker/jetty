@@ -11,8 +11,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { pickFiles } from '@/platform'
+import { use } from 'react'
 
 import { FileChip, isImageAttachment } from './attachment_files'
+import { ComposerMenuAnchorContext } from './composer_menu_anchor'
 import { DisabledTooltip } from './disabled_tooltip'
 
 export function ComposerAttach({
@@ -24,6 +26,7 @@ export function ComposerAttach({
   disabledReason?: string
   className?: string
 }) {
+  const anchor = use(ComposerMenuAnchorContext)
   return (
     <DropdownMenu modal={false}>
       <DisabledTooltip reason={disabledReason} wrap='flex'>
@@ -35,7 +38,7 @@ export function ComposerAttach({
           <PlusLargeIcon />
         </DropdownMenuTrigger>
       </DisabledTooltip>
-      <DropdownMenuContent align='start' className='w-max min-w-32'>
+      <DropdownMenuContent anchor={anchor} side='top' sideOffset={8} align='start' className='w-56'>
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => void pickFiles({ multiple: true }).then(onAttach)}>
             <Paperclip2Icon />
@@ -45,6 +48,7 @@ export function ComposerAttach({
             <DropdownMenuItem disabled>
               <CircleDotIcon />
               Link issue
+              <span className='ml-auto text-disabled-foreground'>Coming soon</span>
             </DropdownMenuItem>
           </DisabledTooltip>
         </DropdownMenuGroup>

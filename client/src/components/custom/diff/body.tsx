@@ -9,16 +9,16 @@ import { useDiffWorkerPoolLoading } from '../diff_worker_pool'
 import { codeSurfaceCSS, nameExpanders, syntaxTheme } from '../syntax_theme'
 import { DiffStyleContext, DiffWrapContext } from './model'
 
-// Jetty's skin for Pierre's diffs, injected into its shadow root: the code surface (syntax_theme.ts),
-// line numbers tinted like their code with no gap between, so a changed line's tint runs unbroken, and a solid
-// removed-line bar like the added one (Pierre stripes it).
-// A comment's row is one colour across the gutter and the code: the diff background, or, between two
-// added (or two removed) lines, their tint, so a run of changes reads as one block with the comment
-// inside it; the gutter bar stays on the lines themselves. In split view the other side's spacer keeps
-// the empty side's stripes when it sits inside them. Comments stack
-// above the sticky line-number gutter (z-index 3) so their card can reach back over it.
+// Review comments share the adjacent lines' wash; line numbers stay neutral and +/- marks identify changes.
 const diffCSS = `
 ${codeSurfaceCSS}
+:host { --diffs-min-number-column-width: 4ch; --diffs-scrollbar-gutter-override: 8px; }
+[data-overflow="wrap"][data-indicators="classic"] [data-line] { padding-inline-start: 4ch; text-indent: -2ch; }
+[data-overflow="wrap"] [data-line]::before { text-indent: 0; }
+[data-overflow="scroll"] [data-code] { overflow-x: auto; padding-bottom: var(--diffs-gap-block, 8px); }
+[data-code]::-webkit-scrollbar-thumb,
+:host(:hover) [data-code]::-webkit-scrollbar-thumb { background-color: var(--muted-foreground); }
+[data-code]:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 [data-line-annotation], [data-gutter-buffer="annotation"] { --diffs-annotation-bg: var(--diffs-bg); }
 [data-line-annotation] { z-index: 4; }
 [data-content-buffer] + [data-line-annotation]:has(+ [data-content-buffer]) {
@@ -28,11 +28,10 @@ ${codeSurfaceCSS}
   background-origin: border-box;
 }
 [data-gutter-buffer="buffer"] + [data-gutter-buffer="annotation"]:has(+ [data-gutter-buffer="buffer"]) { --diffs-annotation-bg: var(--diffs-bg-context-gutter); }
-[data-gutter] [data-column-number] { --mix-light: 88%; --mix-dark: 80%; }
-[data-indicators="bars"] [data-line-type="change-deletion"][data-column-number]::before { background: var(--diffs-deletion-base); }
 ${(['addition', 'deletion'] as const)
   .map(
     (kind) => `
+[data-gutter] [data-line-type="change-${kind}"] { box-shadow: inset 2px 0 var(--diffs-${kind}-base); }
 [data-line-type="change-${kind}"] + :is([data-line-annotation], [data-gutter-buffer="annotation"]):has(+ [data-line-type="change-${kind}"]) { --diffs-annotation-bg: var(--diffs-bg-${kind}); }`
   )
   .join('')}`
@@ -109,13 +108,30 @@ export function DiffBody<T = undefined>({
       options={{
         loadDiffFiles,
         diffStyle: suggestion ? 'unified' : diffStyle,
+        diffIndicators: 'classic',
         theme: syntaxTheme,
         themeType: resolvedTheme === 'dark' ? 'dark' : 'light',
         disableFileHeader: true,
         hunkSeparators: snippet || suggestion ? 'simple' : 'line-info',
         overflow: wrap ? 'wrap' : 'scroll',
         unsafeCSS: diffCSS + foldCSS,
-        onPostRender: nameExpanders,
+        onPostRender: (node) => {
+          nameExpanders(node)
+          for (const code of node.shadowRoot?.querySelectorAll<HTMLElement>('[data-code]') ?? []) {
+            if (wrap) {
+              code.removeAttribute('tabindex')
+              code.removeAttribute('role')
+              code.removeAttribute('aria-label')
+            } else {
+              code.tabIndex = 0
+              code.setAttribute('role', 'region')
+              code.setAttribute(
+                'aria-label',
+                `${diff.name} diff, scroll horizontally for long lines`
+              )
+            }
+          }
+        },
       }}
     />
   )

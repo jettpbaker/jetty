@@ -41,7 +41,7 @@ export const composer = `document.querySelector('textarea[aria-label="Thread pro
 export const branchPicked = `document.querySelector('[aria-label^="From: "]')`
 
 export function row(title: string) {
-  return `[...document.querySelectorAll('.thread-row')].find((row) => row.querySelector('.overflow-title-text')?.textContent === ${JSON.stringify(title)})`
+  return `[...document.querySelectorAll('.thread-row')].find((row) => row.querySelector('[data-thread-title], .overflow-title-text')?.textContent === ${JSON.stringify(title)})`
 }
 
 export function hasText(text: string) {

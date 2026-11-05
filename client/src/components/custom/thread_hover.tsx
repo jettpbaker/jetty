@@ -1,19 +1,22 @@
 import type { SubagentStatus } from '@jetty/shared/items'
-import type { Bot, ProviderId, RunningSubagent } from '@jetty/shared/wire'
+import type { Bot, ProjectIcon, RunningSubagent } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
+import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
+import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
   useModels,
+  useProject,
   useOpenOverview,
   useOpenPullRequest,
   useSubagentOutcome,
   useThreadJourney,
-  useThreadMeta,
   useBot,
 } from '@/state'
+import { listedAt, useSidebarRow } from '@/state/sidebar'
 import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { catalogModelName } from '@jetty/shared/model-name'
@@ -36,13 +39,13 @@ import { useChildThreads } from './child_threads'
 import { environments } from './composer_environment'
 import { JettyBot } from './jetty_bot'
 import { OverflowTitle } from './overflow_title'
-import { ProviderGlyph } from './provider_glyph'
+import { ProjectGlyph } from './project_glyph'
 import { RollingDuration } from './rolling_duration'
-import { threadPullRequests } from './sidebar_thread_groups'
+import { threadNavigationDetail, threadPullRequests } from './sidebar_thread_groups'
 import { beatMs, exitMs, reducedExitMs, type Ended } from './subagent_finish'
 import { SubagentGlyph, subagentGlyphState, renderWorkingTitle } from './subagent_glyph'
 import { rankPullRequests, type ThreadPullRequest } from './thread_pull_request'
-import { quietStatus, StatusGlyph, threadStatus, type ThreadStatus } from './thread_status'
+import { StatusGlyph, threadStatus, statusPresentation, type ThreadStatus } from './thread_status'
 import { formatActivityDuration } from './work_model'
 import './subagent_finish.css'
 import './thread_hover.css'
@@ -53,7 +56,10 @@ type Checkout = { label: string; branch: boolean }
 
 type ThreadHoverPanelProps = {
   title: string
-  provider?: ProviderId
+  project?: { title: string; icon?: ProjectIcon }
+  detail?: string
+  lastActivity: string
+  status: ThreadStatus
   model?: string
   environment: 'local' | 'worktree'
   checkout?: Checkout
@@ -212,7 +218,7 @@ export function ThreadHoverPopup({
   return (
     <PreviewCard.Portal>
       <PreviewCard.Positioner side={side} align='start' sideOffset={8} className='z-50'>
-        <PreviewCard.Popup className='thread-hover-panel w-[450px] rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
+        <PreviewCard.Popup className='thread-hover-panel w-68 max-w-[calc(100vw-32px)] rounded-md bg-popover p-3 text-xs text-popover-foreground shadow-lg ring-1 ring-[color-mix(in_oklch,var(--border),var(--foreground)_12%)]'>
           {children}
         </PreviewCard.Popup>
       </PreviewCard.Positioner>
@@ -270,17 +276,20 @@ function useCheckout(projectId?: string): Checkout | undefined {
     : { label: 'Detached HEAD', branch: false }
 }
 
-// Everything the card shows comes from chrome, which the sidebar already holds: opening a card
-// never waits on the network, and it follows the thread live while it's open.
+// The card reads chrome and cached state without subscribing to thread history.
 export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const models = useModels()
+  const now = useNow(60_000)
   const childThreads = useChildThreads(threadId)
   const navigate = useNavigate()
   const startThreadJourney = useThreadJourney()
   const openPullRequest = useOpenPullRequest()
   const openOverview = useOpenOverview()
-  const thread = useThreadMeta(threadId)
-  const parent = useThreadMeta(thread?.parentThreadId)
+  const row = useSidebarRow(threadId)
+  const thread = row?.thread
+  const project = useProject(thread?.projectId)
+  const parentRow = useSidebarRow(thread?.parentThreadId ?? '')
+  const parent = parentRow?.thread
   const parentBot = useBot(thread?.parentThreadId)
   const owner = useBot(thread?.botId)
   const checkout = useCheckout(thread?.environment === 'local' ? thread.projectId : undefined)
@@ -290,7 +299,10 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   return (
     <ThreadHoverPanel
       title={thread.title}
-      provider={thread.provider}
+      project={project}
+      detail={threadNavigationDetail(thread, row?.restartHeld)}
+      lastActivity={formatAge(listedAt(thread), now)}
+      status={row?.restartHeld ? 'idle' : threadStatus(thread.status, thread.readyForReview)}
       model={
         thread.provider && thread.model
           ? catalogModelName(models, thread.provider, thread.model)
@@ -303,7 +315,9 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
           ? {
               id: parent.id,
               title: parent.title,
-              status: threadStatus(parent.status, parent.readyForReview),
+              status: parentRow?.restartHeld
+                ? 'idle'
+                : threadStatus(parent.status, parent.readyForReview),
             }
           : undefined
       }
@@ -324,7 +338,10 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
 
 function ThreadHoverPanel({
   title,
-  provider,
+  project,
+  detail,
+  lastActivity,
+  status,
   model,
   environment,
   checkout,
@@ -346,15 +363,30 @@ function ThreadHoverPanel({
 
   return (
     <div className='flex flex-col gap-1.5'>
-      <div data-overflow-hover className='flex min-w-0 items-center gap-3'>
-        <OverflowTitle>{title}</OverflowTitle>
-        {model && (
-          <span className='flex shrink-0 items-center gap-1'>
-            {provider && <ProviderGlyph provider={provider} className='size-3 text-primary' />}
-            {model}
+      <h3 className='text-sm font-medium leading-5 wrap-break-word'>{title}</h3>
+      <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+        <StatusGlyph status={status} />
+        <span className='min-w-0 flex-1'>{detail ?? statusPresentation[status].label}</span>
+        <span
+          className='shrink-0 font-mono'
+          aria-label={
+            lastActivity === 'now' ? 'Last activity just now' : `Last activity ${lastActivity} ago`
+          }
+        >
+          {lastActivity}
+        </span>
+      </div>
+      <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground'>
+        {project && (
+          <span className='inline-flex min-w-0 max-w-full items-center gap-1'>
+            <ProjectGlyph icon={project.icon} className='size-3 shrink-0' />
+            <span className='truncate'>{project.title}</span>
           </span>
         )}
+        {project && model && <span aria-hidden='true'>·</span>}
+        {model && <span>{model}</span>}
       </div>
+      <EnvironmentLine worktree={environment === 'worktree'} checkout={checkout} />
       {owner && (
         <button
           type='button'
@@ -366,7 +398,6 @@ function ThreadHoverPanel({
           {owner.name}
         </button>
       )}
-      <EnvironmentLine worktree={environment === 'worktree'} checkout={checkout} />
       {parent && (
         <Section label='Parent thread'>
           <ThreadLinkRow thread={parent} onOpen={() => onOpenThread(parent.id)} />
@@ -376,15 +407,19 @@ function ThreadHoverPanel({
         <Section label='Pull requests'>
           {prs.map(({ pr, icon: Icon, color, label }) => (
             <Row key={`${pr.repo}#${pr.number}`} onPress={() => onOpenPullRequest(pr)}>
-              <Icon aria-hidden='true' className={cn('size-3 shrink-0', color)} />
-              <span
-                className='shrink-0 text-right font-mono text-muted-foreground'
-                style={{ width: `${numberWidth}ch` }}
-              >
-                #{pr.number}
+              <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                <span className='flex min-w-0 items-center gap-2'>
+                  <Icon aria-hidden='true' className={cn('size-3 shrink-0', color)} />
+                  <span
+                    className='shrink-0 text-right font-mono text-muted-foreground'
+                    style={{ width: `${numberWidth}ch` }}
+                  >
+                    #{pr.number}
+                  </span>
+                  <RowTitle>{pr.title ?? ''}</RowTitle>
+                </span>
+                <span className='whitespace-normal pl-5 text-muted-foreground'>{label}</span>
               </span>
-              <RowTitle>{pr.title ?? ''}</RowTitle>
-              <span className='sr-only'>{label}</span>
             </Row>
           ))}
         </Section>
@@ -410,9 +445,9 @@ function EnvironmentLine({ worktree, checkout }: { worktree: boolean; checkout?:
     <span className='flex min-w-0 items-center gap-1 text-muted-foreground' title={label}>
       <Icon aria-hidden='true' className='size-3 shrink-0' />
       <span className='sr-only'>{label}</span>
-      {checkout && (
-        <span className={cn('truncate', checkout.branch && 'font-mono')}>{checkout.label}</span>
-      )}
+      <span className={cn('min-w-0 wrap-anywhere', checkout?.branch && 'font-mono')}>
+        {checkout?.label ?? label}
+      </span>
     </span>
   )
 }
@@ -449,20 +484,15 @@ function Row({ onPress, children }: { onPress: () => void; children: ReactNode }
 function RowTitle({
   children,
   renderText,
-  quiet = false,
 }: {
   children: string
   renderText?: (text: string) => ReactNode
-  quiet?: boolean
 }) {
   return (
     <OverflowTitle
       focusable={false}
       renderText={renderText}
-      className={cn(
-        'text-xs leading-4 font-normal',
-        quiet ? 'text-muted-foreground' : 'text-foreground'
-      )}
+      className='text-13 leading-4 font-normal text-foreground'
     >
       {children}
     </OverflowTitle>
@@ -473,7 +503,7 @@ function ThreadLinkRow({ thread, onOpen }: { thread: ThreadLink; onOpen: () => v
   return (
     <Row onPress={onOpen}>
       <StatusGlyph status={thread.status} className='size-3' />
-      <RowTitle quiet={quietStatus(thread.status)}>{thread.title}</RowTitle>
+      <RowTitle>{thread.title}</RowTitle>
     </Row>
   )
 }

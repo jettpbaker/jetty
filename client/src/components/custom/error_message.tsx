@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
+import { cn } from '@/lib/utils'
 import {
   useBot,
   usePendingBotMessages,
@@ -12,7 +13,10 @@ import {
 import { useProviderUnavailable } from '@/state/models'
 
 import { ArrowRotateClockwiseIcon } from './central_icons'
+import { CopyButton } from './copy_button'
 import { DisabledTooltip } from './disabled_tooltip'
+import { errorSurface } from './error_surface'
+import { StatusGlyph } from './thread_status'
 import { providerNames } from './usage_limits'
 
 // A failed turn, with Retry under it while it is the latest turn and the thread is idle.
@@ -62,22 +66,22 @@ export function ErrorMessage({
   }
   return (
     <Message align='start'>
-      <MessageContent className='gap-0'>
-        <p className='text-sm text-destructive'>{message}</p>
-        {failed && (
-          <DisabledTooltip reason={unavailable} wrap='self-start'>
-            <Button
-              variant='ghost-text'
-              size='xs'
-              className='-ml-3 self-start'
-              onClick={retry}
-              disabled={!!unavailable}
-            >
-              <ArrowRotateClockwiseIcon />
-              Retry
-            </Button>
-          </DisabledTooltip>
-        )}
+      <MessageContent className={cn('flex-row items-start gap-2 p-3', errorSurface)}>
+        <StatusGlyph status='error' className='mt-1' />
+        <div className='flex min-w-0 flex-1 flex-col gap-2'>
+          <p className='text-sm text-foreground'>{message}</p>
+          <div className='flex items-center gap-2'>
+            {failed && (
+              <DisabledTooltip reason={unavailable} wrap='self-start'>
+                <Button variant='outline' size='xs' onClick={retry} disabled={!!unavailable}>
+                  <ArrowRotateClockwiseIcon />
+                  Retry
+                </Button>
+              </DisabledTooltip>
+            )}
+            <CopyButton text={message} label='Copy error' showLabel />
+          </div>
+        </div>
       </MessageContent>
     </Message>
   )

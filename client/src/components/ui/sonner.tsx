@@ -31,6 +31,7 @@ function Toaster({ ...props }: ToasterProps) {
         } as React.CSSProperties
       }
       toastOptions={{
+        actionButtonStyle: { background: 'transparent', color: 'var(--primary)', fontWeight: 500 },
         classNames: {
           toast: 'cn-toast',
         },

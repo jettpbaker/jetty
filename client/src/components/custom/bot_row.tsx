@@ -34,11 +34,12 @@ export function BotRow({
   const face = botFace(bot)
   const label = `${bot.name}, ${face === 'waiting' ? 'needs you' : face}${bot.unread && !selected ? ', unread' : ''}`
   const className = cn(
-    'flex h-9 w-full min-w-0 shrink-0 items-center gap-2.5 rounded-md px-2 text-left text-sm [--jb-ring:var(--sidebar)]',
+    'flex h-8 w-full min-w-0 shrink-0 items-center gap-1.5 rounded-sm px-2.75 text-left text-sm [--jb-ring:var(--sidebar)]',
+    onToggle && 'pr-9',
     selected && 'bg-sidebar-accent [--jb-ring:var(--sidebar-accent)]'
   )
   return (
-    <div className='group/bot-row relative rounded-md hover:bg-sidebar-accent hover:[--jb-ring:var(--sidebar-accent)]'>
+    <div className='relative rounded-sm hover:bg-sidebar-accent hover:[--jb-ring:var(--sidebar-accent)]'>
       <button
         ref={rowRef}
         type='button'
@@ -47,24 +48,16 @@ export function BotRow({
         onClick={onOpen}
         className={cn(className, 'outline-none focus-visible:ring-2 focus-visible:ring-ring')}
       >
-        <BotAvatar
-          bot={bot}
-          size={24}
-          unread={bot.unread && !selected}
-          className={cn(
-            onToggle && 'group-hover/bot-row:invisible group-has-focus-visible/bot-row:invisible'
-          )}
-        />
-        <span className='min-w-0 flex-1 truncate'>{bot.name}</span>
         <HeldKeybind binding={shortcut}>
-          <span />
+          <BotAvatar bot={bot} size={16} unread={bot.unread && !selected} />
         </HeldKeybind>
+        <span className='min-w-0 flex-1 truncate'>{bot.name}</span>
       </button>
       {onToggle && (
         <Button
           variant='ghost-text'
           size='icon-xs'
-          className='absolute top-1.5 left-2 opacity-0 group-hover/bot-row:opacity-100 group-has-focus-visible/bot-row:opacity-100'
+          className='absolute top-1 right-2'
           aria-expanded={expanded}
           aria-label={`${expanded ? 'Hide' : 'Show'} ${bot.name}'s threads`}
           onClick={onToggle}

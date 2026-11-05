@@ -1,8 +1,15 @@
 import type { PullRequestListItem, PullRequestListTab } from '@jetty/shared/wire'
 
+import { ContentEmpty } from '@/components/custom/content_empty'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
@@ -19,15 +26,15 @@ import {
   useRefreshPullRequestList,
 } from '@/state'
 import { Link } from '@tanstack/react-router'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   ArrowRotateClockwiseIcon,
-  MergedIcon,
-  RequestClosedIcon,
-  DraftIcon,
-  BugIcon,
-  PeopleIcon,
+  CircleCheckIcon,
+  CircleXIcon,
+  CrossSmallIcon,
+  MagnifyingGlass2Icon,
+  Progress50Icon,
   PullRequestIcon,
 } from './central_icons'
 import { ListFilterMenu, ListFilterSection, ListGroupMenu } from './grouped_list_controls'
@@ -47,9 +54,9 @@ import {
   pullRequestReadinessLabel,
   pullRequestReadinessOrder,
   type PullRequestGroup,
-  type PullRequestListGroup,
 } from './pull_request_list_model'
-import { linkPresentation } from './thread_pull_request'
+import { linkPresentation, prPresentation } from './thread_pull_request'
+import './pull_request_list.css'
 
 type PullRequestListProps = {
   tab: PullRequestListTab
@@ -58,41 +65,6 @@ type PullRequestListProps = {
 const unavailableTitle = {
   unavailable: 'GitHub unavailable',
   rate_limited: 'GitHub rate limit reached',
-}
-
-const groupPresentation: Record<PullRequestGroup, { color: string; icon: ReactNode }> = {
-  open: {
-    color: 'var(--pr-open)',
-    icon: <PullRequestIcon className='size-3 text-pr-open' />,
-  },
-  draft: {
-    color: 'var(--muted-foreground)',
-    icon: <DraftIcon className='size-3 text-muted-foreground' />,
-  },
-  merged: { color: 'var(--pr-merged)', icon: <MergedIcon className='size-3 text-pr-merged' /> },
-  closed: {
-    color: 'var(--destructive)',
-    icon: <RequestClosedIcon className='size-3 text-destructive' />,
-  },
-}
-
-const readinessPresentation: Record<PullRequestListGroup, { color: string; icon: ReactNode }> = {
-  ready: groupPresentation.open,
-  'needs-you': {
-    color: 'var(--status-error)',
-    icon: <BugIcon className='size-3 text-status-error' />,
-  },
-  'in-review': {
-    color: 'var(--muted-foreground)',
-    icon: <PeopleIcon className='size-3 text-muted-foreground' />,
-  },
-  running: {
-    color: 'var(--pr-running)',
-    icon: <PullRequestIcon className='size-3 text-pr-running' />,
-  },
-  draft: groupPresentation.draft,
-  merged: groupPresentation.merged,
-  closed: groupPresentation.closed,
 }
 
 type GroupBy = 'readiness' | 'state' | 'repo'
@@ -123,7 +95,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const hover = useRef<ReturnType<typeof setTimeout> | null>(null)
   const now = useNow(60_000)
   const pulls = list?.items ?? []
+  const [query, setQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const search = query.trim().toLowerCase()
   const failure = list && list.status !== 'ready' && list.status !== 'loading'
+  function clearSearch() {
+    setQuery('')
+    searchRef.current?.focus()
+  }
   function onSelect(pull: PullRequestListItem) {
     perf.start('pr.open', { pr: pull.number })
   }
@@ -163,15 +142,26 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const repos = [...new Set(pulls.map((pull) => pull.repo))].toSorted((a, b) =>
     repoName(a).localeCompare(repoName(b))
   )
+  const visibleRepos = repos.filter((repo) => !hiddenRepos.includes(repo))
+  const repositoryScope =
+    visibleRepos.length === 1
+      ? visibleRepos[0]
+      : hiddenRepos.length
+        ? `${visibleRepos.length} repositories`
+        : 'All repositories'
   const rows = pulls
-    .filter((pull) => included.includes(pull.state) && !hiddenRepos.includes(pull.repo))
+    .filter(
+      (pull) =>
+        included.includes(pull.state) &&
+        !hiddenRepos.includes(pull.repo) &&
+        `${pull.title} ${pull.repo} #${pull.number}`.toLowerCase().includes(search)
+    )
     .toSorted((a, b) => b.updatedAt - a.updatedAt)
   const groups: TableGroup<PullRequestListItem>[] =
     groupBy === 'repo'
       ? [...new Set(rows.map((pull) => pull.repo))].map((repo) => ({
           id: repo,
           label: repoName(repo),
-          color: 'var(--muted-foreground)',
           rows: rows.filter((pull) => pull.repo === repo),
         }))
       : groupBy === 'readiness'
@@ -179,22 +169,20 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             .map((group) => ({
               id: group,
               label: pullRequestReadinessLabel[group],
-              ...readinessPresentation[group],
-              labelColor: readinessPresentation[group].color,
               rows: rows.filter((pull) => pullRequestListGroup(pull) === group),
-              defaultCollapsed: group === 'closed' || group === 'merged',
+              defaultCollapsed: group === 'closed' || (group === 'merged' && pulls.length >= 8),
             }))
             .filter((group) => group.rows.length)
         : pullRequestGroupOrder
             .map((group) => ({
               id: group,
               label: pullRequestGroupLabel[group],
-              ...groupPresentation[group],
-              labelColor: groupPresentation[group].color,
               rows: rows.filter((pull) => pull.state === group),
-              defaultCollapsed: group === 'closed' || group === 'merged',
+              defaultCollapsed: group === 'closed' || (group === 'merged' && pulls.length >= 8),
             }))
             .filter((group) => group.rows.length)
+  const singleRepo = new Set(rows.map((pull) => pull.repo)).size === 1
+  const shortIdentifier = singleRepo || groupBy === 'repo'
   const columns: GroupedColumn<PullRequestListItem>[] = [
     {
       id: 'state',
@@ -206,20 +194,21 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     {
       id: 'identifier',
       priority: 30,
-      width: groupBy === 'repo' ? 56 : 122,
+      width: shortIdentifier ? 48 : 104,
       // A long repo name gives way before the number does.
       render: (pull) => (
         <span
           className='flex min-w-0 font-mono text-xs text-muted-foreground'
           title={`${pull.repo}#${pull.number}`}
         >
-          {groupBy !== 'repo' && <span className='truncate'>{repoName(pull.repo)}</span>}
+          {!shortIdentifier && <span className='truncate'>{repoName(pull.repo)}</span>}
           <span className='shrink-0'>#{pull.number}</span>
         </span>
       ),
     },
     {
       id: 'title',
+      label: 'Title',
       priority: 100,
       width: 280,
       title: true,
@@ -232,24 +221,46 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       ),
     },
     {
+      id: 'checks',
+      label: 'Checks',
+      priority: 60,
+      width: 88,
+      render: (pull) => <PullRequestChecks checks={pull.checks} />,
+    },
+    {
+      id: 'review',
+      label: 'Review',
+      priority: 50,
+      width: 112,
+      render: (pull) => <PullRequestReview review={pull.reviewDecision} />,
+    },
+    {
       id: 'diff',
+      label: 'Changes',
+      align: 'end',
       priority: 20,
-      width: 100,
+      width: 88,
       render: (pull) => (
         <span
-          className='ml-auto flex gap-2 font-mono text-xs tabular-nums'
+          className='flex w-full items-center justify-end gap-1.5 font-mono text-xs tabular-nums'
           title={`+${pull.additions ?? '—'} −${pull.deletions ?? '—'}`}
         >
-          <span className='text-pr-open'>+{formatLines(pull.additions)}</span>
-          <span className='text-destructive'>−{formatLines(pull.deletions)}</span>
+          <span className={pull.additions ? 'text-pr-open' : 'text-muted-foreground'}>
+            +{formatLines(pull.additions)}
+          </span>
+          <span className={pull.deletions ? 'text-destructive' : 'text-muted-foreground'}>
+            −{formatLines(pull.deletions)}
+          </span>
         </span>
       ),
     },
     {
       id: 'author',
+      label: 'By',
+      align: 'center',
       visible: tab !== 'created',
       priority: 100,
-      width: 30,
+      width: 36,
       essential: true,
       render: (pull) => (
         <span title={`Created by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`}>
@@ -264,11 +275,13 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'age',
+      label: 'Age',
+      align: 'end',
       priority: 40,
-      width: 30,
+      width: 44,
       render: (pull) => (
         <span
-          className='font-mono text-xs text-muted-foreground tabular-nums'
+          className='ml-auto font-mono text-xs text-muted-foreground tabular-nums'
           title={new Date(pull.updatedAt).toLocaleString()}
         >
           {formatAge(pull.updatedAt, now)}
@@ -277,7 +290,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
   ]
   return (
-    <div className='@container flex h-full min-h-0 min-w-0 flex-col'>
+    <div className='pull-request-list @container flex h-full min-h-0 min-w-0 flex-col'>
       <header className='flex h-(--app-tab-bar-height,42px) shrink-0 items-center justify-between gap-2 border-b border-border pl-(--page-header-inset,16px) pr-3'>
         <div className='flex min-w-0 items-center gap-3'>
           <PageSidebarTrigger />
@@ -371,10 +384,46 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           />
         </div>
       </header>
+      <div className='pull-request-list-tools flex shrink-0 items-center gap-4'>
+        <InputGroup className='h-8 w-72 max-w-full border-0 bg-transparent shadow-none'>
+          <InputGroupAddon>
+            <MagnifyingGlass2Icon aria-hidden='true' />
+          </InputGroupAddon>
+          <InputGroupInput
+            ref={searchRef}
+            aria-label='Search pull requests'
+            placeholder='Search title, repository or #number'
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                clearSearch()
+              }
+            }}
+            className='text-xs'
+          />
+          {query && (
+            <InputGroupAddon align='inline-end'>
+              <InputGroupButton
+                size='icon-xs'
+                aria-label='Clear pull request search'
+                onClick={clearSearch}
+              >
+                <CrossSmallIcon />
+              </InputGroupButton>
+            </InputGroupAddon>
+          )}
+        </InputGroup>
+        <span className='ml-auto min-w-0 truncate text-xs text-muted-foreground'>
+          {repositoryScope}
+        </span>
+      </div>
       {list?.items ? (
         <>
           <GroupedTable
             label='Pull requests'
+            className='w-full'
             columns={columns}
             groups={groups}
             rowKey={(pull) => pull.url}
@@ -384,6 +433,8 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 pull.title,
                 `by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`,
                 linkPresentation(pull).label,
+                checksLabel(pull.checks),
+                reviewLabel(pull.reviewDecision),
               ].join(', ')
             }
             onSelect={onSelect}
@@ -397,7 +448,49 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 />
               )
             }}
-            empty={pulls.length ? 'No pull requests match these filters.' : 'No pull requests'}
+            empty={
+              <ContentEmpty
+                icon={PullRequestIcon}
+                title={
+                  pulls.length
+                    ? search
+                      ? 'No pull requests found'
+                      : 'No pull requests match these filters'
+                    : tab === 'created'
+                      ? 'No pull requests created by you'
+                      : 'No pull requests'
+                }
+                description={
+                  pulls.length
+                    ? search
+                      ? 'Try another title, repository or number.'
+                      : 'Try including more states or repositories.'
+                    : tab === 'created'
+                      ? 'Pull requests you open will show here.'
+                      : 'Pull requests for this view will show here.'
+                }
+              >
+                {pulls.length ? (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => {
+                      if (search) clearSearch()
+                      else {
+                        setIncluded([...pullRequestGroupOrder])
+                        setHiddenRepos([])
+                      }
+                    }}
+                  >
+                    {search ? 'Clear search' : 'Clear filters'}
+                  </Button>
+                ) : tab === 'created' ? (
+                  <Button variant='outline' size='sm' onClick={() => onTabChange('for-you')}>
+                    Show pull requests for you
+                  </Button>
+                ) : null}
+              </ContentEmpty>
+            }
           />
           {list.truncated && (
             <p className='px-4 py-2 text-xs text-muted-foreground'>Showing latest {pulls.length}</p>
@@ -420,30 +513,81 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   )
 }
 
-// The list draws draft muted and closed destructive; an open PR takes its readiness colour.
-const listColor = {
-  draft: 'text-muted-foreground',
-  merged: 'text-pr-merged',
-  closed: 'text-destructive',
-}
-
 function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
-  const look = linkPresentation(pull)
-  const group = pullRequestListGroup(pull)
-  const { label } = look
-  const Icon = group === 'needs-you' ? BugIcon : group === 'in-review' ? PeopleIcon : look.icon
-  const color = group === 'in-review' ? 'text-muted-foreground' : look.color
+  const { icon: Icon, color, label: state } = prPresentation[pull.state]
+  const readiness = linkPresentation(pull).label
+  const label = readiness === state ? state : `${state} · ${readiness}`
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className={cn('flex', pull.state === 'open' ? color : listColor[pull.state])} />
-        }
-      >
+      <TooltipTrigger render={<span className={cn('flex', color)} />}>
         <Icon aria-hidden='true' className='size-3.5' />
         <span className='sr-only'>{label}</span>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+function reviewLabel(review: PullRequestListItem['reviewDecision']) {
+  if (review === 'APPROVED') return 'Approved'
+  if (review === 'CHANGES_REQUESTED') return 'Changes requested'
+  if (review === 'REVIEW_REQUIRED') return 'Review needed'
+  return 'No review reported'
+}
+
+function PullRequestReview({ review }: { review: PullRequestListItem['reviewDecision'] }) {
+  return (
+    <span
+      className={cn(
+        'flex min-w-0 items-center gap-1.5 text-xs',
+        review === 'CHANGES_REQUESTED' ? 'text-destructive' : 'text-muted-foreground'
+      )}
+      title={reviewLabel(review)}
+    >
+      {review === 'APPROVED' && (
+        <CircleCheckIcon filled className='size-3.5 shrink-0 text-pr-open' />
+      )}
+      <span className='truncate'>{review ? reviewLabel(review) : '—'}</span>
+    </span>
+  )
+}
+
+function checksLabel(checks: PullRequestListItem['checks']) {
+  return checks === 'success'
+    ? 'Checks passed'
+    : checks === 'failure'
+      ? 'Checks failed'
+      : checks === 'pending'
+        ? 'Checks running'
+        : 'No checks reported'
+}
+
+function PullRequestChecks({ checks }: { checks: PullRequestListItem['checks'] }) {
+  const label = checksLabel(checks)
+  return (
+    <span className='flex items-center gap-1.5 text-xs text-muted-foreground' title={label}>
+      {checks === 'success' ? (
+        <CircleCheckIcon filled className='size-3.5 text-pr-open' />
+      ) : checks === 'failure' ? (
+        <CircleXIcon filled className='size-3.5 text-destructive' />
+      ) : checks === 'pending' ? (
+        <Progress50Icon className='size-3.5 text-muted-foreground' />
+      ) : (
+        <span className='text-xs text-muted-foreground' aria-hidden='true'>
+          —
+        </span>
+      )}
+      <span>
+        {checks === 'success' ? (
+          'Passed'
+        ) : checks === 'failure' ? (
+          'Failed'
+        ) : checks === 'pending' ? (
+          'Running'
+        ) : (
+          <span className='sr-only'>{label}</span>
+        )}
+      </span>
+    </span>
   )
 }

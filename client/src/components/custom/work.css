@@ -10,25 +10,19 @@
   gap: 0.25rem;
 }
 .activity-chevron {
-  visibility: hidden;
+  visibility: visible;
 }
 :is(.activity-header, .activity-file-status)[aria-expanded='true'] > .activity-chevron {
   transform: rotate(90deg);
-}
-:is(.activity-header, .activity-file-status):focus-visible > .activity-chevron {
-  visibility: visible;
-}
-@media (hover: hover) and (pointer: fine) {
-  :is(.activity-header, .activity-file-status):hover > .activity-chevron {
-    visibility: visible;
-  }
 }
 .activity-file-row {
   padding-block: 0;
 }
 .activity-header[data-flush] {
-  @apply text-muted-foreground;
-  padding-inline-start: 0;
+  @apply h-7 text-foreground;
+  width: calc(100% + 1rem);
+  margin-inline: -0.5rem;
+  padding-inline: 0.5rem;
 }
 .activity-header[data-flush]:hover,
 .activity-header[data-flush]:focus-visible {
@@ -38,16 +32,11 @@
   @apply px-2 pb-1 text-13 leading-relaxed text-muted-foreground;
 }
 .work-text {
-  @apply px-2 py-1 text-13 leading-5 text-foreground;
+  @apply py-1 text-[14px] leading-[22px] text-foreground;
   transition: color var(--motion-control-duration) var(--motion-control-ease);
 }
 .work-text-past {
   @apply text-muted-foreground;
-}
-.work-text .inline-code,
-.thinking-text .inline-code,
-.thread-reply .inline-code {
-  font-size: inherit;
 }
 .work-scroll {
   overflow-anchor: none;

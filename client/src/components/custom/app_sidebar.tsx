@@ -2,7 +2,6 @@ import {
   ChevronRightSmallIcon,
   ArchiveIcon,
   EditSmall1Icon,
-  PinIcon,
   PlusMediumIcon,
   PullRequestIcon,
 } from '@/components/custom/central_icons'
@@ -34,7 +33,6 @@ import {
   useArchiveThread,
   useBumpDraft,
   useDeleteThread,
-  useOpenPullRequest,
   usePinThread,
   useThreadJourney,
   useThreadRowPrefetch,
@@ -86,7 +84,10 @@ function storedView(): SidebarView {
   } catch {}
   return {
     grouping:
-      saved.grouping === 'project' || saved.grouping === 'status' || saved.grouping === 'bot'
+      saved.grouping === 'project' ||
+      saved.grouping === 'status' ||
+      saved.grouping === 'bot' ||
+      saved.grouping === 'date'
         ? saved.grouping
         : 'date',
     showPinned: saved.showPinned !== false,
@@ -98,7 +99,7 @@ const MotionSidebarContent = motion.create(SidebarContent)
 const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0 }
 
 const navigationButtonClass =
-  'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+  'h-7 w-full justify-start gap-1.5 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
 
 function uncommitted(count: number) {
   return count === 1 ? '1 uncommitted change' : `${count} uncommitted changes`
@@ -134,7 +135,6 @@ export const AppSidebar = memo(function AppSidebar() {
     storage.set(viewKey, JSON.stringify(next))
   }
   const prefetch = useThreadRowPrefetch()
-  const openPullRequest = useOpenPullRequest()
 
   const list = useSidebarList()
   const mainList = list && {
@@ -164,14 +164,35 @@ export const AppSidebar = memo(function AppSidebar() {
   const shortcutFor = (kind: 'bot' | 'thread', id: string) =>
     keybinds.sidebarRows[numbered.findIndex((row) => row.kind === kind && row.id === id)]
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
-  const items = (groups ?? []).flatMap((group) => [
-    { kind: 'heading' as const, ...group, id: `heading:${group.id}`, count: group.threads.length },
-    ...(group.archived && !archivedOpen ? [] : group.threads).map((id) => ({
-      kind: 'thread' as const,
-      id,
-      archived: group.archived,
-    })),
-  ])
+  const projectByThread = new Map(mainList?.threads.map((thread) => [thread.id, thread.projectId]))
+  const multipleProjects =
+    new Set(
+      (groups ?? [])
+        .filter((group) => !group.archived || archivedOpen)
+        .flatMap((group) => group.threads.map((id) => projectByThread.get(id)))
+    ).size > 1
+  const items = (groups ?? []).flatMap((group) => {
+    return [
+      {
+        kind: 'heading' as const,
+        ...group,
+        id: `heading:${group.id}`,
+        count: group.threads.length,
+        projectLabel:
+          multipleProjects &&
+          group.projectId &&
+          (group.pinned || group.archived || grouping !== 'project')
+            ? group.project
+            : undefined,
+      },
+      ...(group.archived && !archivedOpen ? [] : group.threads).map((id) => ({
+        kind: 'thread' as const,
+        id,
+        archived: group.archived,
+        showProject: false,
+      })),
+    ]
+  })
   const bumpDraft = useBumpDraft()
   const startThreadJourney = useThreadJourney()
   const archiveThread = useArchiveThread()
@@ -320,11 +341,11 @@ export const AppSidebar = memo(function AppSidebar() {
     <Sidebar
       data-perf-region='sidebar'
       aria-label='Thread sidebar'
-      className='top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0 [timeline-scope:--sidebar-threads]'
+      className='app-sidebar top-(--app-tab-bar-height) h-[calc(100svh-var(--app-tab-bar-height))] p-0 [timeline-scope:--sidebar-threads]'
       variant='inset'
       collapsible='offcanvas'
     >
-      <SidebarHeader className='shrink-0 px-1.5 pb-4 pt-2'>
+      <SidebarHeader className='shrink-0 px-1.5 pb-2 pt-2'>
         <nav aria-label='Main navigation'>
           <SidebarMenu className='gap-0.5'>
             <SidebarMenuItem>
@@ -333,22 +354,10 @@ export const AppSidebar = memo(function AppSidebar() {
                 className={`${navigationButtonClass} keybind-target`}
                 {...pressProps(newThread)}
               >
-                <EditSmall1Icon className='size-3' />
+                <EditSmall1Icon />
                 New thread
                 <HoverKeybind binding={keybinds.newThread} className='ml-auto' />
               </Button>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
-                <Button
-                  variant='ghost'
-                  className={`${navigationButtonClass} pointer-events-none`}
-                  disabled
-                >
-                  <CircleDotIcon className='size-3' />
-                  Issues
-                </Button>
-              </DisabledTooltip>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <Button
@@ -361,9 +370,21 @@ export const AppSidebar = memo(function AppSidebar() {
                   void navigate({ to: '/pull-requests', search: pullRequestListSearch() })
                 })}
               >
-                <PullRequestIcon className='size-3' />
+                <PullRequestIcon />
                 Pull requests
               </Button>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
+                <Button
+                  variant='ghost'
+                  className={`${navigationButtonClass} pointer-events-none disabled:text-muted-foreground disabled:[&_svg]:text-muted-foreground`}
+                  disabled
+                >
+                  <CircleDotIcon />
+                  Issues
+                </Button>
+              </DisabledTooltip>
             </SidebarMenuItem>
           </SidebarMenu>
         </nav>
@@ -373,10 +394,10 @@ export const AppSidebar = memo(function AppSidebar() {
             thread search, the list and the account footer off the sidebar. */}
         <section
           aria-label='Bots'
-          className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-3.5'
+          className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-2'
         >
           {/* The plus lines up with the status glyphs below. */}
-          <div className='flex h-6 items-center justify-between pr-1.5 pl-2.5'>
+          <div className='flex h-6 items-center justify-between pr-2 pl-2.75'>
             <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
             <div className='flex items-center gap-0.5'>
               <Button
@@ -402,7 +423,7 @@ export const AppSidebar = memo(function AppSidebar() {
                     onToggle={botThreads.get(bot.id)?.length ? () => toggleBot(bot.id) : undefined}
                   />
                   <CollapsibleContent>
-                    <div className='flex flex-col gap-0.5 pt-0.5'>
+                    <div className='flex flex-col pl-5'>
                       {(botThreads.get(bot.id) ?? []).map(({ id }) => (
                         <div
                           key={id}
@@ -424,7 +445,6 @@ export const AppSidebar = memo(function AppSidebar() {
                             onDelete={remove}
                             onPin={pinThread}
                             onRename={renameThread}
-                            onOpenPullRequest={openPullRequest}
                           />
                         </div>
                       ))}
@@ -446,7 +466,7 @@ export const AppSidebar = memo(function AppSidebar() {
             </button>
           )}
         </section>
-        <div className='px-1.5 pb-4'>
+        <div className='px-1.5 pb-2'>
           <SidebarThreadControls
             query={query}
             onQueryChange={setQuery}
@@ -458,120 +478,128 @@ export const AppSidebar = memo(function AppSidebar() {
             onShowArchivedChange={(next) => changeView({ showArchived: next })}
           />
         </div>
-        <MotionSidebarContent
-          layoutScroll
-          className='min-h-32 overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
-        >
-          <nav aria-label='Threads'>
-            <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
-              {items.map((item) => {
-                if (item.kind === 'heading') {
-                  const ordinary = !item.pinned && !item.archived
-                  const bot =
-                    ordinary && grouping === 'bot'
-                      ? bots.find((entry) => entry.id === item.botId)
-                      : undefined
-                  const heading = (
-                    <>
-                      {item.pinned && (
-                        <PinIcon filled className='size-3 shrink-0' aria-hidden='true' />
-                      )}
-                      {item.archived && (
-                        // Linear-style: the icon turns into the disclosure caret on hover or focus.
-                        <span className='grid size-3 shrink-0 *:col-start-1 *:row-start-1'>
-                          <ArchiveIcon
-                            className='size-3 group-hover/button:invisible group-focus-visible/button:invisible'
-                            aria-hidden='true'
+        <div className='sidebar-thread-scroll-edge relative flex min-h-32 flex-1 flex-col'>
+          <MotionSidebarContent
+            layoutScroll
+            className='sidebar-thread-list min-h-32 overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
+          >
+            <nav aria-label='Threads'>
+              <div className='flex flex-col'>
+                {items.map((item) => {
+                  if (item.kind === 'heading') {
+                    const ordinary = !item.pinned && !item.archived
+                    const bot =
+                      ordinary && grouping === 'bot'
+                        ? bots.find((entry) => entry.id === item.botId)
+                        : undefined
+                    const heading = (
+                      <>
+                        {item.archived && (
+                          // Linear-style: the icon turns into the disclosure caret on hover or focus.
+                          <span className='grid size-4 shrink-0 *:col-start-1 *:row-start-1'>
+                            <ArchiveIcon
+                              className='size-4 group-hover/button:invisible group-focus-visible/button:invisible'
+                              aria-hidden='true'
+                            />
+                            <ChevronRightSmallIcon
+                              className='invisible size-4 group-hover/button:visible group-focus-visible/button:visible group-aria-expanded/button:rotate-90'
+                              aria-hidden='true'
+                            />
+                          </span>
+                        )}
+                        {ordinary && grouping === 'project' && (
+                          <ProjectGlyph icon={item.projectIcon} className='size-4' />
+                        )}
+                        {item.status && <StatusGlyph status={item.status} className='size-4' />}
+                        {bot && (
+                          <BotAvatar
+                            bot={bot}
+                            size={16}
+                            unread={false}
+                            className='[--jb-ring:var(--sidebar)]'
                           />
-                          <ChevronRightSmallIcon
-                            className='invisible size-3 group-hover/button:visible group-focus-visible/button:visible group-aria-expanded/button:rotate-90'
-                            aria-hidden='true'
-                          />
-                        </span>
-                      )}
-                      {ordinary && grouping === 'project' && (
-                        <ProjectGlyph icon={item.projectIcon} className='size-3' />
-                      )}
-                      {item.status && <StatusGlyph status={item.status} className='size-3' />}
-                      {bot && (
-                        <BotAvatar
-                          bot={bot}
-                          size={12}
-                          unread={false}
-                          className='[--jb-ring:var(--sidebar)]'
-                        />
-                      )}
-                      <span className='flex min-w-0 flex-1 items-baseline gap-1'>
-                        <span className='min-w-0 truncate font-medium'>{item.label}</span>
+                        )}
+                        <span className='min-w-0 flex-1 truncate font-medium'>{item.label}</span>
+                        {item.projectLabel && (
+                          <span className='max-w-24 truncate font-normal' title={item.projectLabel}>
+                            {item.projectLabel}
+                          </span>
+                        )}
                         <span
-                          className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
+                          className='w-7 shrink-0 text-right font-mono text-xs font-normal tabular-nums'
                           aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
                         >
                           {item.count}
                         </span>
-                      </span>
-                    </>
-                  )
-                  return item.archived ? (
-                    <h3 key={item.id} className='mt-5 flex first:mt-0'>
-                      <Button
-                        variant='ghost-text'
-                        className='h-auto w-full justify-start gap-1.5 rounded-sm border-0 px-2.5 py-1 text-xs font-normal aria-expanded:text-muted-foreground aria-expanded:not-disabled:hover:text-foreground'
-                        aria-expanded={archivedOpen}
-                        onClick={() => setArchivedOpen((open) => !open)}
+                      </>
+                    )
+                    return item.archived ? (
+                      <h3 key={item.id} className='sidebar-thread-heading mt-3 flex first:mt-0'>
+                        <Button
+                          variant='ghost-text'
+                          className='h-6 w-full justify-start gap-1.5 rounded-sm border-0 px-2.5 py-0 text-xs font-medium text-muted-foreground'
+                          aria-expanded={archivedOpen}
+                          onClick={() => setArchivedOpen((open) => !open)}
+                        >
+                          {heading}
+                        </Button>
+                      </h3>
+                    ) : (
+                      <h3
+                        key={item.id}
+                        className='sidebar-thread-heading mt-3 flex h-6 items-center gap-1.5 px-2.75 text-xs font-medium text-muted-foreground first:mt-0'
                       >
                         {heading}
-                      </Button>
-                    </h3>
-                  ) : (
-                    <h3
+                      </h3>
+                    )
+                  }
+                  return (
+                    <motion.div
                       key={item.id}
-                      className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
+                      data-thread-row
+                      layout={reducedMotion ? false : 'position'}
+                      layoutDependency={layoutDependency}
+                      initial={false}
+                      transition={{ layout: rowLayoutTransition }}
+                      onPointerEnter={() => {
+                        if (item.id !== selectedId) prefetch.enter(item.id)
+                      }}
+                      onPointerLeave={() => prefetch.leave(item.id)}
                     >
-                      {heading}
-                    </h3>
+                      <SidebarThreadRow
+                        id={item.id}
+                        now={now}
+                        shortcut={shortcutFor('thread', item.id)}
+                        selected={selectedId === item.id}
+                        onSelect={openThread}
+                        onArchive={archive}
+                        onUnarchive={archiveThread}
+                        onDelete={remove}
+                        onPin={pinThread}
+                        onRename={renameThread}
+                        showProject={item.showProject}
+                      />
+                    </motion.div>
                   )
-                }
-                return (
-                  <motion.div
-                    key={item.id}
-                    data-thread-row
-                    className={
-                      item.archived && item.id !== selectedId
-                        ? 'opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100'
-                        : undefined
-                    }
-                    layout={reducedMotion ? false : 'position'}
-                    layoutDependency={layoutDependency}
-                    initial={false}
-                    transition={{ layout: rowLayoutTransition }}
-                    onPointerEnter={() => {
-                      if (item.id !== selectedId) prefetch.enter(item.id)
-                    }}
-                    onPointerLeave={() => prefetch.leave(item.id)}
-                  >
-                    <SidebarThreadRow
-                      id={item.id}
-                      now={now}
-                      shortcut={shortcutFor('thread', item.id)}
-                      selected={selectedId === item.id}
-                      onSelect={openThread}
-                      onArchive={archive}
-                      onUnarchive={archiveThread}
-                      onDelete={remove}
-                      onPin={pinThread}
-                      onRename={renameThread}
-                      onOpenPullRequest={openPullRequest}
-                    />
-                  </motion.div>
-                )
-              })}
-              {query.trim() && groups && !groups.length && (
-                <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
-              )}
-            </div>
-          </nav>
-        </MotionSidebarContent>
+                })}
+                {query.trim() && groups && !groups.length && (
+                  <div className='flex flex-col items-start gap-1 px-2.5 py-4'>
+                    <p className='text-sm font-medium'>No threads found</p>
+                    <p className='text-xs text-muted-foreground'>Try another title or project.</p>
+                    <Button
+                      variant='ghost-text'
+                      size='xs'
+                      className='-ml-2 self-start'
+                      onClick={() => setQuery('')}
+                    >
+                      Clear search
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </nav>
+          </MotionSidebarContent>
+        </div>
       </ThreadHoverGroup>
       <SidebarFooter className='sidebar-footer shrink-0 gap-0 p-0 pb-1.5'>
         <SidebarUpdate />
@@ -631,13 +659,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   onDelete,
   onPin,
   onRename,
-  onOpenPullRequest,
+  showProject = true,
 }: {
   id: string
   now: number
   shortcut?: Keybind
   selected: boolean
-  // Bot threads, one line each; the main list keeps two.
   nested?: boolean
   onSelect: (id: string) => void
   onArchive: (id: string) => void
@@ -645,7 +672,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   onDelete: (id: string) => void
   onPin: ReturnType<typeof usePinThread>
   onRename: ReturnType<typeof useRenameThread>
-  onOpenPullRequest: ReturnType<typeof useOpenPullRequest>
+  showProject?: boolean
 }) {
   const row = useSidebarRow(id)
   if (!row) return null
@@ -657,7 +684,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       shortcut={shortcut}
       selected={selected}
       nested={nested}
-      oneLine={nested}
+      showProject={showProject}
       actions={{
         pinned: thread.pinned,
         archived: thread.archived,
@@ -668,7 +695,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
         onRename: (title) => onRename(id, title),
       }}
       onSelect={() => onSelect(id)}
-      onOpenPullRequest={() => thread.pullRequest && onOpenPullRequest(id, thread.pullRequest)}
     />
   )
 })

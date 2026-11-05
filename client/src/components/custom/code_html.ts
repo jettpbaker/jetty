@@ -16,7 +16,7 @@ type Token = Pick<ThemedToken, 'content' | 'color' | 'bgColor' | 'htmlStyle'>
 const lineClass = 'block'
 const numberedLineClass =
   'block before:content-[counter(line)] before:inline-block before:[counter-increment:line] before:w-6 before:mr-4 before:text-[13px] before:text-right before:text-muted-foreground/50 before:font-mono before:select-none'
-const tokenClass = 'text-[var(--sdm-c,inherit)] dark:text-[var(--shiki-dark,var(--sdm-c,inherit))]'
+const tokenClass = 'chat-code-token'
 const tokenBackgroundClass = 'bg-[var(--sdm-tbg)] dark:bg-[var(--shiki-dark-bg,var(--sdm-tbg))]'
 
 function escapeHtml(text: string) {

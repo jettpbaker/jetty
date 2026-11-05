@@ -16,8 +16,9 @@ import {
   useProviderUsage,
   type UsageProvider,
 } from '@/state/provider-usage'
-import { useEffect } from 'react'
+import { use, useEffect } from 'react'
 
+import { ComposerMenuAnchorContext } from './composer_menu_anchor'
 import './context_ring.css'
 
 const radius = 90
@@ -32,7 +33,15 @@ function nearCap(fraction: number) {
   return fraction >= 0.9
 }
 
-// How full a thread's context window is; red from 90%.
+function capacityTone(fraction: number) {
+  return nearCap(fraction)
+    ? 'text-destructive'
+    : fraction >= 0.75
+      ? 'text-status-attention'
+      : undefined
+}
+
+// How full a thread's context window is; amber from 75%, red from 90%.
 export function ContextRing({
   context,
   className,
@@ -45,7 +54,7 @@ export function ContextRing({
     <svg
       viewBox='0 0 256 256'
       aria-hidden='true'
-      className={cn(nearCap(fraction) ? 'text-destructive' : 'text-foreground', className)}
+      className={cn(capacityTone(fraction) ?? 'text-foreground', className)}
     >
       <circle
         cx='128'
@@ -53,7 +62,7 @@ export function ContextRing({
         r={radius}
         fill='none'
         strokeWidth='26'
-        className='stroke-muted-foreground/40'
+        className='stroke-muted-foreground/60'
       />
       {context && (
         <circle
@@ -63,7 +72,7 @@ export function ContextRing({
           fill='none'
           strokeWidth='26'
           stroke='currentColor'
-          strokeLinecap='round'
+          strokeLinecap='butt'
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - fraction)}
           transform='rotate(-90 128 128)'
@@ -142,13 +151,11 @@ function Headroom({ context }: { context: ContextUsage }) {
   )
 }
 
-// What fills the window sits behind the chevron, closed until asked for. Codex and Grok send only
-// a total, so they have no chevron.
 function ContextDetails({ context }: { context: ContextUsage | null }) {
   if (!context)
     return (
       <div className='flex flex-col gap-2'>
-        <span className='font-medium'>Context</span>
+        <span className='font-medium'>Context window</span>
         <Gauge fraction={0} />
         <span className='text-muted-foreground'>No context reading yet.</span>
       </div>
@@ -158,48 +165,48 @@ function ContextDetails({ context }: { context: ContextUsage | null }) {
   return (
     <Collapsible className='flex flex-col gap-2'>
       <div className='flex items-center justify-between gap-3'>
-        {slices.length > 0 ? (
+        <span className='font-medium'>Context window</span>
+        <Mono className={capacityTone(fraction)}>{Math.round(fraction * 100)}% used</Mono>
+      </div>
+      {slices.length > 0 ? <SliceGauge context={context} /> : <Gauge fraction={fraction} />}
+      <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-muted-foreground'>
+        <Mono>
+          {tokens(context.usedTokens)} / {tokens(context.maxTokens)} tokens
+        </Mono>
+        <Headroom context={context} />
+      </div>
+      {slices.length > 0 && (
+        <>
           <CollapsibleTrigger
             render={
               <Button
                 variant='ghost-text'
                 size='xs'
-                className='group/details -my-1 h-6 gap-1 px-0 font-medium text-foreground not-disabled:hover:text-foreground aria-expanded:text-foreground'
+                className='self-start px-0 [&[aria-expanded=true]>svg]:rotate-90'
               />
             }
           >
-            Context
-            <ChevronRightSmallIcon className='text-muted-foreground transition-transform duration-(--motion-control-duration) ease-(--motion-control-ease) group-hover/details:text-foreground group-aria-expanded/details:rotate-90 motion-reduce:transition-none' />
+            <ChevronRightSmallIcon />
+            Token breakdown
           </CollapsibleTrigger>
-        ) : (
-          <span className='font-medium'>Context</span>
-        )}
-        <Mono className='text-muted-foreground'>
-          {tokens(context.usedTokens)} / {tokens(context.maxTokens)} (
-          <span className={nearCap(fraction) ? 'text-destructive' : 'text-foreground'}>
-            {Math.round(fraction * 100)}%
-          </span>
-          )
-        </Mono>
-      </div>
-      {slices.length > 0 ? <SliceGauge context={context} /> : <Gauge fraction={fraction} />}
-      <Headroom context={context} />
-      {slices.length > 0 && (
-        <CollapsibleContent>
-          <div className='grid grid-cols-2 gap-x-4 gap-y-1 pt-0.5'>
-            {slices.map((slice) => (
-              <div key={slice.label} className='flex min-w-0 items-center gap-1.5'>
-                <span
-                  aria-hidden='true'
-                  className='size-2 shrink-0 rounded-xs'
-                  style={{ background: hue(slice.label) }}
-                />
-                <span className='min-w-0 flex-1 truncate text-muted-foreground'>{slice.label}</span>
-                <Mono className='text-muted-foreground'>{tokens(slice.tokens)}</Mono>
-              </div>
-            ))}
-          </div>
-        </CollapsibleContent>
+          <CollapsibleContent>
+            <div className='grid grid-cols-2 gap-x-4 gap-y-1 pt-0.5'>
+              {slices.map((slice) => (
+                <div key={slice.label} className='flex min-w-0 items-center gap-1.5'>
+                  <span
+                    aria-hidden='true'
+                    className='size-2 shrink-0 rounded-xs'
+                    style={{ background: hue(slice.label) }}
+                  />
+                  <span className='min-w-0 flex-1 truncate text-muted-foreground'>
+                    {slice.label}
+                  </span>
+                  <Mono className='text-muted-foreground'>{tokens(slice.tokens)}</Mono>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </>
       )}
     </Collapsible>
   )
@@ -238,6 +245,7 @@ function PopoverLimits({ provider }: { provider: UsageProvider }) {
 
 // Opens on click, not pointer-down: it's an overlay (JET-3).
 export function ThreadContextRing({ threadId, provider }: { threadId: string; provider: string }) {
+  const anchor = use(ComposerMenuAnchorContext)
   const context = useThreadContext(threadId)
   const limits = allUsageProviders.find((id) => id === provider)
   return (
@@ -246,7 +254,7 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         render={
           <Button
             variant='ghost'
-            size='icon'
+            size='sm'
             aria-label={
               context
                 ? `Context window ${Math.round(fullness(context) * 100)}% full`
@@ -256,11 +264,16 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         }
       >
         <ContextRing context={context} />
+        <span className={cn('font-mono text-xs', capacityTone(fullness(context)))}>
+          {context ? `${Math.round(fullness(context) * 100)}%` : '—'}
+        </span>
+        <span className='text-xs group-data-narrow/composer:hidden'>context</span>
       </PopoverTrigger>
       <PopoverContent
+        anchor={anchor}
         side='top'
         align='end'
-        sideOffset={6}
+        sideOffset={8}
         className='context-popover w-80 gap-3 p-3 text-xs'
       >
         <ContextDetails context={context} />

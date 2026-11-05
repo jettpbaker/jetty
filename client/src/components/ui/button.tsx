@@ -3,12 +3,12 @@ import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[color,background-color] motion-reduce:transition-none outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed aria-pressed:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[color,background-color] motion-reduce:transition-none outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed aria-pressed:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground not-disabled:hover:bg-primary/80 disabled:opacity-50 **:data-[slot=kbd]:bg-current/10 **:data-[slot=kbd]:text-current',
+          'bg-primary text-primary-foreground not-disabled:hover:bg-primary/80 disabled:bg-foreground/8 disabled:text-muted-foreground disabled:opacity-50 **:data-[slot=kbd]:bg-current/10 **:data-[slot=kbd]:text-current',
         outline:
           'border-border bg-background shadow-xs not-disabled:hover:bg-muted not-disabled:hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:not-disabled:hover:bg-input/50 disabled:opacity-50',
         secondary:
@@ -18,7 +18,7 @@ const buttonVariants = cva(
         'ghost-text':
           'text-muted-foreground not-disabled:hover:text-foreground aria-expanded:text-foreground disabled:text-disabled-foreground disabled:[&_svg]:text-disabled-foreground',
         destructive:
-          'bg-destructive/10 text-destructive not-disabled:hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:not-disabled:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40 disabled:opacity-50',
+          'bg-destructive/10 text-[color-mix(in_oklch,var(--destructive),var(--foreground)_20%)] not-disabled:hover:bg-destructive/20 focus-visible:border-destructive focus-visible:ring-destructive dark:bg-destructive/20 dark:not-disabled:hover:bg-destructive/30 disabled:opacity-50',
         link: 'text-primary underline-offset-4 not-disabled:hover:underline disabled:text-disabled-foreground disabled:[&_svg]:text-disabled-foreground',
       },
       tone: {

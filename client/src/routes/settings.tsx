@@ -11,7 +11,7 @@ function Settings() {
       <PageSidebarTrigger standalone />
       <div
         key={page}
-        className='scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain px-4'
+        className='@container/settings scroll-fade-y scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain px-4'
       >
         <Outlet />
       </div>

@@ -1,18 +1,15 @@
 import type { ProjectIcon } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { useBot } from '@/state'
+import { useEffect, useRef } from 'react'
 
 import { JettyBot } from './jetty_bot'
 import { HeldKeybind, type Keybind } from './keybinds'
-import { OverflowTitle } from './overflow_title'
 import { ProjectGlyph } from './project_glyph'
 import { ThreadHoverCard } from './thread_hover'
-import { PullRequestMark, type ThreadPullRequest } from './thread_pull_request'
 import { ThreadRowActions, type ThreadRowActionsProps } from './thread_row_actions'
-import { quietStatus, StatusGlyph, type ThreadStatus } from './thread_status'
-import { TwoLineRow } from './two_line_row'
+import { StatusGlyph, type ThreadStatus } from './thread_status'
 import './thread_row.css'
 
 export function ThreadRow({
@@ -22,15 +19,14 @@ export function ThreadRow({
   project,
   projectIcon,
   status,
+  detail,
   lastActivity,
-  pullRequests,
   shortcut,
   selected,
   nested = false,
-  oneLine = false,
+  showProject = true,
   actions,
   onSelect,
-  onOpenPullRequest,
 }: {
   id: string
   botId?: string
@@ -38,117 +34,65 @@ export function ThreadRow({
   project: string
   projectIcon?: ProjectIcon
   status: ThreadStatus
+  detail?: string
   lastActivity: string
-  pullRequests: readonly ThreadPullRequest[]
   shortcut?: Keybind
   selected: boolean
   nested?: boolean
-  oneLine?: boolean
-  actions: Omit<ThreadRowActionsProps, 'title' | 'shortcut'>
+  showProject?: boolean
+  actions: Omit<ThreadRowActionsProps, 'title'>
   onSelect: () => void
-  onOpenPullRequest: () => void
 }) {
   const bot = useBot(botId)
-  const quiet = quietStatus(status)
+  const rowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
   return (
-    <div className='thread-row keybind-target' data-selected={selected || undefined}>
+    <div ref={rowRef} className='thread-row keybind-target' data-selected={selected || undefined}>
       <ThreadHoverCard threadId={id}>
-        {(trigger) =>
-          oneLine ? (
-            <Button
-              render={trigger}
-              variant='ghost-text'
-              data-overflow-hover
-              className='h-7.5 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-normal text-foreground'
-              aria-pressed={selected}
-              onClick={(event) =>
-                event.target instanceof Element && event.target.closest('[data-pull-request]')
-                  ? onOpenPullRequest()
-                  : onSelect()
-              }
-            >
-              <HeldKeybind binding={shortcut}>
-                <StatusGlyph status={status} className='size-3.25' />
-              </HeldKeybind>
-              <OverflowTitle
-                focusable={false}
-                className={cn('font-normal leading-normal', quiet && 'text-muted-foreground')}
-              >
+        {(trigger) => (
+          <Button
+            render={trigger}
+            variant='ghost-text'
+            className='thread-row-button h-auto min-h-7.5 w-full min-w-0 justify-start gap-1 rounded-sm px-2.5 py-0.75 text-left font-normal text-foreground'
+            aria-pressed={selected}
+            onClick={onSelect}
+          >
+            <HeldKeybind binding={shortcut}>
+              <StatusGlyph status={status} className='size-3.5' />
+            </HeldKeybind>
+            {!nested && (showProject || (bot && !bot.archived)) && (
+              <span className='flex size-3.5 shrink-0 items-center justify-center' title={project}>
+                {bot && !bot.archived ? (
+                  <JettyBot shape={bot.shape} color={bot.color} size={14} />
+                ) : (
+                  <ProjectGlyph icon={projectIcon} className='size-3' />
+                )}
+              </span>
+            )}
+            <span className='flex min-w-0 flex-1 flex-col'>
+              <span data-thread-title className='truncate leading-5'>
                 {title}
-              </OverflowTitle>
-              {pullRequests.length > 0 && (
-                <span data-pull-request className='ml-auto flex shrink-0'>
-                  <PullRequestMark pullRequests={pullRequests} tooltip={false} compact />
-                </span>
+              </span>
+              {detail && (
+                <span className='truncate text-xs leading-4 text-muted-foreground'>{detail}</span>
               )}
-            </Button>
-          ) : (
-            <TwoLineRow
-              render={trigger}
-              variant='ghost-text'
-              aria-pressed={selected}
-              onClick={(event) =>
-                event.target instanceof Element && event.target.closest('[data-pull-request]')
-                  ? onOpenPullRequest()
-                  : onSelect()
+            </span>
+            <span
+              className='thread-row-age w-7 shrink-0 text-right font-mono text-xs text-muted-foreground tabular-nums'
+              aria-label={
+                lastActivity === 'now'
+                  ? 'Last activity just now'
+                  : `Last activity ${lastActivity} ago`
               }
-              heading={
-                <span className='flex min-w-0 flex-1 items-center gap-0.5'>
-                  {!nested && bot && !bot.archived && (
-                    <>
-                      {/* The face's slot is a pixel narrower than the face, as the board draws it. */}
-                      <span className='relative h-3.5 w-[13px] shrink-0'>
-                        <JettyBot
-                          shape={bot.shape}
-                          color={bot.color}
-                          size={14}
-                          className='absolute top-0 -left-px'
-                        />
-                      </span>
-                      <span className='shrink-0 text-faint-foreground'>/</span>
-                    </>
-                  )}
-                  <OverflowTitle
-                    focusable={false}
-                    className={cn('font-normal leading-normal', quiet && 'text-muted-foreground')}
-                  >
-                    {title}
-                  </OverflowTitle>
-                </span>
-              }
-              glyph={
-                <span className='ml-auto flex shrink-0 items-center'>
-                  <HeldKeybind binding={shortcut}>
-                    <StatusGlyph status={status} className='size-3.25' />
-                  </HeldKeybind>
-                </span>
-              }
-              metaClassName='gap-2.5'
             >
-              <span className='flex min-w-0 items-center gap-1' title={project}>
-                <ProjectGlyph icon={projectIcon} className='size-3' />
-                <span className='truncate'>{project}</span>
-              </span>
-              {pullRequests.length > 0 && (
-                <span data-pull-request className='flex shrink-0'>
-                  <PullRequestMark pullRequests={pullRequests} tooltip={false} />
-                </span>
-              )}
-              <span
-                className='ml-auto mr-px shrink-0 font-mono'
-                aria-label={
-                  lastActivity === 'now'
-                    ? 'Last activity just now'
-                    : `Last activity ${lastActivity} ago`
-                }
-              >
-                {lastActivity}
-              </span>
-            </TwoLineRow>
-          )
-        }
+              {lastActivity}
+            </span>
+          </Button>
+        )}
       </ThreadHoverCard>
-      <ThreadRowActions title={title} shortcut={shortcut} {...actions} />
+      <ThreadRowActions title={title} {...actions} />
     </div>
   )
 }

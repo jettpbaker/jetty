@@ -48,7 +48,7 @@ export function FileChangesViewer({
   const [pane, setPane] = useState(true)
   const [filter, setFilter] = useState('')
   const [diffStyle, setDiffStyle] = useDiffStyle()
-  const [wrap, setWrap] = useDiffWrap(root)
+  const [wrap, setWrap] = useDiffWrap()
   const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set())
   const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
@@ -180,7 +180,7 @@ export function FileChangesViewer({
           ref={root}
           className='@container flex h-full min-h-0 flex-col overflow-hidden bg-background'
         >
-          <div className='flex min-h-0 flex-1 flex-col pt-3'>
+          <div className='flex min-h-0 flex-1 flex-col'>
             <DiffToolbar
               files={files}
               total={models.length}
@@ -194,9 +194,10 @@ export function FileChangesViewer({
               diffStyle={diffStyle}
               onDiffStyleChange={setDiffStyle}
               toggles={[['Wrap lines', wrap, setWrap]]}
-            >
-              {onScopeChange && <ChangesScopePicker value={scope} onChange={onScopeChange} />}
-            </DiffToolbar>
+              leading={
+                onScopeChange && <ChangesScopePicker value={scope} onChange={onScopeChange} />
+              }
+            />
             <DiffFileList
               files={files}
               pane={pane}

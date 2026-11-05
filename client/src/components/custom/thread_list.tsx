@@ -12,9 +12,11 @@ import {
   WorkerMessage,
 } from '@/components/custom/bot_markers'
 import { ChildReports, SubagentDone } from '@/components/custom/child_reports'
+import { CopyButton } from '@/components/custom/copy_button'
 import { ErrorMessage } from '@/components/custom/error_message'
 import { ProjectFileRoot } from '@/components/custom/file_link'
 import { GalleryMessage } from '@/components/custom/gallery_message'
+import { InlineRequestTarget } from '@/components/custom/inline_request'
 import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { AgentMessageFooter } from '@/components/custom/message_footer'
@@ -130,6 +132,11 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 // Messages keep a little air either side.
 const paddedRows = new Set<ThreadRow['kind']>(['user'])
 
+function afterWork(rows: readonly ThreadRow[], index: number) {
+  const kind = rows[index]?.kind
+  return (kind === 'assistant' || kind === 'plan') && rows[index - 1]?.kind === 'work'
+}
+
 function contentWidth(scrollerWidth: number) {
   return Math.max(1, Math.min(873, scrollerWidth) - 48)
 }
@@ -198,6 +205,8 @@ function rowStamp(row: ThreadRow) {
       return `${row.item.status}:${row.item.phases.length}:${row.item.agents.map((agent) => agent.state).join('')}`
     case 'compaction':
       return `${row.state}:${row.reason ?? ''}`
+    case 'request':
+      return ''
     case 'secret':
       return `${row.item.outcome}:${row.item.label}`
     case 'pullRequest':
@@ -241,7 +250,9 @@ const ThreadItemRow = memo(function ThreadItemRow({
   provider,
   projectPath,
   onOpenRoom,
+  latestAssistant,
 }: {
+  latestAssistant: boolean
   row: ThreadRow
   streamingRows: ReturnType<typeof useStreamingRows>
   threadId: string
@@ -272,6 +283,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
         steering={row.steering}
       />
     )
+  if (row.kind === 'request') return <InlineRequestTarget id={row.id} />
   if (row.kind === 'reports') return <ChildReports reports={row.reports} />
   if (row.kind === 'wake') return <WakeMarker reports={row.reports} wake={row.wake} />
   if (row.kind === 'workerMessage') return <WorkerMessage from={row.from} text={row.text} />
@@ -284,11 +296,26 @@ const ThreadItemRow = memo(function ThreadItemRow({
       // Mid-run messages have no footer; with the list's 12px row gap, pb-1 makes a paragraph's gap.
       <Message align='start' className={cn(row.footer === undefined && 'pb-1')}>
         <MessageContent>
-          <Bubble variant='ghost' align='start'>
-            <BubbleContent data-quote={row.item.id}>
-              {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
+          <Bubble
+            variant={row.kind === 'plan' ? 'muted' : 'ghost'}
+            align='start'
+            className='w-full max-w-full'
+          >
+            <BubbleContent
+              className={cn('w-full', row.kind === 'plan' && 'rounded-md p-4')}
+              data-quote={row.item.id}
+            >
+              {row.kind === 'plan' && (
+                <div className='mb-3 flex h-6 items-center justify-between'>
+                  <span className='text-xs font-medium text-muted-foreground'>Plan</span>
+                  <CopyButton text={row.item.text} label='Copy plan' />
+                </div>
+              )}
               <Markdown
-                className='thread-reply text-13 leading-relaxed'
+                className={cn(
+                  'thread-reply text-[14px] leading-[22px]',
+                  row.kind === 'plan' && 'thread-plan'
+                )}
                 streaming={row.streaming}
                 // Claude often sends a reply written after a tool call all at once.
                 arrived={!row.streaming && completedAgo(row.item.id) < 1000}
@@ -303,6 +330,7 @@ const ThreadItemRow = memo(function ThreadItemRow({
                 createdAt={row.item.createdAt}
                 loadout={row.loadout}
                 provider={provider}
+                latest={latestAssistant}
               />
             )}
           </Bubble>
@@ -360,8 +388,12 @@ const VirtualRow = memo(function VirtualRow({
   provider,
   projectPath,
   onOpenRoom,
+  afterWork,
+  latestAssistant,
 }: {
+  latestAssistant: boolean
   index: number
+  afterWork: boolean
   start: number
   row: ThreadRow
   streamingRows: ReturnType<typeof useStreamingRows>
@@ -385,7 +417,7 @@ const VirtualRow = memo(function VirtualRow({
           )
       }}
       ref={virtualizer.measureElement}
-      className='absolute top-0 left-0 w-full'
+      className={cn('absolute top-0 left-0 w-full', afterWork && 'pt-3')}
       style={{ transform: `translateY(${start}px)` }}
     >
       <div
@@ -393,6 +425,7 @@ const VirtualRow = memo(function VirtualRow({
       >
         <ThreadItemRow
           row={row}
+          latestAssistant={latestAssistant}
           streamingRows={streamingRows}
           threadId={threadId}
           provider={provider}
@@ -415,6 +448,7 @@ export function ThreadList({
   provider,
   agentId,
   settingUp,
+  inlineRequests,
   bot,
   onOpenRoom,
   history,
@@ -432,6 +466,7 @@ export function ThreadList({
   provider?: string
   agentId?: string
   settingUp?: boolean
+  inlineRequests?: boolean
   // A bot's chat: its other bots, and whether check-ins and tidies show.
   bot?: BotRows
   onOpenRoom?: (room: Room) => void
@@ -454,6 +489,7 @@ export function ThreadList({
         threadId,
         agentId,
         settingUp,
+        inlineRequests,
         bot: rowBot,
         botIds,
         history,
@@ -470,6 +506,7 @@ export function ThreadList({
       threadId,
       agentId,
       settingUp,
+      inlineRequests,
       rowBot,
       botIds,
       history,
@@ -515,6 +552,9 @@ export function ThreadList({
   const pinned = useRef(pending || !saved || saved.index === -1)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [width, setWidth] = useState(saved?.width ?? 660)
+  const latestAssistant = rows.findLastIndex(
+    (row) => row.kind === 'assistant' || row.kind === 'plan'
+  )
   const [rough, setRough] = useState(() => (saved ? new Set<string>() : roughRows(rows, width)))
   const [gutter, setGutter] = useState(0)
   const [fontsReady, setFontsReady] = useState(false)
@@ -549,7 +589,8 @@ export function ThreadList({
     () => ({
       getItemKey: (index: number) => estimatedRows[index]!.id,
       estimateSize: (index: number) =>
-        estimateRow(estimatedRows[index]!, width, rough.has(estimatedRows[index]!.id)),
+        estimateRow(estimatedRows[index]!, width, rough.has(estimatedRows[index]!.id)) +
+        (afterWork(estimatedRows, index) ? 12 : 0),
     }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- fontsReady changes text layout
     [estimatedRows, width, fontsReady, rough]
@@ -585,7 +626,7 @@ export function ThreadList({
     overscan: 10,
     gap: rowGap,
     paddingStart: agentId ? agentInset : chatInset,
-    paddingEnd: chatInset,
+    paddingEnd: rowGap + 24,
     getItemKey,
     initialMeasurementsCache: saved?.sizes,
     // The virtualizer keeps only measurements that differ from the estimate, so a row whose
@@ -663,7 +704,9 @@ export function ThreadList({
       : Math.max(answerStart, sentStart - viewportHeight / 2)
   // The reply consumes this space before its growth needs to move the conversation.
   const scrollSize =
-    pinStart === undefined ? totalSize : Math.max(totalSize, pinStart - sentInset + viewportHeight)
+    pinStart === undefined || totalSize <= viewportHeight
+      ? totalSize
+      : Math.max(totalSize, pinStart - sentInset + viewportHeight)
   // Keep room for the spring to brake when finishing work shrinks the transcript.
   const [scrollSpace, setScrollSpace] = useState(scrollSize)
   if (scrollSize > scrollSpace) setScrollSpace(scrollSize)
@@ -816,6 +859,13 @@ export function ThreadList({
       releaseScrollSpace()
       return
     }
+    if (totalSize <= element.clientHeight) {
+      glider.current?.stop()
+      stopSendGlide()
+      releaseScrollSpace()
+      element.scrollTop = 0
+      return
+    }
     // Growth glides; opening the thread, resizing it or seeking far lands at once.
     const key = `${view}:${width}`
     const last = virtualizer.measurementsCache[rows.length - 1]
@@ -881,6 +931,7 @@ export function ThreadList({
     stamp,
     width,
     scrollSize,
+    totalSize,
     viewportHeight,
     view,
     gliderFor,
@@ -1118,7 +1169,8 @@ export function ThreadList({
       >
         <section
           ref={scroller}
-          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] [scroll-timeline:--chat-top_block] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+          className='scrollbar-subtle [scrollbar-gutter:stable_both-edges] [scroll-timeline:--chat-top_block] [overflow-anchor:none] min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+          style={{ maskImage: 'linear-gradient(to bottom, #000 calc(100% - 24px), transparent)' }}
           aria-label='Conversation'
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the page does not scroll, so this scrollport has to be focusable
           tabIndex={0}
@@ -1143,6 +1195,8 @@ export function ThreadList({
               <VirtualRow
                 key={virtualRow.key}
                 index={virtualRow.index}
+                latestAssistant={virtualRow.index === latestAssistant}
+                afterWork={afterWork(rows, virtualRow.index)}
                 start={virtualRow.start}
                 row={rows[virtualRow.index]!}
                 streamingRows={streamingRows}

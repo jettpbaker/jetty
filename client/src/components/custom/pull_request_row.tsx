@@ -5,7 +5,7 @@ import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useOpenPullRequest, usePullRequestSummary } from '@/state'
 
-import { OverflowTitle } from './overflow_title'
+import { DiffCounts } from './diff/file_card'
 import { linkPresentation } from './thread_pull_request'
 import { TwoLineRow } from './two_line_row'
 
@@ -26,9 +26,9 @@ export function PullRequestRow({
     <TwoLineRow
       onClick={() => open(threadId, link)}
       heading={
-        <OverflowTitle focusable={false} className='font-normal leading-normal'>
+        <span className='min-w-0 text-13 leading-5 wrap-anywhere whitespace-normal'>
           {pull?.title ?? link.title ?? `${link.repo}#${link.number}`}
-        </OverflowTitle>
+        </span>
       }
       glyph={
         <span className={cn('flex shrink-0 items-center', pr.color)} title={pr.label}>
@@ -47,10 +47,7 @@ export function PullRequestRow({
             <ChevronLeftSmallIcon className='icon-optical-down size-2.5 shrink-0' />
             <span className='truncate'>{pull.head.ref}</span>
           </span>
-          <span className='shrink-0 font-mono tabular-nums'>
-            <span className='text-status-success'>+{pull.additions}</span>{' '}
-            <span className='text-status-error'>−{pull.deletions}</span>
-          </span>
+          <DiffCounts files={[pull]} hideZero />
         </>
       ) : (
         <span className='truncate'>{link.repo}</span>

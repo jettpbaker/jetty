@@ -24,15 +24,15 @@ import { inDialog, KeybindTooltip, keybinds } from './keybinds'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import './details_layout.css'
 
-const minWidth = 320
-const narrowWidth = 760
+const minWidth = 360
+const narrowWidth = 980
 
 export type DetailsLayoutState = ReturnType<typeof useDetailsLayout>
 
 // A details pane beside a chat (a thread's or a bot's): whether it's open, how wide, and where
 // the chat sits. Narrow or expanded, the pane takes the whole width and the chat moves into its
 // Chat tab.
-export function useDetailsLayout() {
+export function useDetailsLayout({ compact = false }: { compact?: boolean } = {}) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [chatHost] = useState(() => {
     const host = document.createElement('div')
@@ -67,12 +67,15 @@ export function useDetailsLayout() {
   }, [open])
   const [available, setAvailable] = useState(0)
   const [preferredWidth, setPreferredWidth] = useState<number>()
+  const [overviewWidth, setOverviewWidth] = useState<number>()
   const [expanded, setExpanded] = useState(false)
   const narrow = available < narrowWidth
   const full = narrow || expanded
-  const max = Math.max(minWidth, available - 360)
+  const max = Math.max(minWidth, available - 560)
   const clamp = (width: number) => Math.max(minWidth, Math.min(max, width))
-  const width = full ? available : clamp(preferredWidth ?? available * 0.5)
+  const width = full
+    ? available
+    : clamp(compact ? (overviewWidth ?? minWidth) : (preferredWidth ?? available * 0.5))
 
   // Opening measures first, so the pane's first frame already has its width.
   const show = useCallback(() => {
@@ -129,7 +132,7 @@ export function useDetailsLayout() {
     width,
     max,
     clamp,
-    setPreferredWidth,
+    setPreferredWidth: compact ? setOverviewWidth : setPreferredWidth,
     show,
     toggle,
   }

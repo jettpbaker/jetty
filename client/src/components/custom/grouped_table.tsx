@@ -1,11 +1,11 @@
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useRender } from '@base-ui/react/use-render'
 import {
   useId,
   useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
   type ReactElement,
@@ -17,9 +17,12 @@ import './grouped_table.css'
 
 export type GroupedColumn<T> = {
   id: string
+  label?: string
+  align?: 'start' | 'center' | 'end'
   /** Higher priorities survive longer. Title and essential columns never collapse. */
   priority: number
   width: number
+  maxWidth?: number
   title?: boolean
   essential?: boolean
   visible?: boolean
@@ -30,14 +33,13 @@ export type TableGroup<T> = {
   id: string
   label: string
   icon?: ReactNode
-  color: string
-  labelColor?: string
   rows: readonly T[]
   defaultCollapsed?: boolean
 }
 
 type GroupedTableProps<T> = {
   label: string
+  className?: string
   columns: readonly GroupedColumn<T>[]
   groups: readonly TableGroup<T>[]
   rowKey: (row: T) => string | number
@@ -45,12 +47,13 @@ type GroupedTableProps<T> = {
   onSelect?: (row: T) => void
   onRowHover?: (row: T | null) => void
   renderRow?: (row: T) => ReactElement
-  empty?: string
+  empty?: ReactNode
 }
 
 /** One observer per table; every row keeps the same tracks, including zero-width ones. */
 export function GroupedTable<T>({
   label,
+  className,
   columns,
   groups,
   rowKey,
@@ -110,7 +113,9 @@ export function GroupedTable<T>({
   }
   const template = columns
     .map((column) =>
-      column.title ? 'minmax(0, 1fr)' : `${collapsed.has(column.id) ? 0 : column.width}px`
+      column.title
+        ? `minmax(0, ${column.maxWidth === undefined ? '1fr' : `${column.maxWidth}px`})`
+        : `${collapsed.has(column.id) ? 0 : column.width}px`
     )
     .join(' ')
   const gridStyle = { gridTemplateColumns: template }
@@ -140,21 +145,36 @@ export function GroupedTable<T>({
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- keyboard navigation delegates to the table's native controls
     <div
       ref={root}
-      className='grouped-table scrollbar-subtle'
+      className={cn('grouped-table scrollbar-subtle', className)}
       aria-label={label}
       onKeyDown={moveFocus}
       onScroll={() => onRowHover?.(null)}
     >
+      {groups.some((group) => group.rows.length) && columns.some((column) => column.label) && (
+        <div
+          className='grouped-table-grid grouped-table-columns'
+          style={gridStyle}
+          aria-hidden='true'
+        >
+          {columns.map((column) => (
+            <span
+              key={column.id}
+              className='grouped-table-cell'
+              data-align={column.align}
+              data-collapsed={collapsed.has(column.id)}
+            >
+              {column.label}
+            </span>
+          ))}
+        </div>
+      )}
       {groups.map((group) => {
         const closed = collapsedGroups[group.id] ?? group.defaultCollapsed ?? false
         const headerId = `${id}-${group.id}-header`
         const bodyId = `${id}-${group.id}-rows`
         return (
           <section key={group.id} className='grouped-table-group' aria-labelledby={headerId}>
-            <h2
-              className='grouped-table-heading'
-              style={{ '--group-color': group.color } as CSSProperties}
-            >
+            <h2 className='grouped-table-heading'>
               <Button
                 id={headerId}
                 variant='ghost-text'
@@ -179,11 +199,8 @@ export function GroupedTable<T>({
                   data-open={!closed}
                 />
                 {group.icon}
-                <span style={{ color: group.labelColor }}>{group.label}</span>
-                <span
-                  className='ml-auto font-normal text-muted-foreground tabular-nums'
-                  style={{ width: columns.at(-1)?.width }}
-                >
+                <span>{group.label}</span>
+                <span className='font-mono font-normal text-muted-foreground tabular-nums'>
                   {group.rows.length}
                 </span>
               </Button>
@@ -213,6 +230,7 @@ export function GroupedTable<T>({
                       <span
                         key={column.id}
                         className='grouped-table-cell'
+                        data-align={column.align}
                         data-title={column.title || undefined}
                         data-collapsed={collapsed.has(column.id)}
                         aria-hidden={collapsed.has(column.id) || undefined}
@@ -228,9 +246,12 @@ export function GroupedTable<T>({
         )
       })}
       {fill > 0 && <div aria-hidden='true' style={{ height: fill }} />}
-      {!groups.some((group) => group.rows.length) && (
-        <p className='p-8 text-center text-sm text-muted-foreground'>{empty}</p>
-      )}
+      {!groups.some((group) => group.rows.length) &&
+        (typeof empty === 'string' ? (
+          <p className='p-8 text-center text-sm text-muted-foreground'>{empty}</p>
+        ) : (
+          empty
+        ))}
     </div>
   )
 }
@@ -259,7 +280,7 @@ export function GroupedTableTitle({
     <span className='grouped-table-title' title={title}>
       <span className='truncate'>{title}</span>
       <span className='grouped-table-secondary' data-tucked={tucked} aria-hidden={!tucked}>
-        <span className='truncate font-mono text-[11px] text-muted-foreground'>{secondary}</span>
+        <span className='truncate font-mono text-xs text-muted-foreground'>{secondary}</span>
       </span>
     </span>
   )

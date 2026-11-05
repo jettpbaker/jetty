@@ -1,5 +1,15 @@
 [data-streamdown='unordered-list'] {
-  list-style-type: '- ';
+  list-style-type: disc;
+}
+
+:is([data-streamdown='unordered-list'], [data-streamdown='ordered-list']) {
+  list-style-position: outside;
+  padding-inline-start: 1.25em;
+}
+
+[data-streamdown='list-item']::marker {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
 }
 
 /* A top-level list sits a paragraph's gap from its neighbours, so its edge items drop their outer padding. */
@@ -58,4 +68,34 @@
 }
 .pr-comment-markdown > :first-child {
   margin-top: 0;
+}
+
+.thread-reply > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+  max-inline-size: 76ch;
+}
+
+.thread-reply :is(h1, h2, h3, h4, h5, h6) {
+  margin-block-start: 20px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.thread-reply > :first-child {
+  margin-block-start: 0;
+}
+
+.thread-plan h1 {
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.thread-plan :is(h2, h3) {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.thread-plan > :is(h1, h2, h3):first-child {
+  font-size: 18px;
+  line-height: 26px;
 }

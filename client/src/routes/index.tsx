@@ -10,7 +10,7 @@ function Home() {
   return (
     <section key={epoch} className='relative flex h-full min-h-0 flex-col' aria-label='New thread'>
       <PageSidebarTrigger standalone />
-      <div className='relative z-10 flex min-h-0 flex-1 flex-col justify-center'>
+      <div className='relative z-10 flex min-h-0 flex-1 flex-col'>
         <ThreadComposer running={false} rows={2} ambient />
       </div>
     </section>

@@ -1,7 +1,6 @@
 import { AppShell } from '@/components/custom/app_shell'
 import { DiffWorkerPoolProvider } from '@/components/custom/diff_worker_pool'
 import { KeybindProvider } from '@/components/custom/keybinds'
-import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { StateProvider } from '@/state'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
@@ -19,7 +18,6 @@ function Root() {
             </AppShell>
           </DiffWorkerPoolProvider>
         </KeybindProvider>
-        <Toaster position='top-center' />
       </TooltipProvider>
     </StateProvider>
   )

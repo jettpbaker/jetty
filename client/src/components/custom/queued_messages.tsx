@@ -1,9 +1,8 @@
 import type { Attachment, ThreadItem } from '@jetty/shared/items'
-import type { QueuedMessage } from '@jetty/shared/wire'
+import type { QueuedMessage, ThreadMeta } from '@jetty/shared/wire'
 
 import {
-  ArrowShareLeftIcon,
-  ArrowUpIcon,
+  ClockIcon,
   CrossSmallIcon,
   Pencil2Icon,
   PauseIcon,
@@ -20,6 +19,7 @@ import { cn } from '@/lib/utils'
 import {
   chatComposer,
   useDraftEditing,
+  useInterruptTurn,
   useQueueActions,
   useQueueHeld,
   useRemovedQueued,
@@ -27,10 +27,12 @@ import {
   useVisibleQueue,
 } from '@/state'
 import { isQueuedEditing } from '@/state/queue_editing'
+import { useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 
 import { FileLines, isImageAttachment } from './attachment_files'
+import { WorktreeSetupNotice } from './worktree_setup_notice'
 
 type ComposerQueueState = {
   unsent: readonly QueuedMessage[]
@@ -220,7 +222,7 @@ function IconAction({
         render={
           <Button
             variant='ghost'
-            size='icon-xs'
+            size='icon-sm'
             aria-label={label}
             disabled={disabled}
             onClick={onClick}
@@ -238,47 +240,93 @@ export function ComposerQueue({
   threadId,
   queue,
   running,
+  worktree,
 }: {
   threadId: string
   queue: ComposerQueueState
   running: boolean
+  worktree?: ThreadMeta['worktree']
 }) {
   const actions = useQueueActions()
+  const interruptTurn = useInterruptTurn()
+  const retry = useRetrySetup()
+  const settingUp = worktree?.state === 'pending' || worktree?.state === 'setting_up'
+  const retrySetup = worktree?.state === 'failed' || worktree?.state === 'stopped'
   const resume = queue.unsent.find((entry) => !isQueuedEditing(entry, queue.editing))
+  const resumeInHeader =
+    settingUp || retrySetup || (!queue.held && queue.paused && queue.unsent.length > 0)
   return (
     <MediaLightboxProvider>
-      <div className='scrollbar-subtle flex max-h-64 flex-col gap-0.5 overflow-y-auto first:rounded-t-md'>
-        {queue.own.map((entry) => (
-          <QueuedRow
-            key={entry.id}
-            threadId={threadId}
-            entry={entry}
-            editing={isQueuedEditing(entry, queue.editing)}
-            running={running}
-          />
-        ))}
-        {!queue.held && queue.paused && queue.unsent.length > 0 && (
-          <div
-            data-strip='queue'
-            className='flex items-center gap-2 bg-popover px-3 py-2 text-xs text-muted-foreground first:rounded-t-md'
-          >
-            <PauseIcon className='size-3' />
-            <span className='flex-1'>Paused · {queue.unsent.length} waiting</span>
-            <Button
-              variant='ghost-text'
-              size='xs'
-              disabled={!resume}
-              onClick={() => {
-                if (resume) actions.sendNow(threadId, resume)
-              }}
+      <div className='flex flex-col divide-y divide-border first:rounded-t-md'>
+        {resumeInHeader &&
+          (worktree && (settingUp || retrySetup) ? (
+            <WorktreeSetupNotice
+              worktree={worktree}
+              detail={
+                queue.unsent.length
+                  ? `${queue.unsent.length} queued ${queue.unsent.length === 1 ? 'message' : 'messages'}${settingUp ? ' · waiting for setup to finish' : ''}`
+                  : settingUp
+                    ? 'Messages you send now wait for setup.'
+                    : undefined
+              }
             >
-              Resume
-            </Button>
-          </div>
-        )}
-        {queue.removed && (
-          <div data-strip='queue' className='bg-popover px-3 py-2 first:rounded-t-md'>
-            <QueueRemoved threadId={threadId} />
+              {settingUp ? (
+                <Button variant='ghost-text' size='sm' onClick={() => interruptTurn(threadId)}>
+                  Cancel setup
+                </Button>
+              ) : (
+                <Button
+                  size='sm'
+                  onClick={() => (resume ? actions.sendNow(threadId, resume) : retry(threadId))}
+                >
+                  {resume ? 'Retry setup & resume' : 'Retry setup'}
+                </Button>
+              )}
+            </WorktreeSetupNotice>
+          ) : (
+            <output
+              data-strip='queue'
+              className='flex items-center gap-2 bg-popover px-3 py-3 text-sm first:rounded-t-md'
+            >
+              <PauseIcon className='size-4 shrink-0 text-muted-foreground' />
+              <div className='flex min-w-0 flex-1 flex-col gap-1'>
+                <span className='font-medium'>
+                  {worktree?.state === 'ready' ? 'Worktree ready · agent paused' : 'Paused'}
+                </span>
+                <span className='text-xs text-muted-foreground'>
+                  {queue.unsent.length} queued {queue.unsent.length === 1 ? 'message' : 'messages'}
+                </span>
+              </div>
+              <Button
+                size='sm'
+                disabled={!resume}
+                onClick={() => resume && actions.sendNow(threadId, resume)}
+              >
+                {queue.unsent.length > 1 ? 'Resume with next' : 'Resume with message'}
+              </Button>
+            </output>
+          ))}
+        {(queue.own.length > 0 || queue.removed) && (
+          <div className='scrollbar-subtle flex max-h-64 flex-col divide-y divide-border overflow-y-auto'>
+            {queue.own.map((entry, index) => (
+              <QueuedRow
+                key={entry.id}
+                threadId={threadId}
+                entry={entry}
+                editing={isQueuedEditing(entry, queue.editing)}
+                running={running}
+                setupBlocked={settingUp || retrySetup}
+                retrySetup={retrySetup}
+                position={queue.paused && queue.own.length > 1 ? index + 1 : undefined}
+                next={resume?.id === entry.id}
+                hideSend={resumeInHeader && resume?.id === entry.id && !settingUp && !retrySetup}
+              />
+            ))}
+            {queue.removed && (
+              <div data-strip='queue' className='bg-popover px-3 py-2 first:rounded-t-md'>
+                <QueueRemoved threadId={threadId} />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -291,11 +339,21 @@ function QueuedRow({
   entry,
   editing,
   running,
+  setupBlocked,
+  retrySetup,
+  hideSend,
+  position,
+  next,
 }: {
+  setupBlocked: boolean
+  retrySetup: boolean
+  hideSend: boolean
   threadId: string
   entry: QueuedMessage
   editing: boolean
   running: boolean
+  position?: number
+  next: boolean
 }) {
   const actions = useQueueActions()
   const requestReveal = useRequestReveal()
@@ -321,7 +379,14 @@ function QueuedRow({
       />
       <div className='flex min-w-0 items-center gap-4'>
         <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <ArrowShareLeftIcon className='size-3 shrink-0 translate-y-px text-muted-foreground' />
+          {position ? (
+            <span className='flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground'>
+              <span className='font-mono'>#{position}</span>
+              {next && <span>{setupBlocked ? 'Queued' : 'Next'}</span>}
+            </span>
+          ) : (
+            <ClockIcon className='size-4 shrink-0 text-muted-foreground' />
+          )}
           <div className='min-w-0 flex-1'>
             <QueuedText entry={entry} muted={editing} />
           </div>
@@ -334,13 +399,22 @@ function QueuedRow({
           >
             <Pencil2Icon />
           </IconAction>
-          <IconAction
-            label={running ? 'Steer with queued message' : 'Send queued message now'}
-            disabled={editing}
-            onClick={() => act(() => actions.sendNow(threadId, entry))}
-          >
-            <ArrowUpIcon />
-          </IconAction>
+          {!hideSend &&
+            (setupBlocked ? (
+              <span className='px-2 text-xs text-muted-foreground'>
+                {retrySetup ? 'After retry succeeds' : 'Sends after setup'}
+              </span>
+            ) : (
+              <Button
+                variant='ghost-text'
+                size='sm'
+                aria-label={running ? 'Steer with queued message' : 'Send queued message now'}
+                disabled={editing}
+                onClick={() => act(() => actions.sendNow(threadId, entry))}
+              >
+                {running ? 'Steer now' : 'Run now'}
+              </Button>
+            ))}
           <IconAction
             label='Remove from the queue'
             disabled={editing}

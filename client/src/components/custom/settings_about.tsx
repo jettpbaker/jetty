@@ -1,16 +1,15 @@
 import { homePath, useSettingsInfo } from '@/state/models'
 
-import { DisabledTooltip } from './disabled_tooltip'
+import { CopyButton } from './copy_button'
 import { copyFilePath } from './file_link'
 import {
   Mono,
   PathText,
-  SettingsButton,
   SettingsCard,
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  comingSoon,
+  UnavailableSettingsRow,
 } from './settings_layout'
 
 function megabytes(bytes: number) {
@@ -21,8 +20,23 @@ function megabytes(bytes: number) {
 
 export function SettingsAbout() {
   const info = useSettingsInfo()
+  const version = import.meta.env.JETTY_VERSION
   return (
     <SettingsPage title='About' description='Where Jetty keeps your threads, bots and settings.'>
+      <SettingsSection title='Jetty'>
+        <SettingsCard>
+          <SettingsRow id='version' title='Version' description='The build you’re running'>
+            {version ? (
+              <span className='flex items-center gap-2'>
+                <code className='font-mono text-xs'>{version}</code>
+                <CopyButton text={version} label='Copy version' />
+              </span>
+            ) : (
+              <span className='text-13 text-muted-foreground'>Development</span>
+            )}
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
       <SettingsSection title='Data'>
         <SettingsCard>
           <SettingsRow
@@ -56,13 +70,11 @@ export function SettingsAbout() {
               </span>
             )}
           </SettingsRow>
-          <SettingsRow id='logs' title='Logs' description='What the server has been doing' disabled>
-            <DisabledTooltip reason={comingSoon} wrap='flex'>
-              <SettingsButton disabled className='pointer-events-none'>
-                Open logs
-              </SettingsButton>
-            </DisabledTooltip>
-          </SettingsRow>
+          <UnavailableSettingsRow
+            id='logs'
+            title='Logs'
+            description='What the server has been doing'
+          />
         </SettingsCard>
       </SettingsSection>
     </SettingsPage>

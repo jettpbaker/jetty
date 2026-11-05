@@ -1,4 +1,8 @@
-import { MagnifyingGlass2Icon, SettingsSliderHorIcon } from '@/components/custom/central_icons'
+import {
+  CrossSmallIcon,
+  MagnifyingGlass2Icon,
+  SettingsSliderHorIcon,
+} from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -43,25 +47,34 @@ export function SidebarThreadControls({
   onShowArchivedChange: (show: boolean) => void
 }) {
   return (
-    <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
+    <div className='flex h-7 shrink-0 items-center gap-1 pr-2.5 pl-2.75'>
       <GhostInput
-        icon={<MagnifyingGlass2Icon className='size-3' />}
+        icon={<MagnifyingGlass2Icon className='size-4' />}
         aria-label='Search threads'
         placeholder='Search threads'
-        className='text-xs text-muted-foreground'
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') onQueryChange('')
         }}
       />
+      {query && (
+        <Button
+          variant='ghost'
+          size='icon-xs'
+          aria-label='Clear thread search'
+          onClick={() => onQueryChange('')}
+        >
+          <CrossSmallIcon />
+        </Button>
+      )}
       <DropdownMenu key={grouping}>
         <DropdownMenuTrigger
           render={
             <Button
               variant='ghost'
               size='icon-sm'
-              className='-mr-1.5 hover:bg-sidebar-accent'
+              className='-mr-1 hover:bg-sidebar-accent'
               aria-label={`Thread grouping: ${groupings[grouping]}`}
             />
           }

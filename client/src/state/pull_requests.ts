@@ -350,6 +350,24 @@ const listCacheAtom = Atom.family((_tab: PullRequestListTab) =>
   Atom.make<PullRequestList | undefined>(undefined).pipe(Atom.keepAlive)
 )
 
+const cachedTitleAtom = Atom.family((key: string) =>
+  Atom.readable((get) => {
+    for (const tab of ['for-you', 'created'] as const) {
+      const item = get(listCacheAtom(tab))?.items?.find((item) => pullRequestKey(item) === key)
+      if (item) return item.title
+    }
+    for (const thread of get(chromeThreadsAtom) ?? []) {
+      const link = thread.pullRequests?.find((link) => pullRequestKey(link) === key)
+      if (link?.title) return link.title
+    }
+    return undefined
+  })
+)
+
+export function useCachedPullRequestTitle(ref: PullRequestRef) {
+  return useAtomValue(cachedTitleAtom(pullRequestKey(ref)))
+}
+
 const liveListAtom = Atom.family((tab: PullRequestListTab) =>
   Atom.make((get) =>
     subscribe(get, (connection) => connection.subscribePullRequestList(tab)).pipe(

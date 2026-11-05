@@ -14,13 +14,14 @@ import { Switch } from '@/components/ui/switch'
 import { pressProps } from '@/lib/press'
 import { useStoredState } from '@/lib/stored-state'
 import { cn } from '@/lib/utils'
-import { useState, useLayoutEffect, type ReactElement, type RefObject, type ReactNode } from 'react'
+import { useState, type ReactElement, type ReactNode } from 'react'
 
 import type { DiffFile } from './model'
 
 import { FilesIcon, SidebarSimpleLeftWideIcon, SettingsSliderHorIcon } from '../central_icons'
 import { ChangedFilesTree } from '../changed_files_tree'
 import { DiffFileFilter } from './file_filter'
+import { DiffToolbarFrame } from './toolbar_frame'
 
 export function DiffToolbarButton({ className, ...props }: React.ComponentProps<typeof Button>) {
   return (
@@ -35,27 +36,12 @@ export function DiffToolbarButton({ className, ...props }: React.ComponentProps<
 
 export type DiffToggle = readonly [label: string, checked: boolean, set: (checked: boolean) => void]
 
-export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
-  const [narrow, setNarrow] = useState(false)
-  const [wrapChoice, setWrapChoice] = useStoredState<boolean | null>(
+export function useDiffWrap() {
+  return useStoredState<boolean>(
     'jetty.diff.wrap',
-    null,
-    (value): value is boolean | null => value === null || typeof value === 'boolean'
+    true,
+    (value): value is boolean => typeof value === 'boolean'
   )
-  useLayoutEffect(() => {
-    const element = view.current
-    if (!element) return
-    // Measured before the first paint so bodies don't mount unwrapped and flip; a hidden pane
-    // (width 0) keeps its last answer instead of flipping when shown.
-    function measure(width: number) {
-      if (width > 0) setNarrow(width < 720)
-    }
-    measure(element.clientWidth)
-    const observer = new ResizeObserver(([entry]) => measure(entry!.contentRect.width))
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [view])
-  return [wrapChoice ?? narrow, setWrapChoice] as const
 }
 
 // Unified or split, shared by every diff viewer.
@@ -81,6 +67,7 @@ export function DiffToolbar({
   onDiffStyleChange,
   toggles,
   children,
+  leading,
   filters,
 }: {
   files: DiffFile[]
@@ -96,10 +83,12 @@ export function DiffToolbar({
   onDiffStyleChange: (style: 'unified' | 'split') => void
   toggles: readonly DiffToggle[]
   children?: ReactNode
+  leading?: ReactNode
   filters?: ReactNode
 }) {
   return (
-    <div className='mr-4 ml-3 flex h-7 shrink-0 items-center gap-2 @max-[720px]:ml-4'>
+    <DiffToolbarFrame>
+      {leading}
       <DiffToolbarButton
         className='@max-[720px]:hidden'
         aria-expanded={pane}
@@ -117,7 +106,7 @@ export function DiffToolbar({
         {filters && (
           <fieldset
             aria-label='Files to show'
-            className='flex h-7 items-center gap-0.5 rounded-sm bg-muted p-0.5 [&>button]:h-6 [&>button]:rounded-sm [&>button[aria-pressed=true]]:bg-background [&>button[aria-pressed=true]]:shadow-xs'
+            className='flex h-7 items-center gap-0.5 rounded-sm bg-muted p-0.5 [&>button]:h-6 [&>button]:rounded-sm [&>button[aria-pressed=true]]:bg-accent [&>button[aria-pressed=true]]:text-foreground'
           >
             {filters}
           </fieldset>
@@ -142,9 +131,9 @@ export function DiffToolbar({
           diffStyle={diffStyle}
           onDiffStyleChange={onDiffStyleChange}
           toggles={toggles}
-        />{' '}
+        />
       </div>
-    </div>
+    </DiffToolbarFrame>
   )
 }
 

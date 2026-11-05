@@ -3,7 +3,6 @@ import type { Todo } from '@jetty/shared/todos'
 
 import {
   ChevronDownSmallIcon,
-  CrossSmallIcon,
   ChevronLeftSmallIcon,
   ChevronRightSmallIcon,
   ChevronTopSmallIcon,
@@ -21,10 +20,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Kbd } from '@/components/ui/kbd'
+import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { preloadable } from '@/lib/preload'
 import { pressProps } from '@/lib/press'
 import { cn } from '@/lib/utils'
+import { Checkbox } from '@base-ui/react/checkbox'
+import { Radio } from '@base-ui/react/radio'
+import { RadioGroup } from '@base-ui/react/radio-group'
 import {
   Suspense,
   useEffect,
@@ -32,7 +36,9 @@ import {
   useRef,
   useState,
   type ComponentProps,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 
 import type { Approval, Question, Secret, Source } from './composer_strip_model'
@@ -40,6 +46,7 @@ import type { Approval, Question, Secret, Source } from './composer_strip_model'
 import { DiffCounts } from './diff/file_card'
 import { loadDiffWorkerPool } from './diff_worker_pool'
 import { DisabledTooltip } from './disabled_tooltip'
+import { KeybindChip, keybinds } from './keybinds'
 import { SourceLabel } from './source_label'
 
 export function Code({ children, className }: { children: ReactNode; className?: string }) {
@@ -65,7 +72,7 @@ function Attention() {
     <QuestionmarkCircleIcon
       filled
       aria-hidden='true'
-      className='size-3.5 shrink-0 text-status-attention'
+      className='size-4 shrink-0 text-status-attention'
     />
   )
 }
@@ -333,7 +340,7 @@ function ApprovalActions({
 }) {
   if (ctl.confirming)
     return (
-      <div className='flex shrink-0 items-center gap-2'>
+      <div className='flex items-center justify-end gap-2 pt-1'>
         <StripButton variant='ghost-text' onClick={() => ctl.setConfirming(false)}>
           Cancel
         </StripButton>
@@ -341,20 +348,28 @@ function ApprovalActions({
       </div>
     )
   return (
-    <div className='flex shrink-0 items-center gap-2'>
-      <StripButton variant='ghost-text' onClick={ctl.deny}>
+    <div className='flex items-center justify-between gap-2 pt-1'>
+      <StripButton variant='ghost' onClick={ctl.deny} aria-keyshortcuts='Escape'>
         {typed ? 'Deny with note' : 'Deny'}
+        <KeybindChip binding={keybinds.denyApproval} />
       </StripButton>
       <div className='flex'>
-        <StripButton className='rounded-r-none' onClick={() => ctl.decide('once')}>
+        <StripButton
+          variant='default'
+          className='rounded-r-none'
+          onClick={() => ctl.decide('once')}
+          aria-keyshortcuts='Meta+Enter Control+Enter'
+        >
           Allow once
+          <KeybindChip binding={keybinds.allowOnce} />
         </StripButton>
         <DropdownMenu open={ctl.menuOpen} onOpenChange={ctl.setMenuOpen}>
           <DropdownMenuTrigger
             render={
               <Button
+                variant='default'
                 size='icon-sm'
-                className='rounded-sm rounded-l-none border-l-0'
+                className='rounded-sm rounded-l-none border-l border-primary-foreground/20'
                 aria-label='More approval options'
               />
             }
@@ -393,19 +408,22 @@ function ProposedDiff(props: ComponentProps<typeof import('./proposed_diff').Pro
 }
 
 function FullTarget({ item }: { item: Approval }) {
+  const className =
+    'scrollbar-subtle flex max-h-40 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'
   return (
-    <div className='flex flex-col gap-1 rounded-sm bg-background px-2.5 py-2 font-mono text-xs'>
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a long command scrolls; keyboard users need access to the entire request
+    <pre tabIndex={0} className={className}>
       <span className='whitespace-pre-wrap wrap-anywhere'>
         {item.run && <span className='text-muted-foreground select-none'>$ </span>}
         {item.target}
       </span>
       {item.detail && (
-        <span className='text-muted-foreground'>
+        <span className='whitespace-pre-wrap text-muted-foreground wrap-anywhere'>
           {item.run ? `in ${item.detail}` : item.detail}
         </span>
       )}
       {item.counts && <DiffCounts files={[item.counts]} />}
-    </div>
+    </pre>
   )
 }
 
@@ -442,19 +460,22 @@ export function ApprovalStrip({
       {header}
       {!hideSource && <RequestSource source={item.source} />}
       <div className='flex min-w-0 items-center gap-2'>
-        <Attention />
         {ctl.confirming ? (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
             <span className='shrink-0 text-muted-foreground'>Always allow</span>
-            <Code>{item.always?.patterns.join(', ')}</Code>
+            <Code className='whitespace-pre-wrap wrap-anywhere text-clip'>
+              {item.always?.patterns.join(', ')}
+            </Code>
             {item.always?.scope && (
               <span className='shrink-0 text-muted-foreground'>in {item.always.scope}?</span>
             )}
           </span>
         ) : (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
-            <span className='shrink-0 text-muted-foreground'>{item.action}</span>
-            {!ctl.expanded && (
+            <span className='shrink-0 font-medium text-foreground'>
+              {item.run ? 'Run this command?' : item.action}
+            </span>
+            {!ctl.expanded && !item.run && (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -484,12 +505,13 @@ export function ApprovalStrip({
               </Tooltip>
             )}
             {!ctl.expanded &&
+              !item.run &&
               (binaryProposal ? (
                 <span className='shrink-0 text-xs text-muted-foreground'>Binary</span>
               ) : (
                 item.counts && <DiffCounts files={[item.counts]} />
               ))}
-            {ctl.expanded && (
+            {ctl.expanded && !item.run && (
               <Button
                 variant='ghost'
                 size='icon'
@@ -504,9 +526,10 @@ export function ApprovalStrip({
             )}
           </span>
         )}
-        <ApprovalActions ctl={ctl} typed={typed} run={item.run} />
       </div>
+      {item.run && <FullTarget item={item} />}
       {ctl.expanded &&
+        !item.run &&
         !ctl.confirming &&
         (changes ? (
           <Suspense fallback={<Loading />}>
@@ -515,6 +538,7 @@ export function ApprovalStrip({
         ) : (
           <FullTarget item={item} />
         ))}
+      <ApprovalActions ctl={ctl} typed={typed} run={item.run} />
       {followUp && <FollowUpNote />}
     </FlushShell>
   )
@@ -538,20 +562,31 @@ export function useQuestion(
   dismiss: (item: Question, progress: QuestionProgress) => void,
   keepFocus: () => void
 ) {
-  const draft = saved.text
   const progress = item && (saved.questions?.[item.id] ?? freshProgress(item))
   const step = progress?.step ?? 0
   const spec = item?.questions[step]
   const total = item?.questions.length ?? 0
   const last = step === total - 1
 
-  function save(next: QuestionProgress | undefined, text?: string) {
+  function save(next: QuestionProgress | undefined) {
     if (!item) return
     const questions = { ...saved.questions }
     if (next) questions[item.id] = next
     else delete questions[item.id]
-    update(text === undefined ? { questions } : { questions, text })
+    update({ questions })
   }
+
+  useEffect(() => {
+    if (!item || !progress || saved.typedFor !== item.id || !saved.text) return
+    update({
+      text: '',
+      typedFor: undefined,
+      questions: {
+        ...saved.questions,
+        [item.id]: { ...progress, custom: progress.custom.with(step, saved.text) },
+      },
+    })
+  }, [item, progress, saved.typedFor, saved.text, saved.questions, step, update])
 
   function answerAt(state: QuestionProgress, index: number) {
     const typed = (state.custom[index] ?? '').trim()
@@ -560,9 +595,12 @@ export function useQuestion(
       ? [...picks, typed].filter(Boolean).join(', ')
       : typed || picks.join(', ')
   }
-  const current = progress
-    ? answerAt({ ...progress, custom: progress.custom.with(step, draft) }, step)
-    : ''
+  const custom = progress?.custom[step] ?? ''
+  const current = progress ? answerAt(progress, step) : ''
+
+  function write(text: string) {
+    if (progress) save({ ...progress, custom: progress.custom.with(step, text) })
+  }
 
   function pick(label: string) {
     if (!progress || !spec) return
@@ -576,8 +614,7 @@ export function useQuestion(
   }
   function go(to: number) {
     if (!progress || to < 0 || to >= total || to === step) return
-    const custom = progress.custom.with(step, draft)
-    save({ ...progress, step: to, custom }, custom[to] ?? '')
+    save({ ...progress, step: to })
   }
   // Moves past this question, or once it's the last, sends what was answered. Skipped questions
   // are left out of the answers; skipping them all dismisses the set.
@@ -588,11 +625,11 @@ export function useQuestion(
     )
     const to = last ? open : step + 1
     if (to !== -1) {
-      save({ ...state, step: to }, state.custom[to] ?? '')
+      save({ ...state, step: to })
       return
     }
     keepFocus()
-    save(undefined, '')
+    save(undefined)
     const answers = Object.fromEntries(
       item.questions.flatMap((question, index) => {
         const value = answerAt(state, index)
@@ -604,7 +641,7 @@ export function useQuestion(
   }
   function next() {
     if (!progress || !current) return
-    advance({ ...progress, custom: progress.custom.with(step, draft) })
+    advance(progress)
   }
   function skip() {
     if (!item || !progress) return
@@ -618,8 +655,8 @@ export function useQuestion(
   function onDismiss() {
     if (!item || !progress) return
     keepFocus()
-    save(undefined, '')
-    dismiss(item, { ...progress, custom: progress.custom.with(step, draft) })
+    save(undefined)
+    dismiss(item, progress)
   }
   function onKey(event: KeyboardEvent) {
     if (event.defaultPrevented || !spec) return false
@@ -648,6 +685,8 @@ export function useQuestion(
     last,
     picks: progress?.picks[step] ?? [],
     answer: current,
+    custom,
+    write,
     pick,
     go,
     next,
@@ -665,17 +704,23 @@ function FollowUpNote() {
 
 export function QuestionStrip({
   ctl,
+  inputRef,
   item,
-  followUp,
   header,
   hideSource,
 }: {
   ctl: QuestionControl
+  inputRef: RefObject<HTMLTextAreaElement | null>
   item: Question
-  followUp?: boolean
   header?: ReactNode
   hideSource?: boolean
 }) {
+  const previousStep = useRef(ctl.step)
+  useEffect(() => {
+    if (previousStep.current === ctl.step) return
+    previousStep.current = ctl.step
+    inputRef.current?.focus({ preventScroll: true })
+  }, [ctl.step, inputRef])
   const spec = ctl.spec
   if (!spec) return null
   return (
@@ -703,56 +748,132 @@ export function QuestionStrip({
             />
           )}
           <Button variant='ghost-text' size='xs' onClick={ctl.skip}>
-            Skip
+            Skip question
           </Button>
-          <Button
-            variant='ghost'
-            size='icon-xs'
-            aria-label='Dismiss question'
-            onClick={ctl.dismiss}
-          >
-            <CrossSmallIcon />
-          </Button>
+          {ctl.total > 1 && (
+            <Button variant='ghost-text' size='xs' onClick={ctl.dismiss}>
+              Skip all questions
+            </Button>
+          )}
         </div>
       </div>
-      {spec.options.length > 0 && (
-        <div
-          className='scroll-fade-y scrollbar-subtle flex max-h-72 flex-col gap-1 overflow-y-auto'
-          role={spec.multiSelect ? 'group' : 'radiogroup'}
-          aria-label={spec.question}
+      {spec.options.length > 0 && <QuestionOptions ctl={ctl} />}
+      <Textarea
+        ref={inputRef}
+        aria-label='Custom answer'
+        placeholder={spec.options.length ? 'Write another answer' : 'Write your answer'}
+        value={ctl.custom}
+        onChange={(event) => ctl.write(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+          event.preventDefault()
+          ctl.next()
+        }}
+        rows={1}
+        className='scrollbar-subtle mt-2 max-h-40 min-h-9 resize-none overflow-y-auto'
+      />
+      <div className='flex items-center justify-end gap-2 pt-2'>
+        <Button
+          size='sm'
+          disabled={!ctl.answer}
+          className='disabled:bg-foreground/8 disabled:text-muted-foreground disabled:opacity-100'
+          onClick={ctl.next}
         >
-          {spec.options.map((option) => {
-            const selected = ctl.picks.includes(option.label)
-            return (
-              <button
-                key={option.label}
-                type='button'
-                role={spec.multiSelect ? 'checkbox' : 'radio'}
-                aria-checked={selected}
-                onClick={() => ctl.pick(option.label)}
-                className={cn(
-                  'flex min-w-0 items-center gap-2 rounded-menu-item px-2 py-1 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
-                  selected && 'bg-accent'
-                )}
-              >
-                <span className='flex min-w-0 flex-1 flex-col'>
-                  <span className='text-sm leading-5'>{option.label}</span>
-                  {option.description && option.description !== option.label && (
-                    <span className='text-xs leading-4 text-muted-foreground'>
-                      {option.description}
-                    </span>
-                  )}
-                </span>
-                <span className='flex h-5 w-4 shrink-0 items-center justify-center'>
-                  {selected && <Checkmark1MediumIcon className='size-3.5 text-muted-foreground' />}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-      {followUp && <FollowUpNote />}
+          {!ctl.answer
+            ? spec.options.length
+              ? 'Select an answer'
+              : 'Type an answer'
+            : ctl.last
+              ? 'Answer'
+              : 'Next'}
+          {ctl.answer && <Kbd>↵</Kbd>}
+        </Button>
+      </div>
     </FlushShell>
+  )
+}
+
+function QuestionOptions({ ctl }: { ctl: QuestionControl }) {
+  const spec = ctl.spec!
+  const id = useId()
+  function submit(event: ReactKeyboardEvent) {
+    if (event.key !== 'Enter' || !ctl.answer || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    ctl.next()
+  }
+  const options = spec.options.map((option, index) => {
+    const selected = ctl.picks.includes(option.label)
+    const describedBy =
+      option.description && option.description !== option.label ? `${id}-${index}` : undefined
+    const className = cn(
+      'flex min-w-0 items-center gap-3 rounded-menu-item px-2 py-2 text-left hover:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+      selected && 'bg-accent'
+    )
+    const content = (
+      <>
+        <span
+          aria-hidden='true'
+          className={cn(
+            'flex size-4 shrink-0 items-center justify-center border border-muted-foreground',
+            spec.multiSelect ? 'rounded-xs' : 'rounded-full',
+            selected && 'border-primary text-primary'
+          )}
+        >
+          {selected && <Checkmark1MediumIcon className='size-3' />}
+        </span>
+        <span className='flex min-w-0 flex-1 flex-col'>
+          <span className='text-sm leading-5'>{option.label}</span>
+          {option.description && option.description !== option.label && (
+            <span id={describedBy} className='text-xs leading-4 text-muted-foreground'>
+              {option.description}
+            </span>
+          )}
+        </span>
+        {index < 9 && <Kbd className='text-foreground'>{index + 1}</Kbd>}
+      </>
+    )
+    return spec.multiSelect ? (
+      <Checkbox.Root
+        key={option.label}
+        nativeButton
+        render={<button type='button' aria-label={option.label} aria-describedby={describedBy} />}
+        checked={selected}
+        onCheckedChange={() => ctl.pick(option.label)}
+        className={className}
+      >
+        {content}
+      </Checkbox.Root>
+    ) : (
+      <Radio.Root
+        key={option.label}
+        value={option.label}
+        nativeButton
+        render={<button type='button' aria-label={option.label} aria-describedby={describedBy} />}
+        className={className}
+      >
+        {content}
+      </Radio.Root>
+    )
+  })
+  const className = 'scroll-fade-y scrollbar-subtle flex max-h-72 flex-col gap-1 overflow-y-auto'
+  return spec.multiSelect ? (
+    <fieldset className={className} onKeyDownCapture={submit}>
+      <legend className='sr-only'>{spec.question}</legend>
+      {options}
+    </fieldset>
+  ) : (
+    <RadioGroup
+      key={ctl.step}
+      onKeyDownCapture={submit}
+      className={className}
+      aria-label={spec.question}
+      value={ctl.picks[0] ?? null}
+      onValueChange={(value) => {
+        if (value) ctl.pick(value)
+      }}
+    >
+      {options}
+    </RadioGroup>
   )
 }
 
@@ -772,9 +893,8 @@ export function TodoList({ list }: { list: readonly Todo[] }) {
           <TodoIcon status={todo.status} />
           <span
             className={cn(
-              'truncate',
-              todo.status === 'done' && 'text-muted-foreground line-through',
-              todo.status === 'pending' && 'text-muted-foreground'
+              'min-w-0 text-13 leading-5 whitespace-normal wrap-anywhere',
+              todo.status === 'done' ? 'text-muted-foreground line-through' : 'text-foreground'
             )}
           >
             {todo.text}

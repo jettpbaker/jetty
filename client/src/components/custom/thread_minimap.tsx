@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
-const minTurns = 2
+const minTurns = 5
 const tickSpacing = 8
 const fade = 24
 // A gutter this wide holds the minimap without covering the conversation, so it stays visible.

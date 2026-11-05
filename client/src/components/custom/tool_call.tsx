@@ -6,10 +6,52 @@ import { use, type ReactNode } from 'react'
 
 import './charmed_icons.css'
 import { ActivityChevron } from './activity_disclosure'
+import {
+  ChevronRightSmallIcon,
+  CodeIcon,
+  ConsoleSimpleIcon,
+  FileBendIcon,
+  MagnifyingGlass2Icon,
+  Pencil2Icon,
+  ChainLink4Icon,
+} from './central_icons'
 import { DiffCounts } from './diff/file_card'
 import { basename, CharmedFileIcon } from './diff/file_name'
 import { copyFilePath, OpenFileLink, ProjectFileRoot, projectRelativePath } from './file_link'
-import { describeToolBatch, type ToolActivity } from './work_model'
+import { StatusGlyph, type Status } from './thread_status'
+import {
+  describeToolBatch,
+  type ActivityStatus,
+  type ToolActivity,
+  type ToolKind,
+} from './work_model'
+
+const toolStatuses: Record<ActivityStatus, Status> = {
+  running: 'working',
+  complete: 'done',
+  failed: 'error',
+  waiting: 'needs-attention',
+  cancelled: 'stopped',
+  interrupted: 'stopped',
+}
+
+const toolGlyphs = {
+  read: FileBendIcon,
+  edit: Pencil2Icon,
+  write: Pencil2Icon,
+  search: MagnifyingGlass2Icon,
+  terminal: ConsoleSimpleIcon,
+  web: ChainLink4Icon,
+  generic: CodeIcon,
+} satisfies Record<ToolKind, typeof CodeIcon>
+
+export function ToolStatusGlyph({ status, kind }: { status: ActivityStatus; kind: ToolKind }) {
+  if (status === 'complete') {
+    const Glyph = toolGlyphs[kind]
+    return <Glyph aria-hidden className='size-4 shrink-0 text-muted-foreground' />
+  }
+  return <StatusGlyph status={toolStatuses[status]} className='size-4' />
+}
 
 function ToolOutput({ className, children }: { className?: string; children: ReactNode }) {
   return (
@@ -43,15 +85,21 @@ export function ToolCallDetails({ call }: { call: ToolActivity }) {
   return (
     <div className='my-1 flex min-w-0 flex-col gap-3 rounded-sm border border-border bg-card p-3 text-xs'>
       {call.input !== undefined && (
-        <section>
-          <h4 className='mb-1 text-muted-foreground'>Input</h4>
-          <ToolOutput>{call.input}</ToolOutput>
-        </section>
+        <details className='group/raw -mx-3 -mt-3 border-b border-border px-3 py-2 font-sans'>
+          <summary className='flex w-fit cursor-pointer list-none items-center gap-1 rounded-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'>
+            Raw input
+            <ChevronRightSmallIcon className='size-3 group-open/raw:rotate-90' />
+          </summary>
+          <ToolOutput className='mt-2'>{call.input}</ToolOutput>
+        </details>
       )}
+      {call.kind === 'terminal' && <ToolOutput>$ {call.target}</ToolOutput>}
       <section>
-        <h4 className='mb-1 text-muted-foreground'>
-          {failed ? 'Error' : call.kind === 'edit' ? 'Changes' : 'Output'}
-        </h4>
+        {(failed || call.kind === 'edit' || call.kind === 'terminal') && (
+          <h4 className='mb-1 text-muted-foreground'>
+            {failed ? 'Error' : call.kind === 'edit' ? 'Changes' : 'Output'}
+          </h4>
+        )}
         {output ? (
           <ToolOutput className={cn(failed && 'text-status-error')}>{output}</ToolOutput>
         ) : call.outputBytes !== undefined ? null : (
@@ -151,6 +199,7 @@ export function ToolCall({
   return (
     <Collapsible className={animate ? 'work-raise-enter' : undefined}>
       <CollapsibleTrigger render={<Button variant='ghost-text' />} className='activity-header'>
+        <ToolStatusGlyph status={call.status} kind={call.kind} />
         <span
           className={cn(
             'flex min-w-0 items-baseline gap-1',

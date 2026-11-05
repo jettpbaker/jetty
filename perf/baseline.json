@@ -267,7 +267,8 @@
         "layoutMs": 5.800000000000001,
         "recalcMs": 21.8,
         "loafBlockingMs": 70.35
-      }
+      },
+      "noiseMs": 4.7
     }
   }
 }

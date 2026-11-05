@@ -10,6 +10,7 @@ import { Markdown } from './markdown'
 import { QuestionBlock } from './question_block'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
+import { StatusGlyph } from './thread_status'
 import { TodoLink } from './todo_link'
 import { SubagentGroup, ThreadGroup, ToolGroup } from './tool_group'
 import { TranscriptMarker } from './transcript_marker'
@@ -264,6 +265,8 @@ function WorkHistory({
             key={entry.id}
             data-quote={entry.type === 'text' ? entry.id : undefined}
             className={cn(
+              entry.type !== 'text' && 'pl-3',
+              entry.type === 'text' && index > 0 && entries[index - 1]?.type !== 'text' && 'pt-4',
               entry.type !== 'text' &&
                 !initialEntries.has(entry.id) &&
                 (entry.type === 'tools' &&
@@ -280,7 +283,10 @@ function WorkHistory({
               <TranscriptMarker item={entry.item} source={entry.source} />
             ) : entry.type === 'text' ? (
               <Markdown
-                className={cn('work-text', index < entries.length - 1 && 'work-text-past')}
+                className={cn(
+                  'thread-reply work-text',
+                  index < entries.length - 1 && 'work-text-past'
+                )}
                 streaming={entry.streaming}
                 arrived={!entry.streaming && completedAgo(entry.id) < 1000}
                 reply={entry.id}
@@ -344,6 +350,7 @@ export function WorkBlock({
   const [arrived] = useState(() => startedAt !== undefined && Date.now() - startedAt < 1000)
   const [groupEntries] = useState(createWorkEntries)
   const entries = useMemo(() => groupEntries(activities, ended), [groupEntries, activities, ended])
+  const steps = entries.filter((entry) => entry.type !== 'text').length
   // Under a second, a bare heading beats "for 0s", as a thought's does.
   const duration = (elapsedSeconds ?? 0) >= 1 ? formatActivityDuration(elapsedSeconds) : undefined
   const heading = settingUp
@@ -375,12 +382,25 @@ export function WorkBlock({
     ) : (
       ''
     )
+  if (settingUp && entries.length === 0) return null
   return (
     <ActivityDisclosure
       flushHeader
       animateHeader={arrived && !ended}
-      title={<span className={cn(status === 'running' && 'shimmer')}>{heading}</span>}
+      title={
+        <span
+          className={cn(
+            'inline-flex items-center gap-2',
+            status === 'running' && 'shimmer',
+            status === 'waiting' && 'text-foreground'
+          )}
+        >
+          {status === 'waiting' && <StatusGlyph status='needs-attention' />}
+          {heading}
+        </span>
+      }
       titleSuffix={timing}
+      summary={steps > 0 ? `${steps} ${steps === 1 ? 'step' : 'steps'}` : undefined}
       ended={ended}
       hasContent={entries.length > 0}
       renderContent={(view) => (

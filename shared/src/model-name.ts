@@ -1,3 +1,5 @@
+import type { EffortLevel } from './events'
+
 export function claudeModelName(value: string, displayName: string, description = ''): string {
   const lead = description.split(' · ')[0]?.replace(/ with 1M context$/i, '')
   const clean = displayName.replace(/\s*\(1M context\)$/i, '')
@@ -11,8 +13,12 @@ export function modelLabelText(model: {
   id: string
   name: string
   contextWindow?: '1m'
+  resolvedId?: string
 }): string {
-  return model.provider === 'claude' ? claudeModelName(model.id, model.name) : model.name
+  const name = model.provider === 'claude' ? claudeModelName(model.id, model.name) : model.name
+  return model.provider === 'claude' && !/\d/.test(name)
+    ? claudeModelLabel(model.resolvedId ?? model.id)
+    : name
 }
 
 // Providers rename a model's context variant (`opus` ↔ `opus[1m]`), stranding saved IDs.
@@ -61,4 +67,24 @@ export function catalogModelName(
   const model = catalog && findProviderModel(catalog, provider, id)
   if (model) return modelLabelText(model)
   return provider === 'claude' && id ? claudeModelLabel(id) : id
+}
+
+export const effortLabels: Record<EffortLevel, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max',
+}
+
+export function formatModelLabel(
+  catalog: Parameters<typeof catalogModelName>[0],
+  provider: string | undefined,
+  id: string | undefined,
+  effort?: EffortLevel,
+  fast = false
+) {
+  return [catalogModelName(catalog, provider, id), effort && effortLabels[effort], fast && 'Fast']
+    .filter(Boolean)
+    .join(' ')
 }

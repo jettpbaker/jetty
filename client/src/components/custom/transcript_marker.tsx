@@ -16,17 +16,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatDuration } from '@/lib/time'
+import { formatDuration, formatSentAt } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import {
-  useBot,
-  useContinueThread,
-  useContinuing,
-  useOpenPullRequestTab,
-  usePullRequestSummary,
-  useThreadMeta,
-} from '@/state'
-import { useProviderUnavailable } from '@/state/models'
+import { useBot, useContinuing, useOpenPullRequestTab, usePullRequestSummary } from '@/state'
 import { RESTART_LIMIT, RESTART_WINDOW_MS, type PullRequestActivity } from '@jetty/shared/items'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { use } from 'react'
@@ -34,15 +26,13 @@ import { use } from 'react'
 import type { BackgroundItem, CompactionState, PullRequestItem } from './thread_rows'
 
 import { botColorStyle, botTextClass } from './bot_avatar'
-import { ChatSeam, ChatSeamAction, SeamIcon } from './chat_seam'
+import { ChatSeam, SeamIcon } from './chat_seam'
 import { Code } from './composer_strip'
 import { approvalView, type ApprovalItem } from './composer_strip_model'
-import { DisabledTooltip } from './disabled_tooltip'
 import { inlineLinkClass, LeadTitle, OpenPullLink, plainClick, shorten } from './entity_link'
 import { ProjectFileRoot } from './file_link'
 import { SourceLabel } from './source_label'
 import { prPresentation } from './thread_pull_request'
-import { providerNames } from './usage_limits'
 
 function DecidedBy({ decidedBy }: { decidedBy: NonNullable<ApprovalItem['decidedBy']> }) {
   const bot = useBot(decidedBy.botId)
@@ -188,14 +178,7 @@ export function RestartSeam({ label = 'Jetty restarted' }: { label?: string }) {
 }
 
 export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resumed: boolean }) {
-  const meta = useThreadMeta(threadId)
-  const providerUnavailable = useProviderUnavailable(meta?.provider)
-  const unavailable =
-    !meta?.botId && meta?.provider && providerUnavailable
-      ? `Connect ${providerNames[meta.provider]} in Settings to resume this thread`
-      : undefined
   const continuing = useContinuing(threadId)
-  const continueThread = useContinueThread()
   const done = resumed || continuing
   return (
     <ChatSeam>
@@ -204,13 +187,6 @@ export function RestartLimitSeam({ threadId, resumed }: { threadId: string; resu
         {done ? 'Resumed' : 'Paused'} after {RESTART_LIMIT} restarts in {RESTART_WINDOW_MS / 60_000}{' '}
         minutes
       </span>
-      {done ? null : (
-        <DisabledTooltip reason={unavailable} wrap='flex'>
-          <ChatSeamAction disabled={!!unavailable} onClick={() => continueThread(threadId)}>
-            Resume
-          </ChatSeamAction>
-        </DisabledTooltip>
-      )}
     </ChatSeam>
   )
 }
@@ -387,7 +363,14 @@ export function PullRequestSeam({ item }: { item: PullRequestItem }) {
               <span className='truncate'>
                 {headline(lead, item.activity).replace(/^./, (letter) => letter.toUpperCase())}
               </span>
-              <span className='text-foreground'>and {count - 1} more</span>
+              <span className='text-foreground'>
+                {count === 2
+                  ? `· ${headline(
+                      item.activity.find((event) => event !== lead)!,
+                      item.activity
+                    )}`
+                  : `· ${count - 1} more events`}
+              </span>
               <span>on</span>
             </>
           ) : (
@@ -401,7 +384,7 @@ export function PullRequestSeam({ item }: { item: PullRequestItem }) {
     </span>
   )
   return (
-    <div className='flex min-w-0 justify-center py-0.5 text-xs leading-4 text-muted-foreground'>
+    <div className='flex min-w-0 justify-start py-0.5 text-xs leading-4 text-muted-foreground'>
       {summary ? (
         <Tooltip>
           <TooltipTrigger render={<span className='min-w-0' />}>{line}</TooltipTrigger>
@@ -412,6 +395,9 @@ export function PullRequestSeam({ item }: { item: PullRequestItem }) {
       ) : (
         line
       )}
+      <time className='ml-2 shrink-0 font-mono' dateTime={new Date(item.createdAt).toISOString()}>
+        {formatSentAt(item.createdAt)}
+      </time>
     </div>
   )
 }
@@ -439,7 +425,7 @@ export function PullRequestGroupSeam({ items }: { items: PullRequestItem[] }) {
     }
   }
   return (
-    <div className='flex min-w-0 justify-center py-0.5 text-xs leading-4 text-muted-foreground'>
+    <div className='flex min-w-0 justify-start py-0.5 text-xs leading-4 text-muted-foreground'>
       <DropdownMenu>
         <DropdownMenuTrigger className='flex min-w-0 items-center gap-[5px] rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50'>
           <span className='text-foreground'>{total}</span> updates on{' '}

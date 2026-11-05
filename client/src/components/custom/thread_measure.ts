@@ -207,6 +207,8 @@ export function rowEstimateChanged(previous: ThreadRow, row: ThreadRow) {
 // Rough estimates count lines from text length instead of laying the text out.
 export function estimateRow(row: ThreadRow, width: number, rough = false) {
   switch (row.kind) {
+    case 'request':
+      return 200
     case 'subagentDone':
       return lineHeight + 6
     case 'reports': {
@@ -220,7 +222,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
       const { text, skill, attachments, from, replies } = row.item
       const images = attachments.some(isImageAttachment)
       const prose = skill ? `/${skill} ${text}` : text
-      const full = prose ? textHeight(row.id, prose, width * 0.8 - 22, true, rough) : 0
+      const full = prose ? textHeight(row.id, prose, width * 0.8 - 22, true, rough, 22, 14) : 0
       let height =
         12 +
         (prose || images ? 14 + footerRow : 24) +
@@ -239,18 +241,29 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'plan':
       // A streaming reply would be laid out again on every delta; it's measured once on screen.
       return (
-        markdownHeight(row.id, row.item.text, width, rough || row.streaming, 13 * 1.625, 13) +
+        markdownHeight(
+          row.id,
+          row.item.text,
+          Math.min(row.kind === 'plan' ? width - 32 : width, 706),
+          rough || row.streaming,
+          22,
+          14
+        ) +
         2 +
-        (row.kind === 'plan' ? 20 : 0) +
+        (row.kind === 'plan' ? 68 : 0) +
         (row.footer === undefined ? 4 : footerRow)
       )
     case 'work': {
+      if (row.settingUp && row.activities.length === 0) return 0
       if (workEnded(row.status)) return 28
       let height = 32
-      for (const entry of groupWorkActivities(row.activities, false).slice(-previewCount)) {
+      const entries = groupWorkActivities(row.activities, false).slice(-previewCount)
+      for (const [index, entry] of entries.entries()) {
         height +=
           entry.type === 'text'
-            ? markdownHeight(entry.id, entry.text, width - 8, rough, 20, 13) + 8
+            ? markdownHeight(entry.id, entry.text, Math.min(width, 706), rough, 22, 14) +
+              8 +
+              (index > 0 && entries[index - 1]?.type !== 'text' ? 16 : 0)
             : 28
       }
       return height

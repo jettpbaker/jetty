@@ -7,7 +7,8 @@ import type { Page } from '../driver'
 import type { Fixtures } from '../seed'
 import type { Theme } from './tokens'
 
-import { click as clickElement, waitFor } from '../journey'
+import { click as clickElement, row as threadRow, waitFor } from '../journey'
+import { checkoutPrompt, checkoutTitle } from './fixtures'
 
 export type Context = {
   page: Page
@@ -42,6 +43,8 @@ const text = (value: string) =>
   `[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(value)})`
 export const button = (label: string) =>
   `document.querySelector('button[aria-label=${JSON.stringify(label)}]')`
+const treeItem = (path: string) =>
+  `[...document.querySelectorAll('*')].flatMap(e=>[...e.shadowRoot?.querySelectorAll('[data-item-path]') ?? []]).find(e=>e.getBoundingClientRect().width>0&&e.getAttribute('data-item-path').replace(new RegExp('/$'),'')===${JSON.stringify(path)})`
 
 async function details(ctx: Context) {
   await click(ctx.page, button('Open thread details'), 'details toggle')
@@ -51,6 +54,33 @@ async function details(ctx: Context) {
     'details pane'
   )
   await click(ctx.page, text('Overview'), 'Overview tab')
+}
+
+async function conversation({ page }: Pick<Context, 'page'>) {
+  await waitFor(
+    page,
+    `document.querySelector('[aria-label="Conversation"]')`,
+    'conversation scrollport'
+  )
+  await page.evaluate(`document.querySelector('[aria-label="Conversation"]').focus()`)
+  await page.key('Home')
+  await page.evaluate(`document.querySelector('[aria-label="Conversation"]').blur()`)
+}
+
+async function expandedWork(ctx: Context) {
+  const { page } = ctx
+  await conversation(ctx)
+  await click(
+    page,
+    `[...document.querySelectorAll('button')].find(e=>e.textContent.trim().startsWith('Worked'))`,
+    'work activity'
+  )
+  await Bun.sleep(400)
+  await click(
+    page,
+    `[...document.querySelectorAll('button')].find(e=>e.textContent.includes('Run the checkout regression tests'))`,
+    'checkout tests'
+  )
 }
 
 async function files(ctx: Context) {
@@ -68,6 +98,8 @@ async function files(ctx: Context) {
     `[...document.querySelectorAll('*')].some(e=>e.shadowRoot?.querySelector('[data-item-path]'))`,
     'file tree'
   )
+  for (const path of ['docs', 'src', 'src/checkout', 'src/discounts'])
+    await click(ctx.page, treeItem(path), `${path} folder`)
 }
 
 function thread(state: string): View {
@@ -77,7 +109,26 @@ function thread(state: string): View {
     route: (ctx) => `/threads/${ctx.ids[state]}`,
     selector: main,
     ready: prompt,
+    setup: state === 'tools' ? expandedWork : undefined,
   }
+}
+
+export async function openView(ctx: Context, origin: string, view: View, theme: Theme) {
+  const { page } = ctx
+  const script = await page.cdp<{ identifier: string }>('Page.addScriptToEvaluateOnNewDocument', {
+    source: `localStorage.clear();localStorage.setItem('jetty.theme',${JSON.stringify(theme)});localStorage.setItem('jetty.loadout',JSON.stringify(Array.from({length:5},(_,index)=>({id:'slot-'+(index+1),provider:'claude',model:index===0?'opus':null,effort:'high',fast:false}))));localStorage.setItem('jetty.details-tabs',JSON.stringify({order:['overview','changes','files','threads'],closed:['files']}));`,
+  })
+  await page.navigate(`${origin}${view.route(ctx)}`)
+  await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: script.identifier })
+  await waitFor(page, view.ready ?? `document.querySelector('main')`, 'view ready', 30_000)
+  await page.evaluate('document.fonts.ready')
+  await Bun.sleep(view.settleMs ?? 350)
+  await view.setup?.(ctx)
+  await page.evaluate(
+    `document.querySelector('[data-perf-region="composer"]')?.parentElement.setAttribute('data-paper-composer-shell','')`
+  )
+  await Bun.sleep(view.settleMs ?? 250)
+  if (view.verify) await waitFor(page, view.verify, 'state verification')
 }
 
 export const views: View[] = [
@@ -96,13 +147,25 @@ export const views: View[] = [
     selector: '[data-perf-region="sidebar"]',
     ready: prompt,
     async setup({ page }) {
-      await page.evaluate(
-        `[...document.querySelectorAll('.thread-row')].find(e=>e.textContent.includes('small')).scrollIntoView({block:'nearest'})`
-      )
+      await page.evaluate(`(${threadRow(checkoutTitle)}).scrollIntoView({block:'nearest'})`)
       const at = await page.evaluate<{ x: number; y: number }>(
-        `(()=>{const r=[...document.querySelectorAll('.thread-row')].find(e=>e.textContent.includes('small')).getBoundingClientRect();return {x:r.x+80,y:r.y+20}})()`
+        `(()=>{const r=(${threadRow(checkoutTitle)}).getBoundingClientRect();return {x:r.x+80,y:r.y+r.height/2}})()`
       )
       await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', ...at })
+    },
+  },
+  {
+    area: 'Sidebar',
+    state: 'bot threads',
+    route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
+    selector: '[data-perf-region="sidebar"]',
+    themes: allThemes,
+    ready: prompt,
+    async setup({ page }) {
+      const toggle = `document.querySelector('[aria-label="Bots"] button[aria-expanded]')`
+      if (await page.evaluate(`(${toggle}).getAttribute('aria-expanded') !== 'true'`))
+        await click(page, toggle, 'bot threads')
+      await waitFor(page, `document.querySelector('[aria-label="Bots"] .thread-row')`, 'bot thread')
     },
   },
   {
@@ -119,6 +182,7 @@ export const views: View[] = [
   {
     area: 'Thread chat',
     state: 'conversation',
+    setup: conversation,
     route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
     selector: main,
     themes: allThemes,
@@ -132,30 +196,7 @@ export const views: View[] = [
     state: 'streaming',
     route: (ctx) => `/threads/${ctx.ids.streaming}`,
     selector: main,
-    ready: prompt,
-    async setup(ctx) {
-      const threadId = ctx.ids.streaming!
-      const sub = ctx.rpc.subscribeThread({ threadId })
-      await sub.ready
-      await ctx.rpc.request('turn.start', {
-        threadId,
-        text: 'Explain how the thread cache keeps switching instant. '.repeat(12),
-        provider: 'claude',
-      })
-      await sub.waitFor(
-        (message) =>
-          message.type === 'event' &&
-          message.event.type === 'item.started' &&
-          message.event.item.kind === 'assistant_message',
-        30_000
-      )
-      await sub.cancel()
-      await waitFor(ctx.page, button('Stop'), 'streaming stop control')
-      await Bun.sleep(600)
-    },
-    async cleanup(ctx) {
-      await ctx.rpc.request('turn.interrupt', { threadId: ctx.ids.streaming! })
-    },
+    ready: button('Stop'),
   },
   ...['pending', 'ready', 'failed', 'stopped'].map(
     (state): View => ({
@@ -167,6 +208,17 @@ export const views: View[] = [
     })
   ),
   {
+    area: 'Composer',
+    state: 'worktree failed output',
+    route: (ctx) => `/threads/${ctx.ids['worktree failed']}`,
+    selector: '[data-paper-composer-shell]',
+    ready: prompt,
+    async setup({ page }) {
+      await click(page, text('View setup output'), 'setup output')
+    },
+    verify: `document.querySelector('pre[aria-label="Worktree setup output"]')?.getBoundingClientRect().height > 0`,
+  },
+  {
     area: 'Thread chat',
     state: 'loading worktree setup',
     route: (ctx) => `/threads/${ctx.ids['worktree setting_up']}`,
@@ -177,13 +229,11 @@ export const views: View[] = [
       await Bun.write(join(ctx.repo, '.jetty/worktree.json'), JSON.stringify({ setup: 'sleep 30' }))
       const chrome = ctx.rpc.subscribeChrome()
       await chrome.ready
-      void ctx.rpc
-        .request('turn.start', {
-          threadId: ctx.ids['worktree setting_up']!,
-          text: 'Check the worktree once setup finishes.',
-          provider: 'claude',
-        })
-        .catch((error) => console.warn('Interrupted capture setup:', String(error)))
+      await click(ctx.page, prompt, 'express checkout prompt')
+      await ctx.page.cdp('Input.insertText', {
+        text: 'Add express checkout without losing the shipping address or discount code. Run the existing checkout tests first.',
+      })
+      await ctx.page.key('Enter')
       await chrome.waitFor(
         (message) =>
           message.type === 'thread.upserted' &&
@@ -194,8 +244,8 @@ export const views: View[] = [
       await chrome.cancel()
       await waitFor(
         ctx.page,
-        `document.body.textContent.includes('Queued')`,
-        'queued message during setup'
+        `document.body.textContent.includes('Setting up worktree')`,
+        'worktree setup progress'
       )
     },
     async cleanup(ctx) {
@@ -219,8 +269,13 @@ export const views: View[] = [
     async setup({ page }) {
       await click(page, prompt, 'prompt')
       await page.cdp('Input.insertText', {
-        text: 'Check the cache invalidation and summarize the changes.',
+        text: 'Add a regression for SAVE15 when the customer switches from AUD to EUR. Keep the code only if it is valid in the new currency.',
       })
+    },
+    async cleanup({ page }) {
+      await click(page, prompt, 'draft prompt')
+      await page.evaluate(`(${prompt}).select()`)
+      await page.key('Backspace')
     },
   },
   {
@@ -233,8 +288,17 @@ export const views: View[] = [
   },
   {
     area: 'Details pane',
+    state: 'overview empty',
+    route: (ctx) => `/threads/${ctx.fixtures.threads.long}`,
+    selector: '[aria-label="Thread details"]',
+    ready: prompt,
+    setup: details,
+    verify: `document.querySelector('[aria-label="Thread details"]').textContent.includes('No activity yet')`,
+  },
+  {
+    area: 'Details pane',
     state: 'changes empty',
-    route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
+    route: (ctx) => `/threads/${ctx.fixtures.threads.long}`,
     selector: '[aria-label="Thread details"]',
     ready: prompt,
     async setup(ctx) {
@@ -248,7 +312,7 @@ export const views: View[] = [
     route: () => '/pull-requests/jettpbaker/pr-lab/1',
     selector: main,
     themes: allThemes,
-    ready: `document.body.textContent.includes('Add discount codes')`,
+    ready: `document.body.textContent.includes('Checkout discount codes')`,
   },
   {
     area: 'PR view',
@@ -313,14 +377,10 @@ export const views: View[] = [
     ready: prompt,
     async setup(ctx) {
       await files(ctx)
-      await click(
-        ctx.page,
-        `[...document.querySelectorAll('*')].flatMap(e=>[...e.shadowRoot?.querySelectorAll('[data-item-path]') ?? []]).find(e=>e.getAttribute('data-item-path')==='README.md')`,
-        'README file'
-      )
+      await click(ctx.page, treeItem('docs/checkout.md'), 'checkout guide')
       await waitFor(
         ctx.page,
-        `[...document.querySelectorAll('diffs-container')].some(e=>e.shadowRoot?.querySelector('pre'))`,
+        `[...document.querySelectorAll('[aria-label="Thread details"] diffs-container')].some(e=>e.getBoundingClientRect().width>0&&e.shadowRoot?.querySelector('pre')?.textContent.includes('Acme Storefront'))`,
         'Pierre editor'
       )
     },
@@ -363,10 +423,10 @@ export const views: View[] = [
     ready: prompt,
   },
   ...[
-    ['thread actions', 'Actions for small'],
+    ['thread actions', `Actions for ${checkoutTitle}`],
     ['thread grouping', 'Thread grouping: Date'],
-    ['model loadout', 'Loadout: Opus, High'],
-    ['access mode', 'Access mode: Auto'],
+    ['model loadout', 'Model:'],
+    ['access mode', 'Access mode: Ask for approval'],
     ['attachments', 'Add attachment'],
     ['context window', 'Context window 26% full'],
   ].map(
@@ -378,13 +438,132 @@ export const views: View[] = [
       ready: prompt,
       verify: `[...document.querySelectorAll('[data-slot=dropdown-menu-content],[data-slot=popover-content],[role=menu]')].some(e=>e.getBoundingClientRect().width>0)`,
       async setup({ page }) {
-        await click(page, button(label!), 'overlay trigger')
+        await click(
+          page,
+          state === 'model loadout'
+            ? `document.querySelector('button[aria-label^="Model:"]')`
+            : button(label!),
+          'overlay trigger'
+        )
       },
     })
   ),
 ]
 
 views.push(
+  {
+    area: 'PR view',
+    state: 'review comments',
+    route: () => '/pull-requests/jettpbaker/pr-lab/1',
+    selector: main,
+    ready: `document.body.textContent.includes('Activity')`,
+    async setup({ page }) {
+      await page.evaluate(
+        `[...document.querySelectorAll('h2,h3')].find(e=>e.textContent.trim()==='Activity').scrollIntoView({block:'start'})`
+      )
+    },
+    verify: `document.body.textContent.includes('Preview looks right')`,
+  },
+  {
+    area: 'PR view',
+    state: 'checks',
+    route: () => '/pull-requests/jettpbaker/pr-lab/1',
+    selector: 'body',
+    ready: `document.body.textContent.includes('Activity')`,
+    async setup({ page }) {
+      await click(page, text('All checks passed'), 'checkout checks')
+      await waitFor(page, `document.querySelector('[aria-label="Search checks"]')`, 'checks list')
+    },
+  },
+  {
+    area: 'Bot',
+    state: 'chat',
+    route: (ctx) => `/bots/${ctx.ids.bot}`,
+    selector: main,
+    ready: `document.querySelector('[aria-label="Chat with Checkout"] textarea')`,
+  },
+  {
+    area: 'Bot',
+    state: 'overview',
+    route: (ctx) => `/bots/${ctx.ids.bot}`,
+    selector: '[aria-label="Bot details"]',
+    ready: `document.querySelector('[aria-label="Chat with Checkout"] textarea')`,
+    async setup({ page }) {
+      await click(page, button('Open bot details'), 'bot details')
+      await waitFor(
+        page,
+        `document.querySelector('[aria-label="Bot details"]').textContent.includes('Tasks')`,
+        'bot task list'
+      )
+    },
+  },
+  {
+    area: 'New thread',
+    state: 'checkout draft',
+    route: () => '/',
+    selector: main,
+    ready: prompt,
+    async setup({ page }) {
+      await click(page, prompt, 'new thread prompt')
+      await page.evaluate(`(${prompt}).select()`)
+      await page.cdp('Input.insertText', { text: checkoutPrompt })
+    },
+  },
+  {
+    area: 'Details pane',
+    state: 'linked PR and children',
+    route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
+    selector: '[aria-label="Thread details"]',
+    ready: prompt,
+    setup: details,
+    verify: `document.querySelector('[aria-label="Thread details"]').textContent.includes('Audit tax rounding')`,
+  },
+  {
+    area: 'Details pane',
+    state: 'checkout changes',
+    route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
+    selector: '[aria-label="Thread details"]',
+    ready: prompt,
+    async setup(ctx) {
+      await details(ctx)
+      await click(ctx.page, text('Changes'), 'Changes tab')
+      await waitFor(
+        ctx.page,
+        `[...document.querySelectorAll('diffs-container')].some(e=>e.shadowRoot?.querySelector('pre'))`,
+        'checkout diff'
+      )
+    },
+  },
+  {
+    area: 'Overlays',
+    state: 'thread hover card',
+    route: (ctx) => `/threads/${ctx.ids.tools}`,
+    selector: 'body',
+    ready: prompt,
+    async setup({ page }) {
+      const row = threadRow(checkoutTitle)
+      await page.evaluate(`(${row}).scrollIntoView({block:'nearest'})`)
+      const at = await page.evaluate<{ x: number; y: number }>(
+        `(()=>{const r=(${row}).getBoundingClientRect();return {x:r.x+100,y:r.y+r.height/2}})()`
+      )
+      await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', ...at })
+      await waitFor(page, `document.querySelector('.thread-hover-panel')`, 'thread preview')
+    },
+  },
+  {
+    area: 'PR view',
+    state: 'merge conflict',
+    route: () => '/pull-requests/jettpbaker/pr-lab/2',
+    selector: main,
+    ready: `document.body.textContent.includes('Activity')`,
+    async setup({ page }) {
+      const at = await page.evaluate<{ x: number; y: number }>(
+        `(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.disabled&&e.textContent.trim()==='Squash & merge');const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`
+      )
+      await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', ...at })
+    },
+    verify: `document.querySelector('[data-slot="tooltip-content"]')?.textContent.includes('Resolve merge conflicts first')`,
+  },
   {
     area: 'Overlays',
     state: 'link pull request dialog',
@@ -427,12 +606,25 @@ views.push(
   {
     area: 'Overlays',
     state: 'archive undo toast',
+    settleMs: 600,
     route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
     selector: 'body',
     ready: prompt,
     async setup({ page }) {
-      await click(page, button('Archive Capture · toast'), 'archive fixture thread')
+      await click(
+        page,
+        button('Actions for Remove legacy coupon endpoint'),
+        'cleanup thread actions'
+      )
+      await click(
+        page,
+        `[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim()==='Archive')`,
+        'archive completed cleanup'
+      )
       await waitFor(page, `document.querySelector('[data-sonner-toast]')`, 'undo toast')
+    },
+    async cleanup({ rpc, ids }) {
+      await rpc.request('thread.archive', { threadId: ids.toast!, archived: false })
     },
   },
   {
@@ -470,14 +662,7 @@ views.push(
     route: (ctx) => `/threads/${ctx.fixtures.threads.small}`,
     selector: main,
     ready: prompt,
-    async setup({ page }) {
-      await click(
-        page,
-        `[...document.querySelectorAll('button')].find(e=>e.textContent.trim().startsWith('Worked'))`,
-        'work activity'
-      )
-      await click(page, `document.querySelector('[aria-label="Called Hello there"]')`, 'tool call')
-    },
+    setup: expandedWork,
   },
   {
     area: 'PR list',

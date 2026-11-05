@@ -13,3 +13,53 @@
     border-top-color: var(--sidebar-border);
   }
 }
+
+.sidebar-thread-list {
+  mask-image: none;
+  animation: none;
+  scroll-padding-block: 36px 12px;
+}
+
+.sidebar-thread-scroll-edge::before,
+.sidebar-thread-scroll-edge::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.sidebar-thread-scroll-edge::before {
+  top: 0;
+  height: 8px;
+  background: linear-gradient(to bottom, var(--sidebar), transparent);
+}
+.sidebar-thread-scroll-edge::after {
+  bottom: 0;
+  height: 16px;
+  background: linear-gradient(to top, var(--sidebar), transparent);
+}
+
+.app-sidebar [data-slot='button']:focus-visible {
+  --tw-ring-color: var(--ring);
+}
+
+.sidebar-thread-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sidebar);
+}
+
+.sidebar-thread-heading::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 4px;
+  background: linear-gradient(to bottom, var(--sidebar), transparent);
+  pointer-events: none;
+}
+
+.sidebar-thread-heading:has(+ [data-thread-row]:focus-within)::after {
+  display: none;
+}

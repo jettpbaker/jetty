@@ -1,4 +1,4 @@
-import { WorktreeIcon, MacbookIcon } from '@/components/custom/central_icons'
+import { ChevronDownSmallIcon, WorktreeIcon, MacbookIcon } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -31,11 +31,12 @@ export function ComposerEnvironment({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant='ghost-text' size='sm' className='gap-1.5 rounded-sm' />}
+        render={<Button variant='ghost' size='sm' className='gap-1.5 rounded-sm' />}
         aria-label={`Environment: ${label}`}
       >
-        <Icon />
+        <Icon className='text-muted-foreground' />
         {label}
+        <ChevronDownSmallIcon className='text-muted-foreground' />
       </DropdownMenuTrigger>
       <DropdownMenuContent side='bottom' align='start' className='w-max min-w-32'>
         <DropdownMenuRadioGroup
