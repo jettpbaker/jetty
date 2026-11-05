@@ -343,17 +343,22 @@ function ApprovalActions({
     )
   return (
     <div className='flex shrink-0 items-center gap-2'>
-      <StripButton variant='ghost-text' onClick={ctl.deny}>
+      <StripButton variant='outline' onClick={ctl.deny}>
         {typed ? 'Deny with note' : 'Deny'}
       </StripButton>
       <div className='flex'>
-        <StripButton className='rounded-r-none' onClick={() => ctl.decide('once')}>
+        <StripButton
+          variant='outline'
+          className='rounded-r-none'
+          onClick={() => ctl.decide('once')}
+        >
           Allow once
         </StripButton>
         <DropdownMenu open={ctl.menuOpen} onOpenChange={ctl.setMenuOpen}>
           <DropdownMenuTrigger
             render={
               <Button
+                variant='outline'
                 size='icon-sm'
                 className='rounded-sm rounded-l-none border-l-0'
                 aria-label='More approval options'
@@ -395,7 +400,7 @@ function ProposedDiff(props: ComponentProps<typeof import('./proposed_diff').Pro
 
 function FullTarget({ item }: { item: Approval }) {
   return (
-    <div className='flex flex-col gap-1 rounded-sm bg-background px-2.5 py-2 font-mono text-xs'>
+    <div className='scrollbar-subtle flex max-h-28 flex-col gap-1 overflow-y-auto rounded-sm bg-background px-2.5 py-2 font-mono text-xs leading-5'>
       <span className='whitespace-pre-wrap wrap-anywhere'>
         {item.run && <span className='text-muted-foreground select-none'>$ </span>}
         {item.target}
@@ -447,15 +452,19 @@ export function ApprovalStrip({
         {ctl.confirming ? (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
             <span className='shrink-0 text-muted-foreground'>Always allow</span>
-            <Code>{item.always?.patterns.join(', ')}</Code>
+            <Code className='whitespace-pre-wrap wrap-anywhere text-clip'>
+              {item.always?.patterns.join(', ')}
+            </Code>
             {item.always?.scope && (
               <span className='shrink-0 text-muted-foreground'>in {item.always.scope}?</span>
             )}
           </span>
         ) : (
           <span className='flex min-w-0 flex-1 items-center gap-1.5'>
-            <span className='shrink-0 text-muted-foreground'>{item.action}</span>
-            {!ctl.expanded && (
+            <span className='shrink-0 text-muted-foreground'>
+              {item.run ? 'Run command' : item.action}
+            </span>
+            {!ctl.expanded && !item.run && (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -485,12 +494,13 @@ export function ApprovalStrip({
               </Tooltip>
             )}
             {!ctl.expanded &&
+              !item.run &&
               (binaryProposal ? (
                 <span className='shrink-0 text-xs text-muted-foreground'>Binary</span>
               ) : (
                 item.counts && <DiffCounts files={[item.counts]} />
               ))}
-            {ctl.expanded && (
+            {ctl.expanded && !item.run && (
               <Button
                 variant='ghost'
                 size='icon'
@@ -507,7 +517,9 @@ export function ApprovalStrip({
         )}
         <ApprovalActions ctl={ctl} typed={typed} run={item.run} />
       </div>
+      {item.run && <FullTarget item={item} />}
       {ctl.expanded &&
+        !item.run &&
         !ctl.confirming &&
         (changes ? (
           <Suspense fallback={<Loading />}>
