@@ -25,7 +25,7 @@ export function SettingsAbout() {
     <SettingsPage title='About' description='Where Jetty keeps your threads, bots and settings.'>
       <SettingsSection title='Jetty'>
         <SettingsCard>
-          <SettingsRow id='version' title='Version' description='The build running in this tab'>
+          <SettingsRow id='version' title='Version' description='The build you’re running'>
             {version ? (
               <span className='flex items-center gap-2'>
                 <code className='font-mono text-xs'>{version}</code>
