@@ -1,11 +1,6 @@
+import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, keybinds, type Keybind } from './keybinds'
-import {
-  SettingsButton,
-  SettingsCard,
-  SettingsPage,
-  SettingsSection,
-  comingSoon,
-} from './settings_layout'
+import { SettingsButton, SettingsCard, SettingsPage, SettingsSection } from './settings_layout'
 
 // ⌥1–9 is nine bindings, listed as one.
 const sidebarRows: Keybind = {
@@ -50,10 +45,9 @@ export function SettingsKeyboard() {
       description='Every shortcut in Jetty.'
       className='gap-7 [&>header]:pb-1'
       action={
-        <>
-          <span className='text-xs text-muted-foreground'>{comingSoon}</span>
+        <DisabledTooltip reason='Shortcut customization is coming soon' wrap='inline-flex'>
           <SettingsButton disabled>Customize</SettingsButton>
-        </>
+        </DisabledTooltip>
       }
     >
       {groups.map((group, index) => (
