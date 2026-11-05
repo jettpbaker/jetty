@@ -8,7 +8,7 @@ import { RollingNumber } from './rolling_number'
 // How far above the latest message, in screens, the reader has to be before the arrow shows.
 export const scrollToBottomAfter = 1.5
 
-// Floating over the transcript, so it takes a popover's surface: its fill, a hairline ring and a shadow.
+// A navigation row above the composer keeps the control clear of the transcript.
 const floating = 'border-0 bg-popover shadow-md ring-1 ring-foreground/10 dark:bg-popover'
 
 // Occasional UI, so a short ease-out fade and scale in, and a quicker fade out. Reduced motion keeps
@@ -38,7 +38,7 @@ export function ScrollToBottom({
   onScroll: () => void
 }) {
   return (
-    <div className='pointer-events-none absolute inset-x-0 bottom-3 flex justify-center'>
+    <div className={cn('flex h-10 shrink-0 items-center justify-center', !shown && 'hidden')}>
       <Button
         variant='ghost'
         tone='muted'
