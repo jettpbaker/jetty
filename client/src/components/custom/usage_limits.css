@@ -23,3 +23,10 @@
   border-radius: 999px;
   background: currentColor;
 }
+
+.usage-text-attention {
+  color: color-mix(in oklch, var(--status-attention) 85%, var(--foreground));
+}
+.usage-text-exhausted {
+  color: color-mix(in oklch, var(--destructive) 85%, var(--foreground));
+}

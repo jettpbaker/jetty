@@ -93,6 +93,10 @@ function usageColor(window: UsageWindow) {
       : 'text-primary'
 }
 
+function usageWarningColor(window: UsageWindow) {
+  return window.pct >= 100 ? 'usage-text-exhausted' : 'usage-text-attention'
+}
+
 function UsageBar({ window, className }: { window: UsageWindow; className?: string }) {
   const left = percentLeft(window)
   return (
@@ -175,7 +179,10 @@ function UsageRow({
       <span className='truncate text-xs text-muted-foreground'>{window.label}</span>
       <UsageBar window={window} className={compact ? 'h-0.75' : 'h-2'} />
       <span
-        className={cn('text-right text-xs', left <= 10 ? usageColor(window) : 'text-foreground')}
+        className={cn(
+          'text-right text-xs',
+          left <= 10 ? usageWarningColor(window) : 'text-foreground'
+        )}
       >
         <span className='font-mono tabular-nums'>{100 - left}%</span>
         <span className={compact ? undefined : 'sr-only'}> used</span>
@@ -197,7 +204,7 @@ function UsageRow({
         <span
           className={cn(
             'col-[2/-1] min-h-4 text-xs',
-            warning ? usageColor(window) : 'text-muted-foreground'
+            warning ? usageWarningColor(window) : 'text-muted-foreground'
           )}
         >
           {note}
@@ -528,7 +535,7 @@ function LimitLine({
         <span className='flex min-w-0 items-center gap-1.5'>{label}</span>
         <span className='flex shrink-0 items-center gap-2.5'>
           <ResetLabel window={window} now={now} />
-          <span className={cn('w-16 text-right', left <= 10 && usageColor(window))}>
+          <span className={cn('w-16 text-right', left <= 10 && usageWarningColor(window))}>
             <Mono>{100 - left}%</Mono> used
           </span>
         </span>
