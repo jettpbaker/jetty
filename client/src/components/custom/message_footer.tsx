@@ -1,12 +1,11 @@
 import type { TurnLoadout } from '@jetty/shared/events'
 
 import { CopyButton } from '@/components/custom/copy_button'
-import { describeLoadout } from '@/lib/loadout'
 import { formatSentAt } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useModels } from '@/state'
-import { catalogModelName } from '@jetty/shared/model-name'
 
+import { CatalogModelLabel } from './model_label'
 import { SourceLabel } from './source_label'
 
 const footer = 'flex h-6 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground'
@@ -84,11 +83,18 @@ export function AgentMessageFooter({
 }
 
 function TurnModel({ loadout, provider }: { loadout: TurnLoadout; provider?: string }) {
-  const name = catalogModelName(useModels(), provider, loadout.model)
-  const details = describeLoadout({ effort: loadout.effort, fast: loadout.fast ?? false })
+  const models = useModels()
   return (
     <SourceLabel provider={provider}>
-      <span className='truncate'>{[name, details].filter(Boolean).join(' ')}</span>
+      <span className='truncate'>
+        <CatalogModelLabel
+          catalog={models}
+          provider={provider}
+          model={loadout.model}
+          effort={loadout.effort}
+          fast={loadout.fast}
+        />
+      </span>
     </SourceLabel>
   )
 }

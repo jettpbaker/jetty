@@ -3,11 +3,9 @@ import type { Bot } from '@jetty/shared/wire'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useShowQuietTurns } from '@/lib/bot-quiet-turns'
-import { effortLabels } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useArchiveBot, useArchivedBots, useBots, useChrome } from '@/state'
 import { homePath, useSettingsInfo } from '@/state/models'
-import { catalogModelName } from '@jetty/shared/model-name'
 import { useState } from 'react'
 
 import { DeleteBotDialog } from './bot_archive'
@@ -21,6 +19,7 @@ import {
 } from './central_icons'
 import { accessModes } from './composer_access_mode'
 import { copyFilePath } from './file_link'
+import { CatalogModelLabel } from './model_label'
 import { NewBotDialog } from './new_bot_dialog'
 import {
   PathText,
@@ -34,7 +33,6 @@ import {
 
 function BotRow({ bot }: { bot: Bot }) {
   const chrome = useChrome()
-  const model = catalogModelName(chrome?.models, bot.provider, bot.model)
   const project = bot.projectId
     ? chrome?.projects.find((entry) => entry.id === bot.projectId)?.title
     : 'All projects'
@@ -53,7 +51,13 @@ function BotRow({ bot }: { bot: Bot }) {
           <span className='text-13'>{bot.name}</span>
           <span className='flex min-w-0 items-center gap-2 text-xs text-muted-foreground'>
             <span className='truncate'>
-              {[model, bot.effort && effortLabels[bot.effort]].filter(Boolean).join(' ')}
+              <CatalogModelLabel
+                catalog={chrome?.models}
+                provider={bot.provider}
+                model={bot.model}
+                effort={bot.effort}
+                fast={bot.fast}
+              />
             </span>
             {bot.permissionMode === 'full_access' && (
               <span className='flex shrink-0 items-center gap-1 [&_svg]:size-3'>

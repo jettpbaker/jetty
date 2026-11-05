@@ -9,7 +9,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
-import { effortLabels } from '@/lib/loadout'
 import { formatDuration } from '@/lib/time'
 import { storage } from '@/platform'
 import {
@@ -34,6 +33,7 @@ import { TodoList } from './composer_strip'
 import { ContentEmpty } from './content_empty'
 import { CopyButton } from './copy_button'
 import { DiffCounts } from './diff/file_card'
+import { CatalogModelLabel } from './model_label'
 import { LinkPullRequestDialog } from './pull_request_link'
 import { PullRequestRow } from './pull_request_row'
 import { RunningTaskRow } from './running_task_row'
@@ -297,10 +297,12 @@ function ThreadProperties({ threadId }: { threadId: string }) {
             label: 'Model',
             value: (
               <>
-                {model}
-                {meta.effort && (
-                  <span className='text-muted-foreground'> · {effortLabels[meta.effort]}</span>
-                )}
+                <CatalogModelLabel
+                  catalog={models}
+                  provider={meta.provider}
+                  model={meta.model}
+                  effort={meta.effort}
+                />
               </>
             ),
           },

@@ -1,5 +1,5 @@
 import type { ProviderId, ProviderModel } from '@jetty/shared/wire'
-import type { KeyboardEvent, RefObject, SyntheticEvent } from 'react'
+import type { KeyboardEvent, ReactNode, RefObject, SyntheticEvent } from 'react'
 
 import {
   ArrowUpRightIcon,
@@ -30,7 +30,6 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
-  describeLoadout,
   effortLabels,
   equipModel,
   findModel,
@@ -47,7 +46,7 @@ import { PointerSensor, PointerActivationConstraints } from '@dnd-kit/dom'
 import { RestrictToElement } from '@dnd-kit/dom/modifiers'
 import { DragDropProvider } from '@dnd-kit/react'
 import { useSortable, isSortable } from '@dnd-kit/react/sortable'
-import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
+import { catalogModelName, formatModelLabel, modelLabelText } from '@jetty/shared/model-name'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useReducedMotion } from 'motion/react'
 import { use, useId, useImperativeHandle, useRef, useState } from 'react'
@@ -56,7 +55,7 @@ import { ComposerMenuAnchorContext } from './composer_menu_anchor'
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, KeybindTooltip, keybinds, appShortcut } from './keybinds'
 import './option_picker.css'
-import { ModelLabel } from './model_label'
+import { CatalogModelLabel, ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 
 export const subTriggerClass = 'gap-1 [&>svg:last-child]:ml-0'
@@ -110,7 +109,6 @@ function SortableLoadoutItem({
   id,
   index,
   name,
-  details,
   provider,
   disabled,
   disabledReason,
@@ -121,8 +119,7 @@ function SortableLoadoutItem({
 }: {
   id: string
   index: number
-  name: string
-  details: string
+  name: ReactNode
   provider: ProviderId
   disabled: boolean
   disabledReason?: string
@@ -155,9 +152,7 @@ function SortableLoadoutItem({
       >
         {draggable && <DragHandle handleRef={handleRef} isDragging={isDragging} />}
         <ProviderGlyph provider={provider} className='size-3' />
-        <span className='min-w-0 flex-1 truncate'>
-          {name} <span className='text-muted-foreground'>{details}</span>
-        </span>
+        <span className='min-w-0 flex-1 truncate'>{name}</span>
       </CommandItem>
     </DisabledTooltip>
   )
@@ -255,7 +250,7 @@ export function ComposerLoadout({
     `${item.provider} ${modelLabelText(item)}`.toLowerCase().includes(search)
   )
   const configurations = equipped.filter(({ loadout }) =>
-    `${catalogModelName(allModels, loadout.provider, loadout.model)} ${describeLoadout(loadout)}`
+    formatModelLabel(allModels, loadout.provider, loadout.model, loadout.effort, loadout.fast)
       .toLowerCase()
       .includes(search)
   )
@@ -298,7 +293,7 @@ export function ComposerLoadout({
         <PopoverTrigger
           aria-label={
             value
-              ? `Model: ${[name, describeLoadout(value)].filter(Boolean).join(', ')}`
+              ? `Model: ${formatModelLabel(catalog, value.provider, value.model, value.effort, value.fast)}`
               : 'Choose a model'
           }
           render={
@@ -316,8 +311,15 @@ export function ComposerLoadout({
           {value ? (
             <>
               <ProviderGlyph provider={value.provider} className='size-3' />
-              {model ? <ModelLabel model={model} /> : name}
-              <span className='text-muted-foreground'>{describeLoadout(value)}</span>
+              <span className='min-w-0 truncate'>
+                <CatalogModelLabel
+                  catalog={catalog}
+                  provider={value.provider}
+                  model={value.model}
+                  effort={value.effort}
+                  fast={value.fast}
+                />
+              </span>
             </>
           ) : (
             'Choose a model'
@@ -379,10 +381,14 @@ export function ComposerLoadout({
                             index={index}
                             draggable={equipped.length > 1 && !search}
                             name={
-                              catalogModelName(allModels, loadout.provider, loadout.model) ??
-                              loadout.model
+                              <CatalogModelLabel
+                                catalog={allModels}
+                                provider={loadout.provider}
+                                model={loadout.model}
+                                effort={loadout.effort}
+                                fast={loadout.fast}
+                              />
                             }
-                            details={describeLoadout(loadout)}
                             provider={loadout.provider}
                             checked={checked === slot.id}
                             disabled={

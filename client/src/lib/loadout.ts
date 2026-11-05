@@ -1,5 +1,5 @@
 import { EffortLevel } from '@jetty/shared/events'
-import { findProviderModel } from '@jetty/shared/model-name'
+import { effortLabels, findProviderModel } from '@jetty/shared/model-name'
 import { ProviderId, type ProviderModel } from '@jetty/shared/wire'
 import { Schema } from 'effect'
 
@@ -16,13 +16,7 @@ const slotCount = 5
 const isProvider = Schema.is(ProviderId)
 const isEffort = Schema.is(EffortLevel)
 
-export const effortLabels: Record<EffortLevel, string> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  xhigh: 'Extra high',
-  max: 'Max',
-}
+export { effortLabels } from '@jetty/shared/model-name'
 
 export function modelKey(model: { provider: ProviderId; id: string }) {
   return `${model.provider}:${model.id}`
