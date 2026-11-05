@@ -20,7 +20,6 @@ import { useModelRefresh, useSetAgentBehaviour, useSetJobModel } from '@/state/m
 import {
   agentBehaviours,
   resolveTidyModel,
-  GUIDE_MIN_CHANGED_LINES,
   resolveTitleEffort,
   resolveTitleModel,
   resolveGuideModel,
@@ -48,7 +47,7 @@ import {
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  comingSoon,
+  UnavailableSettingsRow,
   selectTriggerClass,
 } from './settings_layout'
 
@@ -353,24 +352,6 @@ export function SettingsGuidedReviews() {
       <SettingsSection title='When to write one'>
         <SettingsCard>
           <SettingsRow
-            title='Skip small pull requests'
-            description='Fewer changed lines than this, added plus deleted, get no guide'
-            disabled
-          >
-            <DisabledTooltip reason={comingSoon} wrap='flex shrink-0 items-center gap-2'>
-              <span className='flex items-center gap-2'>
-                <input
-                  disabled
-                  value={GUIDE_MIN_CHANGED_LINES}
-                  aria-label='Smallest pull request to guide, in changed lines'
-                  readOnly
-                  className='pointer-events-none h-7 w-14 rounded-sm border border-input bg-input/30 px-2 text-right font-mono text-13 text-muted-foreground'
-                />
-                <span className='text-13 text-muted-foreground'>lines</span>
-              </span>
-            </DisabledTooltip>
-          </SettingsRow>
-          <SettingsRow
             id='write-ahead'
             title='Write ahead for review requests'
             description="Start a guide when someone asks for your review, so it's ready when you open it"
@@ -386,6 +367,14 @@ export function SettingsGuidedReviews() {
               />
             </DisabledTooltip>
           </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+      <SettingsSection title='Coming soon'>
+        <SettingsCard>
+          <UnavailableSettingsRow
+            title='Skip small pull requests'
+            description='Choose the minimum number of changed lines for a guide'
+          />
         </SettingsCard>
       </SettingsSection>
       <SettingsSection title='Guides'>

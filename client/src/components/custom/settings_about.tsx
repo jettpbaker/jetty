@@ -1,16 +1,14 @@
 import { homePath, useSettingsInfo } from '@/state/models'
 
-import { DisabledTooltip } from './disabled_tooltip'
 import { copyFilePath } from './file_link'
 import {
   Mono,
   PathText,
-  SettingsButton,
   SettingsCard,
   SettingsPage,
   SettingsRow,
   SettingsSection,
-  comingSoon,
+  UnavailableSettingsRow,
 } from './settings_layout'
 
 function megabytes(bytes: number) {
@@ -56,13 +54,11 @@ export function SettingsAbout() {
               </span>
             )}
           </SettingsRow>
-          <SettingsRow id='logs' title='Logs' description='What the server has been doing' disabled>
-            <DisabledTooltip reason={comingSoon} wrap='flex'>
-              <SettingsButton disabled className='pointer-events-none'>
-                Open logs
-              </SettingsButton>
-            </DisabledTooltip>
-          </SettingsRow>
+          <UnavailableSettingsRow
+            id='logs'
+            title='Logs'
+            description='What the server has been doing'
+          />
         </SettingsCard>
       </SettingsSection>
     </SettingsPage>

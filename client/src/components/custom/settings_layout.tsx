@@ -213,6 +213,20 @@ export function SettingsRow({
   )
 }
 
+export function UnavailableSettingsRow({
+  value,
+  ...props
+}: Omit<ComponentProps<typeof SettingsRow>, 'disabled' | 'children'> & { value?: ReactNode }) {
+  return (
+    <SettingsRow {...props} disabled>
+      <span className='flex shrink-0 items-center gap-3 text-13 text-muted-foreground'>
+        {value}
+        <ComingSoon />
+      </span>
+    </SettingsRow>
+  )
+}
+
 // A row that opens a page: the whole row is the link, with only a chevron on the right, so it
 // never reads as a dropdown.
 export function SettingsLinkRow({
@@ -252,21 +266,22 @@ export function ComingSoon() {
   return <span className='shrink-0 pr-1 text-13 text-muted-foreground'>{comingSoon}</span>
 }
 
-// A switch that isn't wired yet: its designed state, dimmed, with the reason on hover.
+// Unavailable controls keep their designed state and an explanation visible at rest.
 export function DisabledSwitch({ checked, label }: { checked: boolean; label: string }) {
   return (
-    <DisabledTooltip reason={comingSoon} wrap='flex'>
-      <Switch checked={checked} disabled aria-label={label} className='pointer-events-none' />
-    </DisabledTooltip>
+    <span className='flex shrink-0 items-center gap-3'>
+      <ComingSoon />
+      <Switch checked={checked} disabled aria-label={label} />
+    </span>
   )
 }
 
 export const selectTriggerClass =
-  'h-7 gap-1.5 rounded-sm pr-1.5 pl-2.5 text-13 font-normal text-foreground [&_svg]:text-muted-foreground disabled:text-disabled-foreground'
+  'h-7 gap-1.5 rounded-sm border-border pr-1.5 pl-2.5 text-13 font-normal text-foreground [&_svg]:text-muted-foreground disabled:text-muted-foreground'
 
 export type SettingsOption<T extends string> = { value: T; label: ReactNode; icon?: ReactNode }
 
-// The select trigger (variation A): the value and a chevron, filled only on hover.
+// A visible control boundary distinguishes editable values from row descriptions.
 export function SettingsSelect<T extends string>({
   label,
   value,
@@ -281,26 +296,24 @@ export function SettingsSelect<T extends string>({
   disabled?: boolean
 }) {
   const current = options.find((option) => option.value === value)
-  const trigger = (
-    <DropdownMenuTrigger
-      disabled={disabled}
-      aria-label={label}
-      render={<Button variant='ghost' className={selectTriggerClass} />}
-    >
-      {current?.icon}
-      {current?.label}
-      <ChevronDownSmallIcon />
-    </DropdownMenuTrigger>
-  )
+  if (disabled)
+    return (
+      <span className='flex shrink-0 items-center gap-3 text-13 text-muted-foreground'>
+        {current?.label}
+        <ComingSoon />
+      </span>
+    )
   return (
     <DropdownMenu modal={false}>
-      {disabled ? (
-        <DisabledTooltip reason={comingSoon} wrap='flex shrink-0'>
-          {trigger}
-        </DisabledTooltip>
-      ) : (
-        trigger
-      )}
+      <DropdownMenuTrigger
+        disabled={disabled}
+        aria-label={label}
+        render={<Button variant='ghost' className={selectTriggerClass} />}
+      >
+        {current?.icon}
+        {current?.label}
+        <ChevronDownSmallIcon />
+      </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuRadioGroup
           value={value}

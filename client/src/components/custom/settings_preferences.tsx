@@ -40,49 +40,6 @@ export function SettingsPreferences() {
       title='Preferences'
       description='How Jetty behaves. Changes save as you make them.'
     >
-      <SettingsSection title='General'>
-        <SettingsCard>
-          <SettingsRow
-            id='open-on-launch'
-            title='Open on launch'
-            description='What Jetty shows when you open it'
-            disabled
-          >
-            <SettingsSelect
-              label='Open on launch'
-              value='last-thread'
-              options={[
-                { value: 'last-thread', label: 'Last thread' },
-                { value: 'new-thread', label: 'New thread' },
-                { value: 'pull-requests', label: 'Pull requests' },
-              ]}
-              disabled
-            />
-          </SettingsRow>
-          <SettingsRow
-            id='send-key'
-            title='Send messages with'
-            description='Shift-Enter always adds a new line'
-            disabled
-          >
-            <SettingsSelect
-              label='Send messages with'
-              value='enter'
-              options={[
-                {
-                  value: 'enter',
-                  label: <KeybindChip binding={keybinds.send} className={keycapClass} />,
-                },
-                {
-                  value: 'mod-enter',
-                  label: <KeybindChip binding={keybinds.steer} className={keycapClass} />,
-                },
-              ]}
-              disabled
-            />
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
       <SettingsSection title='New threads'>
         <SettingsCard>
           <SettingsRow
@@ -90,7 +47,7 @@ export function SettingsPreferences() {
             title='Environment'
             description={
               <>
-                A project&apos;s own <Mono>.jetty/worktree.json</Mono> wins
+                Projects can override this in <Mono>.jetty/worktree.json</Mono>
               </>
             }
           >
@@ -132,6 +89,49 @@ export function SettingsPreferences() {
               checked={pointerCursors}
               onCheckedChange={setPointerCursors}
               aria-label='Use pointer cursors'
+            />
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+      <SettingsSection title='General'>
+        <SettingsCard>
+          <SettingsRow
+            id='open-on-launch'
+            title='Open on launch'
+            description='What Jetty shows when you open it'
+            disabled
+          >
+            <SettingsSelect
+              label='Open on launch'
+              value='last-thread'
+              options={[
+                { value: 'last-thread', label: 'Last thread' },
+                { value: 'new-thread', label: 'New thread' },
+                { value: 'pull-requests', label: 'Pull requests' },
+              ]}
+              disabled
+            />
+          </SettingsRow>
+          <SettingsRow
+            id='send-key'
+            title='Send messages with'
+            description='Shift-Enter always adds a new line'
+            disabled
+          >
+            <SettingsSelect
+              label='Send messages with'
+              value='enter'
+              options={[
+                {
+                  value: 'enter',
+                  label: <KeybindChip binding={keybinds.send} className={keycapClass} />,
+                },
+                {
+                  value: 'mod-enter',
+                  label: <KeybindChip binding={keybinds.steer} className={keycapClass} />,
+                },
+              ]}
+              disabled
             />
           </SettingsRow>
         </SettingsCard>
