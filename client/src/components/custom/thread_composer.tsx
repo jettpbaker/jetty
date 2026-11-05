@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAttachments } from '@/hooks/use-attachments'
 import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
@@ -68,7 +69,7 @@ import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { PauseIcon } from './central_icons'
+import { PauseIcon, WorktreeIcon } from './central_icons'
 import { DisabledTooltip } from './disabled_tooltip'
 import { ThreadFooter } from './thread_footer'
 import { StatusGlyph } from './thread_status'
@@ -762,12 +763,29 @@ export function ThreadComposer({
                   onEnvironmentChange={(next) => retarget({ environment: next })}
                   startingRef={startingRef}
                   onStartingRefChange={(ref) => retarget({ ref })}
+                  worktreeSetup={
+                    setupGuide && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant='secondary'
+                              size='sm'
+                              className='ml-1'
+                              onClick={() => setUpWorktrees(setupGuide)}
+                            />
+                          }
+                        >
+                          <WorktreeIcon />
+                          Set up worktrees
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Configure copied files and setup commands for new worktrees
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  }
                 />
-                {setupGuide && (
-                  <Button variant='ghost-text' size='xs' onClick={() => setUpWorktrees(setupGuide)}>
-                    Set up worktrees
-                  </Button>
-                )}
               </div>
             </div>
           )
