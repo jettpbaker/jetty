@@ -376,7 +376,7 @@ export const AppSidebar = memo(function AppSidebar() {
           className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-3.5'
         >
           {/* The plus lines up with the status glyphs below. */}
-          <div className='flex h-6 items-center justify-between pr-1.5 pl-2.5'>
+          <div className='flex h-6 items-center justify-between pr-2 pl-2.5'>
             <h2 className='text-xs font-medium text-muted-foreground'>Bots</h2>
             <div className='flex items-center gap-0.5'>
               <Button
@@ -501,10 +501,10 @@ export const AppSidebar = memo(function AppSidebar() {
                           className='[--jb-ring:var(--sidebar)]'
                         />
                       )}
-                      <span className='flex min-w-0 flex-1 items-baseline gap-1'>
+                      <span className='flex min-w-0 flex-1 items-baseline gap-1.5'>
                         <span className='min-w-0 truncate font-medium'>{item.label}</span>
                         <span
-                          className='ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
+                          className='shrink-0 font-mono text-xs text-muted-foreground tabular-nums'
                           aria-label={`${item.count} thread${item.count === 1 ? '' : 's'}`}
                         >
                           {item.count}
@@ -513,10 +513,10 @@ export const AppSidebar = memo(function AppSidebar() {
                     </>
                   )
                   return item.archived ? (
-                    <h3 key={item.id} className='mt-5 flex first:mt-0'>
+                    <h3 key={item.id} className='mt-3 flex first:mt-0'>
                       <Button
                         variant='ghost-text'
-                        className='h-auto w-full justify-start gap-1.5 rounded-sm border-0 px-2.5 py-1 text-xs font-normal aria-expanded:text-muted-foreground aria-expanded:not-disabled:hover:text-foreground'
+                        className='h-6 w-full justify-start gap-1.5 rounded-sm border-0 px-2.5 py-0 text-xs font-medium text-muted-foreground'
                         aria-expanded={archivedOpen}
                         onClick={() => setArchivedOpen((open) => !open)}
                       >
@@ -526,7 +526,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   ) : (
                     <h3
                       key={item.id}
-                      className='mt-5 flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground first:mt-0'
+                      className='mt-3 flex h-6 items-center gap-1.5 px-2.5 text-xs font-medium text-muted-foreground first:mt-0'
                     >
                       {heading}
                     </h3>
@@ -562,7 +562,13 @@ export const AppSidebar = memo(function AppSidebar() {
                 )
               })}
               {query.trim() && groups && !groups.length && (
-                <p className='px-2.5 py-4 text-sm text-muted-foreground'>No threads found.</p>
+                <div className='flex flex-col items-start gap-1 px-2.5 py-4'>
+                  <p className='text-sm font-medium'>No threads found</p>
+                  <p className='text-xs text-muted-foreground'>Try another title or project.</p>
+                  <Button variant='ghost-text' size='xs' onClick={() => setQuery('')}>
+                    Clear search
+                  </Button>
+                </div>
               )}
             </div>
           </nav>
