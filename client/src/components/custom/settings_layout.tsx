@@ -163,10 +163,20 @@ function RowIcon({ icon: Glyph, disabled }: { icon: Icon | ReactElement; disable
   )
 }
 
-function RowText({ title, description }: { title: ReactNode; description?: ReactNode }) {
+function RowText({
+  title,
+  description,
+  disabled,
+}: {
+  title: ReactNode
+  description?: ReactNode
+  disabled?: boolean
+}) {
   return (
     <span className='flex min-w-0 grow basis-48 flex-col gap-0.5'>
-      <span className='text-13 text-foreground'>{title}</span>
+      <span className={cn('text-13', disabled ? 'text-muted-foreground' : 'text-foreground')}>
+        {title}
+      </span>
       {description && (
         <span className='text-13 leading-5 text-muted-foreground'>{description}</span>
       )}
@@ -201,7 +211,7 @@ export function SettingsRow({
       )}
     >
       {icon && <RowIcon icon={icon} disabled={disabled} />}
-      <RowText title={title} description={description} />
+      <RowText title={title} description={description} disabled={disabled} />
       {children}
     </div>
   )
@@ -210,7 +220,7 @@ export function SettingsRow({
 export function PlannedSettingsSection(
   props: Omit<ComponentProps<typeof SettingsSection>, 'action'>
 ) {
-  return <SettingsSection {...props} action={<ComingSoon />} />
+  return <SettingsSection {...props} />
 }
 
 export function PlannedSettingsRow({
@@ -222,7 +232,11 @@ export function PlannedSettingsRow({
   title: string
   description: string
 }) {
-  return <SettingsRow id={id} title={title} description={description} disabled />
+  return (
+    <SettingsRow id={id} title={title} description={description} disabled>
+      <ComingSoon />
+    </SettingsRow>
+  )
 }
 
 export function UnavailableSettingsRow({
