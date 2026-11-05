@@ -338,7 +338,7 @@ export const AppSidebar = memo(function AppSidebar() {
       variant='inset'
       collapsible='offcanvas'
     >
-      <SidebarHeader className='shrink-0 px-1.5 pb-3 pt-2'>
+      <SidebarHeader className='shrink-0 px-1.5 pb-2 pt-2'>
         <nav aria-label='Main navigation'>
           <SidebarMenu className='gap-0.5'>
             <SidebarMenuItem>
@@ -371,7 +371,7 @@ export const AppSidebar = memo(function AppSidebar() {
               <DisabledTooltip reason='Coming soon' side='right' wrap='block'>
                 <Button
                   variant='ghost'
-                  className={`${navigationButtonClass} pointer-events-none`}
+                  className={`${navigationButtonClass} pointer-events-none disabled:text-muted-foreground disabled:[&_svg]:text-muted-foreground`}
                   disabled
                 >
                   <CircleDotIcon />
@@ -387,7 +387,7 @@ export const AppSidebar = memo(function AppSidebar() {
             thread search, the list and the account footer off the sidebar. */}
         <section
           aria-label='Bots'
-          className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-3'
+          className='no-scrollbar scroll-fade-y flex max-h-[70%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-2'
         >
           {/* The plus lines up with the status glyphs below. */}
           <div className='flex h-6 items-center justify-between pr-2 pl-2.75'>
@@ -416,7 +416,7 @@ export const AppSidebar = memo(function AppSidebar() {
                     onToggle={botThreads.get(bot.id)?.length ? () => toggleBot(bot.id) : undefined}
                   />
                   <CollapsibleContent>
-                    <div className='flex flex-col gap-0.5 pt-0.5 pl-5'>
+                    <div className='flex flex-col pl-5'>
                       {(botThreads.get(bot.id) ?? []).map(({ id }) => (
                         <div
                           key={id}
@@ -459,7 +459,7 @@ export const AppSidebar = memo(function AppSidebar() {
             </button>
           )}
         </section>
-        <div className='px-1.5 pb-3'>
+        <div className='px-1.5 pb-2'>
           <SidebarThreadControls
             query={query}
             onQueryChange={setQuery}
@@ -476,7 +476,7 @@ export const AppSidebar = memo(function AppSidebar() {
           className='sidebar-thread-list min-h-32 overscroll-contain px-1.5 pb-4 [scroll-timeline:--sidebar-threads_y]'
         >
           <nav aria-label='Threads'>
-            <div className='flex flex-col [&>[data-thread-row]+[data-thread-row]]:mt-0.5'>
+            <div className='flex flex-col'>
               {items.map((item) => {
                 if (item.kind === 'heading') {
                   const ordinary = !item.pinned && !item.archived
@@ -539,7 +539,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   ) : (
                     <h3
                       key={item.id}
-                      className='mt-3 flex h-6 items-center gap-1.5 px-2.75 text-xs font-medium text-muted-foreground first:mt-0'
+                      className='mt-3 flex h-6 items-center gap-1.5 px-2.75 text-xs font-medium text-foreground first:mt-0'
                     >
                       {heading}
                     </h3>

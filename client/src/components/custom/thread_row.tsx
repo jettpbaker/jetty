@@ -55,12 +55,12 @@ export function ThreadRow({
           <Button
             render={trigger}
             variant='ghost-text'
-            className='thread-row-button h-auto min-h-8 w-full min-w-0 justify-start gap-1.5 rounded-sm px-2.5 py-1 text-left font-normal text-foreground'
+            className='thread-row-button h-auto min-h-7.5 w-full min-w-0 justify-start gap-1.5 rounded-sm px-2.5 py-0.75 text-left font-normal text-foreground'
             aria-pressed={selected}
             onClick={onSelect}
           >
             <HeldKeybind binding={shortcut}>
-              <StatusGlyph status={status} className='size-4' />
+              <StatusGlyph status={status} idleDot className='size-4' />
             </HeldKeybind>
             {!nested && (showProject || (bot && !bot.archived)) && (
               <span className='flex size-4 shrink-0 items-center justify-center' title={project}>

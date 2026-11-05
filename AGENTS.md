@@ -80,7 +80,8 @@
   the pinned pin, the sidebar and details pane toggles, and status glyphs: Central's filled
   QuestionmarkCircle (needs input), CircleCheck (ready, finished and passed) and CircleX (error
   and failed). Working uses Central's outlined Progress50; waiting uses its outlined Clock.
-  Idle, queued, stopped and skipped use our custom idle ring. Selected answers stay stroked.
+  Idle, queued, stopped and skipped use our custom idle ring; sidebar idle rows use a quiet
+  6px dot in the same 16px status slot. Selected answers stay stroked.
   GitHub is the official filled svgl mark. Provider logos and the context ring stay custom.
 - Keycaps: a shortcut the app registers shows as the `KeybindChip` of its entry in `keybinds.tsx`; a one-off key that isn't an app shortcut (↵ in a dialog's footer) is a `Kbd`. Both use regular weight and fill with translucent foreground (`bg-foreground/8`) so they sit on any surface. Never give a keycap an opaque fill.
 - Glyphs go bare inside Buttons — the parent cascade sizes them (16px baseline).
@@ -99,7 +100,7 @@
   sizes give mismatched corners.
 - The tab close button keeps its tiny target and no-fill hover. Thread row Archive/More
   actions keep small glyphs and no-fill hover in 24px hit areas, overlaid on the trailing
-  age column and title edge. Row status and title stay visible; shortcut numbers appear only while held.
+  age column and title edge without changing the title’s layout. Row status and title stay visible; shortcut numbers appear only while held.
 - Status colors are semantic: orange = needs input, destructive = error,
   green = open PR, purple = merged PR. There's no fixed brand colour; the
   user's accent (`primary`) plays that role.

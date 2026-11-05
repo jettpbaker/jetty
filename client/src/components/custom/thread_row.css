@@ -3,6 +3,10 @@
   border-radius: var(--radius-sm);
   scroll-margin-block: 12px;
   --thread-row-action-size: 24px;
+  --thread-row-surface: var(--sidebar-accent);
+}
+.thread-row[data-selected] {
+  --thread-row-surface: color-mix(in oklch, var(--sidebar-accent), var(--foreground) 5%);
 }
 .thread-row > button {
   background-color: transparent;
@@ -11,11 +15,11 @@
 .thread-row[data-selected] > button,
 .thread-row:focus-within > button,
 .thread-row:has(.thread-row-actions[data-overlay='menu']) > button {
-  background-color: var(--sidebar-accent);
+  background-color: var(--thread-row-surface);
 }
 .thread-row-actions {
   position: absolute;
-  top: 4px;
+  top: 3px;
   right: 8px;
   display: flex;
   align-items: center;
@@ -24,16 +28,12 @@
   pointer-events: none;
   color: var(--muted-foreground);
   border-radius: var(--radius-sm);
-  background: var(--sidebar-accent);
+  background: var(--thread-row-surface);
 }
 .thread-row:focus-within .thread-row-actions,
 .thread-row-actions[data-overlay='menu'] {
   visibility: visible;
   pointer-events: auto;
-}
-.thread-row:focus-within [data-thread-title],
-.thread-row:has(.thread-row-actions[data-overlay='menu']) [data-thread-title] {
-  padding-right: 22px;
 }
 .thread-row:focus-within .thread-row-age,
 .thread-row:has(.thread-row-actions[data-overlay='menu']) .thread-row-age {
@@ -41,14 +41,11 @@
 }
 @media (hover: hover) {
   .thread-row:hover > button {
-    background-color: var(--sidebar-accent);
+    background-color: var(--thread-row-surface);
   }
   .thread-row:hover .thread-row-actions {
     visibility: visible;
     pointer-events: auto;
-  }
-  .thread-row:hover [data-thread-title] {
-    padding-right: 22px;
   }
   .thread-row:hover .thread-row-age {
     visibility: hidden;
@@ -58,9 +55,6 @@
   .thread-row-actions {
     visibility: visible;
     pointer-events: auto;
-  }
-  [data-thread-title] {
-    padding-right: 22px;
   }
   .thread-row-age {
     visibility: hidden;
