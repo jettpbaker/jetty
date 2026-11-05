@@ -107,6 +107,7 @@ import {
 import { primeDiffHighlights } from '../diff_worker_pool'
 import { parseFileChanges } from '../file_diff_model'
 import { keyTarget } from '../keybinds'
+import { ComingSoon } from '../settings_layout'
 import { githubUser, prFile } from './adapter'
 import { DescriptionEditor, DeferredMarkdownEditor } from './description_editor'
 import { GuideWide } from './guide_wide'
@@ -173,9 +174,7 @@ function Action({
       aria-description='Coming soon'
     >
       {children}
-      <span className='rounded-sm bg-foreground/6 px-1.5 py-0.5 text-xs text-muted-foreground'>
-        Soon
-      </span>
+      <ComingSoon />
     </Button>
   )
 }

@@ -263,15 +263,9 @@ export function SettingsLinkRow({
 }
 
 export function ComingSoon() {
-  return <span className='shrink-0 pr-1 text-13 text-muted-foreground'>{comingSoon}</span>
-}
-
-// Unavailable controls keep their designed state and an explanation visible at rest.
-export function DisabledSwitch({ checked, label }: { checked: boolean; label: string }) {
   return (
-    <span className='flex shrink-0 items-center gap-3'>
-      <ComingSoon />
-      <Switch checked={checked} disabled aria-label={label} />
+    <span className='shrink-0 rounded-sm bg-foreground/6 px-1.5 py-0.5 text-xs text-muted-foreground'>
+      {comingSoon}
     </span>
   )
 }
@@ -296,13 +290,7 @@ export function SettingsSelect<T extends string>({
   disabled?: boolean
 }) {
   const current = options.find((option) => option.value === value)
-  if (disabled)
-    return (
-      <span className='flex shrink-0 items-center gap-3 text-13 text-muted-foreground'>
-        {current?.label}
-        <ComingSoon />
-      </span>
-    )
+  if (disabled) return <ComingSoon />
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger

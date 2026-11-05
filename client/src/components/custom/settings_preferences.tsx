@@ -93,7 +93,7 @@ export function SettingsPreferences() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
-      <SettingsSection title='General'>
+      <SettingsSection title='Startup and sending'>
         <SettingsCard>
           <SettingsRow
             id='open-on-launch'

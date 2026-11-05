@@ -1,31 +1,27 @@
+import { Switch } from '@/components/ui/switch'
+
 import { Bell2Icon } from './central_icons'
 import {
   ComingSoon,
-  DisabledSwitch,
   SettingsCard,
   SettingsPage,
   SettingsRow,
   SettingsSection,
 } from './settings_layout'
 
-// Coming soon as a whole, until Jetty sends browser notifications. The switches show the
-// defaults they'll start with.
 const events = [
-  { title: 'A thread needs you', description: 'An approval or a question is waiting', on: true },
+  { title: 'A thread needs you', description: 'An approval or a question is waiting' },
   {
     title: "A turn finishes while you're away",
     description: "Only when Jetty isn't the tab you're looking at",
-    on: true,
   },
   {
     title: 'A bot messages you',
     description: "Check-ins stay quiet unless there's news",
-    on: true,
   },
   {
     title: 'A guide is ready',
     description: 'For pull requests someone asked you to review',
-    on: false,
   },
 ]
 
@@ -40,12 +36,12 @@ export function SettingsNotifications() {
           id='browser-notifications'
           icon={Bell2Icon}
           title='Browser notifications'
-          description="Jetty can't send them yet. Everything below waits on this."
+          description='Notifications are not available yet. These are the events Jetty will support.'
         >
           <ComingSoon />
         </SettingsRow>
       </SettingsCard>
-      <SettingsSection title='Tell me when'>
+      <SettingsSection title='Planned notifications'>
         <SettingsCard>
           {events.map((event) => (
             <SettingsRow
@@ -54,7 +50,7 @@ export function SettingsNotifications() {
               description={event.description}
               disabled
             >
-              <DisabledSwitch checked={event.on} label={event.title} />
+              <Switch checked={false} disabled aria-label={`${event.title} — Coming soon`} />
             </SettingsRow>
           ))}
         </SettingsCard>
@@ -66,7 +62,7 @@ export function SettingsNotifications() {
             description='A soft chime with each notification'
             disabled
           >
-            <DisabledSwitch checked={false} label='Play a sound' />
+            <Switch checked={false} disabled aria-label='Play a sound — Coming soon' />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
