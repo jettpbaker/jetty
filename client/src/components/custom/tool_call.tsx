@@ -6,12 +6,25 @@ import { use, type ReactNode } from 'react'
 
 import './charmed_icons.css'
 import { ActivityChevron } from './activity_disclosure'
-import { ChevronRightSmallIcon } from './central_icons'
+import {
+  ChevronRightSmallIcon,
+  CodeIcon,
+  ConsoleSimpleIcon,
+  FileBendIcon,
+  MagnifyingGlass2Icon,
+  Pencil2Icon,
+  ChainLink4Icon,
+} from './central_icons'
 import { DiffCounts } from './diff/file_card'
 import { basename, CharmedFileIcon } from './diff/file_name'
 import { copyFilePath, OpenFileLink, ProjectFileRoot, projectRelativePath } from './file_link'
 import { StatusGlyph, type Status } from './thread_status'
-import { describeToolBatch, type ActivityStatus, type ToolActivity } from './work_model'
+import {
+  describeToolBatch,
+  type ActivityStatus,
+  type ToolActivity,
+  type ToolKind,
+} from './work_model'
 
 const toolStatuses: Record<ActivityStatus, Status> = {
   running: 'working',
@@ -22,7 +35,21 @@ const toolStatuses: Record<ActivityStatus, Status> = {
   interrupted: 'stopped',
 }
 
-export function ToolStatusGlyph({ status }: { status: ActivityStatus }) {
+const toolGlyphs = {
+  read: FileBendIcon,
+  edit: Pencil2Icon,
+  write: Pencil2Icon,
+  search: MagnifyingGlass2Icon,
+  terminal: ConsoleSimpleIcon,
+  web: ChainLink4Icon,
+  generic: CodeIcon,
+} satisfies Record<ToolKind, typeof CodeIcon>
+
+export function ToolStatusGlyph({ status, kind }: { status: ActivityStatus; kind: ToolKind }) {
+  if (status === 'complete') {
+    const Glyph = toolGlyphs[kind]
+    return <Glyph aria-hidden className='size-4 shrink-0 text-muted-foreground' />
+  }
   return <StatusGlyph status={toolStatuses[status]} className='size-4' />
 }
 
@@ -170,7 +197,7 @@ export function ToolCall({
   return (
     <Collapsible className={animate ? 'work-raise-enter' : undefined}>
       <CollapsibleTrigger render={<Button variant='ghost-text' />} className='activity-header'>
-        <ToolStatusGlyph status={call.status} />
+        <ToolStatusGlyph status={call.status} kind={call.kind} />
         <span
           className={cn(
             'flex min-w-0 items-baseline gap-1',

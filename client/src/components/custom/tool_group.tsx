@@ -111,6 +111,7 @@ function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: st
         aria-label={`${label.verb} ${label.target}${label.noticeText ? `, ${label.noticeText}` : ''}`}
       >
         <ToolStatusGlyph
+          kind={batch.calls[0]!.kind}
           status={
             batch.calls.find((call) => call.status === 'failed')?.status ??
             batch.calls.find((call) => !workEnded(call.status))?.status ??

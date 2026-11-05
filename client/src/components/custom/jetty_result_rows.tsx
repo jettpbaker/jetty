@@ -198,7 +198,9 @@ export function CountedResults({
       autoOpen={autoOpen}
       title={
         <span className='inline-flex items-center gap-1'>
-          {glyph && <span className='mr-1 inline-flex size-4 shrink-0 items-center'>{glyph}</span>}
+          {glyph && (
+            <span className='inline-flex size-4 shrink-0 items-center justify-center'>{glyph}</span>
+          )}
           <span className={cn(active && 'shimmer')}>{verb}</span>
           {count !== undefined && <RollingNumber value={count} className='font-mono' />}
           <span>
