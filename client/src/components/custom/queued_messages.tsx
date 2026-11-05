@@ -252,10 +252,11 @@ export function ComposerQueue({
   const settingUp = worktree?.state === 'pending' || worktree?.state === 'setting_up'
   const retrySetup = worktree?.state === 'failed' || worktree?.state === 'stopped'
   const resume = queue.unsent.find((entry) => !isQueuedEditing(entry, queue.editing))
+  const resumeInHeader = !queue.held && queue.paused && queue.unsent.length > 0
   return (
     <MediaLightboxProvider>
       <div className='flex flex-col divide-y divide-border first:rounded-t-md'>
-        {!queue.held && queue.paused && queue.unsent.length > 0 && (
+        {resumeInHeader && (
           <div
             data-strip='queue'
             className={cn(
@@ -297,7 +298,11 @@ export function ComposerQueue({
                   if (resume) actions.sendNow(threadId, resume)
                 }}
               >
-                {retrySetup ? 'Retry setup & resume' : 'Resume'}
+                {retrySetup
+                  ? 'Retry setup & resume'
+                  : queue.unsent.length > 1
+                    ? 'Resume with next'
+                    : 'Resume with message'}
               </Button>
             )}
           </div>
@@ -312,6 +317,13 @@ export function ComposerQueue({
                 editing={isQueuedEditing(entry, queue.editing)}
                 running={running}
                 setupBlocked={settingUp || retrySetup}
+                hideSend={
+                  resumeInHeader &&
+                  queue.unsent.length === 1 &&
+                  resume?.id === entry.id &&
+                  !settingUp &&
+                  !retrySetup
+                }
               />
             ))}
             {queue.removed && (
@@ -332,8 +344,10 @@ function QueuedRow({
   editing,
   running,
   setupBlocked,
+  hideSend,
 }: {
   setupBlocked: boolean
+  hideSend: boolean
   threadId: string
   entry: QueuedMessage
   editing: boolean
@@ -376,30 +390,32 @@ function QueuedRow({
           >
             <Pencil2Icon />
           </IconAction>
-          <DisabledTooltip
-            reason={
-              setupBlocked
-                ? 'Queued until worktree setup completes. Retry setup to continue.'
-                : undefined
-            }
-            wrap='flex'
-          >
-            <Button
-              variant='ghost-text'
-              size='sm'
-              aria-label={
+          {!hideSend && (
+            <DisabledTooltip
+              reason={
                 setupBlocked
-                  ? 'Queued until setup completes'
-                  : running
-                    ? 'Steer with queued message'
-                    : 'Send queued message now'
+                  ? 'Queued until worktree setup completes. Retry setup to continue.'
+                  : undefined
               }
-              disabled={editing || setupBlocked}
-              onClick={() => act(() => actions.sendNow(threadId, entry))}
+              wrap='flex'
             >
-              {setupBlocked ? 'After setup' : running ? 'Steer now' : 'Resume with this'}
-            </Button>
-          </DisabledTooltip>
+              <Button
+                variant='ghost-text'
+                size='sm'
+                aria-label={
+                  setupBlocked
+                    ? 'Queued until setup completes'
+                    : running
+                      ? 'Steer with queued message'
+                      : 'Send queued message now'
+                }
+                disabled={editing || setupBlocked}
+                onClick={() => act(() => actions.sendNow(threadId, entry))}
+              >
+                {setupBlocked ? 'After setup' : running ? 'Steer now' : 'Run this next'}
+              </Button>
+            </DisabledTooltip>
+          )}
           <IconAction
             label='Remove from the queue'
             disabled={editing}
