@@ -209,6 +209,7 @@ export function Composer({
               ambient ? ({ '--composer-radius': 'var(--radius-md)' } as CSSProperties) : undefined
             }
           >
+            {menu.open && <SlashMenu slash={menu} />}
             {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
             <InputGroup
               className={cn(
@@ -262,7 +263,6 @@ export function Composer({
                   style={{ minHeight: `calc(${rows}lh + 1rem)` }}
                   className='skill-chip-text relative scroll-fade-y max-h-60 min-h-0'
                 />
-                {menu.open && <SlashMenu slash={menu} />}
               </div>
               <InputGroupAddon align='block-end' className='items-end justify-between'>
                 <div className='flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 group-data-narrow/composer:gap-x-1'>
@@ -322,7 +322,7 @@ export function Composer({
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={submit}
                           disabled={!canSend}
-                          className={canSend ? undefined : 'pointer-events-none'}
+                          className={cn('disabled:opacity-100', !canSend && 'pointer-events-none')}
                         >
                           <ArrowUpIcon />
                         </InputGroupButton>

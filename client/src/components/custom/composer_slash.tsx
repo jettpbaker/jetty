@@ -23,6 +23,7 @@ import {
   useAccessMode,
   useBumpDraft,
   useLoadouts,
+  useProject,
   useThreadContext,
   useThreadLoadout,
 } from '@/state'
@@ -149,6 +150,7 @@ export function useComposerSlash(
   const compactThread = useCompactThread()
   const chatId = threadId ?? botId
   const thread = useChatThread(chatId)
+  const project = useProject(projectId)
   const context = useThreadContext(chatId)
   const bumpDraft = useBumpDraft()
   const navigate = useNavigate()
@@ -609,6 +611,7 @@ export function useComposerSlash(
   }
 
   return {
+    scopeTitle: thread?.title ?? project?.title ?? 'New thread',
     shown,
     tokens,
     query,
@@ -716,7 +719,12 @@ export function SlashMenu({ slash }: { slash: Slash }) {
   }, [slash.index, slash.entries.length])
 
   return (
-    <div className='absolute bottom-full left-0 z-50 mb-2 w-full max-w-112 overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border'>
+    <div className='absolute bottom-full left-0 z-50 mb-2 w-full overflow-hidden rounded-sm bg-popover text-popover-foreground shadow-md ring-1 ring-border'>
+      <div className='flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground'>
+        <span className='shrink-0'>{mentioning ? 'Mention a bot' : 'Commands for'}</span>
+        {!mentioning && <span className='truncate text-foreground'>{slash.scopeTitle}</span>}
+      </div>
+      <Separator />
       <div
         id='slash-menu'
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- preserve the sketchpad's div-based list markup
@@ -734,10 +742,7 @@ export function SlashMenu({ slash }: { slash: Slash }) {
         {slash.entries.map((entry, index) => (
           <div key={entry.id} role='presentation'>
             {entry.disabled && !slash.entries[index - 1]?.disabled && (
-              <>
-                <Separator className='my-1' />
-                <p className='px-2 py-1 text-xs text-muted-foreground'>Unavailable</p>
-              </>
+              <Separator className='my-2' />
             )}
             <Row slash={slash} entry={entry} index={index} />
           </div>
@@ -780,15 +785,10 @@ function Row({ slash, entry, index }: { slash: Slash; entry: Entry; index: numbe
     )
 
   return (
-    <div {...props} className={cn(row, entry.disabled ? 'min-h-11 py-1.5' : 'h-8')}>
+    <div {...props} className={cn(row, 'h-8')}>
       {entry.icon}
-      <span className='flex min-w-0 flex-1 flex-col'>
-        <span>{entry.name}</span>
-        {entry.disabled && (
-          <span className='text-xs text-muted-foreground'>{entry.description}</span>
-        )}
-      </span>
-      {!entry.disabled && entry.description && (
+      <span className='min-w-0 flex-1 truncate'>{entry.name}</span>
+      {entry.description && (
         <span className='truncate text-muted-foreground'>{entry.description}</span>
       )}
       <span className='flex w-12 shrink-0 items-center justify-end'>
