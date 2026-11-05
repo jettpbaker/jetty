@@ -90,7 +90,7 @@ function storedView(): SidebarView {
       saved.grouping === 'bot' ||
       saved.grouping === 'date'
         ? saved.grouping
-        : 'project',
+        : 'date',
     showPinned: saved.showPinned !== false,
     showArchived: saved.showArchived === true,
   }
