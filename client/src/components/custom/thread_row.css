@@ -3,10 +3,13 @@
   border-radius: var(--radius-sm);
   scroll-margin-block: 12px;
   --thread-row-action-size: 24px;
-  --thread-row-surface: var(--sidebar-accent);
+  --thread-row-surface: color-mix(in oklch, var(--sidebar-accent), var(--sidebar) 30%);
 }
 .thread-row[data-selected] {
-  --thread-row-surface: color-mix(in oklch, var(--sidebar-accent), var(--foreground) 5%);
+  --thread-row-surface: var(--sidebar-accent);
+}
+.thread-row[data-selected] [data-thread-title] {
+  font-weight: 500;
 }
 .thread-row > button {
   background-color: transparent;
