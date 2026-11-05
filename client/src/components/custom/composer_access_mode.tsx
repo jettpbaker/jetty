@@ -87,7 +87,7 @@ export function ComposerAccessMode({
           }}
         >
           {Object.entries(accessModes).map(([id, mode]) => (
-            <DropdownMenuRadioItem key={id} value={id}>
+            <DropdownMenuRadioItem key={id} value={id} className='h-auto! py-2'>
               <mode.Icon />
               <span className='flex min-w-0 flex-col gap-0.5'>
                 <span>{mode.label}</span>
