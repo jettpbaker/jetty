@@ -4,6 +4,12 @@ import { ContentEmpty } from '@/components/custom/content_empty'
 import { Loading } from '@/components/custom/loading'
 import { Button } from '@/components/ui/button'
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNow } from '@/hooks/use-now'
@@ -20,12 +26,14 @@ import {
   useRefreshPullRequestList,
 } from '@/state'
 import { Link } from '@tanstack/react-router'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   ArrowRotateClockwiseIcon,
   CircleCheckIcon,
   CircleXIcon,
+  CrossSmallIcon,
+  MagnifyingGlass2Icon,
   Progress50Icon,
   PullRequestIcon,
 } from './central_icons'
@@ -87,7 +95,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   const hover = useRef<ReturnType<typeof setTimeout> | null>(null)
   const now = useNow(60_000)
   const pulls = list?.items ?? []
+  const [query, setQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const search = query.trim().toLowerCase()
   const failure = list && list.status !== 'ready' && list.status !== 'loading'
+  function clearSearch() {
+    setQuery('')
+    searchRef.current?.focus()
+  }
   function onSelect(pull: PullRequestListItem) {
     perf.start('pr.open', { pr: pull.number })
   }
@@ -128,7 +143,12 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     repoName(a).localeCompare(repoName(b))
   )
   const rows = pulls
-    .filter((pull) => included.includes(pull.state) && !hiddenRepos.includes(pull.repo))
+    .filter(
+      (pull) =>
+        included.includes(pull.state) &&
+        !hiddenRepos.includes(pull.repo) &&
+        `${pull.title} ${pull.repo} #${pull.number}`.toLowerCase().includes(search)
+    )
     .toSorted((a, b) => b.updatedAt - a.updatedAt)
   const groups: TableGroup<PullRequestListItem>[] =
     groupBy === 'repo'
@@ -155,7 +175,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
             }))
             .filter((group) => group.rows.length)
   const singleRepo = new Set(rows.map((pull) => pull.repo)).size === 1
-  const shortIdentifier = groupBy === 'repo'
+  const shortIdentifier = singleRepo || groupBy === 'repo'
   const columns: GroupedColumn<PullRequestListItem>[] = [
     {
       id: 'state',
@@ -184,7 +204,6 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       label: 'Title',
       priority: 100,
       width: 280,
-      maxWidth: 400,
       title: true,
       render: (pull, { collapsed }) => (
         <GroupedTableTitle
@@ -219,15 +238,12 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           className='flex w-full items-center justify-end gap-1.5 font-mono text-xs tabular-nums'
           title={`+${pull.additions ?? '—'} −${pull.deletions ?? '—'}`}
         >
-          {!!pull.additions && <span className='text-pr-open'>+{formatLines(pull.additions)}</span>}
-          {!!pull.deletions && (
-            <span className='text-destructive'>−{formatLines(pull.deletions)}</span>
-          )}
-          {!pull.additions && !pull.deletions && (
-            <span className='text-muted-foreground'>
-              {pull.additions === undefined || pull.deletions === undefined ? '—' : '0'}
-            </span>
-          )}
+          <span className={pull.additions ? 'text-pr-open' : 'text-muted-foreground'}>
+            +{formatLines(pull.additions)}
+          </span>
+          <span className={pull.deletions ? 'text-destructive' : 'text-muted-foreground'}>
+            −{formatLines(pull.deletions)}
+          </span>
         </span>
       ),
     },
@@ -369,6 +385,38 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
           />
         </div>
       </header>
+      <div className='flex shrink-0 items-center px-4 pt-3'>
+        <InputGroup className='h-8 w-64 max-w-full'>
+          <InputGroupAddon>
+            <MagnifyingGlass2Icon aria-hidden='true' />
+          </InputGroupAddon>
+          <InputGroupInput
+            ref={searchRef}
+            aria-label='Search pull requests'
+            placeholder='Search title, repository or #number'
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                clearSearch()
+              }
+            }}
+            className='text-xs'
+          />
+          {query && (
+            <InputGroupAddon align='inline-end'>
+              <InputGroupButton
+                size='icon-xs'
+                aria-label='Clear pull request search'
+                onClick={clearSearch}
+              >
+                <CrossSmallIcon />
+              </InputGroupButton>
+            </InputGroupAddon>
+          )}
+        </InputGroup>
+      </div>
       {list?.items ? (
         <>
           <GroupedTable
@@ -403,14 +451,18 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                 icon={PullRequestIcon}
                 title={
                   pulls.length
-                    ? 'No pull requests match these filters'
+                    ? search
+                      ? 'No pull requests found'
+                      : 'No pull requests match these filters'
                     : tab === 'created'
                       ? 'No pull requests created by you'
                       : 'No pull requests'
                 }
                 description={
                   pulls.length
-                    ? 'Try including more states or repositories.'
+                    ? search
+                      ? 'Try another title, repository or number.'
+                      : 'Try including more states or repositories.'
                     : tab === 'created'
                       ? 'Pull requests you open will show here.'
                       : 'Pull requests for this view will show here.'
@@ -421,11 +473,14 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
                     variant='outline'
                     size='sm'
                     onClick={() => {
-                      setIncluded([...pullRequestGroupOrder])
-                      setHiddenRepos([])
+                      if (search) clearSearch()
+                      else {
+                        setIncluded([...pullRequestGroupOrder])
+                        setHiddenRepos([])
+                      }
                     }}
                   >
-                    Clear filters
+                    {search ? 'Clear search' : 'Clear filters'}
                   </Button>
                 ) : tab === 'created' ? (
                   <Button variant='outline' size='sm' onClick={() => onTabChange('for-you')}>
