@@ -47,7 +47,7 @@ import {
   pullRequestReadinessOrder,
   type PullRequestGroup,
 } from './pull_request_list_model'
-import { linkPresentation } from './thread_pull_request'
+import { linkPresentation, prPresentation } from './thread_pull_request'
 
 type PullRequestListProps = {
   tab: PullRequestListTab
@@ -204,22 +204,11 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       label: 'Review',
       priority: 50,
       width: 136,
-      render: (pull) => (
-        <span
-          className={cn(
-            'truncate text-xs',
-            pull.reviewDecision === 'CHANGES_REQUESTED'
-              ? 'text-destructive'
-              : 'text-muted-foreground'
-          )}
-          title={reviewLabel(pull.reviewDecision)}
-        >
-          {pull.reviewDecision ? reviewLabel(pull.reviewDecision) : '—'}
-        </span>
-      ),
+      render: (pull) => <PullRequestReview review={pull.reviewDecision} />,
     },
     {
       id: 'diff',
+      label: 'Changes',
       priority: 20,
       width: 88,
       render: (pull) => (
@@ -241,9 +230,10 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'author',
+      label: 'By',
       visible: tab !== 'created',
       priority: 100,
-      width: 30,
+      width: 36,
       essential: true,
       render: (pull) => (
         <span title={`Created by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`}>
@@ -258,6 +248,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
     },
     {
       id: 'age',
+      label: 'Age',
       priority: 40,
       width: 40,
       render: (pull) => (
@@ -459,25 +450,13 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
   )
 }
 
-// The list draws draft muted and closed destructive; an open PR takes its readiness colour.
-const listColor = {
-  draft: 'text-muted-foreground',
-  merged: 'text-pr-merged',
-  closed: 'text-destructive',
-}
-
 function PullRequestStateGlyph({ pull }: { pull: PullRequestListItem }) {
-  const look = linkPresentation(pull)
-  const { label } = look
-  const Icon = look.icon
-  const color = look.color
+  const { icon: Icon, color, label: state } = prPresentation[pull.state]
+  const readiness = linkPresentation(pull).label
+  const label = readiness === state ? state : `${state} · ${readiness}`
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className={cn('flex', pull.state === 'open' ? color : listColor[pull.state])} />
-        }
-      >
+      <TooltipTrigger render={<span className={cn('flex', color)} />}>
         <Icon aria-hidden='true' className='size-3.5' />
         <span className='sr-only'>{label}</span>
       </TooltipTrigger>
@@ -491,6 +470,23 @@ function reviewLabel(review: PullRequestListItem['reviewDecision']) {
   if (review === 'CHANGES_REQUESTED') return 'Changes requested'
   if (review === 'REVIEW_REQUIRED') return 'Review needed'
   return 'No review reported'
+}
+
+function PullRequestReview({ review }: { review: PullRequestListItem['reviewDecision'] }) {
+  return (
+    <span
+      className={cn(
+        'flex min-w-0 items-center gap-1.5 text-xs',
+        review === 'CHANGES_REQUESTED' ? 'text-destructive' : 'text-muted-foreground'
+      )}
+      title={reviewLabel(review)}
+    >
+      {review === 'APPROVED' && (
+        <CircleCheckIcon filled className='size-3.5 shrink-0 text-pr-open' />
+      )}
+      <span className='truncate'>{review ? reviewLabel(review) : '—'}</span>
+    </span>
+  )
 }
 
 function checksLabel(checks: PullRequestListItem['checks']) {
