@@ -780,40 +780,25 @@ export function ThreadComposer({
         attachments={attachments}
         header={
           !threadId && (
-            <div className='relative z-10 flex flex-col gap-1 pb-2' aria-label='Thread destination'>
-              <div className='flex flex-wrap items-center gap-1'>
-                <ComposerProject
-                  projectId={projectId}
-                  onProjectChange={(id) => {
-                    draftPin = undefined
-                    if (id !== projectId)
-                      retarget({ projectId: id, environment: undefined, ref: undefined })
-                  }}
-                />
-                <ComposerFooter
-                  projectId={projectId}
-                  environment={environment}
-                  onEnvironmentChange={(next) => retarget({ environment: next })}
-                  startingRef={startingRef}
-                  onStartingRefChange={(ref) => retarget({ ref })}
-                />
-              </div>
-              {setupGuide && (
-                <div className='flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1'>
-                  <Button
-                    variant='ghost-text'
-                    size='sm'
-                    className='-ml-2'
-                    onClick={() => setUpWorktrees(setupGuide)}
-                  >
-                    <WorktreeIcon />
-                    Set up worktrees
-                  </Button>
-                  <span className='text-xs text-muted-foreground'>
-                    Optional: add setup and cleanup commands for new worktrees.
-                  </span>
-                </div>
-              )}
+            <div
+              className='flex w-full flex-wrap items-center gap-1'
+              aria-label='Thread destination'
+            >
+              <ComposerProject
+                projectId={projectId}
+                onProjectChange={(id) => {
+                  draftPin = undefined
+                  if (id !== projectId)
+                    retarget({ projectId: id, environment: undefined, ref: undefined })
+                }}
+              />
+              <ComposerFooter
+                projectId={projectId}
+                environment={environment}
+                onEnvironmentChange={(next) => retarget({ environment: next })}
+                startingRef={startingRef}
+                onStartingRefChange={(ref) => retarget({ ref })}
+              />
             </div>
           )
         }
@@ -850,6 +835,22 @@ export function ThreadComposer({
         }}
         slash={{ threadId, projectId: projectId ?? meta?.projectId, onUsage: showUsage }}
       />
+      {!threadId && setupGuide && (
+        <div className='flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-2'>
+          <Button
+            variant='ghost-text'
+            size='sm'
+            className='-ml-2'
+            onClick={() => setUpWorktrees(setupGuide)}
+          >
+            <WorktreeIcon />
+            Set up worktrees
+          </Button>
+          <span className='text-xs text-muted-foreground'>
+            Optional: add setup and cleanup commands for new worktrees.
+          </span>
+        </div>
+      )}
     </div>
   )
 }

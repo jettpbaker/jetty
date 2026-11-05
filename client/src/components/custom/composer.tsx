@@ -187,7 +187,6 @@ export function Composer({
         data-perf-region='composer'
         className='group/composer mx-auto flex w-full max-w-[825px] flex-col gap-1 [&_button:focus-visible]:ring-ring'
       >
-        {header}
         <div
           className={cn(
             'flex flex-col',
@@ -219,6 +218,14 @@ export function Composer({
                 ambient && (wallpaperUnder ? 'shadow-none' : 'composer-lift')
               )}
             >
+              {header && (
+                <InputGroupAddon
+                  align='block-start'
+                  className='rounded-t-md border-b border-border bg-muted/40 p-1'
+                >
+                  {header}
+                </InputGroupAddon>
+              )}
               {inputNotice && (
                 <p className='w-full px-2.5 pt-2 text-xs text-muted-foreground'>{inputNotice}</p>
               )}
