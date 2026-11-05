@@ -3,7 +3,6 @@ import type { Todo } from '@jetty/shared/todos'
 
 import {
   ChevronDownSmallIcon,
-  CrossSmallIcon,
   ChevronLeftSmallIcon,
   ChevronRightSmallIcon,
   ChevronTopSmallIcon,
@@ -348,7 +347,7 @@ function ApprovalActions({
       </StripButton>
       <div className='flex'>
         <StripButton
-          variant='outline'
+          variant='default'
           className='rounded-r-none'
           onClick={() => ctl.decide('once')}
         >
@@ -358,9 +357,9 @@ function ApprovalActions({
           <DropdownMenuTrigger
             render={
               <Button
-                variant='outline'
+                variant='default'
                 size='icon-sm'
-                className='rounded-sm rounded-l-none border-l-0'
+                className='rounded-sm rounded-l-none border-l border-primary-foreground/20'
                 aria-label='More approval options'
               />
             }
@@ -719,16 +718,13 @@ export function QuestionStrip({
             />
           )}
           <Button variant='ghost-text' size='xs' onClick={ctl.skip}>
-            Skip
+            Skip question
           </Button>
-          <Button
-            variant='ghost'
-            size='icon-xs'
-            aria-label='Dismiss question'
-            onClick={ctl.dismiss}
-          >
-            <CrossSmallIcon />
-          </Button>
+          {ctl.total > 1 && (
+            <Button variant='ghost-text' size='xs' onClick={ctl.dismiss}>
+              Skip all questions
+            </Button>
+          )}
         </div>
       </div>
       {spec.options.length > 0 && (

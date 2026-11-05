@@ -10,6 +10,7 @@ import { Markdown } from './markdown'
 import { QuestionBlock } from './question_block'
 import { RollingDuration } from './rolling_duration'
 import { ThinkingBlock } from './thinking_block'
+import { StatusGlyph } from './thread_status'
 import { TodoLink } from './todo_link'
 import { SubagentGroup, ThreadGroup, ToolGroup } from './tool_group'
 import { TranscriptMarker } from './transcript_marker'
@@ -380,7 +381,18 @@ export function WorkBlock({
     <ActivityDisclosure
       flushHeader
       animateHeader={arrived && !ended}
-      title={<span className={cn(status === 'running' && 'shimmer')}>{heading}</span>}
+      title={
+        <span
+          className={cn(
+            'inline-flex items-center gap-2',
+            status === 'running' && 'shimmer',
+            status === 'waiting' && 'text-foreground'
+          )}
+        >
+          {status === 'waiting' && <StatusGlyph status='needs-attention' />}
+          {heading}
+        </span>
+      }
       titleSuffix={timing}
       ended={ended}
       hasContent={entries.length > 0}

@@ -51,6 +51,7 @@ import { useBotIds } from '@/state/bots'
 import { useStreamingRows } from '@/state/streaming_rows'
 import { useHistory } from '@/state/threads'
 import { pendingTurnId } from '@/state/turns'
+import { awaitsInput } from '@jetty/shared/items'
 import {
   measureElement,
   useVirtualizer,
@@ -607,6 +608,8 @@ export function ThreadList({
   // Rows also grow after render (highlighting, images, measurement), so re-pin on height too.
   // Asked before anything reads `measurementsCache`, which holds the last rows' places until then.
   const totalSize = virtualizer.getTotalSize()
+  const awaiting = !agentId && status === 'awaiting_approval' && items.some(awaitsInput)
+  const dockInset = awaiting ? Math.max(0, viewportHeight - totalSize) : 0
   const exactAnchor = readingAnchor ? rows.findIndex((row) => row.id === readingAnchor.key) : -1
   const anchorItem =
     readingAnchor && exactAnchor === -1
@@ -662,8 +665,11 @@ export function ThreadList({
       ? undefined
       : Math.max(answerStart, sentStart - viewportHeight / 2)
   // The reply consumes this space before its growth needs to move the conversation.
-  const scrollSize =
-    pinStart === undefined ? totalSize : Math.max(totalSize, pinStart - sentInset + viewportHeight)
+  const scrollSize = awaiting
+    ? totalSize + dockInset
+    : pinStart === undefined
+      ? totalSize
+      : Math.max(totalSize, pinStart - sentInset + viewportHeight)
   // Keep room for the spring to brake when finishing work shrinks the transcript.
   const [scrollSpace, setScrollSpace] = useState(scrollSize)
   if (scrollSize > scrollSpace) setScrollSpace(scrollSize)
@@ -1138,12 +1144,15 @@ export function ThreadList({
             checkMessages(element)
           }}
         >
-          <div className='relative w-full' style={{ height: Math.max(scrollSize, scrollSpace) }}>
+          <div
+            className='relative w-full'
+            style={{ height: awaiting ? scrollSize : Math.max(scrollSize, scrollSpace) }}
+          >
             {virtualRows.map((virtualRow) => (
               <VirtualRow
                 key={virtualRow.key}
                 index={virtualRow.index}
-                start={virtualRow.start}
+                start={virtualRow.start + dockInset}
                 row={rows[virtualRow.index]!}
                 streamingRows={streamingRows}
                 virtualizer={virtualizer}
