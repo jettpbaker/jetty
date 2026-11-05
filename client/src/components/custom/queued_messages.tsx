@@ -27,6 +27,7 @@ import {
   useVisibleQueue,
 } from '@/state'
 import { isQueuedEditing } from '@/state/queue_editing'
+import { useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 
@@ -248,10 +249,12 @@ export function ComposerQueue({
 }) {
   const actions = useQueueActions()
   const interruptTurn = useInterruptTurn()
+  const retry = useRetrySetup()
   const settingUp = worktree?.state === 'pending' || worktree?.state === 'setting_up'
   const retrySetup = worktree?.state === 'failed' || worktree?.state === 'stopped'
   const resume = queue.unsent.find((entry) => !isQueuedEditing(entry, queue.editing))
-  const resumeInHeader = !queue.held && queue.paused && queue.unsent.length > 0
+  const resumeInHeader =
+    settingUp || retrySetup || (!queue.held && queue.paused && queue.unsent.length > 0)
   return (
     <MediaLightboxProvider>
       <div className='flex flex-col divide-y divide-border first:rounded-t-md'>
@@ -259,7 +262,13 @@ export function ComposerQueue({
           (worktree && (settingUp || retrySetup) ? (
             <WorktreeSetupNotice
               worktree={worktree}
-              detail={`${queue.unsent.length} queued ${queue.unsent.length === 1 ? 'message' : 'messages'}${settingUp ? ' · waiting for setup to finish' : ''}`}
+              detail={
+                queue.unsent.length
+                  ? `${queue.unsent.length} queued ${queue.unsent.length === 1 ? 'message' : 'messages'}${settingUp ? ' · waiting for setup to finish' : ''}`
+                  : settingUp
+                    ? 'Messages you send now wait for setup.'
+                    : undefined
+              }
             >
               {settingUp ? (
                 <Button variant='ghost-text' size='sm' onClick={() => interruptTurn(threadId)}>
@@ -268,10 +277,9 @@ export function ComposerQueue({
               ) : (
                 <Button
                   size='sm'
-                  disabled={!resume}
-                  onClick={() => resume && actions.sendNow(threadId, resume)}
+                  onClick={() => (resume ? actions.sendNow(threadId, resume) : retry(threadId))}
                 >
-                  Retry setup & resume
+                  {resume ? 'Retry setup & resume' : 'Retry setup'}
                 </Button>
               )}
             </WorktreeSetupNotice>
