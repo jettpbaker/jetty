@@ -42,6 +42,7 @@ export function UserMessageFooter({
     )
   return (
     <div className={cn(footer, 'self-end')}>
+      {text && <CopyButton text={text} label='Copy message' className={copy} />}
       {steered && (
         <>
           <span>Steered</span>
@@ -49,7 +50,6 @@ export function UserMessageFooter({
         </>
       )}
       <SentAt createdAt={createdAt} />
-      {text && <CopyButton text={text} label='Copy message' className={copy} />}
     </div>
   )
 }
@@ -67,9 +67,9 @@ export function AgentMessageFooter({
 }) {
   return (
     <div className={cn(footer, 'self-start')}>
-      <CopyButton text={text} label='Copy message' className={copy} />
       {loadout && <TurnModel loadout={loadout} provider={provider} />}
       <SentAt createdAt={createdAt} />
+      <CopyButton text={text} label='Copy message' className={copy} />
     </div>
   )
 }
