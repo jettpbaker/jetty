@@ -417,7 +417,7 @@ const VirtualRow = memo(function VirtualRow({
           )
       }}
       ref={virtualizer.measureElement}
-      className={cn('absolute top-0 left-0 w-full', afterWork && 'pt-2')}
+      className={cn('absolute top-0 left-0 w-full', afterWork && 'pt-3')}
       style={{ transform: `translateY(${start}px)` }}
     >
       <div
@@ -590,7 +590,7 @@ export function ThreadList({
       getItemKey: (index: number) => estimatedRows[index]!.id,
       estimateSize: (index: number) =>
         estimateRow(estimatedRows[index]!, width, rough.has(estimatedRows[index]!.id)) +
-        (afterWork(estimatedRows, index) ? 8 : 0),
+        (afterWork(estimatedRows, index) ? 12 : 0),
     }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- fontsReady changes text layout
     [estimatedRows, width, fontsReady, rough]
