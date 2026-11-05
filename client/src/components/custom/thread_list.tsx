@@ -284,8 +284,8 @@ const ThreadItemRow = memo(function ThreadItemRow({
       // Mid-run messages have no footer; with the list's 12px row gap, pb-1 makes a paragraph's gap.
       <Message align='start' className={cn(row.footer === undefined && 'pb-1')}>
         <MessageContent>
-          <Bubble variant='ghost' align='start'>
-            <BubbleContent data-quote={row.item.id}>
+          <Bubble variant='ghost' align='start' className='w-full'>
+            <BubbleContent className='w-full' data-quote={row.item.id}>
               {row.kind === 'plan' && <p className='mb-1 text-xs text-muted-foreground'>Plan</p>}
               <Markdown
                 className='thread-reply text-[14px] leading-[22px]'
