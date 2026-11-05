@@ -5,6 +5,7 @@ import { resendOnDrop } from '@/net/connection'
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { summaryItems } from '@jetty/shared/history'
+import { heldByRestarts } from '@jetty/shared/items'
 import { emptyThread } from '@jetty/shared/reducer'
 import { foldTodos, todoTools } from '@jetty/shared/todos'
 import { backgroundStatus } from '@jetty/shared/wire'
@@ -161,6 +162,14 @@ export const threadAtom = Atom.family((threadId: string) =>
       thread?.waitingForChildren || thread?.awaitingParent
     )
     return status === state.status ? state : { ...state, status }
+  })
+)
+
+// Navigation reads the cached guard state without subscribing to live history.
+export const cachedRestartHeldAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) => {
+    const state = get(resumeAtom(threadId))
+    return Boolean(state && !state.activeTurnId && heldByRestarts(state.items))
   })
 )
 

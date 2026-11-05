@@ -6,14 +6,24 @@ import { Atom } from 'effect/reactivity'
 
 import { botsAtom } from './bots'
 import { chromeAtom, projectAtom, threadMetaAtom } from './chrome'
+import { cachedRestartHeldAtom } from './threads'
 
-export type SidebarRow = { thread: ThreadMeta; project?: Project }
+export type SidebarRow = { thread: ThreadMeta; project?: Project; restartHeld?: boolean }
 
 // A row's inputs, by value: a push for one thread re-renders only its row.
 const rowAtom = Atom.family((threadId: string) =>
   Atom.readable((get): SidebarRow | undefined => {
     const thread = get(threadMetaAtom(threadId))
-    return thread && { thread, project: get(projectAtom(thread.projectId)) }
+    return (
+      thread && {
+        thread,
+        project: get(projectAtom(thread.projectId)),
+        restartHeld:
+          thread.status === 'error' &&
+          thread.worktree?.state !== 'failed' &&
+          get(cachedRestartHeldAtom(threadId)),
+      }
+    )
   }).pipe(Atom.withEquality(Equal.equals))
 )
 
@@ -39,18 +49,24 @@ const listAtom = Atom.readable((get) => {
       bots: get(botsAtom)
         .filter((bot) => !bot.archived)
         .map((bot) => ({ id: bot.id, name: bot.name })),
-      threads: chrome.threads.map((thread) => ({
-        id: thread.id,
-        title: thread.title,
-        projectId: thread.projectId,
-        status: thread.status,
-        readyForReview: thread.readyForReview,
-        listedDay: new Date(listedAt(thread)).setHours(0, 0, 0, 0),
-        listedAt: listedAt(thread),
-        pinned: thread.pinned,
-        archived: thread.archived,
-        botId: thread.botId,
-      })),
+      threads: chrome.threads.map((thread) => {
+        const restartHeld =
+          thread.status === 'error' &&
+          thread.worktree?.state !== 'failed' &&
+          get(cachedRestartHeldAtom(thread.id))
+        return {
+          id: thread.id,
+          title: thread.title,
+          projectId: thread.projectId,
+          status: restartHeld ? ('idle' as const) : thread.status,
+          readyForReview: !restartHeld && thread.readyForReview,
+          listedDay: new Date(listedAt(thread)).setHours(0, 0, 0, 0),
+          listedAt: listedAt(thread),
+          pinned: thread.pinned,
+          archived: thread.archived,
+          botId: thread.botId,
+        }
+      }),
     }
   )
 }).pipe(Atom.withEquality(Equal.equals))

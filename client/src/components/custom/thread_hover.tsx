@@ -14,10 +14,9 @@ import {
   useOpenPullRequest,
   useSubagentOutcome,
   useThreadJourney,
-  useThreadMeta,
   useBot,
 } from '@/state'
-import { listedAt } from '@/state/sidebar'
+import { listedAt, useSidebarRow } from '@/state/sidebar'
 import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { catalogModelName } from '@jetty/shared/model-name'
@@ -277,8 +276,7 @@ function useCheckout(projectId?: string): Checkout | undefined {
     : { label: 'Detached HEAD', branch: false }
 }
 
-// Everything the card shows comes from chrome, which the sidebar already holds: opening a card
-// never waits on the network, and it follows the thread live while it's open.
+// The card reads chrome and cached state without subscribing to thread history.
 export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const models = useModels()
   const now = useNow(60_000)
@@ -287,9 +285,11 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const startThreadJourney = useThreadJourney()
   const openPullRequest = useOpenPullRequest()
   const openOverview = useOpenOverview()
-  const thread = useThreadMeta(threadId)
+  const row = useSidebarRow(threadId)
+  const thread = row?.thread
   const project = useProject(thread?.projectId)
-  const parent = useThreadMeta(thread?.parentThreadId)
+  const parentRow = useSidebarRow(thread?.parentThreadId ?? '')
+  const parent = parentRow?.thread
   const parentBot = useBot(thread?.parentThreadId)
   const owner = useBot(thread?.botId)
   const checkout = useCheckout(thread?.environment === 'local' ? thread.projectId : undefined)
@@ -300,9 +300,9 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
     <ThreadHoverPanel
       title={thread.title}
       project={project}
-      detail={threadNavigationDetail(thread)}
+      detail={threadNavigationDetail(thread, row?.restartHeld)}
       lastActivity={formatAge(listedAt(thread), now)}
-      status={threadStatus(thread.status, thread.readyForReview)}
+      status={row?.restartHeld ? 'idle' : threadStatus(thread.status, thread.readyForReview)}
       model={
         thread.provider && thread.model
           ? catalogModelName(models, thread.provider, thread.model)
@@ -315,7 +315,9 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
           ? {
               id: parent.id,
               title: parent.title,
-              status: threadStatus(parent.status, parent.readyForReview),
+              status: parentRow?.restartHeld
+                ? 'idle'
+                : threadStatus(parent.status, parent.readyForReview),
             }
           : undefined
       }

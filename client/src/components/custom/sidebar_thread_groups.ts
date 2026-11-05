@@ -24,14 +24,17 @@ export type SidebarThread = {
   pullRequest?: ThreadPullRequest
 }
 
-export function sidebarThread({ thread, project }: SidebarRow, now: number): SidebarThread {
+export function sidebarThread(
+  { thread, project, restartHeld }: SidebarRow,
+  now: number
+): SidebarThread {
   return {
     id: thread.id,
     title: thread.title,
     project: project?.title ?? '',
     projectIcon: project?.icon,
-    status: threadStatus(thread.status, thread.readyForReview),
-    detail: threadNavigationDetail(thread),
+    status: restartHeld ? 'idle' : threadStatus(thread.status, thread.readyForReview),
+    detail: threadNavigationDetail(thread, restartHeld),
     lastActivity:
       thread.status === 'monitoring' && thread.backgroundTasks?.length
         ? formatAge(Math.min(...thread.backgroundTasks.map((task) => task.startedAt)), now)
@@ -42,7 +45,8 @@ export function sidebarThread({ thread, project }: SidebarRow, now: number): Sid
   }
 }
 
-export function threadNavigationDetail(thread: ThreadMeta) {
+export function threadNavigationDetail(thread: ThreadMeta, restartHeld = false) {
+  if (restartHeld) return 'Paused after restarts'
   if (thread.worktree?.state === 'pending' || thread.worktree?.state === 'setting_up')
     return 'Setting up worktree'
   if (thread.worktree?.state === 'failed') return 'Worktree setup failed'
