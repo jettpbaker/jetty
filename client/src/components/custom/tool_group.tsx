@@ -12,7 +12,7 @@ import { jettyResultTools } from './jetty_tool_results'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
-import { ToolCall, toolCallDetails } from './tool_call'
+import { ToolCall, ToolStatusGlyph, toolCallDetails } from './tool_call'
 import {
   describeToolBatch,
   workEnded,
@@ -110,6 +110,13 @@ function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: st
         className='activity-header'
         aria-label={`${label.verb} ${label.target}${label.noticeText ? `, ${label.noticeText}` : ''}`}
       >
+        <ToolStatusGlyph
+          status={
+            batch.calls.find((call) => call.status === 'failed')?.status ??
+            batch.calls.find((call) => !workEnded(call.status))?.status ??
+            batch.calls.at(-1)!.status
+          }
+        />
         {heading}
         <ActivityChevron />
       </CollapsibleTrigger>

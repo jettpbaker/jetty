@@ -65,12 +65,11 @@ export function ActivityDisclosure({
             aria-controls={id}
             onClick={toggle}
           >
-            {flushHeader && <ActivityChevron />}
             {heading}
+            <ActivityChevron />
             {summary && (
               <span className='ml-auto pl-3 text-xs text-muted-foreground'>{summary}</span>
             )}
-            {!flushHeader && <ActivityChevron />}
           </Button>
         ) : (
           <div

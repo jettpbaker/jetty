@@ -10,7 +10,21 @@ import { ChevronRightSmallIcon } from './central_icons'
 import { DiffCounts } from './diff/file_card'
 import { basename, CharmedFileIcon } from './diff/file_name'
 import { copyFilePath, OpenFileLink, ProjectFileRoot, projectRelativePath } from './file_link'
-import { describeToolBatch, type ToolActivity } from './work_model'
+import { StatusGlyph, type Status } from './thread_status'
+import { describeToolBatch, type ActivityStatus, type ToolActivity } from './work_model'
+
+const toolStatuses: Record<ActivityStatus, Status> = {
+  running: 'working',
+  complete: 'done',
+  failed: 'error',
+  waiting: 'needs-attention',
+  cancelled: 'stopped',
+  interrupted: 'stopped',
+}
+
+export function ToolStatusGlyph({ status }: { status: ActivityStatus }) {
+  return <StatusGlyph status={toolStatuses[status]} className='size-4' />
+}
 
 function ToolOutput({ className, children }: { className?: string; children: ReactNode }) {
   return (
@@ -156,6 +170,7 @@ export function ToolCall({
   return (
     <Collapsible className={animate ? 'work-raise-enter' : undefined}>
       <CollapsibleTrigger render={<Button variant='ghost-text' />} className='activity-header'>
+        <ToolStatusGlyph status={call.status} />
         <span
           className={cn(
             'flex min-w-0 items-baseline gap-1',
@@ -174,9 +189,6 @@ export function ToolCall({
             </>
           )}
         </span>
-        {call.kind === 'terminal' && call.status === 'complete' && (
-          <span className='ml-auto shrink-0 text-xs text-status-success'>Completed</span>
-        )}
         <ActivityChevron />
       </CollapsibleTrigger>
       <CollapsibleContent>{toolCallDetails(call, threadId)}</CollapsibleContent>
