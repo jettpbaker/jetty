@@ -257,9 +257,9 @@ export function LivePullRequestView({
       }
     >
       <Button size='sm' disabled={refreshing} onClick={() => refresh(link)}>
-        Try again
+        Retry
       </Button>
-      <Button variant='outline' size='sm' nativeButton={false} render={externalLink(link.url)}>
+      <Button variant='ghost-text' size='sm' nativeButton={false} render={externalLink(link.url)}>
         Open on GitHub
       </Button>
       {threadId && <MoreMenu threadId={threadId} link={link} />}
