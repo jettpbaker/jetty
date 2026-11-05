@@ -728,6 +728,8 @@ function issueLabel(pr: PrPull, issue: PrIssue) {
 function Issues({ pr }: { pr: PrPull }) {
   const issues = pr.issues ?? []
   const first = issues[0]
+  if (!first && (pr.state === 'merged' || pr.state === 'closed'))
+    return <span className='inline-flex min-h-7 items-center px-0.75 text-xs'>None</span>
   if (!first)
     return (
       <div className='flex flex-wrap items-center gap-x-2 gap-y-1 px-0.75'>
@@ -790,6 +792,7 @@ const propertyRows = ['Reviewers', 'Issues']
 function Properties({ pr }: { pr: PrPull }) {
   const { ref, threads } = usePrRuntime()
   const setReviewRequest = useSetReviewRequest()
+  const terminal = pr.state === 'merged' || pr.state === 'closed'
   const picker = (
     <ReviewerPicker
       repo={ref.repo}
@@ -807,7 +810,25 @@ function Properties({ pr }: { pr: PrPull }) {
     />
   )
   const values: Record<string, ReactNode> = {
-    Reviewers: pr.reviewers.length ? (
+    Reviewers: terminal ? (
+      <div className='flex min-h-7 flex-col justify-center gap-2 px-0.75 text-xs'>
+        {pr.reviewers.length
+          ? pr.reviewers.map(({ user, state }) => (
+              <span key={user.login} className='flex items-center gap-2'>
+                <PersonAvatar
+                  login={user.login}
+                  src={user.avatarUrl || undefined}
+                  className='size-4'
+                />
+                <span>{personName(user)}</span>
+                {capyWords[state] && (
+                  <span className='text-muted-foreground'>{capyWords[state]}</span>
+                )}
+              </span>
+            ))
+          : 'None'}
+      </div>
+    ) : pr.reviewers.length ? (
       <ReviewerList people={pr.reviewers}>{picker}</ReviewerList>
     ) : (
       <div className='px-0.75'>
@@ -2132,6 +2153,20 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
     isBoolean
   )
   const view = useRef<HTMLDivElement>(null)
+  const overviewScrollerRef = useRef<HTMLDivElement>(null)
+  const mergeDecisionRef = useRef<HTMLDivElement>(null)
+  const [mergeDecisionVisible, setMergeDecisionVisible] = useState(true)
+  useEffect(() => {
+    const decision = mergeDecisionRef.current
+    const root = overviewScrollerRef.current
+    if (!decision || !root) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setMergeDecisionVisible(entry?.isIntersecting ?? false),
+      { root }
+    )
+    observer.observe(decision)
+    return () => observer.disconnect()
+  }, [])
   const [wrap, setWrapChoice] = useDiffWrap()
   const [hideViewed, setHideViewed] = useStoredState('jetty.diff.hideViewed', false, isBoolean)
   const viewed = useMemo(
@@ -2333,7 +2368,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                         />
                       )}
                       {status}
-                      {pr.state === 'draft' ? (
+                      {tab === 'overview' &&
+                      mergeDecisionVisible &&
+                      (pr.state === 'draft' || pr.state === 'open') ? null : pr.state ===
+                        'draft' ? (
                         <ReadyForReview pr={pr} onReady={() => setState('open')} compact />
                       ) : pr.state === 'open' ? (
                         <MergeButton reason={reason} action={mergeAction} compact />
@@ -2354,7 +2392,10 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                       tab !== 'overview' && 'hidden'
                     )}
                   >
-                    <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
+                    <div
+                      ref={overviewScrollerRef}
+                      className='scrollbar-subtle min-h-0 flex-1 overflow-auto'
+                    >
                       <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
                         <div className='mx-auto grid w-full max-w-[760px] flex-1 grid-cols-1 grid-rows-[auto_auto_auto_minmax(min-content,1fr)] items-start gap-x-10 gap-y-8 @min-[1000px]:max-w-[1120px] @min-[1000px]:grid-cols-[minmax(0,1fr)_320px] @min-[1000px]:grid-rows-[auto_auto_minmax(min-content,1fr)]'>
                           <div className='flex min-w-0 flex-col gap-2 @min-[1000px]:col-start-1'>
@@ -2407,23 +2448,25 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                             aria-label='Pull request properties'
                             className='flex min-w-0 flex-col gap-6 @min-[1000px]:sticky @min-[1000px]:top-7 @min-[1000px]:col-start-2 @min-[1000px]:row-start-1 @min-[1000px]:row-span-3'
                           >
-                            <MergeDecision
-                              pr={pr}
-                              reason={reason}
-                              action={
-                                pr.state === 'draft' ? (
-                                  <ReadyForReview pr={pr} onReady={() => setState('open')} />
-                                ) : pr.state === 'open' ? (
-                                  <MergeButton reason={reason} action={mergeAction} />
-                                ) : null
-                              }
-                              onShowDiff={() => setTab('diff')}
-                              onShowActivity={() =>
-                                document
-                                  .getElementById(activityId)
-                                  ?.scrollIntoView({ block: 'start' })
-                              }
-                            />
+                            <div ref={mergeDecisionRef}>
+                              <MergeDecision
+                                pr={pr}
+                                reason={reason}
+                                action={
+                                  pr.state === 'draft' ? (
+                                    <ReadyForReview pr={pr} onReady={() => setState('open')} />
+                                  ) : pr.state === 'open' ? (
+                                    <MergeButton reason={reason} action={mergeAction} />
+                                  ) : null
+                                }
+                                onShowDiff={() => setTab('diff')}
+                                onShowActivity={() =>
+                                  document
+                                    .getElementById(activityId)
+                                    ?.scrollIntoView({ block: 'start' })
+                                }
+                              />
+                            </div>
                             <Properties pr={pr} />
                           </aside>
                           <Section
