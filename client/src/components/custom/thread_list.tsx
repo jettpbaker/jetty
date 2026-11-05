@@ -1157,8 +1157,7 @@ export function ThreadList({
     <MediaLightboxProvider>
       <div
         data-perf-region='messages'
-        className='relative flex min-h-0 shrink flex-col [timeline-scope:--chat-top]'
-        style={{ height: totalSize + (remainingMessages > 0 ? 40 : 0) }}
+        className='relative flex min-h-0 flex-1 flex-col [timeline-scope:--chat-top]'
       >
         <section
           ref={scroller}

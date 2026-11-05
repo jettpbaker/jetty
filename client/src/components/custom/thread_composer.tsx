@@ -586,7 +586,8 @@ export function ThreadComposer({
     <div
       className={cn(
         'mx-auto w-full max-w-[873px] shrink-0 px-6 pb-3',
-        ambient && 'flex min-h-0 flex-1 flex-col justify-center pb-16'
+        threadId && 'mt-auto',
+        ambient && !threadId && 'flex min-h-0 flex-1 flex-col justify-center pb-16'
       )}
     >
       <output className='sr-only' aria-live='polite' aria-atomic='true'>
