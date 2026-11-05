@@ -85,6 +85,14 @@ function resetIn(window: UsageWindow, now: number) {
   return window.resetsAt <= now ? 'now' : duration(window.resetsAt - now)
 }
 
+function usageColor(window: UsageWindow) {
+  return window.pct >= 100
+    ? 'text-destructive'
+    : window.pct >= 90
+      ? 'text-status-attention'
+      : 'text-primary'
+}
+
 function UsageBar({ window, className }: { window: UsageWindow; className?: string }) {
   const left = percentLeft(window)
   return (
@@ -92,11 +100,7 @@ function UsageBar({ window, className }: { window: UsageWindow; className?: stri
       aria-label={`${window.label} usage`}
       value={100 - left}
       max={100}
-      className={cn(
-        'usage-bar w-full',
-        left <= 10 ? 'text-destructive' : 'text-primary',
-        className
-      )}
+      className={cn('usage-bar w-full', usageColor(window), className)}
     />
   )
 }
@@ -152,20 +156,26 @@ function UsageRow({
   const left = percentLeft(window)
   const reset = resetIn(window, now)
   const pace = paceOf(window, now)
+  const warning =
+    !compact && window.pct >= 100
+      ? 'Usage limit reached'
+      : !compact && window.pct >= 90
+        ? 'Approaching usage limit'
+        : undefined
+  const note = [warning, pace].filter(Boolean).join(' · ')
   return (
     <WindowTip
       usage={usage}
       window={window}
       className={cn(
         'col-span-full grid grid-cols-subgrid items-center gap-y-1',
-        !compact && 'min-h-8 py-1',
-        !compact && left <= 5 && 'rounded-xs bg-destructive/5'
+        !compact && 'min-h-8 py-1'
       )}
     >
       <span className='truncate text-xs text-muted-foreground'>{window.label}</span>
-      <UsageBar window={window} className={compact ? 'h-0.75' : 'h-1'} />
+      <UsageBar window={window} className={compact ? 'h-0.75' : 'h-2'} />
       <span
-        className={cn('text-right text-xs', left <= 10 ? 'text-destructive' : 'text-foreground')}
+        className={cn('text-right text-xs', left <= 10 ? usageColor(window) : 'text-foreground')}
       >
         <span className='font-mono tabular-nums'>{100 - left}%</span>
         <span className={compact ? undefined : 'sr-only'}> used</span>
@@ -183,7 +193,16 @@ function UsageRow({
           </>
         )}
       </span>
-      {pace && <span className='col-[2/-1] min-h-4 text-xs text-muted-foreground'>{pace}</span>}
+      {note && (
+        <span
+          className={cn(
+            'col-[2/-1] min-h-4 text-xs',
+            warning ? usageColor(window) : 'text-muted-foreground'
+          )}
+        >
+          {note}
+        </span>
+      )}
     </WindowTip>
   )
 }
@@ -191,7 +210,7 @@ function UsageRow({
 function windowsGrid(compact: boolean) {
   return compact
     ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,7rem)_minmax(0,1fr)_3.5rem_7.5rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3rem_6rem] @max-md:gap-x-3'
+    : 'grid-cols-[minmax(0,8.75rem)_minmax(0,1fr)_3.5rem_5.25rem] gap-x-4 gap-y-1 @max-md:grid-cols-[minmax(0,5rem)_minmax(0,1fr)_3rem_6rem] @max-md:gap-x-3'
 }
 
 // Why a provider shows no windows, when it doesn't.
@@ -228,7 +247,7 @@ function UsageSkeleton({ compact = false }: { compact?: boolean }) {
       {[0, 1].map((row) => (
         <div key={row} className='col-span-full grid h-4 grid-cols-subgrid items-center'>
           <Skeleton className='h-3 w-12 rounded-xs' />
-          <Skeleton className={cn('rounded-full', compact ? 'h-0.75' : 'h-1')} />
+          <Skeleton className={cn('rounded-full', compact ? 'h-0.75' : 'h-2')} />
         </div>
       ))}
     </div>
@@ -329,6 +348,18 @@ export function UsagePage({
                     <h2 id={`usage-${provider}`} className='text-sm font-semibold text-foreground'>
                       {providerNames[provider]}
                     </h2>
+                    {item?.windows.some((window) => window.pct >= 90) && (
+                      <Button
+                        variant='outline'
+                        size='xs'
+                        className='ml-auto'
+                        aria-label={`Manage ${providerNames[provider]} models`}
+                        render={<Link to='/settings/$page' params={{ page: 'models' }} />}
+                      >
+                        Manage models
+                        <ArrowUpRightIcon />
+                      </Button>
+                    )}
                     {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
                       <span className='ml-auto text-xs'>
                         Couldn’t refresh
@@ -342,23 +373,6 @@ export function UsagePage({
                     <p className='text-xs text-muted-foreground'>Couldn’t read usage.</p>
                   ) : (
                     <UsageSkeleton />
-                  )}
-                  {item?.windows.some((window) => window.pct >= 95) && (
-                    <div className='flex items-center justify-between gap-2 text-xs'>
-                      <span className='text-destructive'>
-                        {item.windows.some((window) => window.pct >= 100)
-                          ? 'Usage limit reached'
-                          : 'Approaching usage limit'}
-                      </span>
-                      <Button
-                        variant='ghost-text'
-                        size='xs'
-                        render={<Link to='/settings/$page' params={{ page: 'models' }} />}
-                      >
-                        Manage models
-                        <ArrowUpRightIcon />
-                      </Button>
-                    </div>
                   )}
                 </section>
               )
@@ -514,7 +528,7 @@ function LimitLine({
         <span className='flex min-w-0 items-center gap-1.5'>{label}</span>
         <span className='flex shrink-0 items-center gap-2.5'>
           <ResetLabel window={window} now={now} />
-          <span className={cn('w-16 text-right', left <= 10 && 'text-destructive')}>
+          <span className={cn('w-16 text-right', left <= 10 && usageColor(window))}>
             <Mono>{100 - left}%</Mono> used
           </span>
         </span>
