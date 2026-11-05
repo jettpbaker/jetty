@@ -167,7 +167,7 @@ function RowText({ title, description }: { title: ReactNode; description?: React
   return (
     <span className='flex min-w-0 grow basis-48 flex-col gap-0.5'>
       <span className='text-13 text-foreground'>{title}</span>
-      {description && <span className='text-xs text-muted-foreground'>{description}</span>}
+      {description && <span className='text-13 leading-5 text-muted-foreground'>{description}</span>}
     </span>
   )
 }
@@ -274,7 +274,7 @@ export function SettingsLinkRow({
 
 export function ComingSoon() {
   return (
-    <span className='shrink-0 rounded-sm bg-foreground/6 px-1.5 py-0.5 text-xs text-muted-foreground'>
+    <span className='shrink-0 rounded-sm bg-foreground/8 px-1.5 py-0.5 text-xs text-foreground'>
       {comingSoon}
     </span>
   )
