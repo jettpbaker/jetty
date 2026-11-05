@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useNow } from '@/hooks/use-now'
+import { formatDuration } from '@/lib/time'
 import { storage } from '@/platform'
 import {
   useOverviewItems,
@@ -27,8 +28,9 @@ import { ContentEmpty } from './content_empty'
 import { DiffCounts } from './diff/file_card'
 import { PullRequestRow } from './pull_request_row'
 import { RunningTaskRow } from './running_task_row'
-import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
+import { subagentGlyphLabel, subagentGlyphState } from './subagent_glyph'
 import { threadSubagents } from './thread_rows'
+import { StatusGlyph } from './thread_status'
 import { WorkflowLineGrid } from './workflow_lines'
 import { type Workflow } from './workflow_parts'
 
@@ -248,25 +250,46 @@ export function SubagentList({
   threadId: string
   agents: readonly SubagentSummary[]
 }) {
-  const open = useOpenSubagent()
   return (
     <div className='flex flex-col gap-0.5'>
       {agents.map((agent) => (
-        <Button
-          key={agent.id}
-          variant='ghost'
-          size='sm'
-          className='w-full justify-start gap-2 rounded-sm px-2.5 text-13 font-normal'
-          onClick={() => open(threadId, agent.id)}
-        >
-          <SubagentGlyph
-            state={subagentGlyphState(agent.status, agent.waiting)}
-            className='size-4'
-          />
-          <span className='truncate'>{agent.title}</span>
-        </Button>
+        <SubagentRow key={agent.id} threadId={threadId} agent={agent} />
       ))}
     </div>
+  )
+}
+
+function SubagentRow({ threadId, agent }: { threadId: string; agent: SubagentSummary }) {
+  const open = useOpenSubagent()
+  const now = useNow(1000, agent.status === 'running')
+  const state = subagentGlyphState(agent.status, agent.waiting)
+  const status =
+    agent.status === 'running'
+      ? agent.waiting
+        ? 'needs-attention'
+        : 'working'
+      : agent.status === 'completed'
+        ? 'done'
+        : agent.status === 'failed'
+          ? 'error'
+          : 'stopped'
+  const seconds =
+    (agent.durationMs ?? Math.max(0, (agent.completedAt ?? now) - agent.createdAt)) / 1000
+  return (
+    <Button
+      variant='ghost'
+      size='sm'
+      className='h-auto w-full justify-start gap-2 rounded-sm px-2.5 py-2 text-13 font-normal'
+      onClick={() => open(threadId, agent.id)}
+    >
+      <StatusGlyph status={status} className='size-4 self-start mt-0.5' />
+      <span className='flex min-w-0 flex-col gap-0.5 text-left'>
+        <span className='truncate'>{agent.title}</span>
+        <span className='text-xs text-muted-foreground'>
+          {subagentGlyphLabel(state)} · <span className='font-mono'>{formatDuration(seconds)}</span>
+        </span>
+      </span>
+    </Button>
   )
 }
 
