@@ -45,7 +45,7 @@ export function SidebarThreadControls({
   return (
     <div className='flex h-7 shrink-0 items-center gap-1 px-2.5'>
       <GhostInput
-        icon={<MagnifyingGlass2Icon className='size-3' />}
+        icon={<MagnifyingGlass2Icon className='size-4' />}
         aria-label='Search threads'
         placeholder='Search threads'
         className='text-xs text-muted-foreground'

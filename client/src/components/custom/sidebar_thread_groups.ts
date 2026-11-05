@@ -47,8 +47,9 @@ export function threadNavigationDetail(thread: ThreadMeta) {
     return 'Setting up worktree'
   if (thread.worktree?.state === 'failed') return 'Worktree setup failed'
   if (thread.worktree?.state === 'stopped') return 'Worktree setup stopped'
-  if (thread.queuePaused && thread.pendingMessages?.length)
-    return `Paused · ${thread.pendingMessages.length} queued`
+  const queued = thread.pendingMessages?.length ?? 0
+  if (thread.queuePaused && queued) return `Paused · ${queued} queued`
+  if (queued) return `Queued · ${queued} message${queued === 1 ? '' : 's'}`
   return undefined
 }
 

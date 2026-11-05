@@ -97,7 +97,7 @@ const MotionSidebarContent = motion.create(SidebarContent)
 const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0 }
 
 const navigationButtonClass =
-  'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
+  'h-7 w-full justify-start gap-1.5 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
 
 function uncommitted(count: number) {
   return count === 1 ? '1 uncommitted change' : `${count} uncommitted changes`
@@ -163,8 +163,11 @@ export const AppSidebar = memo(function AppSidebar() {
     keybinds.sidebarRows[numbered.findIndex((row) => row.kind === kind && row.id === id)]
   const layoutDependency = `${grouping}:${showPinned}:${showArchived}:${archivedOpen}:${groups?.map((group) => `${group.id}:${group.threads.join(',')}`).join(';')}`
   const projectByThread = new Map(mainList?.threads.map((thread) => [thread.id, thread.projectId]))
+  const showProject =
+    grouping !== 'project' &&
+    new Set((groups ?? []).flatMap((group) => group.threads.map((id) => projectByThread.get(id))))
+      .size > 1
   const items = (groups ?? []).flatMap((group) => {
-    const showProject = new Set(group.threads.map((id) => projectByThread.get(id))).size > 1
     return [
       {
         kind: 'heading' as const,
@@ -341,7 +344,7 @@ export const AppSidebar = memo(function AppSidebar() {
                 className={`${navigationButtonClass} keybind-target`}
                 {...pressProps(newThread)}
               >
-                <EditSmall1Icon className='size-3' />
+                <EditSmall1Icon />
                 New thread
                 <HoverKeybind binding={keybinds.newThread} className='ml-auto' />
               </Button>
@@ -353,7 +356,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   className={`${navigationButtonClass} pointer-events-none`}
                   disabled
                 >
-                  <CircleDotIcon className='size-3' />
+                  <CircleDotIcon />
                   Issues
                 </Button>
               </DisabledTooltip>
@@ -369,7 +372,7 @@ export const AppSidebar = memo(function AppSidebar() {
                   void navigate({ to: '/pull-requests', search: pullRequestListSearch() })
                 })}
               >
-                <PullRequestIcon className='size-3' />
+                <PullRequestIcon />
                 Pull requests
               </Button>
             </SidebarMenuItem>
@@ -481,29 +484,29 @@ export const AppSidebar = memo(function AppSidebar() {
                   const heading = (
                     <>
                       {item.pinned && (
-                        <PinIcon filled className='size-3 shrink-0' aria-hidden='true' />
+                        <PinIcon filled className='size-4 shrink-0' aria-hidden='true' />
                       )}
                       {item.archived && (
                         // Linear-style: the icon turns into the disclosure caret on hover or focus.
-                        <span className='grid size-3 shrink-0 *:col-start-1 *:row-start-1'>
+                        <span className='grid size-4 shrink-0 *:col-start-1 *:row-start-1'>
                           <ArchiveIcon
-                            className='size-3 group-hover/button:invisible group-focus-visible/button:invisible'
+                            className='size-4 group-hover/button:invisible group-focus-visible/button:invisible'
                             aria-hidden='true'
                           />
                           <ChevronRightSmallIcon
-                            className='invisible size-3 group-hover/button:visible group-focus-visible/button:visible group-aria-expanded/button:rotate-90'
+                            className='invisible size-4 group-hover/button:visible group-focus-visible/button:visible group-aria-expanded/button:rotate-90'
                             aria-hidden='true'
                           />
                         </span>
                       )}
                       {ordinary && grouping === 'project' && (
-                        <ProjectGlyph icon={item.projectIcon} className='size-3' />
+                        <ProjectGlyph icon={item.projectIcon} className='size-4' />
                       )}
-                      {item.status && <StatusGlyph status={item.status} className='size-3' />}
+                      {item.status && <StatusGlyph status={item.status} className='size-4' />}
                       {bot && (
                         <BotAvatar
                           bot={bot}
-                          size={12}
+                          size={16}
                           unread={false}
                           className='[--jb-ring:var(--sidebar)]'
                         />

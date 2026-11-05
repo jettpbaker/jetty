@@ -34,7 +34,7 @@ export function BotRow({
   const face = botFace(bot)
   const label = `${bot.name}, ${face === 'waiting' ? 'needs you' : face}${bot.unread && !selected ? ', unread' : ''}`
   const className = cn(
-    'flex h-8 w-full min-w-0 shrink-0 items-center gap-2 rounded-sm px-2.5 text-left text-sm [--jb-ring:var(--sidebar)]',
+    'flex h-8 w-full min-w-0 shrink-0 items-center gap-1.5 rounded-sm px-2.5 text-left text-sm [--jb-ring:var(--sidebar)]',
     onToggle && 'pr-9',
     selected && 'bg-sidebar-accent [--jb-ring:var(--sidebar-accent)]'
   )
@@ -49,7 +49,7 @@ export function BotRow({
         className={cn(className, 'outline-none focus-visible:ring-2 focus-visible:ring-ring')}
       >
         <HeldKeybind binding={shortcut}>
-          <BotAvatar bot={bot} size={20} unread={bot.unread && !selected} />
+          <BotAvatar bot={bot} size={16} unread={bot.unread && !selected} />
         </HeldKeybind>
         <span className='min-w-0 flex-1 truncate'>{bot.name}</span>
       </button>

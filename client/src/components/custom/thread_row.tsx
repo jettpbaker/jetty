@@ -60,10 +60,10 @@ export function ThreadRow({
             onClick={onSelect}
           >
             <HeldKeybind binding={shortcut}>
-              <StatusGlyph status={status} className='size-3.5' />
+              <StatusGlyph status={status} className='size-4' />
             </HeldKeybind>
             {!nested && (showProject || (bot && !bot.archived)) && (
-              <span className='flex size-3.5 shrink-0 items-center justify-center' title={project}>
+              <span className='flex size-4 shrink-0 items-center justify-center' title={project}>
                 {bot && !bot.archived ? (
                   <JettyBot shape={bot.shape} color={bot.color} size={14} />
                 ) : (

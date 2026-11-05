@@ -130,7 +130,8 @@
 - Overflowing single-line text: fade when it scrolls on hover (`OverflowTitle`
   inside `data-overflow-hover`), ellipsis (`truncate`) when it stays still. Sidebar
   thread titles stay still and truncate; the hover card wraps the full title and holds PR
-  details. Omit repeated project emoji within single-project groups. The default sidebar is
+  details. Project-grouped and single-project lists omit repeated project emoji. Mixed-project lists
+  keep a consistent project slot across groups, including pinned rows. The default sidebar is
   300px and resizes from 200–400px.
 
 ## thread environments
