@@ -1,10 +1,8 @@
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
@@ -26,7 +24,7 @@ import {
 } from './central_icons'
 import { GithubIcon } from './github_icon'
 import { ProviderGlyph } from './provider_glyph'
-import { Mono, SettingsPage, SettingsSection, cardClass } from './settings_layout'
+import { Mono, SettingsPage, SettingsSection, SettingsCard } from './settings_layout'
 
 const providers = [
   {
@@ -95,10 +93,7 @@ function AccountCard({
   children: ReactNode
 }) {
   return (
-    <div
-      id={`settings-${id}`}
-      className={cn(cardClass, 'flex min-h-16 items-center gap-3 px-4 py-3')}
-    >
+    <div id={`settings-${id}`} className='flex min-h-16 flex-wrap items-center gap-3 py-3'>
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-md [&>.provider-icon]:size-4',
@@ -142,16 +137,12 @@ function AccountMenu({
   login,
   install,
   onCheck,
-  enabled,
-  onEnabledChange,
 }: {
   name: string
   status: Status
   login: string
   install: string
   onCheck: () => void
-  enabled?: boolean
-  onEnabledChange?: (enabled: boolean) => void
 }) {
   return (
     <DropdownMenu modal={false}>
@@ -201,30 +192,6 @@ function AccountMenu({
             Install
           </DropdownMenuItem>
         )}
-        {onEnabledChange && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
-              checked={enabled}
-              closeOnClick={false}
-              onCheckedChange={onEnabledChange}
-              className='h-auto min-h-11 gap-2 py-1 pr-2 pl-8 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden'
-            >
-              <span className='flex grow flex-col whitespace-normal'>
-                <span className='text-13'>Use in Jetty</span>
-                <span className='text-xs text-muted-foreground'>Off hides its models</span>
-              </span>
-              <Switch
-                render={<span />}
-                size='sm'
-                checked={enabled}
-                tabIndex={-1}
-                aria-hidden='true'
-                className='pointer-events-none'
-              />
-            </DropdownMenuCheckboxItem>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -264,14 +231,23 @@ function ProviderCard({ provider }: { provider: (typeof providers)[number] }) {
         </>
       }
     >
+      {status === 'signed-out' && (
+        <Button variant='outline' size='sm' onClick={() => void copyCommand(provider.login)}>
+          Copy sign-in command
+        </Button>
+      )}
+      <Switch
+        size='sm'
+        aria-label={`Use ${provider.name} in Jetty`}
+        checked={on}
+        onCheckedChange={(value) => setEnabled({ ...enabled, [provider.id]: value })}
+      />
       <AccountMenu
         name={provider.name}
         status={status}
         login={provider.login}
         install={provider.install}
         onCheck={() => refresh([provider.id])}
-        enabled={on}
-        onEnabledChange={(value) => setEnabled({ ...enabled, [provider.id]: value })}
       />
     </AccountCard>
   )
@@ -315,6 +291,11 @@ function GitHubCard() {
         </>
       }
     >
+      {state === 'signed-out' && (
+        <Button variant='outline' size='sm' onClick={() => void copyCommand('gh auth login')}>
+          Copy sign-in command
+        </Button>
+      )}
       <AccountMenu
         name='GitHub'
         status={state}
@@ -345,14 +326,16 @@ export function SettingsAccounts() {
         title='Coding agents'
         description='Each one brings its own models. Turn one off to hide it everywhere.'
       >
-        <div className='flex flex-col gap-2'>
+        <SettingsCard>
           {providers.map((provider) => (
             <ProviderCard key={provider.id} provider={provider} />
           ))}
-        </div>
+        </SettingsCard>
       </SettingsSection>
       <SettingsSection title='Code' description='Pull requests, reviews and checks.'>
-        <GitHubCard />
+        <SettingsCard>
+          <GitHubCard />
+        </SettingsCard>
       </SettingsSection>
     </SettingsPage>
   )

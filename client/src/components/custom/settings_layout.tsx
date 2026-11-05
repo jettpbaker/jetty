@@ -56,7 +56,7 @@ export function SettingsPage({
   return (
     <div
       className={cn(
-        'flex w-full max-w-180 flex-col gap-10 pb-16 sm:ml-8',
+        'flex max-w-180 flex-col gap-10 pb-16 sm:ml-8',
         back ? 'pt-5.5' : 'pt-14',
         className
       )}
