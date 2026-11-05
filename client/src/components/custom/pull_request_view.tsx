@@ -12,6 +12,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { pressProps } from '@/lib/press'
+import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
 import {
   usePullRequest,
@@ -26,7 +27,7 @@ import {
   type LinkedThread,
   type PullRequestRef,
 } from '@/state/pull_requests'
-import { useMemo, useLayoutEffect, type ReactNode } from 'react'
+import { useMemo, useLayoutEffect, type ReactNode, type ComponentProps } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -35,7 +36,7 @@ import {
   SquareArrowTopRightIcon,
   SquareBehindSquare1Icon,
   BrokenChainLink1Icon,
-  PullRequestIcon,
+  CircleXIcon,
 } from './central_icons'
 import { ContentEmpty } from './content_empty'
 import { MediaLightboxProvider } from './media_lightbox'
@@ -255,15 +256,19 @@ export function LivePullRequestView({
           : `${link.repo}#${link.number}`
       }
     >
-      <Button variant='outline' size='sm' disabled={refreshing} onClick={() => refresh(link)}>
+      <Button size='sm' disabled={refreshing} onClick={() => refresh(link)}>
         Try again
       </Button>
-      <Button variant='ghost' size='sm' nativeButton={false} render={externalLink(link.url)}>
+      <Button variant='outline' size='sm' nativeButton={false} render={externalLink(link.url)}>
         Open on GitHub
       </Button>
       {threadId && <MoreMenu threadId={threadId} link={link} />}
     </PullRequestUnavailable>
   )
+}
+
+function PullRequestErrorIcon(props: ComponentProps<typeof CircleXIcon>) {
+  return <CircleXIcon {...props} filled className={cn(props.className, 'text-destructive')} />
 }
 
 export function PullRequestUnavailable({
@@ -277,7 +282,7 @@ export function PullRequestUnavailable({
 }) {
   return (
     <div className='flex h-full flex-col items-center justify-center gap-3 p-4 text-center'>
-      <ContentEmpty icon={PullRequestIcon} title={title} description={detail}>
+      <ContentEmpty icon={PullRequestErrorIcon} title={title} description={detail}>
         <div className='flex items-center gap-1'>{children}</div>
       </ContentEmpty>
     </div>
