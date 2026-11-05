@@ -153,6 +153,7 @@ export function Diff({
   // A mounted body fetches its file's contents, as the Changes view does, so folds and the trailing
   // context are exact rather than "may be available"; without them the hunks render bare.
   const [context, setContext] = useState<{ diff: FileDiffMetadata; shown: FileDiffMetadata }>()
+  const preserveContext = threads.some((thread) => !thread.outdated && thread.line !== null)
   useEffect(() => {
     if (!loadFile || suggestion || patch !== undefined || hunks || !diff?.isPartial) return
     if (diff.type !== 'change' && diff.type !== 'rename-changed') return
@@ -164,11 +165,7 @@ export function Diff({
         setContext({
           diff,
           shown: usable
-            ? hydratedDiff(
-                diff,
-                loadedFiles(diff, contents),
-                threads.some((thread) => !thread.outdated && thread.line !== null)
-              )
+            ? hydratedDiff(diff, loadedFiles(diff, contents), preserveContext)
             : withoutContext(diff),
         })
       },
@@ -177,7 +174,7 @@ export function Diff({
     return () => {
       active = false
     }
-  }, [loadFile, suggestion, patch, hunks, diff, file.path, file.previousPath, threads])
+  }, [loadFile, suggestion, patch, hunks, diff, file.path, file.previousPath, preserveContext])
   const shown = context && context.diff === diff ? context.shown : diff
   const threadPatch = patch ?? file.patch
   const lines = useMemo(() => {
