@@ -105,6 +105,7 @@ import {
   useDiffWrap,
 } from '../diff/toolbar'
 import { primeDiffHighlights } from '../diff_worker_pool'
+import { DisabledTooltip } from '../disabled_tooltip'
 import { parseFileChanges } from '../file_diff_model'
 import { keyTarget } from '../keybinds'
 import { ComingSoon } from '../settings_layout'
@@ -1813,7 +1814,7 @@ function MergeButton({
     </Button>
   )
   const primary = reason ? (
-    <Hint text={reason}>
+    <DisabledTooltip reason={reason} wrap='inline-flex'>
       <Button
         disabled
         variant='outline'
@@ -1824,7 +1825,7 @@ function MergeButton({
         <MergedIcon className='size-3.5' />
         {current.label}
       </Button>
-    </Hint>
+    </DisabledTooltip>
   ) : pending ? (
     <Hint text={`${countLabel(runningCount, 'check')} still running`}>{face}</Hint>
   ) : (
@@ -2130,7 +2131,11 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                     )
                       .filter(([value]) => value !== 'guide' || guidesOn)
                       .map(([value, label, hint]) => (
-                        <Hint key={value} text={hint}>
+                        <DisabledTooltip
+                          key={value}
+                          reason={hint}
+                          wrap={value === 'guide' && guideReason ? 'inline-flex' : undefined}
+                        >
                           <Button
                             variant='ghost'
                             tone='muted'
@@ -2146,7 +2151,7 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
                           >
                             {label}
                           </Button>
-                        </Hint>
+                        </DisabledTooltip>
                       ))}
                   </nav>
                   <div className='ml-auto flex items-center gap-1'>
