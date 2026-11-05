@@ -584,11 +584,12 @@ export function ThreadComposer({
     <div
       className={cn(
         'mx-auto w-full max-w-[873px] px-6 pb-3',
-        ambient && 'flex min-h-0 flex-1 flex-col'
+        ambient && 'flex min-h-0 flex-1 flex-col justify-center pb-16',
+        ambient && !threadId && 'max-w-[808px]'
       )}
     >
       {ambient && (
-        <Empty className='px-0'>
+        <Empty className='flex-none px-0 pt-6 pb-6'>
           <EmptyHeader className='max-w-lg'>
             <EmptyTitle className='text-2xl font-semibold'>
               {destination?.title || projectTitle
@@ -761,7 +762,7 @@ export function ThreadComposer({
               />
               {setupGuide && (
                 <Button
-                  variant='outline'
+                  variant='ghost-text'
                   size='sm'
                   {...pressProps(() => setUpWorktrees(setupGuide))}
                 >

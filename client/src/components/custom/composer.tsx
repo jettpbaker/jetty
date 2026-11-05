@@ -44,7 +44,7 @@ export function Composer({
   stop,
   strip,
   reply,
-  placeholder = 'What would you like to work on?',
+  placeholder = 'What should this thread change? · / for commands',
   sendLabel = 'Send',
   sendDisabled,
   sendHint,
