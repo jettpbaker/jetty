@@ -75,9 +75,6 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
   const setReplies = (quotes: readonly Reply[] | undefined) => updateDraft({ quotes })
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const overlay = useThreadOverlay(bot.id, thread)
-  const composerQueue = useComposerQueue(bot.id, overlay.serverItems)
-  const editingEntry = composerQueue?.own.find((entry) => entry.id === draft.editing)
-  const attachments = useAttachments(bot.id, { editing: editingEntry !== undefined })
   const items = useMemo(
     () => [
       ...overlay.items,
@@ -95,6 +92,10 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
     ],
     [overlay.items, pending]
   )
+  // A sent message that waits behind the bot's tidy is already in the chat, so it isn't queued too.
+  const composerQueue = useComposerQueue(bot.id, items)
+  const editingEntry = composerQueue?.own.find((entry) => entry.id === draft.editing)
+  const attachments = useAttachments(bot.id, { editing: editingEntry !== undefined })
   const turnId = thread?.activeTurnId
   // Only the bot's own card stops its turn; a worker waiting on Jett leaves it working.
   const asking = overlay.serverItems.some(awaitsInput)

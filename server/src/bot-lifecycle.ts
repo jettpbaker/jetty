@@ -105,6 +105,23 @@ export function warmCompactionDue(state: ThreadState, bot: boolean, timing = bot
   )
 }
 
+// A bot woken after its cache expired compacts first, so this wake and the ones after it read a
+// summary instead of writing its whole context again.
+export function coldWakeCompactionDue(
+  thread: ThreadMeta,
+  state: ThreadState,
+  now: number,
+  timing = botTiming
+) {
+  return (
+    thread.provider === 'claude' &&
+    thread.status === 'idle' &&
+    thread.turnEndedAt !== undefined &&
+    now - thread.turnEndedAt >= timing.cacheLifetimeMs &&
+    warmCompactionDue(state, true, timing)
+  )
+}
+
 // When the next check-in is due, leaving out the brief it also needs, which is a file read.
 export function nextCheckInAt(
   bot: Bot,

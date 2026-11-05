@@ -45,7 +45,12 @@ import {
   restoreManagedBotFiles,
   writeBotTasks,
 } from './bot-home'
-import { botTiming, warmCompactionCandidate, warmCompactionDue } from './bot-lifecycle'
+import {
+  botTiming,
+  coldWakeCompactionDue,
+  warmCompactionCandidate,
+  warmCompactionDue,
+} from './bot-lifecycle'
 import {
   CHILD_REPORT_INSTRUCTION,
   deniedApprovalNote,
@@ -300,7 +305,7 @@ export function createOrchestrator({
     const upkeep = new Map<string, { fiber?: Fiber.Fiber<void> }>()
     const backgroundCompactions = new Map<
       string,
-      { turnId: string; interrupted: boolean; failed: boolean }
+      { turnId: string; interrupted: boolean; failed: boolean; wake: boolean }
     >()
     const projectApprovals = new Map<
       string,
@@ -1162,6 +1167,172 @@ export function createOrchestrator({
         found ? Effect.void : Effect.fail(new StoreError('not_found', `No pending ${what}`))
     }
 
+    function compact(threadId: string, trigger?: 'idle' | 'wake') {
+      const background = trigger !== undefined
+      return Effect.suspend(() =>
+        state(threadId).admission.withPermit(
+          Effect.gen(function* () {
+            const thread = yield* store.requireThread(threadId)
+            const agent = yield* agentForThread(threadId)
+            const live = state(threadId)
+            const bot = yield* store.isBot(threadId)
+            if (trigger === 'wake') {
+              // The message that woke the bot may be first in its queue.
+              if (!bot || !botIdle({ ...thread, pendingMessages: [] })) return false
+              const woken = yield* store.getThreadState(threadId)
+              if (!coldWakeCompactionDue(thread, woken, Date.now())) return false
+            } else if (background) {
+              if (!botIdle(thread)) return false
+              if (!bot && !(yield* store.getAgentBehaviours()).compactIdleThreads) return false
+            }
+            if (background && bot) {
+              const record = yield* store.getBotLifecycle(threadId)
+              const presence = hub.botPresence(threadId)
+              if (Date.now() < (record.compactRetryAt ?? 0)) return false
+              if (
+                trigger === 'idle' &&
+                (presence.draft ||
+                  (presence.open &&
+                    Date.now() - (record.turnEndedAt ?? thread.updatedAt) < botTiming.awayIdleMs))
+              )
+                return false
+            }
+            if (live.turnId || !live.ready || agent.busy?.(threadId))
+              return yield* Effect.fail(new StoreError('conflict', 'Wait for this turn to finish'))
+            if (!agent.supportsCompaction)
+              return yield* Effect.fail(
+                new StoreError('conflict', 'This provider does not support compaction')
+              )
+            const snapshot = yield* store.getThreadState(threadId)
+            const fraction =
+              snapshot.context && snapshot.context.maxTokens > 0
+                ? snapshot.context.usedTokens / snapshot.context.maxTokens
+                : 0
+            if (trigger === 'idle') {
+              const warm = thread.provider === 'claude' && snapshot.cacheLifetime === '1h'
+              if (warm) {
+                if (
+                  // A bot's workers report through its queue, so they can wait behind a compact.
+                  !warmCompactionCandidate(bot ? thread : hub.decorateThread(thread), Date.now()) ||
+                  !warmCompactionDue(snapshot, bot)
+                )
+                  return false
+              } else if (!bot || fraction < botTiming.compactAt) return false
+            }
+            if (!snapshot.items.length)
+              return yield* Effect.fail(new StoreError('conflict', 'Send a message first'))
+            if (thread.archived)
+              return yield* Effect.fail(new StoreError('conflict', 'Resume this thread first'))
+            const project = yield* store.getProject(thread.projectId)
+            if (!project)
+              return yield* Effect.fail(new StoreError('not_found', 'Thread project not found'))
+            const cwd = worktrees
+              ? yield* worktreeTask((signal) => worktrees.prepare(threadId, signal))
+              : (thread.workingPath ?? project.path)
+            const turnId = newId()
+            live.turnId = turnId
+            live.ready = false
+            if (background) {
+              backgroundCompactions.set(threadId, {
+                turnId,
+                interrupted: false,
+                failed: false,
+                wake: trigger === 'wake',
+              })
+              yield* Effect.logInfo(`compacting ${threadId} at ${Math.round(fraction * 100)}%`)
+              yield* append(threadId, {
+                type: 'turn.started',
+                turnId,
+                automaticCompaction: true,
+              }).pipe(Effect.onError(() => settleTurn(threadId, turnId)))
+            }
+            let compactNoted = false
+            let compactionItemId: string | undefined
+            const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) => {
+              if (background && event.type === 'turn.started') return onCommit ?? Effect.void
+              if (
+                event.type === 'item.started' &&
+                event.item.kind === 'compaction' &&
+                !event.item.agentId
+              )
+                compactionItemId = event.item.id
+              const failure =
+                event.type === 'item.started' && event.item.kind === 'error'
+                  ? compactFailureDetail(event.item.message)
+                  : undefined
+              if (failure) compactNoted = true
+              if (background) {
+                const compact = backgroundCompactions.get(threadId)
+                if (
+                  compact &&
+                  (event.type === 'turn.failed' ||
+                    (event.type === 'item.started' && event.item.kind === 'error') ||
+                    (event.type === 'item.completed' && event.patch?.status === 'failed'))
+                )
+                  compact.failed = true
+                // An error row shows even in a quiet turn. A bot's automatic compact stays as
+                // quiet as a check-in: the reason lives on the compaction, and the error does not.
+                if (event.type === 'item.started' && event.item.kind === 'error') {
+                  if (compactionItemId && failure)
+                    return append(
+                      threadId,
+                      {
+                        type: 'item.completed',
+                        itemId: compactionItemId,
+                        patch: { status: 'failed', error: failure },
+                      },
+                      onCommit
+                    ).pipe(Effect.mapError(toAgentError))
+                  return onCommit ?? Effect.void
+                }
+              }
+              return append(
+                threadId,
+                !background && event.type === 'item.started' && event.item.kind === 'compaction'
+                  ? { ...event, item: { ...event.item, manual: true } }
+                  : event,
+                onCommit
+              ).pipe(Effect.mapError(toAgentError))
+            }
+            const lifecycle = agent
+              .startTurn(
+                {
+                  threadId,
+                  turnId,
+                  cwd,
+                  text: '',
+                  compact: true,
+                  model: thread.model,
+                  effort: thread.effort,
+                  fast: thread.fast,
+                  parentThreadId: thread.parentThreadId,
+                },
+                emit
+              )
+              .pipe(
+                Effect.flatMap((turn) => turn.await),
+                Effect.catch((error) => {
+                  const detail = compactFailureReason(false, error.message)
+                  return (
+                    compactNoted || !detail ? Effect.void : emit(couldntCompact(turnId, detail))
+                  ).pipe(
+                    Effect.andThen(emit({ type: 'turn.failed', turnId, error: error.message }))
+                  )
+                }),
+                Effect.onInterrupt(() =>
+                  emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(
+                    Effect.ignore
+                  )
+                ),
+                Effect.ensuring(settleTurn(threadId, turnId))
+              )
+            yield* Effect.forkIn(lifecycle, scope, { startImmediately: true })
+            return true
+          })
+        )
+      )
+    }
+
     function startTurnEffect(input: StartTurnInput) {
       return Effect.gen(function* () {
         if (!input.queued) {
@@ -1172,6 +1343,13 @@ export function createOrchestrator({
             return yield* Effect.fail(new StoreError('conflict', `${thread.title} is archived`))
           if (thread.archived) yield* archiveThread(input.threadId, false)
         }
+        // A started compact leaves the turn below to queue the message behind it.
+        if (!input.sendNow && (yield* store.isBot(input.threadId)))
+          yield* compact(input.threadId, 'wake').pipe(
+            Effect.catch((error) =>
+              Effect.logWarning(`cold wake compaction for ${input.threadId}: ${error}`)
+            )
+          )
         return yield* startAdmittedTurn(input)
       })
     }
@@ -1266,7 +1444,7 @@ export function createOrchestrator({
               if (!input.queued) {
                 yield* interruptUpkeep(input.threadId)
                 const compact = backgroundCompactions.get(input.threadId)
-                if (compact && state(input.threadId).turnId === compact.turnId) {
+                if (compact && !compact.wake && state(input.threadId).turnId === compact.turnId) {
                   const { context } = yield* store.getThreadState(input.threadId)
                   const fraction =
                     context && context.maxTokens > 0 ? context.usedTokens / context.maxTokens : null
@@ -1820,160 +1998,7 @@ export function createOrchestrator({
           }).pipe(Effect.uninterruptible)
         )
       },
-      compact(threadId: string, background = false) {
-        return Effect.suspend(() =>
-          state(threadId).admission.withPermit(
-            Effect.gen(function* () {
-              const thread = yield* store.requireThread(threadId)
-              const agent = yield* agentForThread(threadId)
-              const live = state(threadId)
-              const bot = yield* store.isBot(threadId)
-              if (background) {
-                if (!botIdle(thread)) return false
-                if (!bot && !(yield* store.getAgentBehaviours()).compactIdleThreads) return false
-              }
-              if (background && bot) {
-                const record = yield* store.getBotLifecycle(threadId)
-                const presence = hub.botPresence(threadId)
-                if (
-                  presence.draft ||
-                  (presence.open &&
-                    Date.now() - (record.turnEndedAt ?? thread.updatedAt) < botTiming.awayIdleMs) ||
-                  Date.now() < (record.compactRetryAt ?? 0)
-                )
-                  return false
-              }
-              if (live.turnId || !live.ready || agent.busy?.(threadId))
-                return yield* Effect.fail(
-                  new StoreError('conflict', 'Wait for this turn to finish')
-                )
-              if (!agent.supportsCompaction)
-                return yield* Effect.fail(
-                  new StoreError('conflict', 'This provider does not support compaction')
-                )
-              const snapshot = yield* store.getThreadState(threadId)
-              const fraction =
-                snapshot.context && snapshot.context.maxTokens > 0
-                  ? snapshot.context.usedTokens / snapshot.context.maxTokens
-                  : 0
-              if (background) {
-                const warm = thread.provider === 'claude' && snapshot.cacheLifetime === '1h'
-                if (warm) {
-                  if (
-                    !warmCompactionCandidate(hub.decorateThread(thread), Date.now()) ||
-                    !warmCompactionDue(snapshot, bot)
-                  )
-                    return false
-                } else if (!bot || fraction < botTiming.compactAt) return false
-              }
-              if (!snapshot.items.length)
-                return yield* Effect.fail(new StoreError('conflict', 'Send a message first'))
-              if (thread.archived)
-                return yield* Effect.fail(new StoreError('conflict', 'Resume this thread first'))
-              const project = yield* store.getProject(thread.projectId)
-              if (!project)
-                return yield* Effect.fail(new StoreError('not_found', 'Thread project not found'))
-              const cwd = worktrees
-                ? yield* worktreeTask((signal) => worktrees.prepare(threadId, signal))
-                : (thread.workingPath ?? project.path)
-              const turnId = newId()
-              live.turnId = turnId
-              live.ready = false
-              if (background) {
-                backgroundCompactions.set(threadId, { turnId, interrupted: false, failed: false })
-                yield* Effect.logInfo(`compacting ${threadId} at ${Math.round(fraction * 100)}%`)
-                yield* append(threadId, {
-                  type: 'turn.started',
-                  turnId,
-                  automaticCompaction: true,
-                }).pipe(Effect.onError(() => settleTurn(threadId, turnId)))
-              }
-              let compactNoted = false
-              let compactionItemId: string | undefined
-              const emit = (event: ThreadEvent, onCommit?: Effect.Effect<void>) => {
-                if (background && event.type === 'turn.started') return onCommit ?? Effect.void
-                if (
-                  event.type === 'item.started' &&
-                  event.item.kind === 'compaction' &&
-                  !event.item.agentId
-                )
-                  compactionItemId = event.item.id
-                const failure =
-                  event.type === 'item.started' && event.item.kind === 'error'
-                    ? compactFailureDetail(event.item.message)
-                    : undefined
-                if (failure) compactNoted = true
-                if (background) {
-                  const compact = backgroundCompactions.get(threadId)
-                  if (
-                    compact &&
-                    (event.type === 'turn.failed' ||
-                      (event.type === 'item.started' && event.item.kind === 'error') ||
-                      (event.type === 'item.completed' && event.patch?.status === 'failed'))
-                  )
-                    compact.failed = true
-                  // An error row shows even in a quiet turn. A bot's automatic compact stays as
-                  // quiet as a check-in: the reason lives on the compaction, and the error does not.
-                  if (event.type === 'item.started' && event.item.kind === 'error') {
-                    if (compactionItemId && failure)
-                      return append(
-                        threadId,
-                        {
-                          type: 'item.completed',
-                          itemId: compactionItemId,
-                          patch: { status: 'failed', error: failure },
-                        },
-                        onCommit
-                      ).pipe(Effect.mapError(toAgentError))
-                    return onCommit ?? Effect.void
-                  }
-                }
-                return append(
-                  threadId,
-                  !background && event.type === 'item.started' && event.item.kind === 'compaction'
-                    ? { ...event, item: { ...event.item, manual: true } }
-                    : event,
-                  onCommit
-                ).pipe(Effect.mapError(toAgentError))
-              }
-              const lifecycle = agent
-                .startTurn(
-                  {
-                    threadId,
-                    turnId,
-                    cwd,
-                    text: '',
-                    compact: true,
-                    model: thread.model,
-                    effort: thread.effort,
-                    fast: thread.fast,
-                    parentThreadId: thread.parentThreadId,
-                  },
-                  emit
-                )
-                .pipe(
-                  Effect.flatMap((turn) => turn.await),
-                  Effect.catch((error) => {
-                    const detail = compactFailureReason(false, error.message)
-                    return (
-                      compactNoted || !detail ? Effect.void : emit(couldntCompact(turnId, detail))
-                    ).pipe(
-                      Effect.andThen(emit({ type: 'turn.failed', turnId, error: error.message }))
-                    )
-                  }),
-                  Effect.onInterrupt(() =>
-                    emit({ type: 'turn.failed', turnId, error: 'server shutdown' }).pipe(
-                      Effect.ignore
-                    )
-                  ),
-                  Effect.ensuring(settleTurn(threadId, turnId))
-                )
-              yield* Effect.forkIn(lifecycle, scope, { startImmediately: true })
-              return true
-            })
-          )
-        )
-      },
+      compact,
       beginShutdown() {
         return Effect.gen(function* () {
           closing = true

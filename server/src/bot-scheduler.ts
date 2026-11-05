@@ -120,7 +120,7 @@ export function startBotScheduler(
         const state = yield* store.getThreadState(thread.id)
         if (warmCompactionDue(state, false, timing))
           yield* orch
-            .compact(thread.id, true)
+            .compact(thread.id, 'idle')
             .pipe(
               Effect.catchCause((cause) =>
                 Effect.logWarning(`idle compaction for ${thread.id}: ${cause}`)
@@ -155,17 +155,11 @@ export function startBotScheduler(
           away &&
           registry.agent(bot.provider)?.supportsCompaction &&
           (warm
-            ? warmCompactionCandidate(hub.decorateThread(thread), now, timing) &&
-              warmCompactionDue(state, true, timing) &&
-              // A check-in keeps the cache warm, so compacting ahead of one loses context for nothing.
-              !(
-                checkInAt !== null &&
-                checkInAt <= endedAt + timing.cacheLifetimeMs &&
-                (yield* readBrief).trim()
-              )
+            ? // A bot's workers report through its queue, so they can wait behind a compact.
+              warmCompactionCandidate(thread, now, timing) && warmCompactionDue(state, true, timing)
             : fraction >= timing.compactAt && now >= (record.compactRetryAt ?? 0))
         if (compactDue) {
-          yield* orch.compact(bot.id, true)
+          yield* orch.compact(bot.id, 'idle')
           return
         }
         if (
