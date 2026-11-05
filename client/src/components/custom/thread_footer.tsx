@@ -6,8 +6,7 @@ import { cn } from '@/lib/utils'
 import { environments } from './composer_environment'
 import { ThreadContextRing } from './context_ring'
 
-// The new thread's environment and branch, locked at first send, as the environment's icon and
-// the branch, with the context ring. The icon sits where the environment picker's did.
+// Environment and branch are fixed at first send.
 export function ThreadFooter({
   threadId,
   environment,
@@ -29,7 +28,7 @@ export function ThreadFooter({
   const place = environment && environments[environment]
   return (
     <div
-      className='relative z-10 flex h-7 items-center justify-between gap-1 px-2.5'
+      className='flex h-7 min-w-0 flex-1 items-center justify-between gap-1'
       aria-label={place || branch ? 'Environment and branch' : undefined}
     >
       {note ? (
@@ -42,7 +41,7 @@ export function ThreadFooter({
         <Tooltip disabled={!place && !path}>
           <TooltipTrigger
             render={
-              <div className='flex min-w-0 cursor-default items-center gap-1.5 px-2.25 text-xs font-medium text-muted-foreground select-none' />
+              <div className='flex min-w-0 cursor-default items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground select-none' />
             }
           >
             {place && <place.Icon className='size-3 shrink-0' />}

@@ -53,7 +53,7 @@ export function ContextRing({
         r={radius}
         fill='none'
         strokeWidth='26'
-        className='stroke-muted-foreground/40'
+        className='stroke-muted-foreground/60'
       />
       {context && (
         <circle
@@ -63,7 +63,7 @@ export function ContextRing({
           fill='none'
           strokeWidth='26'
           stroke='currentColor'
-          strokeLinecap='round'
+          strokeLinecap='butt'
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - fraction)}
           transform='rotate(-90 128 128)'
@@ -246,7 +246,7 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         render={
           <Button
             variant='ghost'
-            size='icon'
+            size='sm'
             aria-label={
               context
                 ? `Context window ${Math.round(fullness(context) * 100)}% full`
@@ -256,6 +256,9 @@ export function ThreadContextRing({ threadId, provider }: { threadId: string; pr
         }
       >
         <ContextRing context={context} />
+        <span className='font-mono text-xs'>
+          {context ? `${Math.round(fullness(context) * 100)}%` : '—'}
+        </span>
       </PopoverTrigger>
       <PopoverContent
         side='top'

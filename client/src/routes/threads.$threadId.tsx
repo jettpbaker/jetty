@@ -77,7 +77,7 @@ function Thread() {
           <PageSidebarTrigger standalone />
         ))}
       {composerOnly ? (
-        <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
+        <div className='flex min-h-0 flex-1 flex-col'>{composer}</div>
       ) : (
         <ThreadDetailsLayout threadId={threadId} projectPath={projectPath}>
           <ThreadHeader
@@ -86,7 +86,7 @@ function Thread() {
             onUnarchive={meta?.archived ? () => archiveThread(threadId, false) : undefined}
           />
           {empty ? (
-            <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
+            <div className='flex min-h-0 flex-1 flex-col'>{composer}</div>
           ) : thread || !overlay.empty ? (
             <ThreadList
               // The composer beside it is keyed by the thread too; a shared key leaves the last

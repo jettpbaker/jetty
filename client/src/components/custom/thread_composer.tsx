@@ -26,6 +26,7 @@ import {
 import { ReplyTab } from '@/components/custom/reply_quote'
 import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 import { Kbd } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
 import { useAttachments } from '@/hooks/use-attachments'
@@ -33,6 +34,7 @@ import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
+import { cn } from '@/lib/utils'
 import {
   useAccessMode,
   useChatComposer,
@@ -202,6 +204,7 @@ export function ThreadComposer({
     }
   }, [threadId, update, read])
   const meta = useThreadMeta(threadId)
+  const destination = useProject(projectId ?? meta?.projectId)
   const providerUnavailable = useProviderUnavailable(lockedProvider)
   const unavailable =
     lockedProvider && providerUnavailable && !running && !meta?.botId
@@ -569,7 +572,28 @@ export function ThreadComposer({
         }
 
   return (
-    <div className='mx-auto w-full max-w-[873px] px-6 pb-1'>
+    <div
+      className={cn(
+        'mx-auto w-full max-w-[873px] px-6 pb-3',
+        ambient && 'flex min-h-0 flex-1 flex-col'
+      )}
+    >
+      {ambient && (
+        <Empty className='px-0'>
+          <EmptyHeader className='max-w-lg'>
+            <EmptyTitle className='text-2xl font-semibold'>
+              {destination?.title || projectTitle
+                ? `New thread in ${destination?.title ?? projectTitle}`
+                : 'Start a new thread'}
+            </EmptyTitle>
+            <EmptyDescription>
+              {(meta?.environment ?? environment) === 'worktree'
+                ? 'Your first message starts work in a new worktree.'
+                : 'Your first message starts work in the current checkout.'}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
       {worktree && setupNotice && (!settingUp || !hasQueue) && (
         <div
           role={worktree.state === 'failed' ? 'alert' : 'status'}
@@ -687,50 +711,56 @@ export function ThreadComposer({
         onAccessModeChange={setAccessMode}
         attachments={attachments}
         header={
-          threadId ? (
-            // Holds the project row's height so an empty thread's composer sits where the new thread's did.
-            ambient && <div className='h-7' />
-          ) : (
-            <ComposerProject
-              projectId={projectId}
-              onProjectChange={(id) => {
-                draftPin = undefined
-                if (id !== projectId)
-                  retarget({ projectId: id, environment: undefined, ref: undefined })
-              }}
-              onSetUpWorktrees={setupGuide ? () => setUpWorktrees(setupGuide) : undefined}
-            />
+          !threadId && (
+            <div
+              className='relative z-10 flex flex-wrap items-center gap-1 pb-2'
+              aria-label='Thread destination'
+            >
+              <ComposerProject
+                projectId={projectId}
+                onProjectChange={(id) => {
+                  draftPin = undefined
+                  if (id !== projectId)
+                    retarget({ projectId: id, environment: undefined, ref: undefined })
+                }}
+              />
+              <ComposerFooter
+                projectId={projectId}
+                environment={environment}
+                onEnvironmentChange={(next) => retarget({ environment: next })}
+                startingRef={startingRef}
+                onStartingRefChange={(ref) => retarget({ ref })}
+              />
+              {setupGuide && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  {...pressProps(() => setUpWorktrees(setupGuide))}
+                >
+                  Set up worktrees
+                </Button>
+              )}
+            </div>
           )
         }
         context={
-          threadId ? (
-            // Holds the environment/branch footer's height so the composer sits where it did on the new thread.
-            <div className='flex w-full flex-col'>
-              <ThreadFooter
-                threadId={threadId}
-                environment={meta?.environment}
-                branch={meta && threadBranch(meta)}
-                path={projectPath}
-                provider={provider}
-                ring={!ambient}
-                note={
-                  unavailable ? (
-                    <span className='truncate'>{unavailable}</span>
-                  ) : editingEntry ? (
-                    <QueuedEditNote items={items} />
-                  ) : left !== undefined ? (
-                    <QueuedEditNote left={left} items={items} />
-                  ) : undefined
-                }
-              />
-            </div>
-          ) : (
-            <ComposerFooter
-              projectId={projectId}
-              environment={environment}
-              onEnvironmentChange={(next) => retarget({ environment: next })}
-              startingRef={startingRef}
-              onStartingRefChange={(ref) => retarget({ ref })}
+          threadId && (
+            <ThreadFooter
+              threadId={threadId}
+              environment={meta?.environment}
+              branch={meta && threadBranch(meta)}
+              path={projectPath}
+              provider={provider}
+              ring={!ambient}
+              note={
+                unavailable ? (
+                  <span className='truncate'>{unavailable}</span>
+                ) : editingEntry ? (
+                  <QueuedEditNote items={items} />
+                ) : left !== undefined ? (
+                  <QueuedEditNote left={left} items={items} />
+                ) : undefined
+              }
             />
           )
         }

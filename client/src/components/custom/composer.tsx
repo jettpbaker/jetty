@@ -226,7 +226,7 @@ export function Composer({
               {menu.open && <SlashMenu slash={menu} />}
             </div>
             <InputGroupAddon align='block-end' className='justify-between'>
-              <div className='flex items-center gap-0'>
+              <div className='flex min-w-0 flex-1 flex-wrap items-center gap-0'>
                 <ComposerAttach onAttach={attachments.add} disabledReason={attachments.refused} />
                 {loadout}
                 <ComposerAccessMode
@@ -234,6 +234,7 @@ export function Composer({
                   model={model}
                   onChange={onAccessModeChange}
                 />
+                {context}
               </div>
               <div className='flex items-center gap-1'>
                 {stopping && (
@@ -306,7 +307,6 @@ export function Composer({
       {attachments.error ? (
         <p className='px-2.5 text-xs text-destructive'>{attachments.error}</p>
       ) : null}
-      {context}
     </div>
   )
 }
