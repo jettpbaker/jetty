@@ -5,7 +5,6 @@ import {
   ArrowUpRightIcon,
   CrossSmallIcon,
   ArrowRotateClockwiseIcon,
-  ArrowRotateCounterClockwiseIcon,
 } from '@/components/custom/central_icons'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -91,7 +90,10 @@ function UsageBar({ window, className }: { window: UsageWindow; className?: stri
     >
       {left > 0 && (
         <span
-          className='absolute inset-y-0 left-0 rounded-full bg-(--usage-color)'
+          className={cn(
+            'absolute inset-y-0 left-0 rounded-full',
+            left <= 10 ? 'bg-destructive' : 'bg-foreground'
+          )}
           style={{ width: `${left}%` }}
         />
       )}
@@ -165,15 +167,14 @@ function UsageRow({
       </span>
       <span
         className={cn(
-          'flex items-center justify-end gap-1 font-mono text-xs tabular-nums',
+          'flex items-center justify-end gap-1 text-xs tabular-nums',
           left === 0 ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
         {reset && (
           <>
-            <ArrowRotateCounterClockwiseIcon aria-hidden='true' className='size-3' />
-            <span className='sr-only'>Resets in</span>
-            {reset}
+            <span>Resets in</span>
+            <Mono>{reset}</Mono>
           </>
         )}
       </span>
@@ -184,8 +185,8 @@ function UsageRow({
 
 function windowsGrid(compact: boolean) {
   return compact
-    ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] gap-x-3 gap-y-2'
-    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_4.5rem_4.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_4.25rem] @max-md:gap-x-3'
+    ? 'grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] gap-x-3 gap-y-2'
+    : 'grid-cols-[minmax(0,8rem)_minmax(0,1fr)_4.5rem_7.5rem] gap-x-4 gap-y-3.5 @max-md:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_4.25rem_7.5rem] @max-md:gap-x-3'
 }
 
 // Why a provider shows no windows, when it doesn't.
@@ -394,20 +395,6 @@ export function UsageBanner({
 
 /* The context ring's popover: this thread's provider in full, each other connected one's tightest window */
 
-// Jett's zones for a limit's bar and figure: the accent, amber from 75%, red from 90%.
-const warnAt = 75
-const limitAt = 90
-
-function limitTone(pct: number) {
-  if (pct >= limitAt) return { bar: 'bg-destructive', text: 'text-destructive' }
-  if (pct >= warnAt) return { bar: 'bg-status-attention', text: 'text-status-attention' }
-  return { bar: 'bg-primary', text: 'text-foreground' }
-}
-
-function used(window: UsageWindow) {
-  return Math.round(clamp(window.pct, 0, 100))
-}
-
 function tightest(windows: readonly UsageWindow[]) {
   return windows.reduce((a, b) => (b.pct > a.pct ? b : a))
 }
@@ -474,8 +461,7 @@ function LimitLine({
   now: number
   pace?: boolean
 }) {
-  const value = used(window)
-  const tone = limitTone(value)
+  const left = percentLeft(window)
   const note = pace ? paceOf(window, now) : undefined
   return (
     <WindowTip usage={usage} window={window} className='flex flex-col gap-1.5'>
@@ -483,18 +469,12 @@ function LimitLine({
         <span className='flex min-w-0 items-center gap-1.5'>{label}</span>
         <span className='flex shrink-0 items-center gap-2.5'>
           <ResetLabel window={window} now={now} />
-          <Mono className={cn('w-8 text-right', tone.text)}>{value}%</Mono>
+          <span className={cn('w-14 text-right', left <= 10 && 'text-destructive')}>
+            <Mono>{left}%</Mono> left
+          </span>
         </span>
       </div>
-      <span
-        aria-hidden='true'
-        className='relative block h-1 overflow-hidden rounded-full bg-accent'
-      >
-        <span
-          className={cn('absolute inset-y-0 left-0 rounded-full', tone.bar)}
-          style={{ width: `${value}%` }}
-        />
-      </span>
+      <UsageBar window={window} className='block h-1' />
       {note && <span className='text-muted-foreground'>{note}</span>}
     </WindowTip>
   )
