@@ -2,8 +2,10 @@ import type { SubagentStatus } from '@jetty/shared/items'
 import type { Bot, ProjectIcon, RunningSubagent } from '@jetty/shared/wire'
 
 import { Button } from '@/components/ui/button'
+import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
+import { formatAge } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import {
   useModels,
@@ -15,6 +17,7 @@ import {
   useThreadMeta,
   useBot,
 } from '@/state'
+import { listedAt } from '@/state/sidebar'
 import { useBranches, useBranchList } from '@/state/worktrees'
 import { PreviewCard } from '@base-ui/react/preview-card'
 import { catalogModelName } from '@jetty/shared/model-name'
@@ -56,6 +59,7 @@ type ThreadHoverPanelProps = {
   title: string
   project?: { title: string; icon?: ProjectIcon }
   detail?: string
+  lastActivity: string
   status: ThreadStatus
   model?: string
   environment: 'local' | 'worktree'
@@ -277,6 +281,7 @@ function useCheckout(projectId?: string): Checkout | undefined {
 // never waits on the network, and it follows the thread live while it's open.
 export function ThreadHoverDetails({ threadId }: { threadId: string }) {
   const models = useModels()
+  const now = useNow(60_000)
   const childThreads = useChildThreads(threadId)
   const navigate = useNavigate()
   const startThreadJourney = useThreadJourney()
@@ -296,6 +301,7 @@ export function ThreadHoverDetails({ threadId }: { threadId: string }) {
       title={thread.title}
       project={project}
       detail={threadNavigationDetail(thread)}
+      lastActivity={formatAge(listedAt(thread), now)}
       status={threadStatus(thread.status, thread.readyForReview)}
       model={
         thread.provider && thread.model
@@ -332,6 +338,7 @@ function ThreadHoverPanel({
   title,
   project,
   detail,
+  lastActivity,
   status,
   model,
   environment,
@@ -357,7 +364,15 @@ function ThreadHoverPanel({
       <h3 className='text-sm font-medium leading-5 wrap-break-word'>{title}</h3>
       <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
         <StatusGlyph status={status} />
-        {detail ?? statusPresentation[status].label}
+        <span className='min-w-0 flex-1'>{detail ?? statusPresentation[status].label}</span>
+        <span
+          className='shrink-0 font-mono'
+          aria-label={
+            lastActivity === 'now' ? 'Last activity just now' : `Last activity ${lastActivity} ago`
+          }
+        >
+          {lastActivity}
+        </span>
       </div>
       <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground'>
         {project && (
@@ -368,9 +383,8 @@ function ThreadHoverPanel({
         )}
         {project && model && <span aria-hidden='true'>·</span>}
         {model && <span>{model}</span>}
-        {(project || model) && <span aria-hidden='true'>·</span>}
-        <EnvironmentLine worktree={environment === 'worktree'} checkout={checkout} />
       </div>
+      <EnvironmentLine worktree={environment === 'worktree'} checkout={checkout} />
       {owner && (
         <button
           type='button'
@@ -391,15 +405,19 @@ function ThreadHoverPanel({
         <Section label='Pull requests'>
           {prs.map(({ pr, icon: Icon, color, label }) => (
             <Row key={`${pr.repo}#${pr.number}`} onPress={() => onOpenPullRequest(pr)}>
-              <Icon aria-hidden='true' className={cn('size-3 shrink-0', color)} />
-              <span
-                className='shrink-0 text-right font-mono text-muted-foreground'
-                style={{ width: `${numberWidth}ch` }}
-              >
-                #{pr.number}
+              <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                <span className='flex min-w-0 items-center gap-2'>
+                  <Icon aria-hidden='true' className={cn('size-3 shrink-0', color)} />
+                  <span
+                    className='shrink-0 text-right font-mono text-muted-foreground'
+                    style={{ width: `${numberWidth}ch` }}
+                  >
+                    #{pr.number}
+                  </span>
+                  <RowTitle>{pr.title ?? ''}</RowTitle>
+                </span>
+                <span className='whitespace-normal pl-5 text-muted-foreground'>{label}</span>
               </span>
-              <RowTitle>{pr.title ?? ''}</RowTitle>
-              <span className='sr-only'>{label}</span>
             </Row>
           ))}
         </Section>
@@ -425,9 +443,9 @@ function EnvironmentLine({ worktree, checkout }: { worktree: boolean; checkout?:
     <span className='flex min-w-0 items-center gap-1 text-muted-foreground' title={label}>
       <Icon aria-hidden='true' className='size-3 shrink-0' />
       <span className='sr-only'>{label}</span>
-      {checkout && (
-        <span className={cn('truncate', checkout.branch && 'font-mono')}>{checkout.label}</span>
-      )}
+      <span className={cn('min-w-0 wrap-anywhere', checkout?.branch && 'font-mono')}>
+        {checkout?.label ?? label}
+      </span>
     </span>
   )
 }
