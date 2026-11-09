@@ -157,6 +157,14 @@
   worktrees (the new-thread page's Set up worktrees button points it there). Keep
   it in step with this section.
 
+## authorization browser
+
+Safari is not the default browser on Jett's Mac, and it must stay that way.
+Cursor opens authorization and other external http(s) links in Safari:
+`workbench.externalBrowser` is `safari` in Cursor user settings. When opening
+a confirmation URL yourself, use `open -a Safari`. Details are in
+`.agents/skills/safari-auth`.
+
 ## Cloud Agent specific instructions
 
 - Runtime is **Bun** (installed at `~/.bun/bin`, on `PATH` via `~/.bashrc`). The
