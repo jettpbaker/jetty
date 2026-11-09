@@ -76,6 +76,8 @@ type Session = {
   publication: Semaphore.Semaphore
   fiber?: Fiber.Fiber<void, AgentError>
   mcpErrorShown: boolean
+  // Full access had to drop danger-full-access, so file-change approvals need their diffs.
+  asksForApproval: boolean
 }
 
 function codexSkillInput(
@@ -112,6 +114,14 @@ function codexInput(text: string, images?: AgentImage[]) {
   ]
 }
 
+// Codex refuses this pair when requirements disallow danger-full-access: the sandbox
+// would fall back to read-only while approvals stay disabled, so the turn cannot proceed.
+const BLOCKED_DANGER_FULL_ACCESS = 'requirements do not allow `sandbox_mode = "danger-full-access"`'
+
+function blockedDangerFullAccess(error: { message: string }) {
+  return error.message.includes(BLOCKED_DANGER_FULL_ACCESS)
+}
+
 function threadOptions(
   input: TurnInput,
   cwd: string,
@@ -130,6 +140,25 @@ function threadOptions(
     ...(!full && writableRoots.length
       ? { config: { 'sandbox_workspace_write.writable_roots': writableRoots } }
       : {}),
+  }
+}
+
+// Requirements blocked unsandboxed full access. Workspace writes and network still run,
+// and on-request lets the user approve anything that sandbox refuses.
+function allowedFullAccess(
+  input: TurnInput,
+  cwd: string,
+  instructions: string,
+  writableRoots: string[]
+) {
+  return {
+    ...threadOptions({ ...input, permissionMode: 'auto' }, cwd, instructions, writableRoots),
+    approvalPolicy: 'on-request' as const,
+    approvalsReviewer: 'user' as const,
+    config: {
+      ...(writableRoots.length ? { 'sandbox_workspace_write.writable_roots': writableRoots } : {}),
+      'sandbox_workspace_write.network_access': true,
+    },
   }
 }
 
@@ -367,12 +396,13 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       return Effect.scoped(
         Effect.gen(function* () {
           const bot = yield* prepareBot(store, session.input.threadId, cwd)
-          const writableRoots =
-            session.input.permissionMode === 'full_access'
-              ? []
-              : yield* gitWritableRoots(cwd).pipe(
-                  Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-                )
+          const full = session.input.permissionMode === 'full_access'
+          function roots() {
+            return gitWritableRoots(cwd).pipe(
+              Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+            )
+          }
+          const writableRoots = full ? [] : [...(yield* roots()), ...(bot?.allowedPaths ?? [])]
           const binding = options.mcp
             ? yield* options.mcp.open({ threadId: session.input.threadId, provider: 'codex' })
             : undefined
@@ -420,13 +450,25 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   workspace
                 )
               : '')
-          const result = yield* connection.request(resume ? 'thread/resume' : 'thread/start', {
-            ...threadOptions(session.input, cwd, instructions, [
-              ...writableRoots,
-              ...(bot?.allowedPaths ?? []),
-            ]),
-            ...(resume ? { threadId: resume } : { ephemeral: false }),
-          })
+          const method = resume ? 'thread/resume' : 'thread/start'
+          const result = yield* connection
+            .request(method, {
+              ...threadOptions(session.input, cwd, instructions, writableRoots),
+              ...(resume ? { threadId: resume } : { ephemeral: false }),
+            })
+            .pipe(
+              Effect.catch((error) => {
+                if (!full || !blockedDangerFullAccess(error)) return Effect.fail(error)
+                return Effect.gen(function* () {
+                  session.asksForApproval = true
+                  const allowed = [...(yield* roots()), ...(bot?.allowedPaths ?? [])]
+                  return yield* connection.request(method, {
+                    ...allowedFullAccess(session.input, cwd, instructions, allowed),
+                    ...(resume ? { threadId: resume } : { ephemeral: false }),
+                  })
+                })
+              })
+            )
           const threadId = string(object(result.thread).id)
           if (!threadId) return yield* Effect.fail(new AgentError('Codex returned no thread id'))
           session.providerThreadId = threadId
@@ -625,7 +667,10 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                   const providerItemId = string(raw.id) || string(message.params.itemId)
                   if (message.method === 'item/completed')
                     session.fileChanges.delete(providerItemId)
-                  if (changes.length && session.input.permissionMode !== 'full_access') {
+                  if (
+                    changes.length &&
+                    (session.input.permissionMode !== 'full_access' || session.asksForApproval)
+                  ) {
                     if (message.method !== 'item/completed')
                       session.fileChanges.set(providerItemId, changes)
                     const approvalId = session.fileChangeApprovals.get(providerItemId)
@@ -726,6 +771,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             fileChanges: new Map(),
             fileChangeApprovals: new Map(),
             mcpErrorShown: false,
+            asksForApproval: false,
             publication: yield* Semaphore.make(1),
           }
           sessions.set(input.threadId, session)

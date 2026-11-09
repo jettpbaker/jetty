@@ -3,6 +3,8 @@ import { createInterface } from 'node:readline'
 
 const threadId = 'provider-thread'
 const turnId = 'provider-turn'
+const rejectFullAccess = process.argv.includes('reject-full-access')
+let rejectedFullAccess = false
 let scenario = ''
 let pending = ''
 writeFileSync('peer.pid', String(process.pid))
@@ -40,7 +42,22 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (method === 'initialize') {
     if (process.argv[2] !== 'silent-init') send({ id, result: { userAgent: 'fixture' } })
   } else if (method === 'thread/start' || method === 'thread/resume') {
-    if (params.threadId === 'missing')
+    if (
+      rejectFullAccess &&
+      !rejectedFullAccess &&
+      params.sandbox === 'danger-full-access' &&
+      params.approvalPolicy === 'never'
+    ) {
+      rejectedFullAccess = true
+      send({
+        id,
+        error: {
+          code: -32600,
+          message:
+            'failed to load configuration: `approval_policy = "never"` cannot be used because requirements do not allow `sandbox_mode = "danger-full-access"`; Codex would fall back to read-only permissions with approvals disabled. Choose an `approval_policy` based on what you need, such as `on-request`, or choose an allowed sandbox mode.',
+        },
+      })
+    } else if (params.threadId === 'missing')
       send({ id, error: { code: -32000, message: 'Thread not found' } })
     else send({ id, result: { thread: { id: threadId } } })
   } else if (method === 'turn/start') {

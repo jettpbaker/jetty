@@ -328,6 +328,38 @@ for (const permissionMode of ['auto', 'full_access'] as const)
     })
   })
 
+test('full access retries on an allowed sandbox when Codex rejects danger-full-access', async () => {
+  const f = await setup({
+    command: process.execPath,
+    args: [join(import.meta.dir, 'fixtures/codex-peer.ts'), 'reject-full-access'],
+  })
+  const turn = await Effect.runPromise(
+    f.agent.startTurn(
+      {
+        threadId: f.threadId,
+        turnId: newId(),
+        text: 'hello',
+        permissionMode: 'full_access',
+      },
+      f.emit
+    )
+  )
+  await Effect.runPromise(turn.await)
+  const starts = f.log().filter((message) => message.method === 'thread/start')
+  expect(starts).toHaveLength(2)
+  expect(starts[0].params).toMatchObject({
+    sandbox: 'danger-full-access',
+    approvalPolicy: 'never',
+  })
+  expect(starts[1].params).toMatchObject({
+    sandbox: 'workspace-write',
+    approvalPolicy: 'on-request',
+    approvalsReviewer: 'user',
+    config: { 'sandbox_workspace_write.network_access': true },
+  })
+  expect(f.events.some((event) => event.type === 'turn.completed')).toBe(true)
+})
+
 test('a missing resume fails visibly without silently replacing provider history', async () => {
   const f = await setup()
   await Effect.runPromise(f.store.setProviderSessionId(f.threadId, 'codex', 'missing'))
