@@ -528,7 +528,12 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
           const thread = yield* store.requireThread(input.threadId)
           const project = yield* store.getProject(thread.projectId)
           if (!project) return yield* Effect.fail(new AgentError('Thread project not found'))
-          const bot = yield* prepareBot(store, input.threadId, input.cwd ?? project.path)
+          const bot = yield* prepareBot(
+            store,
+            input.threadId,
+            input.cwd ?? project.path,
+            input.permissionMode
+          )
           let existing = sessions.get(input.threadId)
           if (
             existing &&

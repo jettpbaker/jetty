@@ -197,6 +197,7 @@ test('title generation uses the selected Copilot model and streamed response', a
           efforts: ['low'],
           fast: false,
           autoMode: true,
+          fullAccess: true,
         },
         'low',
         false,

@@ -281,6 +281,8 @@ type OrchestratorOptions = {
   modelCatalog?: () => Effect.Effect<readonly ProviderModel[]>
   // The last discovered models, read without re-running discovery.
   knownModels?: () => readonly ProviderModel[]
+  // False when the provider's policy forbids Full access for the model; those turns run as Auto.
+  allowsFullAccess?: (provider: string, model: string | undefined) => Effect.Effect<boolean>
 }
 
 export function createOrchestrator({
@@ -297,6 +299,7 @@ export function createOrchestrator({
   onPullRequestWritten,
   modelCatalog,
   knownModels,
+  allowsFullAccess,
 }: OrchestratorOptions) {
   const registry = registryFrom(agent)
   return Effect.gen(function* () {
@@ -1569,6 +1572,12 @@ export function createOrchestrator({
                     input.fast ?? (model && model === thread.model ? thread.fast : false) ?? false,
                 }
               }
+              if (
+                input.permissionMode === 'full_access' &&
+                allowsFullAccess &&
+                !(yield* allowsFullAccess(chosen.provider, input.model))
+              )
+                input = { ...input, permissionMode: 'auto' }
               let committed = false
               const onCommit = Effect.sync(() => {
                 committed = true

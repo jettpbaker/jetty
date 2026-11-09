@@ -1,13 +1,21 @@
+import type { PermissionMode } from '@jetty/shared/wire'
+
 import { Effect } from 'effect'
 
 import type { Store } from './store'
 
 import { prepareBotHome } from './bot-home'
 
-export function prepareBot(store: Store, threadId: string, home: string) {
+export function prepareBot(
+  store: Store,
+  threadId: string,
+  home: string,
+  permissionMode: PermissionMode | undefined
+) {
   return Effect.gen(function* () {
-    const bot = yield* store.getBot(threadId)
-    if (!bot) return undefined
+    const stored = yield* store.getBot(threadId)
+    if (!stored) return undefined
+    const bot = { ...stored, permissionMode: permissionMode ?? stored.permissionMode }
     const projects = yield* store.listProjects()
     const behaviours = yield* store.getAgentBehaviours()
     return yield* Effect.tryPromise(() =>

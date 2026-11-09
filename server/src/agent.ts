@@ -139,6 +139,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     efforts: ALL_EFFORTS,
     fast: false,
     autoMode: true,
+    fullAccess: true,
   },
   {
     provider: 'claude',
@@ -147,8 +148,17 @@ export const ECHO_MODELS: ProviderModel[] = [
     efforts: ALL_EFFORTS,
     fast: false,
     autoMode: true,
+    fullAccess: true,
   },
-  { provider: 'claude', id: 'haiku', name: 'Haiku', efforts: [], fast: false, autoMode: false },
+  {
+    provider: 'claude',
+    id: 'haiku',
+    name: 'Haiku',
+    efforts: [],
+    fast: false,
+    autoMode: false,
+    fullAccess: true,
+  },
   {
     provider: 'codex',
     id: 'gpt-echo',
@@ -157,6 +167,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     defaultEffort: 'medium',
     fast: true,
     autoMode: true,
+    fullAccess: true,
   },
   {
     provider: 'codex',
@@ -166,6 +177,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     defaultEffort: 'medium',
     fast: false,
     autoMode: true,
+    fullAccess: true,
   },
   {
     provider: 'grok',
@@ -175,6 +187,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     defaultEffort: 'high',
     fast: true,
     autoMode: true,
+    fullAccess: true,
   },
   {
     provider: 'grok',
@@ -184,6 +197,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     defaultEffort: 'high',
     fast: false,
     autoMode: true,
+    fullAccess: true,
   },
   {
     provider: 'copilot',
@@ -193,6 +207,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     defaultEffort: 'medium',
     fast: false,
     autoMode: true,
+    fullAccess: true,
   },
   {
     provider: 'opencode',
@@ -201,6 +216,7 @@ export const ECHO_MODELS: ProviderModel[] = [
     efforts: [],
     fast: false,
     autoMode: true,
+    fullAccess: true,
   },
 ]
 

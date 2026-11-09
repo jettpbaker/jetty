@@ -48,6 +48,7 @@ export const ProviderModel = Schema.Struct({
   defaultEffort: Schema.optional(EffortLevel),
   fast: Schema.Boolean,
   autoMode: Schema.Boolean,
+  fullAccess: Schema.Boolean,
   contextWindow: Schema.optional(Schema.Literal('1m')),
 })
 export type ProviderModel = Schema.Schema.Type<typeof ProviderModel>

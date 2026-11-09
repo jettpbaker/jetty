@@ -366,7 +366,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
     function run(session: Session, cwd: string, workspace: ThreadWorkspace) {
       return Effect.scoped(
         Effect.gen(function* () {
-          const bot = yield* prepareBot(store, session.input.threadId, cwd)
+          const bot = yield* prepareBot(
+            store,
+            session.input.threadId,
+            cwd,
+            session.input.permissionMode
+          )
           const writableRoots =
             session.input.permissionMode === 'full_access'
               ? []

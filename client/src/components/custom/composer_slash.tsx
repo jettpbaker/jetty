@@ -45,6 +45,7 @@ import {
 } from 'react'
 
 import { BotAvatar, botColorStyle } from './bot_avatar'
+import { fullAccessDisabled } from './composer_access_mode'
 import { ContextRing } from './context_ring'
 import { JettyBot } from './jetty_bot'
 import { ProviderGlyph } from './provider_glyph'
@@ -239,7 +240,8 @@ export function useComposerSlash(
       description: string,
       selected: boolean,
       apply: () => void,
-      icon: ReactNode
+      icon: ReactNode,
+      disabled = false
     ): Entry => ({
       id: `${command}:${id}`,
       kind: 'option',
@@ -248,6 +250,7 @@ export function useComposerSlash(
       group: commandLabels[command],
       icon,
       selected,
+      disabled,
       score: 0,
       run: () => {
         apply()
@@ -276,16 +279,19 @@ export function useComposerSlash(
           <EffortIcon level={effort} />
         )
       )
-    return (['auto', 'full_access'] as const).map((mode) =>
-      option(
+    const blocked = fullAccessDisabled(model)
+    return (['auto', 'full_access'] as const).map((mode) => {
+      const reason = mode === 'full_access' ? blocked : undefined
+      return option(
         mode,
         accessLabels[mode],
-        accessDescriptions[mode],
-        mode === accessMode,
+        reason ?? accessDescriptions[mode],
+        mode === (blocked ? 'auto' : accessMode),
         () => setAccessMode(mode),
-        mode === 'auto' ? <ShieldCheckIcon /> : <ShieldBreakIcon />
+        mode === 'auto' ? <ShieldCheckIcon /> : <ShieldBreakIcon />,
+        reason !== undefined
       )
-    )
+    })
   }
 
   function commandEntries(range: SlashQuery): Entry[] {

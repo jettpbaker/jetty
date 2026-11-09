@@ -83,7 +83,7 @@ export function CappedResults({ label, children }: { label: string; children: Re
 }
 
 export function ModelRow({ result }: { result: ModelResult }) {
-  const model: ProviderModel = { ...result, fast: false, autoMode: false }
+  const model: ProviderModel = { ...result, fast: false, autoMode: false, fullAccess: true }
   return (
     <Disclosure
       title={

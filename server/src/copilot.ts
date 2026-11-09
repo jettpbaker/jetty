@@ -588,7 +588,12 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           const thread = yield* store.requireThread(input.threadId)
           const project = yield* store.getProject(thread.projectId)
           if (!project) return yield* Effect.fail(new AgentError('Thread project not found'))
-          const bot = yield* prepareBot(store, input.threadId, input.cwd ?? project.path)
+          const bot = yield* prepareBot(
+            store,
+            input.threadId,
+            input.cwd ?? project.path,
+            input.permissionMode
+          )
           let existing = sessions.get(input.threadId)
           if (existing && existing.bot?.hash !== bot?.hash) {
             if (existing.awaitingResult)

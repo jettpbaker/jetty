@@ -511,10 +511,17 @@ export function createMcpHandler(
       })
     }
 
+    function inFullAccess(thread: { provider?: string; model?: string }, mode?: string) {
+      return (
+        mode === 'full_access' &&
+        findProviderModel(models() ?? [], thread.provider, thread.model)?.fullAccess !== false
+      )
+    }
+
     function accessLevel(thread: { provider?: string; model?: string }, mode?: string) {
       if (findProviderModel(models() ?? [], thread.provider, thread.model)?.autoMode === false)
         return 0
-      return mode === 'full_access' ? 2 : 1
+      return inFullAccess(thread, mode) ? 2 : 1
     }
 
     function createThread(identity: McpIdentity, input: CreateThreadInput) {
@@ -583,7 +590,7 @@ export function createMcpHandler(
               )
             )
           const callerMode = (yield* store.getPermissionMode(caller.id)) ?? 'auto'
-          if (input.full_access && callerMode !== 'full_access')
+          if (input.full_access && !inFullAccess(caller, callerMode))
             return yield* Effect.fail(
               new StoreError(
                 'invalid_params',
@@ -660,7 +667,7 @@ export function createMcpHandler(
           )
         if (!input.prompt && !input.setup_worktrees)
           return yield* Effect.fail(new StoreError('invalid_params', 'prompt is required.'))
-        if (input.full_access && (yield* store.getPermissionMode(caller.id)) !== 'full_access')
+        if (input.full_access && !inFullAccess(caller, yield* store.getPermissionMode(caller.id)))
           return yield* Effect.fail(
             new StoreError(
               'invalid_params',

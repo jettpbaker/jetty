@@ -28,7 +28,9 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 
 import { Folder1Icon, FolderAddLeftIcon, CircleInfoIcon, FoldersIcon } from './central_icons'
+import { fullAccessDisabled } from './composer_access_mode'
 import { ComposerLoadout } from './composer_loadout'
+import { DisabledTooltip } from './disabled_tooltip'
 import { JettyBot } from './jetty_bot'
 import { botColors, colorIds, deepBotColors, shapeIds } from './jetty_bot_shapes'
 import { OptionPicker } from './option_picker'
@@ -141,6 +143,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   const [adding, setAdding] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const chosenLoadout = loadout ?? firstBotLoadout(loadouts, catalog)
+  const blocked = fullAccessDisabled(chosenLoadout && findModel(catalog, chosenLoadout))
   useEffect(() => {
     if (projectReady.current || !loadedProjects) return
     projectReady.current = true
@@ -163,7 +166,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
       effort: chosenLoadout.effort,
       fast: chosenLoadout.fast,
       projectId: project === ALL ? null : project,
-      permissionMode: access,
+      permissionMode: blocked ? 'auto' : access,
     })
     onOpenChange(false)
     void navigate({ to: '/bots/$botId', params: { botId: id } })
@@ -244,11 +247,15 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
               )}
             </Row>
             <Row label={<FullAccessLabel />}>
-              <Switch
-                aria-label='Full access'
-                checked={access === 'full_access'}
-                onCheckedChange={(on) => setAccess(on ? 'full_access' : 'auto')}
-              />
+              <DisabledTooltip reason={blocked} wrap='flex'>
+                <Switch
+                  aria-label='Full access'
+                  disabled={blocked !== undefined}
+                  checked={!blocked && access === 'full_access'}
+                  onCheckedChange={(on) => setAccess(on ? 'full_access' : 'auto')}
+                  className={blocked ? 'pointer-events-none' : undefined}
+                />
+              </DisabledTooltip>
             </Row>
           </div>
           <DialogFooter>

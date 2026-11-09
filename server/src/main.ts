@@ -547,6 +547,7 @@ function createServer(opts: ServerOptions = {}) {
     // Whether Claude is signed in decides where an unspecified turn goes; after the first answer,
     // the cached one does.
     let claudeSettled = false
+    let codexSettled = false
 
     function refreshModels(force = false) {
       return Effect.uninterruptibleMask((restore) =>
@@ -617,7 +618,14 @@ function createServer(opts: ServerOptions = {}) {
                           ...modelDiscovery,
                           [provider]: next ? 'ready' : 'error',
                         }
-                        return publish().pipe(Effect.andThen(publishStatus()))
+                        return publish().pipe(
+                          Effect.andThen(
+                            Effect.sync(() => {
+                              if (provider === 'codex') codexSettled = true
+                            })
+                          ),
+                          Effect.andThen(publishStatus())
+                        )
                       })
                     )
                   ),
@@ -646,6 +654,13 @@ function createServer(opts: ServerOptions = {}) {
         return models ?? []
       })
     }
+    function allowsFullAccess(provider: string, model: string | undefined) {
+      return Effect.gen(function* () {
+        // Queued turns start at boot, before Codex discovery has read its policy.
+        if (provider === 'codex' && !codexSettled) yield* refreshModels()
+        return findProviderModel(models ?? [], provider, model)?.fullAccess !== false
+      })
+    }
     const titlePrompt = yield* createTitlePrompt({
       prompt: modelPrompt,
       catalog: modelCatalog,
@@ -666,6 +681,7 @@ function createServer(opts: ServerOptions = {}) {
         onPullRequestWritten: pullRequestLinks.refreshWritten,
         modelCatalog,
         knownModels: () => models ?? [],
+        allowsFullAccess,
         worktrees,
         desktops,
       })

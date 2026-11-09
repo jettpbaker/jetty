@@ -23,6 +23,7 @@ function toProviderModel(raw: Record<string, unknown>): ProviderModel {
     ...(isEffort(defaultEffort) ? { defaultEffort } : {}),
     fast: false,
     autoMode: true,
+    fullAccess: true,
   }
 }
 

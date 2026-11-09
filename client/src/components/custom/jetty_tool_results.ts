@@ -111,6 +111,7 @@ export function jettyResults(call: ToolActivity, config: ResultTool): JettyResul
             ...record(row),
             fast: false,
             autoMode: false,
+            fullAccess: true,
           })
           results.push({ kind: 'model', value })
           break

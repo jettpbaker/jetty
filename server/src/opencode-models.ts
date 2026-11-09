@@ -81,6 +81,7 @@ export function parseOpencodeModels(output: string): ProviderModel[] {
         efforts: Effort.literals.filter((effort) => variants.includes(effort)),
         fast: false,
         autoMode: true,
+        fullAccess: true,
       })
   }
   for (const line of output.split('\n')) {

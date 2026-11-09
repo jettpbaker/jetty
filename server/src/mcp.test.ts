@@ -27,9 +27,33 @@ afterEach(async () => {
 })
 
 const catalog: ProviderModel[] = [
-  { provider: 'claude', id: 'haiku', name: 'Haiku', efforts: [], fast: false, autoMode: false },
-  { provider: 'claude', id: 'sonnet', name: 'Sonnet', efforts: [], fast: false, autoMode: true },
-  { provider: 'grok', id: 'grok-4.7', name: 'Grok 4.7', efforts: [], fast: false, autoMode: true },
+  {
+    provider: 'claude',
+    id: 'haiku',
+    name: 'Haiku',
+    efforts: [],
+    fast: false,
+    autoMode: false,
+    fullAccess: true,
+  },
+  {
+    provider: 'claude',
+    id: 'sonnet',
+    name: 'Sonnet',
+    efforts: [],
+    fast: false,
+    autoMode: true,
+    fullAccess: true,
+  },
+  {
+    provider: 'grok',
+    id: 'grok-4.7',
+    name: 'Grok 4.7',
+    efforts: [],
+    fast: false,
+    autoMode: true,
+    fullAccess: true,
+  },
 ]
 
 async function openStore() {

@@ -19,7 +19,7 @@ import {
   Folder1Icon,
   PlusMediumIcon,
 } from './central_icons'
-import { accessModes } from './composer_access_mode'
+import { accessModes, fullAccessDisabled } from './composer_access_mode'
 import { copyFilePath } from './file_link'
 import { NewBotDialog } from './new_bot_dialog'
 import {
@@ -58,7 +58,7 @@ function BotRow({ bot }: { bot: Bot }) {
                 .filter(Boolean)
                 .join(' ')}
             </span>
-            {bot.permissionMode === 'full_access' && (
+            {bot.permissionMode === 'full_access' && !fullAccessDisabled(model) && (
               <span className='flex shrink-0 items-center gap-1 [&_svg]:size-3'>
                 <accessModes.full_access.Icon />
                 {accessModes.full_access.label}

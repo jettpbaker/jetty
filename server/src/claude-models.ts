@@ -53,6 +53,7 @@ export function discoverClaudeModels() {
             efforts: model.supportedEffortLevels ?? [],
             fast: false,
             autoMode: model.supportsAutoMode === true,
+            fullAccess: true,
           },
         ]
       })

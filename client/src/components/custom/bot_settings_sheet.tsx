@@ -3,6 +3,8 @@ import type { Bot, BotAllowRule } from '@jetty/shared/wire'
 import { useArchiveBotAction } from '@/components/custom/bot_archive'
 import { BotAvatar } from '@/components/custom/bot_avatar'
 import { ArchiveIcon, CrossSmallIcon } from '@/components/custom/central_icons'
+import { fullAccessDisabled } from '@/components/custom/composer_access_mode'
+import { DisabledTooltip } from '@/components/custom/disabled_tooltip'
 import {
   BotLoadoutPicker,
   botLoadoutChanges,
@@ -22,7 +24,8 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { useSetBotAllowRules, useUpdateBot } from '@/state'
+import { findModel } from '@/lib/loadout'
+import { useModels, useSetBotAllowRules, useUpdateBot } from '@/state'
 import { useNavigate } from '@tanstack/react-router'
 import { useState, type ReactElement } from 'react'
 
@@ -36,6 +39,8 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
   const archiveBot = useArchiveBotAction()
   const navigate = useNavigate()
   const rules = bot.allowRules ?? []
+  const models = useModels()
+  const blocked = fullAccessDisabled(findModel(models, bot))
   function saveName() {
     const next = name?.trim()
     if (next && next !== bot.name) update(bot.id, { name: next })
@@ -100,13 +105,17 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
               />
             </Row>
             <Row label={<FullAccessLabel />}>
-              <Switch
-                aria-label='Full access'
-                checked={bot.permissionMode === 'full_access'}
-                onCheckedChange={(on) =>
-                  update(bot.id, { permissionMode: on ? 'full_access' : 'auto' })
-                }
-              />
+              <DisabledTooltip reason={blocked} wrap='flex'>
+                <Switch
+                  aria-label='Full access'
+                  disabled={blocked !== undefined}
+                  checked={!blocked && bot.permissionMode === 'full_access'}
+                  onCheckedChange={(on) =>
+                    update(bot.id, { permissionMode: on ? 'full_access' : 'auto' })
+                  }
+                  className={blocked ? 'pointer-events-none' : undefined}
+                />
+              </DisabledTooltip>
             </Row>
             <Row label={<CheckInsLabel />}>
               <Switch

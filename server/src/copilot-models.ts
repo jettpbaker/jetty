@@ -45,6 +45,7 @@ export function copilotModels(session: Record<string, unknown>): ProviderModel[]
               ...(Schema.is(Effort)(defaultEffort) ? { defaultEffort } : {}),
               fast: false,
               autoMode: true,
+              fullAccess: true,
             },
           ]
         : []

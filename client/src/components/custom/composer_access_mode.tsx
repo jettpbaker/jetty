@@ -25,6 +25,10 @@ export const accessModes: Record<PermissionMode, { label: string; Icon: typeof S
     full_access: { label: 'Full access', Icon: ShieldBreakIcon },
   }
 
+export function fullAccessDisabled(model: ProviderModel | undefined) {
+  return model?.fullAccess === false ? "Your Codex policy doesn't allow Full access" : undefined
+}
+
 function isMode(value: unknown): value is PermissionMode {
   return typeof value === 'string' && Object.hasOwn(accessModes, value)
 }
@@ -61,7 +65,9 @@ export function ComposerAccessMode({
         </Button>
       </DisabledTooltip>
     )
-  const { label, Icon } = accessModes[value]
+  const blocked = fullAccessDisabled(model)
+  const shown = blocked ? 'auto' : value
+  const { label, Icon } = accessModes[shown]
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
       <KeybindTooltip binding={{ ...keybinds.access, name: label }}>
@@ -72,7 +78,7 @@ export function ComposerAccessMode({
               variant='ghost'
               size='icon'
               className={
-                value === 'full_access'
+                shown === 'full_access'
                   ? 'text-status-attention not-disabled:hover:text-status-attention aria-expanded:text-status-attention'
                   : undefined
               }
@@ -84,17 +90,22 @@ export function ComposerAccessMode({
       </KeybindTooltip>
       <DropdownMenuContent align='start' className='w-max min-w-32'>
         <DropdownMenuRadioGroup
-          value={value}
+          value={shown}
           onValueChange={(next) => {
             if (isMode(next)) onChange(next)
           }}
         >
-          {Object.entries(accessModes).map(([id, mode]) => (
-            <DropdownMenuRadioItem key={id} value={id}>
-              <mode.Icon />
-              {mode.label}
-            </DropdownMenuRadioItem>
-          ))}
+          {Object.entries(accessModes).map(([id, mode]) => {
+            const reason = id === 'full_access' ? blocked : undefined
+            return (
+              <DisabledTooltip key={id} reason={reason} side='right'>
+                <DropdownMenuRadioItem value={id} disabled={reason !== undefined}>
+                  <mode.Icon />
+                  {mode.label}
+                </DropdownMenuRadioItem>
+              </DisabledTooltip>
+            )
+          })}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
