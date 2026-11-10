@@ -113,10 +113,3 @@ details pane, framing the streamer's viewer through `/desktop/<id>/` on Jetty's 
 origin and port. Desktops survive a restart while they still stream, and stop when
 their thread is archived or deleted. Without jetty-desktop installed, agents aren't
 told about desktops and the tool says it's unavailable.
-
-## icons
-
-Jetty's icons are [Central Icons](https://centralicons.com), a paid set. They install
-from npm with the client and are never committed, so building Jetty needs your own
-Central licence: put its key in `CENTRAL_LICENSE_KEY` (see `.env.example`) before
-installing.
