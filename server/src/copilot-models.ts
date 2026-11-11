@@ -9,9 +9,10 @@ import { object, string, type StdioConnection, type StdioProcessOptions } from '
 
 export function copilotConfig(session: Record<string, unknown>, category: string, id: string) {
   const options = Array.isArray(session.configOptions) ? session.configOptions.map(object) : []
+  // A category can hold several options (permissions does), so the id decides when it's there.
   return (
-    options.find((option) => option.category === category) ??
-    options.find((option) => option.id === id)
+    options.find((option) => option.id === id) ??
+    options.find((option) => option.category === category)
   )
 }
 
