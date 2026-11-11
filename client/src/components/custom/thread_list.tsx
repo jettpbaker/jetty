@@ -28,6 +28,7 @@ import {
 } from '@/components/custom/thread_measure'
 import { ThreadMinimap, useTurns } from '@/components/custom/thread_minimap'
 import { createThreadRows, type BotRows, type ThreadRow } from '@/components/custom/thread_rows'
+import { brakingRoom, pinnedScrollTop } from '@/components/custom/thread_scroll'
 import {
   BackgroundSeam,
   CompactionSeam,
@@ -572,7 +573,9 @@ export function ThreadList({
 
   const previousFirst = useRef(rows[0]?.id)
   const previousCount = useRef(rows.length)
-  const movedStart = previousFirst.current !== rows[0]?.id || previousCount.current !== rows.length
+  // Older rows shift every offset. A row added at the end is the reply growing.
+  const prepended = previousFirst.current !== rows[0]?.id
+  const movedStart = prepended || previousCount.current !== rows.length
   const readingAnchor =
     movedStart && previousVirtualizer.current && !pinned.current
       ? anchorAt(previousVirtualizer.current)
@@ -631,7 +634,9 @@ export function ThreadList({
       scroller.current.scrollTop = prependTop
       shownTop.current = scroller.current.scrollTop
     }
-    if (movedStart && pinned.current) landed.current.key = ''
+    // A prepend has to land at once. An appended reply keeps gliding: clearing the landing
+    // here would hard-land on the same commit the turn finishes.
+    if (prepended && pinned.current) landed.current.key = ''
   })
 
   useLayoutEffect(
@@ -795,7 +800,12 @@ export function ThreadList({
       if ((event.key === 'End' && !meta) || (event.key === 'ArrowDown' && meta)) {
         event.preventDefault()
         pin(true)
-        virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
+        const bottom = sendTarget.current
+        // Follow the port's end only when it is the transcript. Braking room would land in it.
+        if (brakingRoom(bottom, element.scrollHeight, element.clientHeight)) {
+          virtualizer.scrollToOffset(bottom)
+          shownTop.current = element.scrollTop
+        } else virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
       } else if ((event.key === 'Home' && !meta) || (event.key === 'ArrowUp' && meta)) {
         event.preventDefault()
         pin(false)
@@ -811,7 +821,7 @@ export function ThreadList({
   }, [pin, virtualizer, history, agentId, historyActions])
   useLayoutEffect(() => {
     const element = scroller.current
-    sendTarget.current = Math.max(0, scrollSize - (element?.clientHeight ?? 0))
+    sendTarget.current = pinnedScrollTop(scrollSize, element?.clientHeight ?? 0)
     if (!pinned.current || rows.length === 0 || !element) {
       releaseScrollSpace()
       return
@@ -874,7 +884,13 @@ export function ThreadList({
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     releaseScrollSpace()
-    virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
+    // Aligning the last row to the end uses the scrollport's scrollHeight. That height still
+    // includes the braking room kept after a long turn collapses, so the landing sits in the
+    // empty padding and the reply stays above the window until the composer resizes.
+    if (brakingRoom(sendTarget.current, element.scrollHeight, element.clientHeight)) {
+      virtualizer.scrollToOffset(sendTarget.current)
+      shownTop.current = element.scrollTop
+    } else virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
   }, [
     virtualizer,
     rows.length,
@@ -917,12 +933,19 @@ export function ThreadList({
     if (!element) return
     pin(true)
     stopSendGlide()
+    const bottom = sendTarget.current
     if (reducedMotion.matches) {
-      virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
+      if (brakingRoom(bottom, element.scrollHeight, element.clientHeight)) {
+        virtualizer.scrollToOffset(bottom)
+        shownTop.current = element.scrollTop
+      } else virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
       return
     }
-    const start = element.scrollHeight - element.clientHeight * 2
+    // One screen above the transcript, not the scrollport: braking room would put this jump
+    // in the empty padding below a collapsed turn.
+    const start = Math.max(0, bottom - element.clientHeight)
     if (element.scrollTop < start) element.scrollTop = start
+    shownTop.current = element.scrollTop
     gliderFor(element).start()
   }, [pin, virtualizer, gliderFor, stopSendGlide])
 
@@ -997,8 +1020,13 @@ export function ThreadList({
         flushSync(() => setViewportHeight(element.clientHeight))
       } else setViewportHeight(element.clientHeight)
       // A pinned list keeps its bottom in view as the window or the composer takes height from it.
-      if (pinned.current && !reserved.current && element.clientHeight < height)
-        element.scrollTop += height - element.clientHeight
+      // Stopping at the transcript leaves the braking room below the window, so a taller composer
+      // cannot push the reply up out of sight.
+      if (pinned.current && !reserved.current && element.clientHeight < height) {
+        const next = element.scrollTop + height - element.clientHeight
+        const bottom = pinnedScrollTop(scrollExtent.current, element.clientHeight)
+        element.scrollTop = Math.min(next, bottom)
+      }
       height = element.clientHeight
       checkMessages(element)
     }
