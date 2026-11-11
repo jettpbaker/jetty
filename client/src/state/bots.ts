@@ -370,7 +370,7 @@ function updateBot(registry: Registry, botId: string, update: BotUpdate) {
               registry,
               () => {
                 const listed = serverBot(registry, botId)
-                return !!listed && keys.every((key) => listed[key] === bot[key])
+                return !!listed && keys.every((key) => Equal.equals(listed[key], bot[key]))
               },
               clear
             )

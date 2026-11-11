@@ -1,4 +1,4 @@
-import type { BotColor, BotShape, PermissionMode, ProviderId } from '@jetty/shared/wire'
+import type { BotColor, BotShape, PermissionMode, Project, ProviderId } from '@jetty/shared/wire'
 import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,12 @@ import { OptionPicker } from './option_picker'
 import { ProjectFolderDialog } from './project_folder_dialog'
 
 const ALL = 'all'
+
+export function botProjectsLabel(projectIds: readonly string[], projects: readonly Project[]) {
+  const picked = projects.filter((project) => projectIds.includes(project.id))
+  if (!picked.length) return 'All projects'
+  return picked.length === 1 ? picked[0]!.title : `${picked.length} projects`
+}
 
 // Accent follows whichever accent is on, so its swatch is a wheel of the accent presets rather
 // than a copy of the one that's on.
@@ -125,9 +131,7 @@ function unusedFace(bots: ReturnType<typeof useBots>) {
 function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate()
   const createBot = useCreateBot()
-  const createProject = useCreateProject()
   const loadedProjects = useProjects()
-  const projects = loadedProjects ?? []
   const { loadouts, catalog } = useLoadouts()
   const [name, setName] = useState('')
   const bots = useBots()
@@ -137,17 +141,16 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   const [loadout, setLoadout] = useState<Loadout | undefined>(() =>
     firstBotLoadout(loadouts, catalog)
   )
-  const [project, setProject] = useState(() => (projects.length === 1 ? projects[0]!.id : ALL))
+  const [projectIds, setProjectIds] = useState(() => onlyProject(loadedProjects))
   const projectReady = useRef(loadedProjects !== undefined)
   const [access, setAccess] = useState<PermissionMode>('auto')
-  const [adding, setAdding] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const chosenLoadout = loadout ?? firstBotLoadout(loadouts, catalog)
   const blocked = fullAccessDisabled(chosenLoadout && findModel(catalog, chosenLoadout))
   useEffect(() => {
     if (projectReady.current || !loadedProjects) return
     projectReady.current = true
-    setProject(loadedProjects.length === 1 ? loadedProjects[0]!.id : ALL)
+    setProjectIds(onlyProject(loadedProjects))
   }, [loadedProjects])
 
   function submit() {
@@ -165,7 +168,7 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
       model: chosenLoadout.model,
       effort: chosenLoadout.effort,
       fast: chosenLoadout.fast,
-      projectId: project === ALL ? null : project,
+      projectIds,
       permissionMode: blocked ? 'auto' : access,
     })
     onOpenChange(false)
@@ -173,103 +176,133 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   }
 
   return (
-    <>
-      <DialogContent initialFocus={nameRef} className='sm:max-w-90'>
-        <DialogTitle className='text-sm'>New bot</DialogTitle>
-        <DialogDescription className='sr-only'>
-          Give the bot a face, a name, a model, a project and an access mode.
-        </DialogDescription>
-        <form
-          className='flex min-w-0 flex-col gap-4'
-          onSubmit={(event) => {
-            event.preventDefault()
-            submit()
-          }}
-        >
-          <div className='flex flex-col items-center gap-1'>
-            <FacePicker
-              shape={shape}
-              color={color}
-              label={name || 'Bot'}
-              onShapeChange={setShape}
-              onColorChange={setColor}
+    <DialogContent initialFocus={nameRef} className='sm:max-w-90'>
+      <DialogTitle className='text-sm'>New bot</DialogTitle>
+      <DialogDescription className='sr-only'>
+        Give the bot a face, a name, a model, projects and an access mode.
+      </DialogDescription>
+      <form
+        className='flex min-w-0 flex-col gap-4'
+        onSubmit={(event) => {
+          event.preventDefault()
+          submit()
+        }}
+      >
+        <div className='flex flex-col items-center gap-1'>
+          <FacePicker
+            shape={shape}
+            color={color}
+            label={name || 'Bot'}
+            onShapeChange={setShape}
+            onColorChange={setColor}
+          />
+          <BotNameInput
+            inputRef={nameRef}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className='flex flex-col'>
+          <Row label='Model'>
+            <BotLoadoutPicker
+              value={chosenLoadout}
+              onChange={setLoadout}
+              onOpenSettings={() => {
+                onOpenChange(false)
+                void navigate({ to: '/settings/$page', params: { page: 'models' } })
+              }}
             />
-            <BotNameInput
-              inputRef={nameRef}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className='flex flex-col'>
-            <Row label='Model'>
-              <BotLoadoutPicker
-                value={chosenLoadout}
-                onChange={setLoadout}
-                onOpenSettings={() => {
-                  onOpenChange(false)
-                  void navigate({ to: '/settings/$page', params: { page: 'models' } })
-                }}
+          </Row>
+          <Row label='Projects'>
+            <BotProjectPicker value={projectIds} onChange={setProjectIds} />
+          </Row>
+          <Row label={<FullAccessLabel />}>
+            <DisabledTooltip reason={blocked} wrap='flex'>
+              <Switch
+                aria-label='Full access'
+                disabled={blocked !== undefined}
+                checked={!blocked && access === 'full_access'}
+                onCheckedChange={(on) => setAccess(on ? 'full_access' : 'auto')}
+                className={blocked ? 'pointer-events-none' : undefined}
               />
-            </Row>
-            <Row label='Project'>
-              {projects.length === 0 ? (
-                <Button
-                  type='button'
-                  variant='ghost-text'
-                  size='sm'
-                  className='gap-1.5 rounded-sm'
-                  onClick={() => setAdding(true)}
-                >
-                  <FolderAddLeftIcon />
-                  Add project
-                </Button>
-              ) : (
-                <OptionPicker
-                  name='Project'
-                  label='Project'
-                  placeholder='Search projects'
-                  icon={<Folder1Icon />}
-                  value={project}
-                  align='end'
-                  options={[
-                    ...projects.map((each) => ({ value: each.id, label: each.title })),
-                    { value: ALL, label: 'All projects', icon: <FoldersIcon /> },
-                  ]}
-                  onValueChange={setProject}
-                  actions={[
-                    {
-                      label: 'Add project…',
-                      icon: <FolderAddLeftIcon />,
-                      onSelect: () => setAdding(true),
-                    },
-                  ]}
-                />
-              )}
-            </Row>
-            <Row label={<FullAccessLabel />}>
-              <DisabledTooltip reason={blocked} wrap='flex'>
-                <Switch
-                  aria-label='Full access'
-                  disabled={blocked !== undefined}
-                  checked={!blocked && access === 'full_access'}
-                  onCheckedChange={(on) => setAccess(on ? 'full_access' : 'auto')}
-                  className={blocked ? 'pointer-events-none' : undefined}
-                />
-              </DisabledTooltip>
-            </Row>
-          </div>
-          <DialogFooter>
-            <Button type='submit' disabled={!chosenLoadout}>
-              Create
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+            </DisabledTooltip>
+          </Row>
+        </div>
+        <DialogFooter>
+          <Button type='submit' disabled={!chosenLoadout}>
+            Create
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  )
+}
+
+function onlyProject(projects: readonly Project[] | undefined): readonly string[] {
+  return projects?.length === 1 ? [projects[0]!.id] : []
+}
+
+// None picked means all projects.
+export function BotProjectPicker({
+  value,
+  onChange,
+}: {
+  value: readonly string[]
+  onChange: (projectIds: readonly string[]) => void
+}) {
+  const projects = useProjects() ?? []
+  const createProject = useCreateProject()
+  const [adding, setAdding] = useState(false)
+  const several = value.length !== 1
+  return (
+    <>
+      {projects.length === 0 ? (
+        <Button
+          type='button'
+          variant='ghost-text'
+          size='sm'
+          className='gap-1.5 rounded-sm'
+          onClick={() => setAdding(true)}
+        >
+          <FolderAddLeftIcon />
+          Add project
+        </Button>
+      ) : (
+        <OptionPicker
+          name='Projects'
+          label='Projects'
+          placeholder='Search projects'
+          icon={several ? <FoldersIcon /> : <Folder1Icon />}
+          value={value.length ? value : [ALL]}
+          valueLabel={botProjectsLabel(value, projects)}
+          align='end'
+          options={[
+            ...projects.map((each) => ({
+              value: each.id,
+              label: each.title,
+              icon: <Folder1Icon />,
+            })),
+            { value: ALL, label: 'All projects', icon: <FoldersIcon /> },
+          ]}
+          onValueChange={(id) =>
+            onChange(
+              id === ALL
+                ? []
+                : value.includes(id)
+                  ? value.filter((each) => each !== id)
+                  : [...value, id]
+            )
+          }
+          actions={[
+            { label: 'Add project…', icon: <FolderAddLeftIcon />, onSelect: () => setAdding(true) },
+          ]}
+        />
+      )}
       <ProjectFolderDialog
         open={adding}
         onOpenChange={setAdding}
         existingPaths={projects.map((each) => each.path)}
-        onAdd={(path) => createProject(path, (created) => setProject(created.id))}
+        onAdd={(path) => createProject(path, (created) => onChange([...value, created.id]))}
       />
     </>
   )

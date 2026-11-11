@@ -42,7 +42,7 @@ import {
   withQuotes,
 } from '@/state'
 import { pendingTurnId } from '@/state/turns'
-import { quietTurn } from '@jetty/shared/bots'
+import { quietTurn, soleProjectId } from '@jetty/shared/bots'
 import { awaitsInput } from '@jetty/shared/items'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -60,7 +60,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
     [others, showQuiet, tidying]
   )
   const [room, setRoom] = useState<Room>()
-  const project = useProject(bot.projectId ?? undefined)
+  const project = useProject(soleProjectId(bot))
   const sendToBot = useSendToBot()
   const respondSecret = useRespondSecret()
   const interrupt = useInterruptTurn()
@@ -304,7 +304,7 @@ export function BotChat({ bot, overlayHost }: { bot: Bot; overlayHost: HTMLEleme
           rows={1}
           inputRef={fieldRef}
           slash={{
-            projectId: bot.projectId ?? undefined,
+            projectId: soleProjectId(bot),
             provider: bot.provider,
             botId: bot.id,
             mentions: others,

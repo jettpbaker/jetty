@@ -139,7 +139,6 @@ type BotRow = {
   model: string
   effort: string | null
   fast: number
-  project_id: string | null
   permission_mode: Bot['permissionMode']
   created_at: number
   seen_at: number
@@ -1242,6 +1241,14 @@ export function createStore() {
         .pipe(Effect.mapError(storeError))
     }
 
+    function writeBotProjects(botId: string, projectIds: readonly string[]) {
+      return Effect.gen(function* () {
+        yield* sql`DELETE FROM bot_projects WHERE bot_id = ${botId}`
+        for (const projectId of new Set(projectIds))
+          yield* sql`INSERT INTO bot_projects (bot_id, project_id) VALUES (${botId}, ${projectId})`
+      })
+    }
+
     function readBot(threadId: string) {
       return Effect.gen(function* () {
         const [row] = yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${threadId}`
@@ -1292,7 +1299,8 @@ export function createStore() {
           model: row.model,
           ...(isEffort(row.effort) ? { effort: row.effort } : {}),
           fast: row.fast !== 0,
-          projectId: row.project_id,
+          projectIds: (yield* sql<{ project_id: string }>`SELECT project_id FROM bot_projects
+            WHERE bot_id = ${row.id} ORDER BY rowid`).map((each) => each.project_id),
           permissionMode: row.permission_mode,
           createdAt: row.created_at,
           tasks: yield* listBotTasks(row.id),
@@ -1425,10 +1433,11 @@ export function createStore() {
               ${input.provider}, ${input.model}, ${input.effort ?? null}, ${input.fast ? 1 : 0},
               ${input.permissionMode})`
           yield* sql`INSERT INTO bots (id, name, shape, color, provider, model, effort, fast,
-            project_id, permission_mode, created_at, seen_at)
+            permission_mode, created_at, seen_at)
             VALUES (${input.id}, ${input.name}, ${input.shape}, ${input.color}, ${input.provider},
-              ${input.model}, ${input.effort ?? null}, ${input.fast ? 1 : 0}, ${input.projectId},
+              ${input.model}, ${input.effort ?? null}, ${input.fast ? 1 : 0},
               ${input.permissionMode}, ${now}, ${now})`
+          yield* writeBotProjects(input.id, input.projectIds)
           return true
         }).pipe(sql.withTransaction, Effect.mapError(storeError))
       },
@@ -1452,7 +1461,9 @@ export function createStore() {
                 : bot.effort),
             fast: input.fast ?? (model ? bot.fast && model.fast : bot.fast),
             permissionMode: input.permissionMode ?? bot.permissionMode,
+            projectIds: input.projectIds ?? bot.projectIds,
           }
+          if (input.projectIds) yield* writeBotProjects(input.botId, input.projectIds)
           yield* sql`UPDATE bots SET check_ins = ${next.checkIns ? 1 : 0}, name = ${next.name}, shape = ${next.shape},
             color = ${next.color}, model = ${next.model}, effort = ${next.effort ?? null},
             fast = ${next.fast ? 1 : 0}, permission_mode = ${next.permissionMode}
@@ -1514,9 +1525,11 @@ export function createStore() {
         return readBot(threadId)
       },
       getOwningBot,
-      setBotProjectIfUnset(threadId: string, projectId: string) {
-        return sql`UPDATE bots SET project_id = ${projectId}
-          WHERE id = ${threadId} AND project_id IS NULL`.pipe(
+      // A bot that covers every project already covers it.
+      addBotProject(botId: string, projectId: string) {
+        return sql`INSERT OR IGNORE INTO bot_projects (bot_id, project_id)
+          SELECT ${botId}, ${projectId}
+          WHERE EXISTS (SELECT 1 FROM bot_projects WHERE bot_id = ${botId})`.pipe(
           Effect.asVoid,
           Effect.mapError(storeError)
         )

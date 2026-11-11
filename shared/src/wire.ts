@@ -573,8 +573,8 @@ export const Bot = Schema.Struct({
   model: Schema.String,
   effort: Schema.optional(EffortLevel),
   fast: Schema.Boolean,
-  // null: all projects
-  projectId: Schema.NullOr(Schema.String),
+  // Empty: all projects.
+  projectIds: Schema.Array(Schema.String),
   permissionMode: PermissionMode,
   createdAt: Schema.Int,
   activity: BotActivity,
@@ -1198,7 +1198,7 @@ export const methods = {
       model: Schema.String,
       effort: Schema.optional(EffortLevel),
       fast: Schema.Boolean,
-      projectId: Schema.NullOr(Schema.String),
+      projectIds: Schema.Array(Schema.String),
       permissionMode: PermissionMode,
     }),
     result: Schema.Struct({ bot: Bot }),
@@ -1215,6 +1215,7 @@ export const methods = {
       model: Schema.optional(Schema.String),
       effort: Schema.optional(EffortLevel),
       fast: Schema.optional(Schema.Boolean),
+      projectIds: Schema.optional(Schema.Array(Schema.String)),
       permissionMode: Schema.optional(PermissionMode),
     }),
     result: Schema.Struct({ bot: Bot }),

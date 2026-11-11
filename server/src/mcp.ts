@@ -5,6 +5,7 @@ import {
   SEARCH_MAX_K,
   SEARCH_QUERY_MAX,
 } from '@jetty/shared/bot-search'
+import { botProjects, soleProjectId } from '@jetty/shared/bots'
 import { SessionStatus } from '@jetty/shared/events'
 import { heldByRestarts, type ThreadItem } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
@@ -675,18 +676,19 @@ export function createMcpHandler(
             )
           )
         const projects = yield* store.listProjects()
-        if (bot && !bot.projectId && !input.project)
+        const sole = bot && soleProjectId(bot)
+        if (bot && !sole && !input.project)
           return yield* Effect.fail(
             new StoreError(
               'invalid_params',
-              `Name a project. Available: ${projects.map((project) => project.title).join(', ') || 'none'}`
+              `Name a project. ${bot.projectIds.length ? 'Yours' : 'Available'}: ${
+                botProjects(bot, projects)
+                  .map((project) => project.title)
+                  .join(', ') || 'none'
+              }`
             )
           )
-        const target = yield* matchProject(
-          projects,
-          input.project,
-          bot?.projectId ?? caller.projectId
-        )
+        const target = yield* matchProject(projects, input.project, sole ?? caller.projectId)
         projectId = target.id
         if (input.skill) {
           const provider = yield* requestedProvider(input, models() ?? [], identity.provider)
@@ -1241,7 +1243,8 @@ export function createMcpHandler(
           'add_project',
           {
             ...toolMeta,
-            description: 'Add a local folder as a Jetty project, so threads can work in it.',
+            description:
+              "Add a local folder as a Jetty project, so threads can work in it. If you look after particular projects rather than all of them, it becomes one of yours, including a folder that's already a project.",
             inputSchema: { path: z.string().trim().min(1) },
           },
           ({ path }) =>
@@ -1294,7 +1297,7 @@ export function createMcpHandler(
           'list_bots',
           {
             ...toolMeta,
-            description: "List the other bots, with each one's project and job.",
+            description: "List the other bots, with each one's projects and job.",
             inputSchema: {},
           },
           () =>
@@ -1321,7 +1324,9 @@ export function createMcpHandler(
                   listed.push({
                     id: other.id,
                     name: other.name,
-                    project: other.projectId ? (titles.get(other.projectId) ?? null) : null,
+                    projects: other.projectIds.length
+                      ? other.projectIds.flatMap((id) => titles.get(id) ?? [])
+                      : 'all',
                     job:
                       brief
                         .split(/\r?\n/)
@@ -1472,7 +1477,8 @@ export function createMcpHandler(
                       return yield* Effect.fail(
                         new StoreError('invalid_params', `${target.title} already has a parent`)
                       )
-                    if (bot.projectId && target.projectId !== bot.projectId)
+                    const owner = yield* store.getBot(bot.id)
+                    if (owner?.projectIds.length && !owner.projectIds.includes(target.projectId))
                       return yield* Effect.fail(
                         new StoreError(
                           'invalid_params',

@@ -17,11 +17,12 @@ import {
   ArrowOutOfBoxIcon,
   ChevronRightSmallIcon,
   Folder1Icon,
+  FoldersIcon,
   PlusMediumIcon,
 } from './central_icons'
 import { accessModes, fullAccessDisabled } from './composer_access_mode'
 import { copyFilePath } from './file_link'
-import { NewBotDialog } from './new_bot_dialog'
+import { botProjectsLabel, NewBotDialog } from './new_bot_dialog'
 import {
   PathText,
   SettingsButton,
@@ -36,9 +37,7 @@ import {
 function BotRow({ bot }: { bot: Bot }) {
   const chrome = useChrome()
   const model = findModel(chrome?.models ?? [], { provider: bot.provider, model: bot.model })
-  const project = bot.projectId
-    ? chrome?.projects.find((entry) => entry.id === bot.projectId)?.title
-    : 'All projects'
+  const project = botProjectsLabel(bot.projectIds, chrome?.projects ?? [])
   return (
     <BotSettingsSheet bot={bot}>
       <button
@@ -67,7 +66,7 @@ function BotRow({ bot }: { bot: Bot }) {
           </span>
         </span>
         <span className='flex w-30 shrink-0 items-center gap-1.5 text-13 text-muted-foreground [&_svg]:size-3.5'>
-          <Folder1Icon />
+          {bot.projectIds.length === 1 ? <Folder1Icon /> : <FoldersIcon />}
           <span className='truncate'>{project}</span>
         </span>
         <ChevronRightSmallIcon className='text-muted-foreground group-hover/bot:text-foreground' />

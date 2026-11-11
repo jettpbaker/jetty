@@ -142,7 +142,7 @@ test('thread search excludes other bots, user threads, private notes and reports
             model: 'sonnet',
             effort: 'medium',
             fast: false,
-            projectId: null,
+            projectIds: [],
             permissionMode: 'auto',
           },
           join(home, id)

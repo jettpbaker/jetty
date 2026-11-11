@@ -170,7 +170,7 @@ async function setup(
             provider: 'claude',
             model: 'sonnet',
             fast: false,
-            projectId: project.id,
+            projectIds: [project.id],
             permissionMode: 'auto',
           },
           botHome

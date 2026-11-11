@@ -49,7 +49,8 @@ export function OptionPicker({
   label: string
   placeholder: string
   icon: ReactNode
-  value: string
+  // Several values tick several options and keep the picker open while they're toggled.
+  value: string | readonly string[]
   options: readonly PickerOption[]
   onValueChange: (value: string) => void
   align?: 'start' | 'end'
@@ -71,7 +72,9 @@ export function OptionPicker({
   const actionChosen = useRef(false)
   const search = query.trim().toLowerCase()
   const results = options.filter((option) => option.label.toLowerCase().includes(search))
-  const selected = options.find((option) => option.value === value)
+  const multiple = typeof value !== 'string'
+  const checked = (option: string) => (multiple ? value.includes(option) : option === value)
+  const selected = multiple ? undefined : options.find((option) => option.value === value)
   const shown = selected?.label ?? valueLabel
 
   function select(action: () => void) {
@@ -149,8 +152,12 @@ export function OptionPicker({
                   <CommandItem
                     key={option.value}
                     value={`option:${option.value}`}
-                    data-checked={option.value === value}
-                    onSelect={() => select(() => onValueChange(option.value))}
+                    data-checked={checked(option.value)}
+                    onSelect={() =>
+                      multiple
+                        ? onValueChange(option.value)
+                        : select(() => onValueChange(option.value))
+                    }
                   >
                     {option.icon ?? icon}
                     <span className={cn('flex-1 truncate', mono && 'font-mono')}>

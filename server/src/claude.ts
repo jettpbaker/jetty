@@ -13,6 +13,7 @@ import {
   type SDKUserMessage,
   type SessionMessage,
 } from '@anthropic-ai/claude-agent-sdk'
+import { botProjects } from '@jetty/shared/bots'
 import { type ThreadEvent } from '@jetty/shared/events'
 import { QuestionSpec } from '@jetty/shared/items'
 import { newId, type Bot, type Project } from '@jetty/shared/wire'
@@ -1064,10 +1065,7 @@ export function createClaudeAdapter(
                     ...(bot
                       ? [
                           join(projectPath, '..'),
-                          ...(bot.projectId
-                            ? projects.filter((project) => project.id === bot.projectId)
-                            : projects
-                          ).map((project) => project.path),
+                          ...botProjects(bot, projects).map((project) => project.path),
                         ]
                       : []),
                   ],

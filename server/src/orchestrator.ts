@@ -1432,7 +1432,7 @@ export function createOrchestrator({
       return Effect.gen(function* () {
         const { project, created } = yield* store.createProjectResult(path)
         hub.pushChrome({ type: 'project.upserted', project })
-        yield* store.setBotProjectIfUnset(botId, project.id)
+        yield* store.addBotProject(botId, project.id)
         const bot = yield* store.getBot(botId)
         if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
         return { ...project, created }
@@ -1892,7 +1892,9 @@ export function createOrchestrator({
                   turnId,
                   createdAt: Date.now(),
                   kind: 'approval',
-                  title: `Add project ${path}`,
+                  title: bot.projectIds.length
+                    ? `Add ${path} to ${bot.name}'s projects`
+                    : `Add project ${path}`,
                   toolName: 'mcp__jetty__add_project',
                   input: { path },
                   suggestions: [],

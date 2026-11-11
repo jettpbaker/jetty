@@ -133,7 +133,7 @@ async function botCaller() {
         model: 'sonnet',
         effort: 'medium',
         fast: false,
-        projectId: null,
+        projectIds: [],
         permissionMode: 'auto',
       },
       join(home, 'bots', id)

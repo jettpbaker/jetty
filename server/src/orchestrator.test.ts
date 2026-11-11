@@ -1367,7 +1367,7 @@ function makeBotFixture() {
         provider: 'claude',
         model: 'sonnet',
         fast: false,
-        projectId: null,
+        projectIds: [],
         permissionMode: 'auto',
       },
       home

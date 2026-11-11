@@ -1,5 +1,6 @@
 import type { Bot, BotTask, Project } from '@jetty/shared/wire'
 
+import { botProjects } from '@jetty/shared/bots'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -182,24 +183,24 @@ export async function botInstructions(
       )
     await createInstructions(home)
   }
-  const named = projects.map((project) => `${project.title} (${displayPath(project.path)})`)
-  const selected = projects.find((project) => project.id === bot.projectId)
-  const others = projects
-    .filter((project) => project.id !== bot.projectId)
-    .map((project) => `${project.title} (${displayPath(project.path)})`)
-  const project = selected
-    ? `Yours is ${selected.title} (${displayPath(selected.path)}): when ${user} asks for work without saying where, it's for this project. It's your default, not a limit; other projects: ${others.join(', ') || 'none'}.`
-    : projects.length
-      ? `You work across all of ${user}'s projects: ${named.join(', ')}. Work out which one a request is about from what they say, and ask only if it's genuinely unclear. Name the project when you start a worker, and keep that choice with the task, not in your pages.`
-      : `${user} hasn't added a project yet. You can help with anything, but code work needs one: offer to add a folder with add_project.`
+  const named = (list: readonly Project[]) =>
+    list.map((project) => `${project.title} (${displayPath(project.path)})`).join(', ')
+  const mine = projects.filter((project) => bot.projectIds.includes(project.id))
+  const others = named(projects.filter((project) => !mine.includes(project))) || 'none'
+  const project =
+    mine.length === 1
+      ? `Yours is ${named(mine)}: when ${user} asks for work without saying where, it's for this project. It's your default, not a limit; other projects: ${others}.`
+      : mine.length
+        ? `Yours are ${named(mine)}: when ${user} asks for work without saying where, it's for one of these. Work out which from what they say, and ask only if it's genuinely unclear. Name the project when you start a worker. They're your default, not a limit; other projects: ${others}.`
+        : projects.length
+          ? `You work across all of ${user}'s projects: ${named(projects)}. Work out which one a request is about from what they say, and ask only if it's genuinely unclear. Name the project when you start a worker, and keep that choice with the task, not in your pages.`
+          : `${user} hasn't added a project yet. You can help with anything, but code work needs one: offer to add a folder with add_project.`
   const fill: Record<string, string> = {
     name: bot.name,
     user,
     home,
     bots: join(home, '..'),
     project,
-    projects: named.join(', '),
-    others: others.join(', ') || 'none',
     questionTool: bot.provider === 'codex' ? 'request_user_input' : 'AskUserQuestion',
     checkIn: `${Math.round(botTiming.checkInMs[bot.provider].ms / 60_000)} minutes`,
     questioning:
@@ -329,12 +330,6 @@ export async function prepareBotHome(...args: Parameters<typeof botInstructions>
     snapshot,
     hash: createHash('sha256').update(snapshot).digest('hex'),
     instructionsHash,
-    allowedPaths: [
-      join(home, '..'),
-      ...(bot.projectId
-        ? projects.filter((project) => project.id === bot.projectId)
-        : projects
-      ).map((project) => project.path),
-    ],
+    allowedPaths: [join(home, '..'), ...botProjects(bot, projects).map((project) => project.path)],
   }
 }

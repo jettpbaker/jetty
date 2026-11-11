@@ -196,6 +196,14 @@ export function createRpcHandlers(
       )
     }
 
+    function requireProjects(projectIds: readonly string[]) {
+      return Effect.gen(function* () {
+        const projects = yield* store.listProjects()
+        if (!projectIds.every((id) => projects.some((project) => project.id === id)))
+          return yield* Effect.fail(new StoreError('invalid_params', 'Project not found'))
+      })
+    }
+
     function requireProject(projectId: string) {
       return store
         .getProject(projectId)
@@ -446,6 +454,9 @@ export function createRpcHandlers(
           for (const thread of yield* store.listThreads())
             if (thread.projectId === params.projectId && (yield* store.getThread(thread.id)))
               yield* orch.deleteThread(thread.id)
+          const covering = (yield* store.listBots()).filter((bot) =>
+            bot.projectIds.includes(params.projectId)
+          )
           yield* mutation(
             store
               .deleteProject(params.projectId)
@@ -457,6 +468,10 @@ export function createRpcHandlers(
                 )
               )
           )
+          for (const { id } of covering) {
+            const bot = yield* store.getBot(id)
+            if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
+          }
           return null
         }).pipe(Effect.mapError(wireError)),
       'project.setIcon': (params) =>
@@ -839,11 +854,7 @@ export function createRpcHandlers(
               return yield* Effect.fail(
                 new StoreError('invalid_params', `${model.name} doesn't support Fast`)
               )
-            if (
-              params.projectId &&
-              !(yield* store.listProjects()).some((project) => project.id === params.projectId)
-            )
-              return yield* Effect.fail(new StoreError('invalid_params', 'Project not found'))
+            yield* requireProjects(params.projectIds)
             const path = join(home, 'bots', params.id)
             yield* fromPromise(() => createBotHome(path))
             const created = yield* store.createBotRecord(params, path)
@@ -892,6 +903,7 @@ export function createRpcHandlers(
             return yield* Effect.fail(
               new StoreError('invalid_params', `${model?.name ?? id} doesn't support Fast`)
             )
+          if (params.projectIds) yield* requireProjects(params.projectIds)
           return {
             bot: yield* orch.updateBot(params, params.model === undefined ? undefined : model),
           }

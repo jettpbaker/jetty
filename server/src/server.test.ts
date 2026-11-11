@@ -137,7 +137,7 @@ describe('server skeleton', () => {
       model: 'sonnet',
       effort: 'medium',
       fast: false,
-      projectId: null,
+      projectIds: [],
       permissionMode: 'auto',
     })
     const chat = client.subscribeThread({ threadId: id })

@@ -9,6 +9,7 @@ import {
   BotLoadoutPicker,
   botLoadoutChanges,
   BotNameInput,
+  BotProjectPicker,
   FacePicker,
   CheckInsLabel,
   FullAccessLabel,
@@ -102,6 +103,12 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
                   setOpen(false)
                   void navigate({ to: '/settings/$page', params: { page: 'models' } })
                 }}
+              />
+            </Row>
+            <Row label='Projects'>
+              <BotProjectPicker
+                value={bot.projectIds}
+                onChange={(projectIds) => update(bot.id, { projectIds })}
               />
             </Row>
             <Row label={<FullAccessLabel />}>

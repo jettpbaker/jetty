@@ -10,6 +10,7 @@ import {
   useSubagents,
   useSubagentTabs,
 } from '@/state'
+import { soleProjectId } from '@jetty/shared/bots'
 import { Activity, useCallback, useLayoutEffect, useState, type ReactNode } from 'react'
 
 import { OpenAttachment } from './attachment_files'
@@ -43,7 +44,7 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
     setTab('overview')
   }
   const instructionsDirty = useFileDirty(bot.id, instructionsPath)
-  const project = useProject(bot.projectId ?? undefined)
+  const project = useProject(soleProjectId(bot))
   const allSubagents = useSubagents(bot.id)
   const { visible: openedSubagents, hide: hideSubagent } = useSubagentTabs(bot.id)
   const subagents = openedSubagents.flatMap((id) => allSubagents.filter((agent) => agent.id === id))

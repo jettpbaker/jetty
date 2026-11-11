@@ -311,6 +311,16 @@ const migrations = SqliteMigrator.fromRecord({
     const sql = yield* SqlClient.SqlClient
     yield* sql`ALTER TABLE bots ADD COLUMN check_ins INTEGER NOT NULL DEFAULT 1`
   }),
+  '042_bot_projects': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* sql`CREATE TABLE bot_projects (
+      bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      PRIMARY KEY (bot_id, project_id)
+    )`
+    yield* sql`INSERT INTO bot_projects SELECT id, project_id FROM bots WHERE project_id IS NOT NULL`
+    yield* sql`ALTER TABLE bots DROP COLUMN project_id`
+  }),
 })
 
 export function databaseLayer(home: string) {

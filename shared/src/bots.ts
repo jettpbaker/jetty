@@ -8,6 +8,21 @@ export const BOT_EFFORTS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xh
 // A done or dropped task stays on its bot's list this long, then drops off (it stays stored).
 export const CLOSED_TASK_SHOWN_MS = 24 * 60 * 60_000
 
+// The projects a bot looks after: the ones it names, or every project when it names none.
+export function botProjects<P extends { id: string }>(
+  bot: Pick<Bot, 'projectIds'>,
+  projects: readonly P[]
+) {
+  return bot.projectIds.length
+    ? projects.filter((project) => bot.projectIds.includes(project.id))
+    : projects
+}
+
+// Where a bot's work goes when it doesn't say: its project, if it has exactly one.
+export function soleProjectId(bot: Pick<Bot, 'projectIds'>) {
+  return bot.projectIds.length === 1 ? bot.projectIds[0] : undefined
+}
+
 // The sketchpad's BotState ids a face shows, plus the error face.
 export type BotFace = 'idle' | 'waiting' | 'done' | 'error'
 
