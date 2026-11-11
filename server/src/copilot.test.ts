@@ -67,10 +67,38 @@ test('uses ACP config for model, effort and full access, with inline images', as
       .filter((m) => m.method === 'session/set_config_option')
       .map((m) => m.params)
   ).toContainEqual({ sessionId: 'copilot-session', configId: 'allow_all', value: 'on' })
+  expect(
+    f
+      .log()
+      .filter((message) => message.method === 'session/set_config_option')
+      .some((message) => message.params.configId === 'permission_profile')
+  ).toBe(false)
   expect(f.log().find((m) => m.method === 'session/prompt').params.prompt[1]).toEqual({
     type: 'image',
     mimeType: 'image/png',
     data: 'aGVsbG8=',
+  })
+})
+
+test('full access accepts a Copilot command prompt without a card', async () => {
+  const f = await setup()
+  const turn = await Effect.runPromise(
+    f.agent.startTurn(
+      {
+        threadId: f.threadId,
+        turnId: newId(),
+        text: 'approval',
+        permissionMode: 'full_access',
+      },
+      f.emit
+    )
+  )
+  await Effect.runPromise(turn.await)
+  expect(
+    f.events.some((event) => event.type === 'item.started' && event.item.kind === 'approval')
+  ).toBe(false)
+  expect(f.log().find((message) => message.id === 0)?.result).toEqual({
+    outcome: { outcome: 'selected', optionId: 'yes-once' },
   })
 })
 

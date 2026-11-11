@@ -41,6 +41,13 @@ function config() {
       ).map((value) => ({ value, name: value })),
     },
     {
+      id: 'permission_profile',
+      category: 'permissions',
+      type: 'select',
+      currentValue: 'default',
+      options: [{ value: 'default' }, { value: 'on' }],
+    },
+    {
       id: 'allow_all',
       category: 'permissions',
       type: 'select',

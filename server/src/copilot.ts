@@ -206,7 +206,13 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           modelId,
           input.effort
         )
-        const allow = copilotConfig(session.config, 'permissions', 'allow_all')
+        const listed = Array.isArray(session.config.configOptions)
+          ? session.config.configOptions.map(object)
+          : []
+        // Another permissions setting can share the category. Allow-all is the one Full access owns.
+        const allow =
+          listed.find((option) => option.id === 'allow_all') ??
+          copilotConfig(session.config, 'permissions', 'allow_all')
         const full = input.permissionMode === 'full_access'
         // Turning allow-all off also revokes Copilot's assisted approvals, so leave it alone unless
         // it has to change.
@@ -291,6 +297,19 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             sessionUpdate: 'tool_call_update',
           }))
             yield* session.emit(event)
+        // Full access already turned Copilot's allow-all on. Copilot still asks before some
+        // commands, such as a shell read; answering here is what keeps the card off the composer.
+        if (session.input.permissionMode === 'full_access') {
+          const selected = acpPermissionOutcome(options, 'allow')
+          const outcome =
+            selected.outcome.outcome === 'selected'
+              ? selected
+              : acpPermissionOutcome(options, 'always')
+          if (outcome.outcome.outcome === 'selected') {
+            yield* connection.respond(id, outcome)
+            return
+          }
+        }
         if (
           allow &&
           [...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'].some(
