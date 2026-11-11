@@ -150,7 +150,7 @@ export function botApproval(
       ? { title: description, rule: `${description} with ${covered}` }
       : { title: `Run ${covered.replaceAll('`', '')}`, rule: `Run ${covered}` }
   }
-  // Jetty asks before every new project, so a rule would never be used.
+  // A rule would name one folder, and that folder is a project once it's added.
   if (toolName === 'mcp__jetty__add_project')
     return { title: `Add ${text(input.path) ?? 'a folder'} as a project` }
   if (toolName.startsWith('mcp__') && toolName.endsWith('__elicitation') && text(input.url)) {

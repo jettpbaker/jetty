@@ -1249,7 +1249,14 @@ export function createMcpHandler(
           },
           ({ path }) =>
             invoke(
-              orch.addBotProject(bot.id, path).pipe(
+              Effect.gen(function* () {
+                const self = yield* store.requireThread(bot.id)
+                // Claude's permissions have already let the call through; Full access never asks.
+                const ask =
+                  identity.provider !== 'claude' &&
+                  !inFullAccess(self, yield* store.getPermissionMode(bot.id))
+                return yield* orch.addBotProject(bot.id, path, ask)
+              }).pipe(
                 Effect.map((result) => {
                   if (typeof result === 'string') return result
                   const { id, title, path, created } = result

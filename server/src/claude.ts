@@ -69,10 +69,9 @@ import { SELF_TOOLS } from './jetty-tools'
 import { readClaudeUsageIdentity } from './provider-usage'
 import { readUsage } from './usage'
 
-// The rest of Jetty's tools go through Claude's own reviewer: the auto-mode classifier judges them.
-const AUTO_ALLOWED_TOOLS = new Set(
-  [...SELF_TOOLS, 'add_project'].map((name) => `mcp__jetty__${name}`)
-)
+// The rest of Jetty's tools, add_project included, go through Claude's own reviewer: the auto-mode
+// classifier judges them.
+const AUTO_ALLOWED_TOOLS = new Set(SELF_TOOLS.map((name) => `mcp__jetty__${name}`))
 const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query

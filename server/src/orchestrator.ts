@@ -1859,8 +1859,10 @@ export function createOrchestrator({
     }
 
     return {
-      addBotProject(botId: string, path: string) {
+      // Jetty's own card is for callers nothing else has vetted.
+      addBotProject(botId: string, path: string, ask: boolean) {
         return Effect.gen(function* () {
+          if (!ask) return yield* createApprovedBotProject(botId, path)
           const itemId = newId()
           const result = yield* Deferred.make<{
             decision: ApprovalDecision | 'pending'
