@@ -44,6 +44,6 @@ export type Append = {
   transcript?: TranscriptLine[]
 }
 
-export type StreamError = { type: 'error'; message: string }
+type StreamError = { type: 'error'; message: string }
 
 export type StreamMessage = Snapshot | Append | StreamError

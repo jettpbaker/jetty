@@ -1,7 +1,7 @@
 import { formatClock, formatDay, formatDuration } from './format'
 
 // Quiet stretches longer than this collapse into a break marker.
-export const IDLE_GAP_MS = 30_000
+const IDLE_GAP_MS = 30_000
 const PAD_MS = 2_000
 const BREAK_MAX = 44
 const BREAK_MIN = 10
@@ -42,8 +42,6 @@ export function withNow(segments: readonly Segment[], now: number) {
 function breakWidthFor(scale: number) {
   return Math.min(BREAK_MAX, Math.max(BREAK_MIN, scale * 4000))
 }
-
-export type Axis = ReturnType<typeof createAxis>
 
 // Maps time to x in content pixels: active stretches at `scale` px/ms, breaks at a fixed width.
 export function createAxis(segments: readonly Segment[], scale: number) {

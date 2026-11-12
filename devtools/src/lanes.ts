@@ -40,11 +40,11 @@ const STEER_MS = 1000
 // How far apart a transcript entry and the Jetty record it mirrors can be.
 const MATCH_MS = 3000
 
-export type LaneId = string
+type LaneId = string
 
 export type Lane = { id: LaneId; label: string; color: string; worker: boolean; rows: number }
 
-export type SpanKind =
+type SpanKind =
   | 'message'
   | 'wake'
   | 'turn'
@@ -87,7 +87,7 @@ export type Span = {
   links: string[]
 }
 
-export type Link = { from: string; to: string; at: number }
+type Link = { from: string; to: string; at: number }
 
 export type Sources = {
   bot: BotRow

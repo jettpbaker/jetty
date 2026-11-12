@@ -8,7 +8,7 @@ import type { ThreadRow } from './wire'
 
 import { formatClock, formatDuration } from './format'
 
-export const FILTERS = ['jett', 'wakes', 'bot', 'harness', 'tools', 'workers', 'quiet'] as const
+const FILTERS = ['jett', 'wakes', 'bot', 'harness', 'tools', 'workers', 'quiet'] as const
 export type Filter = (typeof FILTERS)[number]
 
 export function filterOf(span: Span): Filter {
