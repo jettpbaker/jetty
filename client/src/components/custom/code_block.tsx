@@ -52,20 +52,18 @@ function bodyStyle(
 }
 
 // Streamdown's code block, starting from the cached highlight so a revisit renders once.
-function useHighlightedHtml(code: string, language: string, numbered: boolean) {
-  const [html, setHtml] = useState(
-    () => cachedHtml(code, language, numbered) ?? plainHtml(code, numbered)
-  )
+function useHighlightedHtml(code: string, language: string) {
+  const [html, setHtml] = useState(() => cachedHtml(code, language) ?? plainHtml(code))
   useEffect(() => {
     let live = true
-    const cached = highlightHtml(code, language, numbered, (next) => {
-      if (live) setHtml(next ?? plainHtml(code, numbered))
+    const cached = highlightHtml(code, language, (next) => {
+      if (live) setHtml(next ?? plainHtml(code))
     })
     if (cached !== undefined) setHtml(cached)
     return () => {
       live = false
     }
-  }, [code, language, numbered])
+  }, [code, language])
   return html
 }
 
@@ -163,8 +161,7 @@ function WorkerCodeBlock({
       <LinebreakIcon />
     </Button>
   )
-  const numbered = false
-  const html = useHighlightedHtml(code.replace(/\n+$/, ''), language, numbered)
+  const html = useHighlightedHtml(code.replace(/\n+$/, ''), language)
   const capped = Boolean(codeBlockMaxHeight)
   const command = shellLangs.has(language) && !code.trimEnd().includes('\n')
   const body = useFollowEnd(isAnimating, capped && !command, html)

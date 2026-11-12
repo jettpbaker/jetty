@@ -11,8 +11,8 @@ let failed = false
 const results = new Map<string, readonly string[]>()
 const pending = new Map<string, Set<(html?: readonly string[]) => void>>()
 
-function cacheKey(code: string, language: string, numbered: boolean) {
-  return `${numbered ? '#' : ''}${resolveLanguage(language)}:${code}`
+function cacheKey(code: string, language: string) {
+  return `${resolveLanguage(language)}:${code}`
 }
 
 // No html means the highlight failed, and the block shows its code plain.
@@ -35,17 +35,16 @@ function fail() {
   for (const key of pending.keys()) settle(key)
 }
 
-export function cachedHtml(code: string, language: string, numbered: boolean) {
-  return results.get(cacheKey(code, language, numbered))
+export function cachedHtml(code: string, language: string) {
+  return results.get(cacheKey(code, language))
 }
 
 export function highlightHtml(
   code: string,
   language: string,
-  numbered: boolean,
   onResult: (html?: readonly string[]) => void
 ) {
-  const key = cacheKey(code, language, numbered)
+  const key = cacheKey(code, language)
   const cached = results.get(key)
   if (cached !== undefined) return cached
   if (failed) return onResult()
@@ -62,7 +61,7 @@ export function highlightHtml(
     worker.addEventListener('message', receive)
     worker.addEventListener('error', fail)
   }
-  const request: HighlightRequest = { key, code, lang: resolveLanguage(language), numbered }
+  const request: HighlightRequest = { key, code, lang: resolveLanguage(language) }
   worker.postMessage(request)
 }
 

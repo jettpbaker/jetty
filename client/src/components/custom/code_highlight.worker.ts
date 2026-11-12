@@ -22,13 +22,13 @@ let draining = false
 async function drain() {
   const results: { key: string; html?: string[] }[] = []
   for (let request = queue.shift(); request; request = queue.shift()) {
-    const { key, code, lang, numbered } = request
+    const { key, code, lang } = request
     try {
       const highlighter = await core
       if (lang !== 'text' && !highlighter.getLoadedLanguages().includes(lang))
         await highlighter.loadLanguage(languages[lang])
       const { tokens } = highlighter.codeToTokens(code, { lang, themes })
-      results.push({ key, html: linesHtml(tokens, numbered) })
+      results.push({ key, html: linesHtml(tokens) })
     } catch {
       results.push({ key })
     }

@@ -8,14 +8,10 @@ export type HighlightRequest = {
   key: string
   code: string
   lang: ReturnType<typeof resolveLanguage>
-  numbered: boolean
 }
 
 type Token = Pick<ThemedToken, 'content' | 'color' | 'bgColor' | 'htmlStyle'>
 
-const lineClass = 'block'
-const numberedLineClass =
-  'block before:content-[counter(line)] before:inline-block before:[counter-increment:line] before:w-6 before:mr-4 before:text-[13px] before:text-right before:text-muted-foreground/50 before:font-mono before:select-none'
 const tokenClass = 'text-[var(--sdm-c,inherit)] dark:text-[var(--shiki-dark,var(--sdm-c,inherit))]'
 const tokenBackgroundClass = 'bg-[var(--sdm-tbg)] dark:bg-[var(--shiki-dark-bg,var(--sdm-tbg))]'
 
@@ -64,16 +60,16 @@ function foldWhitespace(line: Token[]) {
   return folded
 }
 
-export function linesHtml(lines: Token[][], numbered: boolean) {
+export function linesHtml(lines: Token[][]) {
   return lines.map((line) => {
     const empty = line.length === 0 || (line.length === 1 && line[0]!.content === '')
-    return `<span class="${numbered ? numberedLineClass : lineClass}">${empty ? '\n' : foldWhitespace(line).map(tokenHtml).join('')}</span>`
+    return `<span class="block">${empty ? '\n' : foldWhitespace(line).map(tokenHtml).join('')}</span>`
   })
 }
 
-export function plainHtml(code: string, numbered: boolean) {
+export function plainHtml(code: string) {
   const lines = code
     .split('\n')
     .map((content) => [{ content, color: 'inherit', bgColor: 'transparent', htmlStyle: {} }])
-  return linesHtml(lines, numbered)
+  return linesHtml(lines)
 }
