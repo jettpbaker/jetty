@@ -11,7 +11,7 @@ export type GuideSection = { number?: number; title: string; why: string; parts:
 type GuideFile = PullRequestGuide['unplaced'][number]
 
 // `@@` blocks, in the order chapter indexes refer to.
-export function patchHunks(patch: string | undefined) {
+function patchHunks(patch: string | undefined) {
   if (!patch) return []
   return patch.split(/^(?=@@ )/m).filter((hunk) => hunk.startsWith('@@'))
 }

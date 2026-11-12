@@ -96,7 +96,7 @@ export type PrPull = {
   data: PullRequestData
 }
 
-export function prUser(user: PullRequestData['pull']['user']): PrUser {
+function prUser(user: PullRequestData['pull']['user']): PrUser {
   return { login: user.login, name: user.name ?? null, avatarUrl: user.avatar_url }
 }
 export function githubUser(user: PrUser): PullRequestData['pull']['user'] {

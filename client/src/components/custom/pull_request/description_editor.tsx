@@ -367,7 +367,7 @@ const EditorCodeBlock = CodeBlock.extend({
 // Typing at the edge of inline code, or pressing Enter after it, writes plain text.
 const InlineCode = Code.extend({ inclusive: false })
 
-export type IssueState = 'open' | 'completed' | 'not_planned' | 'draft' | 'merged' | 'closed'
+type IssueState = 'open' | 'completed' | 'not_planned' | 'draft' | 'merged' | 'closed'
 // What the editor knows about issues it may find referenced: the PR's repo, for bare #123, and the
 // states of the issues the PR closes. Anything else renders as a neutral chip.
 export type IssueReferences = {
@@ -879,7 +879,7 @@ function AttachSlotButton({
 
 // GitHub-flavoured markdown, edited in place. With onSave it autosaves (a description); with onSubmit
 // it's a composer that posts on ⌘↵ or the send button and clears (a comment).
-export type UploadedAttachment = { src: string; width?: number; height?: number }
+type UploadedAttachment = { src: string; width?: number; height?: number }
 export type UploadAttachment = (file: File) => Promise<UploadedAttachment>
 
 function ComposerActions({
