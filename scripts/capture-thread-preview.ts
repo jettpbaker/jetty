@@ -37,11 +37,9 @@ async function loadPlaywright() {
   try {
     return await import('playwright')
   } catch {
-    const bundled = join(
-      homedir(),
-      '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs'
+    throw new Error(
+      'Playwright not found: install it, or point --playwright or PLAYWRIGHT_MODULE at its index.mjs.'
     )
-    return import(pathToFileURL(bundled).href)
   }
 }
 
