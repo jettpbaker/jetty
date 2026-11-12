@@ -815,7 +815,7 @@ export function createClaudeAdapter(
         if (
           (toolName === 'Agent' || toolName === 'Task') &&
           toolInput.effort === 'max' &&
-          (yield* store.isBot(session.threadId))
+          session.bot
         )
           return { behavior: 'deny' as const, message: "max isn't available to bots; use xhigh" }
         const result = yield* Deferred.make<PermissionResult>()
