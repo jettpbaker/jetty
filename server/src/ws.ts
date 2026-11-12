@@ -499,13 +499,7 @@ export function createRpcHandlers(
           const project = yield* requireProject(params.projectId)
           const environment =
             params.environment ??
-            (yield* store
-              .getDefaultEnvironment()
-              .pipe(
-                Effect.flatMap((fallback) =>
-                  fromPromise(() => worktrees.defaultEnvironment(project.path, fallback))
-                )
-              ))
+            (yield* fromPromise(() => worktrees.defaultEnvironment(project.path)))
           const baseCommit =
             environment === 'worktree'
               ? yield* fromPromise(() => worktrees.resolveRef(project.path, params.ref))

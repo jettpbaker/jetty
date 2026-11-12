@@ -737,13 +737,7 @@ export function createMcpHandler(
           (!bot && sameProject
             ? caller.environment
             : worktrees
-              ? yield* store
-                  .getDefaultEnvironment()
-                  .pipe(
-                    Effect.flatMap((fallback) =>
-                      Effect.promise(() => worktrees.defaultEnvironment(target.path, fallback))
-                    )
-                  )
+              ? yield* Effect.promise(() => worktrees.defaultEnvironment(target.path))
               : yield* store.getDefaultEnvironment())
         if (environment === 'local') return yield* orch.withAdmission(caller.id, create)
         if (!worktrees) return yield* Effect.fail(new StoreError('not_found', 'Project not found'))
