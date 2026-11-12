@@ -43,7 +43,7 @@ import {
 } from './pull-requests'
 import { searchArchivedThreads } from './search/archived'
 import { Skills } from './skills'
-import { StoreError } from './store'
+import { StoreError, storeError } from './store'
 
 // Idempotent, so handlers can map at any depth without re-wrapping.
 function wireError(error: unknown): WireError {
@@ -675,8 +675,7 @@ export function createRpcHandlers(
       'pullRequest.commitFiles': ({ repo, sha }) =>
         Effect.tryPromise({
           try: () => pullRequestCommitFiles(repo, sha),
-          catch: (error) =>
-            error instanceof StoreError ? error : new StoreError('internal', String(error)),
+          catch: storeError,
         }).pipe(Effect.mapError(wireError)),
       'pullRequest.merge': ({ sha, mergeMethod, ...input }) =>
         checkedRef(input).pipe(

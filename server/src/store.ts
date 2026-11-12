@@ -192,7 +192,7 @@ export class StoreError extends Error {
   }
 }
 
-function storeError(error: unknown) {
+export function storeError(error: unknown) {
   return error instanceof StoreError
     ? error
     : new StoreError('internal', String(error), { cause: error })

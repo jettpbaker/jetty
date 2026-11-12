@@ -66,7 +66,7 @@ import {
   type AgentRegistry,
   type ProviderTitler,
 } from './registry'
-import { StoreError } from './store'
+import { StoreError, storeError } from './store'
 import { isFolder } from './worktrees'
 
 const EMPTY_ATTACHMENTS: PersistedAttachments = { meta: [], images: [] }
@@ -165,11 +165,7 @@ function agentText(
     const relayed = relayedMessage(queued.from, message)
     const wrapped = [relayed, ...(fromCreator ? [CHILD_REPORT_INSTRUCTION] : [])].join('\n')
     return queued.skill ? `/${queued.skill} ${wrapped}` : wrapped
-  }).pipe(
-    Effect.mapError((error) =>
-      error instanceof StoreError ? error : new StoreError('internal', String(error))
-    )
-  )
+  }).pipe(Effect.mapError(storeError))
 }
 
 // Roughly 50,000 tokens of English or code, comfortably inside what the title model does cheaply.
@@ -1609,13 +1605,7 @@ export function createOrchestrator({
                               { discard: true }
                             ),
                       { interruptible: true }
-                    ).pipe(
-                      Effect.mapError((error) =>
-                        error instanceof StoreError
-                          ? error
-                          : new StoreError('internal', String(error))
-                      )
-                    )
+                    ).pipe(Effect.mapError(storeError))
               if (!chosen.stored) yield* commitProvider(input.threadId, chosen.provider)
               yield* saveLoadout(input)
               const { agent } = chosen

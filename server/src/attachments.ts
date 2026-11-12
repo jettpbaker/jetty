@@ -17,7 +17,7 @@ import { open, type FileHandle } from 'node:fs/promises'
 import type { AgentImage } from './agent'
 
 import { imageSize } from './image-size'
-import { StoreError } from './store'
+import { StoreError, storeError } from './store'
 import { videoSize } from './video-size'
 
 const MIME_EXT = {
@@ -279,11 +279,7 @@ export function createAttachments(home: string) {
             base64data: Buffer.from(bytes).toString('base64'),
           }
         })
-      ).pipe(
-        Effect.mapError((error) =>
-          error instanceof StoreError ? error : new StoreError('internal', String(error))
-        )
-      )
+      ).pipe(Effect.mapError(storeError))
     }
 
     function remove(id: string) {
