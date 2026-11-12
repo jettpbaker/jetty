@@ -107,10 +107,12 @@ type WorktreeScript = 'setup' | 'archive'
 
 // Read from the project checkout, never a worktree: the agent can edit the worktree's copy.
 async function worktreeConfig(root: string) {
-  const config = await readJson(join(root, CONFIG))
-  if (config === undefined) return {}
   const invalid = () => new Error(`Invalid ${CONFIG}`)
-  if (!config || typeof config !== 'object') throw invalid()
+  const config = await readJson(join(root, CONFIG)).catch((error: unknown) => {
+    throw error instanceof SyntaxError ? invalid() : error
+  })
+  if (config === undefined) return {}
+  if (!config || typeof config !== 'object' || Array.isArray(config)) throw invalid()
   const fields = config as Partial<Record<WorktreeScript | 'environment', unknown>>
   function script(key: WorktreeScript) {
     const value = fields[key]
