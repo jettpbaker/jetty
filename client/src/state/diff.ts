@@ -131,7 +131,8 @@ export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
 }
 
 // Mount only while the diff is on screen: a cached diff renders at once and is
-// refreshed behind it, and settled tool calls and every finished turn refresh it again.
+// refreshed behind it, and settled tool calls, every finished turn and coming back to the window
+// refresh it again.
 export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const meta = useThreadMeta(threadId)
   const key = `${threadId}\0${scope ?? defaultDiffScope(meta)}`
@@ -142,6 +143,7 @@ export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const live = liveStatuses.has(useAtomValue(threadStatusAtom(threadId)) ?? 'idle')
   const wasLive = useRef(live)
   useToolsSettled(threadId, refresh)
+  useRefreshOnFocus(refresh)
   useRefreshCached(atom, refresh)
 
   useEffect(() => {
