@@ -10,3 +10,16 @@ export function acpPrompt(text: string, images?: AgentImage[]) {
     })),
   ]
 }
+
+export function jettyMcpServers(binding: { url: string; token: string } | undefined) {
+  return binding
+    ? [
+        {
+          type: 'http',
+          name: 'jetty',
+          url: binding.url,
+          headers: [{ name: 'Authorization', value: `Bearer ${binding.token}` }],
+        },
+      ]
+    : []
+}

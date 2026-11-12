@@ -12,7 +12,7 @@ import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
-import { acpPrompt } from './acp-session'
+import { acpPrompt, jettyMcpServers } from './acp-session'
 import {
   AgentError,
   AgentService,
@@ -411,17 +411,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             )
           const result = yield* connection.request(resume ? 'session/load' : 'session/new', {
             cwd,
-            mcpServers:
-              binding && !session.bot
-                ? [
-                    {
-                      type: 'http',
-                      name: 'jetty',
-                      url: binding.url,
-                      headers: [{ name: 'Authorization', value: `Bearer ${binding.token}` }],
-                    },
-                  ]
-                : [],
+            mcpServers: jettyMcpServers(session.bot ? undefined : binding),
             ...(resume ? { sessionId: resume } : {}),
           })
           const sessionId = resume ?? string(result.sessionId)

@@ -8,7 +8,7 @@ import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
-import { acpPrompt } from './acp-session'
+import { acpPrompt, jettyMcpServers } from './acp-session'
 import {
   AgentError,
   AgentService,
@@ -444,16 +444,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             )
           const result = yield* connection.request(resume ? 'session/load' : 'session/new', {
             cwd: cwd,
-            mcpServers: binding
-              ? [
-                  {
-                    type: 'http',
-                    name: 'jetty',
-                    url: binding.url,
-                    headers: [{ name: 'Authorization', value: `Bearer ${binding.token}` }],
-                  },
-                ]
-              : [],
+            mcpServers: jettyMcpServers(binding),
             ...(resume ? { sessionId: resume } : {}),
             _meta: rules ? { rules } : {},
           })
