@@ -1,5 +1,5 @@
 import { blobs, storage } from '@/platform'
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 
 import { accentStorageKey, loadAccent, setAccent } from './accent'
 import { applyWallpaperAccent } from './wallpaper-accent'
@@ -194,9 +194,11 @@ function syncAppearanceAccent() {
   image.src = prefs.wallpaper
 }
 
-// An accent picked in another window applies here too, unless this one's wallpaper sets it.
-export function followAccent() {
+// A wallpaper or accent picked in another window applies here too; an accent only where this
+// window's wallpaper doesn't set it.
+export function followAppearance() {
   window.addEventListener('storage', (event) => {
+    if (event.key === key) void hydrateAppearance({ changedElsewhere: true })
     if (event.key === accentStorageKey) syncAppearanceAccent()
   })
 }
@@ -271,22 +273,13 @@ export function saveVideoWallpaper(file: File | null) {
   })
 }
 
+function subscribe(onChange: () => void) {
+  window.addEventListener(eventName, onChange)
+  return () => window.removeEventListener(eventName, onChange)
+}
+
 export function useAppearance() {
-  const [appearance, setAppearance] = useState(loadAppearance)
-  useEffect(() => {
-    const sync = () => setAppearance(loadAppearance())
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === key) void hydrateAppearance({ changedElsewhere: true })
-    }
-    void hydrateAppearance()
-    window.addEventListener(eventName, sync)
-    window.addEventListener('storage', onStorage)
-    return () => {
-      window.removeEventListener(eventName, sync)
-      window.removeEventListener('storage', onStorage)
-    }
-  }, [])
-  return appearance
+  return useSyncExternalStore(subscribe, loadAppearance)
 }
 
 // Decoding a bitmap above this many pixels can freeze the tab, whatever the file size.

@@ -4,7 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { loadAccent } from './lib/accent'
-import { followAccent, hydrateAppearance } from './lib/appearance'
+import { followAppearance, hydrateAppearance } from './lib/appearance'
 import { applyPointerCursors } from './lib/pointer-cursors'
 import { refreshScrollFadesWhenOverflowEnds } from './lib/scroll-fade'
 import { applyTheme, followTheme } from './lib/theme'
@@ -18,7 +18,7 @@ followTheme()
 applyPointerCursors()
 document.documentElement.dataset.accent = loadAccent()
 void hydrateAppearance()
-followAccent()
+followAppearance()
 refreshScrollFadesWhenOverflowEnds()
 
 const router = createRouter({ routeTree, defaultPreload: 'intent' })
