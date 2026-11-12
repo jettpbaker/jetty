@@ -51,12 +51,11 @@ function toBot(row: BotRecord): BotRow {
   }
 }
 
+const botColumns = 'id, name, color, provider, model, effort, created_at, seen_at'
+
 export function listBots(db: Database) {
   return db
-    .query<BotRecord, []>(
-      `SELECT id, name, color, provider, model, effort, created_at, seen_at FROM bots
-       ORDER BY seen_at DESC`
-    )
+    .query<BotRecord, []>(`SELECT ${botColumns} FROM bots ORDER BY seen_at DESC`)
     .all()
     .map(toBot)
 }
@@ -93,9 +92,7 @@ export function createBotSource(
 
   function readBot() {
     const row = db
-      .query<BotRecord, [string]>(
-        `SELECT id, name, color, provider, model, effort, created_at, seen_at FROM bots WHERE id = ?`
-      )
+      .query<BotRecord, [string]>(`SELECT ${botColumns} FROM bots WHERE id = ?`)
       .get(botId)
     return row ? toBot(row) : null
   }
