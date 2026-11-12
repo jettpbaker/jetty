@@ -31,9 +31,10 @@ const noCheckout = {}
 // A bot's chat with its details pane: Overview, its subagents, an attached file opened from the
 // chat, and the chat as a tab while the pane is full width.
 export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactNode }) {
-  const layout = useDetailsLayout()
-  const { open, ready, full, narrow, expanded, setExpanded, setChatSlot, show } = layout
   const [pickedTab, setTab] = useState('overview')
+  // Opening shows Overview, even where the chat would be a tab of its own, unless a file opened it.
+  const layout = useDetailsLayout(useCallback(() => setTab('overview'), []))
+  const { open, ready, full, narrow, expanded, setExpanded, setChatSlot, show } = layout
   const [file, setFile] = useState<Attachment | 'instructions'>()
   // The route component is reused when the open bot changes, so a file opened on the last bot
   // would otherwise stay open against this one.
@@ -50,14 +51,6 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
   const subagents = openedSubagents.flatMap((id) => allSubagents.filter((agent) => agent.id === id))
   const shows = (id: string | undefined) =>
     subagents.some((agent) => subagentTabId(agent.id) === id)
-  // Opening shows Overview, even where the chat would be a tab of its own, unless a file opened it.
-  const [openingTab, setOpeningTab] = useState<string>()
-  const [wasOpen, setWasOpen] = useState(open)
-  if (open !== wasOpen) {
-    setWasOpen(open)
-    if (open) setTab(openingTab ?? 'overview')
-    setOpeningTab(undefined)
-  }
   const tab = full || (pickedTab === 'file' && file) || shows(pickedTab) ? pickedTab : 'overview'
   const { tab: requestedTab, consume } = useDetailsRequest(bot.id)
   const requestShown = shows(requestedTab)
@@ -65,19 +58,13 @@ export function BotDetailsLayout({ bot, children }: { bot: Bot; children: ReactN
     if (!requestedTab || !requestShown) return
     consume()
     setTab(requestedTab)
-    if (!open) {
-      setOpeningTab(requestedTab)
-      show()
-    }
+    if (!open) show()
   }, [requestedTab, requestShown, consume, open, show])
   const openAttachment = useCallback(
     (attachment: Attachment) => {
       setFile(attachment)
       setTab('file')
-      if (!open) {
-        setOpeningTab('file')
-        show()
-      }
+      if (!open) show()
       return true
     },
     [open, show]
