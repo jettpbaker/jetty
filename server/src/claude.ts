@@ -13,7 +13,7 @@ import {
   type SDKUserMessage,
   type SessionMessage,
 } from '@anthropic-ai/claude-agent-sdk'
-import { botProjects } from '@jetty/shared/bots'
+import { botEffortRefusal, botProjects } from '@jetty/shared/bots'
 import { type ThreadEvent } from '@jetty/shared/events'
 import { QuestionSpec } from '@jetty/shared/items'
 import { newId, type Bot, type Project } from '@jetty/shared/wire'
@@ -807,12 +807,9 @@ export function createClaudeAdapter(
     ) {
       const itemId = newId()
       return Effect.gen(function* () {
-        if (
-          (toolName === 'Agent' || toolName === 'Task') &&
-          toolInput.effort === 'max' &&
-          session.bot
-        )
-          return { behavior: 'deny' as const, message: "max isn't available to bots; use xhigh" }
+        const refusal = botEffortRefusal(toolInput.effort)
+        if ((toolName === 'Agent' || toolName === 'Task') && refusal && session.bot)
+          return { behavior: 'deny' as const, message: refusal }
         const result = yield* Deferred.make<PermissionResult>()
         yield* session.publication.withPermit(
           Effect.gen(function* () {
@@ -1149,19 +1146,19 @@ export function createClaudeAdapter(
                                         }
                                     }
                                   }
-                                  if (
-                                    !['Agent', 'Task'].includes(hookInput.tool_name) ||
-                                    !hookInput.tool_input ||
-                                    typeof hookInput.tool_input !== 'object' ||
-                                    (hookInput.tool_input as { effort?: unknown }).effort !== 'max'
-                                  )
-                                    return {}
+                                  const toolInput = hookInput.tool_input
+                                  const refusal =
+                                    ['Agent', 'Task'].includes(hookInput.tool_name) &&
+                                    toolInput &&
+                                    typeof toolInput === 'object'
+                                      ? botEffortRefusal((toolInput as { effort?: unknown }).effort)
+                                      : undefined
+                                  if (!refusal) return {}
                                   return {
                                     hookSpecificOutput: {
                                       hookEventName: 'PreToolUse' as const,
                                       permissionDecision: 'deny' as const,
-                                      permissionDecisionReason:
-                                        "max isn't available to bots; use xhigh",
+                                      permissionDecisionReason: refusal,
                                     },
                                   }
                                 },

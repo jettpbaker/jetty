@@ -6,6 +6,7 @@ import type {
   ThreadMeta,
 } from '@jetty/shared/wire'
 
+import { botEffortRefusal } from '@jetty/shared/bots'
 import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
 import { WireError } from '@jetty/shared/wire'
 import { newId } from '@jetty/shared/wire'
@@ -831,10 +832,8 @@ export function createRpcHandlers(
               return yield* Effect.fail(
                 new StoreError('invalid_params', 'OpenCode bots are not available')
               )
-            if (params.effort === 'max')
-              return yield* Effect.fail(
-                new StoreError('invalid_params', "max isn't available to bots; use xhigh")
-              )
+            const refusal = botEffortRefusal(params.effort)
+            if (refusal) return yield* Effect.fail(new StoreError('invalid_params', refusal))
             const model = getModels()?.find(
               (item) => item.provider === params.provider && item.id === params.model
             )
@@ -875,10 +874,8 @@ export function createRpcHandlers(
         Effect.gen(function* () {
           if (params.name !== undefined && !params.name.trim())
             return yield* Effect.fail(new StoreError('invalid_params', 'Bot name is required'))
-          if (params.effort === 'max')
-            return yield* Effect.fail(
-              new StoreError('invalid_params', "max isn't available to bots; use xhigh")
-            )
+          const refusal = botEffortRefusal(params.effort)
+          if (refusal) return yield* Effect.fail(new StoreError('invalid_params', refusal))
           const bot = yield* liveBot(params.botId)
           const id = params.model ?? bot.model
           const model = getModels()?.find(

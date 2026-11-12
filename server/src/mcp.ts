@@ -5,7 +5,7 @@ import {
   SEARCH_MAX_K,
   SEARCH_QUERY_MAX,
 } from '@jetty/shared/bot-search'
-import { botProjects, soleProjectId } from '@jetty/shared/bots'
+import { botEffortRefusal, botProjects, soleProjectId } from '@jetty/shared/bots'
 import { SessionStatus } from '@jetty/shared/events'
 import { heldByRestarts, type ThreadItem } from '@jetty/shared/items'
 import { baseModelId, findProviderModel } from '@jetty/shared/model-name'
@@ -649,10 +649,8 @@ export function createMcpHandler(
           if (previous) return previous
         }
         const bot = yield* store.getBot(caller.id)
-        if (bot && input.effort === 'max')
-          return yield* Effect.fail(
-            new StoreError('invalid_params', "max isn't available to bots; use xhigh")
-          )
+        const refusal = bot && botEffortRefusal(input.effort)
+        if (refusal) return yield* Effect.fail(new StoreError('invalid_params', refusal))
         if (
           input.setup_worktrees &&
           ['prompt', 'skill', 'environment', 'ref'].some(
