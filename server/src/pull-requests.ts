@@ -312,6 +312,10 @@ export class GhFailure extends Error {
   }
 }
 
+function asFailure(error: unknown) {
+  return error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+}
+
 async function readGhToken(): Promise<string | null> {
   const bin = Bun.which('gh')
   if (!bin) return null
@@ -864,6 +868,16 @@ async function fetchGraphqlBatch(
       }
     })
   )
+}
+
+// A query that fails outright fails every pull request in it the same way.
+async function readGraphs(...query: Parameters<typeof fetchGraphqlBatch>) {
+  try {
+    return await fetchGraphqlBatch(...query)
+  } catch (error) {
+    const failure = asFailure(error)
+    return query[0].map(() => failure)
+  }
 }
 
 // Bounded raw reads preserve fields when GitHub returns partial errors.
@@ -1944,14 +1958,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         }
       })
     )
-    let graphs: (Graph | GhFailure)[]
-    try {
-      graphs = await fetchGraphqlBatch(refs)
-    } catch (error) {
-      const failure =
-        error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
-      graphs = batch.map(() => failure)
-    }
+    const graphs = await readGraphs(refs)
     await Promise.all(
       batch.map(async (job, index) => {
         let snapshot: PullRequestSnapshot
@@ -1972,8 +1979,7 @@ export function createPullRequests(store: Store, hub: Hub) {
             dataRefreshedAt: refreshedAt,
           }
         } catch (error) {
-          const failure =
-            error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
+          const failure = asFailure(error)
           snapshot = {
             ...job.ref,
             status: failure.kind,
@@ -2263,18 +2269,6 @@ export function createPullRequests(store: Store, hub: Hub) {
     )
   }
 
-  function pollingGraphs(refs: readonly PullRequestRef[], fields: string) {
-    return Effect.promise(async () => {
-      try {
-        return await fetchGraphqlBatch(refs, fields)
-      } catch (error) {
-        const failure =
-          error instanceof GhFailure ? error : new GhFailure('unavailable', String(error))
-        return refs.map(() => failure)
-      }
-    })
-  }
-
   function publishPollFailure(ref: PullRequestRef, failure: GhFailure, fetchedRevision: number) {
     return Effect.gen(function* () {
       const snapshot = yield* get(ref)
@@ -2303,7 +2297,7 @@ export function createPullRequests(store: Store, hub: Hub) {
         lastDetection.set(key, Date.now())
         return revision(key)
       })
-      const graphs = yield* pollingGraphs(due, pullRequestChecksFields).pipe(
+      const graphs = yield* Effect.promise(() => readGraphs(due, pullRequestChecksFields)).pipe(
         Effect.ensuring(
           Effect.sync(() => {
             for (const ref of due) checking.delete(prKey(ref))
@@ -2381,7 +2375,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   function detectChanges(refs: readonly PullRequestRef[]) {
     return Effect.gen(function* () {
       const fetchedRevisions = refs.map((ref) => revision(prKey(ref)))
-      const graphs = yield* pollingGraphs(refs, pullRequestStateFields)
+      const graphs = yield* Effect.promise(() => readGraphs(refs, pullRequestStateFields))
       const checks: PullRequestRef[] = []
       const reads = new Set<string>()
       for (const [index, ref] of refs.entries()) {
