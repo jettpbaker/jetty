@@ -69,34 +69,24 @@ const resumeAtom = Atom.family((_threadId: string) =>
   Atom.make<ThreadState | undefined>(undefined).pipe(Atom.setIdleTTL('10 minutes'))
 )
 
-// `get.once`, not `get`: a parent link would shorten resume's TTL by live's on sweep.
+// The thread itself lives in resumeAtom, where history pages merge too; this folds the stream into
+// it. Both atoms are mounted, not read with `get`: a parent link would shorten their TTL by live's
+// on sweep.
 const liveAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
-    const cached = get.once(resumeAtom(threadId))
-    let current: ThreadState = cached ?? emptyThread
-    let loaded = cached !== undefined
-    let disposed = false
+    const resume = resumeAtom(threadId)
+    const toolOutputs = toolOutputsAtom(threadId)
+    get.mount(resume)
+    get.mount(toolOutputs)
     const saver = createThreadSaver(threadId)
-    get.addFinalizer(() => {
-      disposed = true
-      saver.dispose()
-    })
-    const hydration = cached
+    get.addFinalizer(saver.dispose)
+    const hydration = get.once(resume)
       ? Promise.resolve()
       : readThreadCache(threadId).then((state) => {
-          if (!state || disposed || loaded) return
-          current = { ...state, newestStart: state.history?.ranges[0]?.start ?? 0 }
-          loaded = true
-          get.set(resumeAtom(threadId), current)
+          if (state)
+            get.set(resume, { ...state, newestStart: state.history?.ranges[0]?.start ?? 0 })
         })
     void touchThreadCache(threadId)
-    let outputs = get.once(toolOutputsAtom(threadId))
-    get.subscribe(resumeAtom(threadId), (state) => {
-      if (state) current = state
-    })
-    get.subscribe(toolOutputsAtom(threadId), (value) => {
-      outputs = value
-    })
     // A subscription catches up first; its snapshot or `ready` says the events after it are live.
     let live = false
     return subscribe(get, (connection) => {
@@ -104,17 +94,15 @@ const liveAtom = Atom.family((threadId: string) =>
       return Stream.unwrap(
         Effect.promise(() => hydration).pipe(
           Effect.andThen(awaitCreation(threadId)),
-          Effect.map(() =>
-            connection.subscribeThread(threadId, loaded ? current.lastSeq : undefined)
-          )
+          Effect.map(() => connection.subscribeThread(threadId, get.once(resume)?.lastSeq))
         )
       )
     }).pipe(
-      Stream.tap((update) =>
+      Stream.mapEffect((update) =>
         Effect.sync(() => {
           perf.threadUpdate(threadId, update)
-          if (update.type === 'snapshot' && outputs.size)
-            get.set(toolOutputsAtom(threadId), new Map())
+          const outputs = get.once(toolOutputs)
+          if (update.type === 'snapshot' && outputs.size) get.set(toolOutputs, new Map())
           if (update.type === 'event') {
             for (const events of flights.get(threadId) ?? []) events.push(update)
             const { event } = update
@@ -126,7 +114,7 @@ const liveAtom = Atom.family((threadId: string) =>
                   : undefined
               if (next !== undefined)
                 get.set(
-                  toolOutputsAtom(threadId),
+                  toolOutputs,
                   new Map(outputs).set(event.itemId, { output: next, seq: update.seq })
                 )
             }
@@ -134,17 +122,10 @@ const liveAtom = Atom.family((threadId: string) =>
           if (update.type !== 'event') live = true
           else if (live && update.event.type === 'item.completed')
             noteCompleted(update.event.itemId)
-        })
-      ),
-      Stream.map((update) => {
-        current = foldUpdate(current, update)
-        loaded = true
-        return current
-      }),
-      Stream.tap((state) =>
-        Effect.sync(() => {
-          get.set(resumeAtom(threadId), state)
+          const state = foldUpdate(get.once(resume) ?? emptyThread, update)
+          get.set(resume, state)
           saver.update(state)
+          return state
         })
       )
     )
@@ -153,7 +134,6 @@ const liveAtom = Atom.family((threadId: string) =>
 
 export const threadAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => {
-    // The stream folds into resumeAtom, where history pages merge too.
     get(liveAtom(threadId))
     const state = get(resumeAtom(threadId))
     const thread = get(threadMetaAtom(threadId))
