@@ -55,7 +55,7 @@ import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
-import { useChrome } from '@/state'
+import { useGuidedReviews, useNoModels } from '@/state/chrome'
 import {
   usePullRequestCommitFiles,
   usePullRequestDiffFileLoader,
@@ -1950,9 +1950,8 @@ function GuidePane({
 export function JettyStyle({ pr }: { pr: PrPull }) {
   const { actions, ref, status, more, sidebar } = usePrRuntime()
   useNow(60_000)
-  const chrome = useChrome()
-  const guidesOn = chrome?.agentBehaviours?.guidedReviews ?? true
-  const guideUnavailable = chrome?.models?.length === 0
+  const guidesOn = useGuidedReviews()
+  const guideUnavailable = useNoModels()
   const [chosenTab, setTab] = useState('overview')
   // Turning guides off in Settings takes an open Guide tab back to Overview.
   const tab = chosenTab === 'guide' && !guidesOn ? 'overview' : chosenTab
