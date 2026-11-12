@@ -249,6 +249,11 @@ function trackAgents(running: Set<string>, event: ThreadEvent) {
   if (event.type === 'item.completed') running.delete(event.itemId)
 }
 
+function pendingStatus(session: WarmSession): ThreadEvent {
+  const waiting = session.pendingApprovals.size + session.pendingQuestions.size > 0
+  return { type: 'session.status', status: waiting ? 'awaiting_approval' : 'running' }
+}
+
 // The agent never sees a subagent's id, so its result carries the exact link to cite.
 const subagentLinkHook: HookCallback = async (hookInput) => {
   if (hookInput.hook_event_name !== 'PostToolUse') return {}
@@ -938,11 +943,7 @@ export function createClaudeAdapter(
             })
             pending.delete(itemId)
             if (!session.awaitingResult) return
-            const waiting = session.pendingApprovals.size + session.pendingQuestions.size > 0
-            yield* emitCaptured(session, {
-              type: 'session.status',
-              status: waiting ? 'awaiting_approval' : 'running',
-            })
+            yield* emitCaptured(session, pendingStatus(session))
           })
         )
         .pipe(Effect.ignore)
@@ -970,11 +971,9 @@ export function createClaudeAdapter(
               if (beforeResolve) yield* beforeResolve(session, pending)
               yield* emitCaptured(session, { type: 'item.completed', itemId, patch })
               pendingOf(session).delete(itemId)
-              const waiting = session.pendingApprovals.size + session.pendingQuestions.size > 0
-              yield* emitCaptured(session, {
-                type: 'session.status',
-                status: waiting ? 'awaiting_approval' : 'running',
-              }).pipe(Effect.ensuring(Deferred.succeed(pending.result, result(pending))))
+              yield* emitCaptured(session, pendingStatus(session)).pipe(
+                Effect.ensuring(Deferred.succeed(pending.result, result(pending)))
+              )
               return true
             })
           )
