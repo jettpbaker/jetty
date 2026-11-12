@@ -2,7 +2,7 @@ import type { SequencedEvent } from '@jetty/shared/events'
 import type { HistoryPage, HistoryRange, ThreadSnapshot } from '@jetty/shared/history'
 import type { ThreadItem } from '@jetty/shared/items'
 
-import { summaryItem } from '@jetty/shared/history'
+import { historyTurn, summaryItem } from '@jetty/shared/history'
 import { applyEvent, findThreadItem } from '@jetty/shared/reducer'
 import { foldTodos } from '@jetty/shared/todos'
 
@@ -80,18 +80,8 @@ export function foldHistoryEvent(state: ThreadView, update: SequencedEvent): Thr
         ? { ...next, items: summary.items }
         : applyEvent({ ...state, items: summary.items }, update)
     status = reduced.status
-    let turns = summary.turns
-    if (
-      event.type === 'item.started' &&
-      event.item.kind === 'user_message' &&
-      !event.item.agentId &&
-      !event.item.from &&
-      !event.item.wake
-    )
-      turns = [
-        ...turns,
-        { id: event.item.turnId, itemId: event.item.id, title: event.item.text.slice(0, 160) },
-      ]
+    const turn = event.type === 'item.started' ? historyTurn(event.item) : undefined
+    const turns = turn ? [...summary.turns, turn] : summary.turns
     if (reduced.items !== summary.items || turns !== summary.turns)
       summary = {
         ...summary,
