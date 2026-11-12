@@ -44,16 +44,17 @@ export function ComposerEnvironment({
             if (next === 'local' || next === 'worktree') onValueChange(next)
           }}
         >
-          <DisabledTooltip reason={worktreeDisabled} side='right'>
-            <DropdownMenuRadioItem value='worktree' disabled={worktreeDisabled !== undefined}>
-              <WorktreeIcon />
-              Worktree
-            </DropdownMenuRadioItem>
-          </DisabledTooltip>
-          <DropdownMenuRadioItem value='local'>
-            <MacbookIcon />
-            Current checkout
-          </DropdownMenuRadioItem>
+          {Object.entries(environments).map(([id, option]) => {
+            const reason = id === 'worktree' ? worktreeDisabled : undefined
+            return (
+              <DisabledTooltip key={id} reason={reason} side='right'>
+                <DropdownMenuRadioItem value={id} disabled={reason !== undefined}>
+                  <option.Icon />
+                  {option.label}
+                </DropdownMenuRadioItem>
+              </DisabledTooltip>
+            )
+          })}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
