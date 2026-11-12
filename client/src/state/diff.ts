@@ -1,3 +1,4 @@
+import type { Connection } from '@/net/connection'
 import type { DiffScope, ProjectFile, ThreadMeta } from '@jetty/shared/wire'
 
 import { RegistryContext, useAtomRefresh, useAtomValue } from '@effect/atom-react'
@@ -207,10 +208,11 @@ const projectFileAtom = Atom.family((key: string) => {
 })
 
 // A reopened file renders from cache at once and is re-read behind it. An open file follows
-// edits on disk: it's re-read when the thread's tool calls settle, when a turn ends and when the
-// window regains focus (at most every 30s).
-export function useProjectFile(threadId: string, path: string) {
-  const atom = projectFileAtom(`${threadId}\0${path}`)
+// edits on disk: it's re-read whenever the thread's files may have changed.
+function useFollowedFile(
+  threadId: string,
+  atom: Atom.Atom<AsyncResult.AsyncResult<ProjectFile, unknown>>
+) {
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
   useRefreshCached(atom, refresh)
@@ -219,6 +221,10 @@ export function useProjectFile(threadId: string, path: string) {
     file: AsyncResult.getOrElse(result, () => undefined),
     failed: AsyncResult.isFailure(result),
   }
+}
+
+export function useProjectFile(threadId: string, path: string) {
+  return useFollowedFile(threadId, projectFileAtom(`${threadId}\0${path}`))
 }
 
 // Lists one folder of the thread's working folder ('' is its top).
@@ -259,33 +265,30 @@ export function useFileSearch(projectId: string, threadId: string, query: string
   return { files: fresh ?? shown, fresh: fresh !== undefined }
 }
 
-// Saves the file's draft text only while the file on disk still holds `base`; a save settles the
-// draft and refreshes the cached file and the thread's diffs behind it. A failed save says why and
-// resolves to undefined.
-function saveProjectFile(
+// Saves a draft's text through `write`, which writes only while the file still holds the text the
+// draft started from. A save settles the draft, then `onSaved` refreshes what showed the old text.
+// A failed save says why and resolves to undefined.
+function saveFile<A extends object, E>(
   registry: AtomRegistry.AtomRegistry,
   threadId: string,
   path: string,
   contents: string,
-  base: string | null
+  write: (connection: Connection) => Effect.Effect<A, E>,
+  onSaved: () => void
 ) {
   beginFileSave(threadId, path)
   return Effect.runPromise(
     AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap((connection) =>
-        connection.request('thread.writeFile', { threadId, path, contents, base })
-      ),
+      Effect.flatMap(write),
       Effect.tap((result) =>
         Effect.sync(() => {
           if (!('saved' in result)) return
           settleFileDraft(registry, threadId, path, contents)
-          registry.refresh(projectFileAtom(`${threadId}\0${path}`))
-          for (const scope of ['branch', 'uncommitted'] as const)
-            refreshDiff(registry, `${threadId}\0${scope}`)
+          onSaved()
         })
       ),
       Effect.ensuring(Effect.sync(() => endFileSave(registry, threadId, path))),
-      // Defects too (a server that doesn't know thread.writeFile yet), or the save fails silently.
+      // Defects too (a server that doesn't know the request yet), or the save fails silently.
       Effect.catchCause((cause) =>
         Effect.sync(() => {
           const error = Cause.squash(cause)
@@ -296,6 +299,27 @@ function saveProjectFile(
         })
       )
     )
+  )
+}
+
+function saveProjectFile(
+  registry: AtomRegistry.AtomRegistry,
+  threadId: string,
+  path: string,
+  contents: string,
+  base: string | null
+) {
+  return saveFile(
+    registry,
+    threadId,
+    path,
+    contents,
+    (connection) => connection.request('thread.writeFile', { threadId, path, contents, base }),
+    () => {
+      registry.refresh(projectFileAtom(`${threadId}\0${path}`))
+      for (const scope of ['branch', 'uncommitted'] as const)
+        refreshDiff(registry, `${threadId}\0${scope}`)
+    }
   )
 }
 
@@ -315,48 +339,23 @@ export const instructionsPath = 'instructions.md'
 // A bot's instructions as a file, kept as fresh as an open thread file: the bot appends to them
 // during its turns.
 export function useBotInstructions(botId: string) {
-  const atom = instructionsAtom(botId)
-  const result = useAtomValue(atom)
-  const refresh = useAtomRefresh(atom)
-  useRefreshCached(atom, refresh)
-  useDiskChanges(botId, refresh)
-  return {
-    file: AsyncResult.getOrElse(result, () => undefined),
-    failed: AsyncResult.isFailure(result),
-  }
+  return useFollowedFile(botId, instructionsAtom(botId))
 }
 
-// Same contract as saveProjectFile; the server writes only while the instructions hold `base`.
 function saveInstructions(
   registry: AtomRegistry.AtomRegistry,
   botId: string,
   contents: string,
   base: string | null
 ) {
-  beginFileSave(botId, instructionsPath)
-  return Effect.runPromise(
-    AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap((connection) =>
-        connection.request('bot.saveInstructions', { botId, instructions: contents, base })
-      ),
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          if (!('saved' in result)) return
-          settleFileDraft(registry, botId, instructionsPath, contents)
-          registry.refresh(instructionsAtom(botId))
-        })
-      ),
-      Effect.ensuring(Effect.sync(() => endFileSave(registry, botId, instructionsPath))),
-      Effect.catchCause((cause) =>
-        Effect.sync(() => {
-          const error = Cause.squash(cause)
-          toast.error(`Couldn't save ${instructionsPath}`, {
-            description: error instanceof Error ? error.message : String(error),
-          })
-          return undefined
-        })
-      )
-    )
+  return saveFile(
+    registry,
+    botId,
+    instructionsPath,
+    contents,
+    (connection) =>
+      connection.request('bot.saveInstructions', { botId, instructions: contents, base }),
+    () => registry.refresh(instructionsAtom(botId))
   )
 }
 
