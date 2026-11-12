@@ -100,24 +100,13 @@ function approvalMarker(item: ApprovalItem, projectPath: string | undefined) {
   }
 }
 
-export function TranscriptMarker({
-  item,
-  source,
-  provider,
-  projectPath,
-}: {
-  item: ApprovalItem
-  source?: string
-  provider?: string
-  projectPath?: string
-}) {
-  const root = use(ProjectFileRoot)
-  const { tone, text } = approvalMarker(item, projectPath ?? root)
+export function TranscriptMarker({ item, source }: { item: ApprovalItem; source?: string }) {
+  const { tone, text } = approvalMarker(item, use(ProjectFileRoot))
   return (
     <div data-marker={tone} className='activity-header text-muted-foreground'>
       {source && (
         <>
-          <SourceLabel provider={provider} className='shrink-0'>
+          <SourceLabel className='shrink-0'>
             <span className='max-w-52 truncate'>{source}</span>
           </SourceLabel>
           <span aria-hidden='true'>·</span>
