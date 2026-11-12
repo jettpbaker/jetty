@@ -89,8 +89,8 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
         defaultEnvironment: update.defaultEnvironment,
         jobModels: update.jobModels,
         agentBehaviours: update.agentBehaviours,
-        bots: update.bots ?? [],
-        botThreads: update.botThreads ?? [],
+        bots: update.bots,
+        botThreads: update.botThreads,
       }
     case 'jettyUpdate':
       return { ...chrome, jettyUpdate: update.state }
@@ -144,7 +144,7 @@ function pushEffects(before: Chrome, update: ChromePushData, created: Iterable<s
       // A thread created here may not have reached the server yet.
       void pruneThreadCache([
         ...update.threads.map((thread) => thread.id),
-        ...(update.bots ?? []).map((bot) => bot.id),
+        ...update.bots.map((bot) => bot.id),
         ...created,
       ])
       if (
