@@ -39,7 +39,7 @@ export function BotSettingsSheet({ bot, children }: { bot: Bot; children: ReactE
   const update = useUpdateBot()
   const archiveBot = useArchiveBotAction()
   const navigate = useNavigate()
-  const rules = bot.allowRules ?? []
+  const rules = bot.allowRules
   const models = useModels()
   const blocked = fullAccessDisabled(findModel(models, bot))
   function saveName() {
