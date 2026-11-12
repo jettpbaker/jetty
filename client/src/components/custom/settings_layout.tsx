@@ -7,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { Link } from '@tanstack/react-router'
 import { type ComponentProps, type ReactElement, type ReactNode } from 'react'
@@ -324,55 +323,6 @@ export function SettingsSelect<T extends string>({
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-
-export function SettingsSegmented<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  label: string
-  value: T
-  options: readonly SettingsOption<T>[]
-  onChange?: (value: T) => void
-  disabled?: boolean
-}) {
-  const group = (
-    <ToggleGroup
-      aria-label={label}
-      value={[value]}
-      disabled={disabled}
-      spacing={0.5}
-      onValueChange={(next) => {
-        const option = options.find((candidate) => candidate.value === next[0])
-        if (option) onChange?.(option.value)
-      }}
-      className='shrink-0 rounded-md bg-foreground/6 p-0.5'
-    >
-      {options.map((option) => (
-        <ToggleGroupItem
-          key={option.value}
-          value={option.value}
-          className={cn(
-            'h-6 min-w-0 gap-1.5 rounded-sm pr-2.5 text-xs font-medium text-muted-foreground hover:bg-transparent aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-[0_1px_2px_#00000014,0_0_0_1px_var(--border)] dark:aria-pressed:bg-accent dark:aria-pressed:shadow-none [&_svg]:size-3.5',
-            option.icon ? 'pl-2' : 'pl-2.5'
-          )}
-        >
-          {option.icon}
-          {option.label}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  )
-  return disabled ? (
-    <DisabledTooltip reason={comingSoon} wrap='flex shrink-0'>
-      {group}
-    </DisabledTooltip>
-  ) : (
-    group
   )
 }
 
