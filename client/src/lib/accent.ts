@@ -17,7 +17,7 @@ export const accentPresets = [
 export type Accent = (typeof accentPresets)[number]['value']
 export const accentStorageKey = 'jetty.accent'
 
-export function isAccent(value: unknown): value is Accent {
+function isAccent(value: unknown): value is Accent {
   return accentPresets.some((preset) => preset.value === value)
 }
 

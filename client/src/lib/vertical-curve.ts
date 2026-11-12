@@ -3,7 +3,7 @@ export type CurveSettings = {
   curveStrength: number
 }
 
-export function curveProgressAt(position: number, settings: CurveSettings) {
+function curveProgressAt(position: number, settings: CurveSettings) {
   if (position <= settings.curveStart || settings.curveStart >= 1) return position
   const remaining = 1 - settings.curveStart
   const t = (position - settings.curveStart) / remaining
