@@ -673,11 +673,10 @@ export function ThreadList({
   // The reply consumes this space before its growth needs to move the conversation.
   const scrollSize =
     pinStart === undefined ? totalSize : Math.max(totalSize, pinStart - sentInset + viewportHeight)
-  // Keep room for the spring to brake when finishing work shrinks the transcript.
-  const [scrollSpace, setScrollSpace] = useState(scrollSize)
-  if (scrollSize > scrollSpace) setScrollSpace(scrollSize)
+  // Never shorter than what's on screen, so the spring has room to brake when finishing work
+  // shrinks the transcript: the browser can't clamp the chat, and the room goes as it eases up.
+  const scrollSpace = Math.max(scrollSize, (virtualizer.scrollOffset ?? 0) + viewportHeight)
   const scrollExtent = useRef(scrollSize)
-  const releaseScrollSpace = useCallback(() => setScrollSpace(scrollExtent.current), [])
   const reserved = useRef(false)
 
   const glider = useRef<ReturnType<typeof bottomGlide>>(undefined)
@@ -692,8 +691,7 @@ export function ThreadList({
     sendGlide.current.stop()
     sendGlide.current = undefined
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
-    releaseScrollSpace()
-  }, [virtualizer, releaseScrollSpace])
+  }, [virtualizer])
   const landed = useRef({ key: '', at: 0 })
   const lastRow = useRef<{ key: unknown; start: number }>(undefined)
   // Where the list was last scrolled to, before any clamp from content that just shrank.
@@ -787,12 +785,11 @@ export function ThreadList({
             virtualizer.shouldAdjustScrollPositionOnItemSizeChange = running
               ? () => false
               : undefined
-            if (!running) releaseScrollSpace()
           },
         })
       return glider.current
     },
-    [virtualizer, releaseScrollSpace]
+    [virtualizer]
   )
   // The one way a pinned chat is put at rest: the end of the transcript, or of the room reserved
   // under a sent message. Never the end of whatever the scroller happens to hold.
@@ -830,10 +827,7 @@ export function ThreadList({
   useLayoutEffect(() => {
     const element = scroller.current
     sendTarget.current = Math.max(0, scrollSize - (element?.clientHeight ?? 0))
-    if (!pinned.current || rows.length === 0 || !element) {
-      releaseScrollSpace()
-      return
-    }
+    if (!pinned.current || rows.length === 0 || !element) return
     // Growth glides; opening the thread, resizing it or seeking far lands at once.
     const key = `${view}:${width}`
     const last = virtualizer.measurementsCache[rows.length - 1]
@@ -866,7 +860,6 @@ export function ThreadList({
           onComplete: () => {
             sendGlide.current = undefined
             virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined
-            releaseScrollSpace()
           },
         })
         return
@@ -893,7 +886,6 @@ export function ThreadList({
     }
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
-    releaseScrollSpace()
     trail.note('land')
     land()
   }, [
@@ -908,7 +900,6 @@ export function ThreadList({
     sentStart,
     sentIndex,
     stopSendGlide,
-    releaseScrollSpace,
     trail,
     land,
   ])
@@ -1200,7 +1191,7 @@ export function ThreadList({
             checkMessages(element)
           }}
         >
-          <div className='relative w-full' style={{ height: Math.max(scrollSize, scrollSpace) }}>
+          <div className='relative w-full' style={{ height: scrollSpace }}>
             {virtualRows.map((virtualRow) => (
               <VirtualRow
                 key={virtualRow.key}
