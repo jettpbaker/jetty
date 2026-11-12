@@ -65,7 +65,7 @@ const toolsSettledAtom = Atom.family((threadId: string) =>
 // alt-tabbing back and forth doesn't re-read the open file and every open folder each time.
 const focusRefreshMs = 30_000
 
-export function useRefreshOnFocus(refresh: () => void) {
+function useRefreshOnFocus(refresh: () => void) {
   useEffect(() => {
     let last = performance.now()
     function focused() {
@@ -88,6 +88,20 @@ export function useToolsSettled(threadId: string, onSettled: () => void) {
     registry.get(atom)
     return registry.subscribe(atom, onSettled)
   }, [registry, threadId, onSettled])
+}
+
+// Calls back whenever the thread's files may have changed on disk: when its tool calls settle,
+// when its turn starts or ends, and when the window regains focus (at most every 30s).
+export function useDiskChanges(threadId: string, onChange: () => void) {
+  const turnEndedAt = useThreadMeta(threadId)?.turnEndedAt
+  const turnEnded = useRef(turnEndedAt)
+  useToolsSettled(threadId, onChange)
+  useRefreshOnFocus(onChange)
+  useEffect(() => {
+    if (turnEnded.current === turnEndedAt) return
+    turnEnded.current = turnEndedAt
+    onChange()
+  }, [turnEndedAt, onChange])
 }
 
 // When each atom was last read on a mount. The details pane mounts its Changes a frame after its
@@ -199,16 +213,8 @@ export function useProjectFile(threadId: string, path: string) {
   const atom = projectFileAtom(`${threadId}\0${path}`)
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
-  const turnEndedAt = useThreadMeta(threadId)?.turnEndedAt
-  const turnEnded = useRef(turnEndedAt)
-  useToolsSettled(threadId, refresh)
   useRefreshCached(atom, refresh)
-  useRefreshOnFocus(refresh)
-  useEffect(() => {
-    if (turnEnded.current === turnEndedAt) return
-    turnEnded.current = turnEndedAt
-    refresh()
-  }, [turnEndedAt, refresh])
+  useDiskChanges(threadId, refresh)
   return {
     file: AsyncResult.getOrElse(result, () => undefined),
     failed: AsyncResult.isFailure(result),
@@ -312,16 +318,8 @@ export function useBotInstructions(botId: string) {
   const atom = instructionsAtom(botId)
   const result = useAtomValue(atom)
   const refresh = useAtomRefresh(atom)
-  const turnEndedAt = useThreadMeta(botId)?.turnEndedAt
-  const turnEnded = useRef(turnEndedAt)
-  useToolsSettled(botId, refresh)
   useRefreshCached(atom, refresh)
-  useRefreshOnFocus(refresh)
-  useEffect(() => {
-    if (turnEnded.current === turnEndedAt) return
-    turnEnded.current = turnEndedAt
-    refresh()
-  }, [turnEndedAt, refresh])
+  useDiskChanges(botId, refresh)
   return {
     file: AsyncResult.getOrElse(result, () => undefined),
     failed: AsyncResult.isFailure(result),

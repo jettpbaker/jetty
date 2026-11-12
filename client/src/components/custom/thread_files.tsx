@@ -4,13 +4,7 @@ import { Command, CommandInput, CommandItem, CommandList } from '@/components/ui
 import { Separator } from '@/components/ui/separator'
 import { inComposition } from '@/lib/composition'
 import { cn } from '@/lib/utils'
-import {
-  useFileSearch,
-  useFolderReader,
-  useRefreshOnFocus,
-  useThreadMeta,
-  useToolsSettled,
-} from '@/state'
+import { useDiskChanges, useFileSearch, useFolderReader } from '@/state'
 import { FileTree, useFileTree } from '@pierre/trees/react'
 import {
   useCallback,
@@ -257,16 +251,8 @@ function FolderTree({
     }
   }, [model, listing, read])
 
-  const turnEndedAt = useThreadMeta(threadId)?.turnEndedAt
   const catchUp = useCallback(() => refresh.current?.(), [])
-  useToolsSettled(threadId, catchUp)
-  useRefreshOnFocus(catchUp)
-  const turnEnded = useRef(turnEndedAt)
-  useEffect(() => {
-    if (turnEnded.current === turnEndedAt) return
-    turnEnded.current = turnEndedAt
-    catchUp()
-  }, [turnEndedAt, catchUp])
+  useDiskChanges(threadId, catchUp)
 
   useEffect(() => {
     const item = openPath ? model.getItem(openPath) : null

@@ -37,6 +37,7 @@ export { desktopTabId, useDesktop, useDesktopTabs, useOpenDesktop, type Desktop 
 export {
   defaultDiffScope,
   useDiffFileLoader,
+  useDiskChanges,
   useFileSearch,
   useFolderReader,
   instructionsPath,
@@ -45,7 +46,6 @@ export {
   useSaveInstructions,
   useSaveProjectFile,
   useThreadDiff,
-  useRefreshOnFocus,
   useThreadDiffFetch,
   useToolsSettled,
 } from './diff'
