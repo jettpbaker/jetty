@@ -101,6 +101,9 @@ const compactLines = new Intl.NumberFormat('en', { notation: 'compact', maximumF
 
 const repoName = (repo: string) => repo.split('/').at(-1) ?? repo
 
+const authorName = (pull: PullRequestListItem) =>
+  pull.author?.name ?? pull.author?.login ?? 'Unknown'
+
 // Whole thousands from 10k keep the widest count ("+9999 −9999") inside its column.
 function formatLines(lines: number | undefined) {
   if (lines === undefined) return '—'
@@ -252,13 +255,13 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
       width: 30,
       essential: true,
       render: (pull) => (
-        <span title={`Created by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`}>
+        <span title={`Created by ${authorName(pull)}`}>
           <PersonAvatar
             login={pull.author?.login ?? 'Unknown'}
             src={pull.author?.avatar_url}
             className='size-4.5 after:hidden'
           />
-          <span className='sr-only'>{pull.author?.name ?? pull.author?.login ?? 'Unknown'}</span>
+          <span className='sr-only'>{authorName(pull)}</span>
         </span>
       ),
     },
@@ -382,7 +385,7 @@ export function PullRequestList({ tab, onTabChange }: PullRequestListProps) {
               [
                 pullRequestIdentifier(pull),
                 pull.title,
-                `by ${pull.author?.name ?? pull.author?.login ?? 'Unknown'}`,
+                `by ${authorName(pull)}`,
                 linkPresentation(pull).label,
               ].join(', ')
             }
