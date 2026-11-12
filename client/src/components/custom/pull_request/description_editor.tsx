@@ -747,7 +747,6 @@ export function DeferredMarkdownEditor({
     <div
       ref={host}
       data-description-editor={props.onSubmit ? undefined : ''}
-      data-saved-markdown={props.initial}
       className={props.onSubmit ? 'flex items-end gap-2' : undefined}
       onFocusCapture={(event) => {
         if (!pointer.current && (event.target as HTMLElement).closest('.description-document'))
@@ -930,7 +929,6 @@ export function MarkdownEditor({
   attachSlot?: HTMLElement | null
   onReady?: (editor: Editor) => void
 }) {
-  const [saved, setSaved] = useState(initial)
   const callbacks = useRef({ onSave, onSubmit, onUpload })
   useEffect(() => {
     callbacks.current = { onSave, onSubmit, onUpload }
@@ -996,7 +994,6 @@ export function MarkdownEditor({
         if (ok) dirty.current = markdownOf(editor) !== markdown
         else unchanged.current = previous
       })
-    setSaved(markdown)
   }
   function updateMenu(editor: Editor) {
     const next = slashAt(editor)
@@ -1068,7 +1065,7 @@ export function MarkdownEditor({
   const editor = useEditor({
     editable: !disabled,
     extensions: extensions(placeholder, references),
-    content: saved,
+    content: initial,
     contentType: 'markdown',
     editorProps: {
       attributes: {
@@ -1180,7 +1177,6 @@ export function MarkdownEditor({
     if (!clean) return
     editor.commands.setContent(initial, { contentType: 'markdown', emitUpdate: false })
     unchanged.current = markdownOf(editor)
-    setSaved(initial)
   }, [editor, initial, onSubmit])
   useEffect(() => {
     editor?.setEditable(!disabled)
@@ -1341,7 +1337,6 @@ export function MarkdownEditor({
   return (
     <div
       data-description-editor={onSubmit ? undefined : ''}
-      data-saved-markdown={saved}
       className={onSubmit ? 'flex items-end gap-2' : undefined}
     >
       <EditorContent editor={editor} className={onSubmit ? 'min-w-0 flex-1 py-0.5' : undefined} />
