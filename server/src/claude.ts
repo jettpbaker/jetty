@@ -650,6 +650,9 @@ export function createClaudeAdapter(
               })
               session.awaitingResult = true
               session.wakePending = false
+              session.compact = false
+              session.compactFailureNoted = false
+              session.compactSucceeded = false
               session.accepting = true
               session.done = yield* Deferred.make<void, AgentError>()
               if (session.idle) yield* Fiber.interrupt(session.idle)
