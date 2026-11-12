@@ -271,17 +271,18 @@ export function createClaudeAdapter(
     const compactTokens = new Map<string, NonNullable<SdkLikeMessage['compact_metadata']>>()
     let usageInFlight = false
 
-    function toSdkPermissionMode(input: TurnInput, bot: boolean): PermissionMode {
-      if (bot && input.permissionMode === 'full_access') return 'bypassPermissions'
+    function toSdkPermissionMode(input: TurnInput): PermissionMode {
+      // Full access does not need the model's Auto reviewer. A model without one still bypasses.
+      if (input.permissionMode === 'full_access') return 'bypassPermissions'
       if (input.model && !supportsAutoMode(input.model)) return 'default'
-      return input.permissionMode === 'full_access' ? 'bypassPermissions' : 'auto'
+      return 'auto'
     }
 
-    function sessionOptions(input: TurnInput, bot = false): SessionOptions {
+    function sessionOptions(input: TurnInput): SessionOptions {
       return {
         model: input.model,
         effort: input.effort,
-        permissionMode: toSdkPermissionMode(input, bot),
+        permissionMode: toSdkPermissionMode(input),
       }
     }
 
@@ -1028,7 +1029,7 @@ export function createClaudeAdapter(
               catch: (error) => new AgentError(`Jetty tools failed to start: ${String(error)}`),
             })
           : undefined
-        const options = sessionOptions(input, Boolean(bot))
+        const options = sessionOptions(input)
         const resume = yield* store
           .getThreadSessionId(input.threadId)
           .pipe(Effect.mapError((error) => new AgentError(error.message)))
@@ -1323,7 +1324,7 @@ export function createClaudeAdapter(
             session = undefined
           }
           if (session) {
-            const next = sessionOptions(input, session.bot)
+            const next = sessionOptions(input)
             if (input.compact) next.permissionMode = session.options.permissionMode
             const applied = yield* applyOptions(session, next).pipe(
               Effect.as(true),
@@ -1516,7 +1517,7 @@ export function createClaudeAdapter(
         if (!session || !current(session) || !session.bot) return Effect.void
         return applyOptions(
           session,
-          sessionOptions({ ...bot, threadId: bot.id, turnId: session.activeTurnId, text: '' }, true)
+          sessionOptions({ ...bot, threadId: bot.id, turnId: session.activeTurnId, text: '' })
         ).pipe(
           Effect.andThen(
             Effect.tryPromise({

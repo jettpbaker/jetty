@@ -43,7 +43,8 @@ export function ComposerAccessMode({
   onChange: (value: PermissionMode) => void
 }) {
   const [open, setOpen] = useState(false)
-  const choosable = model?.autoMode !== false
+  // A model without Auto can still run Full access. Only a model that has neither is stuck asking.
+  const choosable = !model || model.autoMode || model.fullAccess
   useHotkey(
     keybinds.access.hotkey,
     (event) => {

@@ -368,7 +368,9 @@ const createInput = z.object({
   full_access: z
     .boolean()
     .optional()
-    .describe('Start the worker in Full access; only callers in Full access may request this.'),
+    .describe(
+      "A worker inherits its caller's Full access. Set false to make this one ask before it acts. Only a caller in Full access may set true."
+    ),
   skill: z
     .string()
     .regex(/^[^\s/]+$/, 'Use a skill name without the slash')
@@ -520,9 +522,11 @@ export function createMcpHandler(
     }
 
     function accessLevel(thread: { provider?: string; model?: string }, mode?: string) {
+      // Full access is its own level. A model without Auto still runs it; Auto is the mode it lacks.
+      if (inFullAccess(thread, mode)) return 2
       if (findProviderModel(models() ?? [], thread.provider, thread.model)?.autoMode === false)
         return 0
-      return inFullAccess(thread, mode) ? 2 : 1
+      return 1
     }
 
     function createThread(identity: McpIdentity, input: CreateThreadInput) {
@@ -598,11 +602,12 @@ export function createMcpHandler(
                 'Only callers in Full access can set full_access to true'
               )
             )
+          // A thread Jetty starts keeps the access the user already gave this one. Auto is the
+          // default only when this thread asks, or the caller opts this worker back into asking.
           const mode =
-            selected[0]?.autoMode === false ||
-            findProviderModel(catalog, caller.provider, caller.model)?.autoMode === false
+            input.full_access === false
               ? 'auto'
-              : input.full_access
+              : input.full_access || callerMode === 'full_access'
                 ? 'full_access'
                 : 'auto'
           if (accessLevel({ provider, model }, mode) > accessLevel(caller, callerMode))

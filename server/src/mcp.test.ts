@@ -302,6 +302,46 @@ test('create_thread allows three worker levels and refuses the fourth', async ()
   expect(refused.content[0]!.text).toContain('three levels below')
 })
 
+test("create_thread keeps a Full access caller's child in Full access", async () => {
+  const { home, store } = await openStore()
+  const project = await Effect.runPromise(store.createProject(home))
+  const caller = await Effect.runPromise(store.createThread(project.id, newId()))
+  await Effect.runPromise(store.setThreadProviderIfAbsent(caller.id, 'claude'))
+  await Effect.runPromise(store.setThreadLoadout(caller.id, { model: 'sonnet' }))
+  await Effect.runPromise(store.beginDelivery(caller.id, newId(), 0))
+  const refused = await Effect.runPromise(
+    callTool(home, store, {}, caller.id, 'create_thread', {
+      environment: 'local',
+      prompt: 'Unasked',
+      full_access: true,
+    })
+  )
+  expect(refused.isError).toBe(true)
+  expect(refused.content[0]!.text).toContain('Only callers in Full access')
+
+  await Effect.runPromise(store.setPermissionMode(caller.id, 'full_access'))
+  const created = await Effect.runPromise(
+    callTool(home, store, {}, caller.id, 'create_thread', {
+      environment: 'local',
+      prompt: 'Go',
+    })
+  )
+  expect(created.isError).toBeUndefined()
+  const { threadId } = JSON.parse(created.content[0]!.text) as { threadId: string }
+  expect(await Effect.runPromise(store.getPermissionMode(threadId))).toBe('full_access')
+
+  const asking = await Effect.runPromise(
+    callTool(home, store, {}, caller.id, 'create_thread', {
+      environment: 'local',
+      prompt: 'Ask first',
+      full_access: false,
+    })
+  )
+  expect(asking.isError).toBeUndefined()
+  const askingId = (JSON.parse(asking.content[0]!.text) as { threadId: string }).threadId
+  expect(await Effect.runPromise(store.getPermissionMode(askingId))).toBe('auto')
+})
+
 test('create_thread refuses a child that would act without asking for a caller that asks', async () => {
   const { home, store } = await openStore()
   const createThread = (model?: string) =>

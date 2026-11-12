@@ -457,7 +457,9 @@ describe('scoped Claude sessions', () => {
     expect(readFileSync(join(folder, 'talking.md'), 'utf8')).toContain(
       'Some of your own actions need'
     )
-    expect(readFileSync(join(folder, 'workers.md'), 'utf8')).not.toContain('Workers start in Auto.')
+    expect(readFileSync(join(folder, 'workers.md'), 'utf8')).not.toContain(
+      'Workers start in your Full access'
+    )
     expect(readFileSync(join(folder, 'preferences.md'), 'utf8')).toContain('(none yet)')
     expect(names.map((name) => readFileSync(join(folder, name), 'utf8')).join('')).not.toMatch(
       /\{(?:name|user|home|bots|project|questionTool|if auto|if full access)\}/
@@ -483,7 +485,9 @@ describe('scoped Claude sessions', () => {
     expect(readFileSync(join(folder, 'talking.md'), 'utf8')).not.toContain(
       'Some of your own actions need'
     )
-    expect(readFileSync(join(folder, 'workers.md'), 'utf8')).toContain('Workers start in Auto.')
+    expect(readFileSync(join(folder, 'workers.md'), 'utf8')).toContain(
+      'Workers start in your Full access'
+    )
     await commitBotHome(f.botHome)
     const git = Bun.spawn(['git', '-C', f.botHome, 'ls-files'], { stdout: 'pipe' })
     const tracked = (await new Response(git.stdout).text()).trim().split('\n')
@@ -1104,6 +1108,12 @@ describe('scoped Claude sessions', () => {
     })
     q.push({ type: 'result', subtype: 'success' })
     await f.runtime.runPromise(turn.await)
+  })
+
+  test('full access bypasses on a model that has no Auto reviewer', async () => {
+    const f = await setup({ supportsAutoMode: () => false })
+    await f.start(newId(), { permissionMode: 'full_access', model: 'opus' })
+    expect(f.queries[0]!.options.permissionMode).toBe('bypassPermissions')
   })
 
   test('settled sessions stay warm and apply model, effort and mode changes live, recycling with resume only if that fails', async () => {

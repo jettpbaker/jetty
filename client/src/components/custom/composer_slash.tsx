@@ -345,7 +345,7 @@ export function useComposerSlash(
     if (botId) return compact
     const unset = 'Choose a model first'
     const efforts = model?.efforts.length ?? 0
-    const choosable = model?.autoMode !== false
+    const choosable = !model || model.autoMode || model.fullAccess
     return [
       command('model', 'Model', '', <AtomIcon />, true, picker('model')),
       command(
