@@ -37,7 +37,7 @@ const liveStatuses = new Set(['starting', 'running', 'awaiting_approval'])
 
 // Any tool call may have changed files (agents edit through a shell as much as through edit
 // tools), so once a live thread's tool calls stop finishing for a second, its diff is due a
-// refresh. A turn's end refreshes the diff anyway, so it drops one still waiting.
+// refresh. One still waiting when the thread stops (a question, the turn's end) is due at once.
 const toolsSettledAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
     let finished: number | undefined
@@ -49,10 +49,16 @@ const toolsSettledAtom = Atom.family((threadId: string) =>
       (state) => {
         if (!state) return
         const count = state.toolSeq ?? 0
-        if (!liveStatuses.has(state.status)) clearTimeout(timer)
-        else if (finished !== undefined && count !== finished) {
+        if (!liveStatuses.has(state.status)) {
+          if (timer !== undefined) get.setSelf(++settled)
           clearTimeout(timer)
-          timer = setTimeout(() => get.setSelf(++settled), 1000)
+          timer = undefined
+        } else if (finished !== undefined && count !== finished) {
+          clearTimeout(timer)
+          timer = setTimeout(() => {
+            timer = undefined
+            get.setSelf(++settled)
+          }, 1000)
         }
         finished = count
       },
