@@ -552,19 +552,19 @@ function handbackMessage(item: ThreadItem | undefined) {
 }
 
 // A thread's rows as it changes. Streamed deltas reach their rows through `streamRow`, so a build
-// is always of the whole thread.
+// is always of the whole thread. Rows equal to the last build's keep their identity, so a change
+// re-renders only the rows it touched.
 export function createThreadRows() {
-  let last: { items: readonly ThreadItem[]; rows: ThreadRow[] } | undefined
+  let last = new Map<string, ThreadRow>()
   return function build(items: readonly ThreadItem[], options: ThreadRowsOptions) {
-    let rows = threadRows(items, options)
-    if (last && last.items[0]?.id !== items[0]?.id) {
-      const previous = new Map(last.rows.map((row) => [row.id, row]))
-      rows = rows.map((row) => {
-        const old = previous.get(row.id)
-        return old && same(old, row) ? old : row
-      })
+    const rows = threadRows(items, options)
+    const next = new Map<string, ThreadRow>()
+    for (const [index, row] of rows.entries()) {
+      const old = last.get(row.id)
+      if (old && same(old, row)) rows[index] = old
+      next.set(row.id, rows[index]!)
     }
-    last = { items, rows }
+    last = next
     return rows
   }
 }
@@ -583,7 +583,7 @@ function compactionState(
   return 'done'
 }
 
-export function threadRows(
+function threadRows(
   allItems: readonly ThreadItem[],
   {
     status,
@@ -1089,7 +1089,7 @@ export function threadRows(
   if (settingUp && lastWork?.status === 'running') lastWork.settingUp = true
   stitchRuns(rows)
   if (bot?.tidying) rows.push({ kind: 'tidying', id: 'tidying' })
-  return reuseRows(allItems[0], groupPullRequestRows(bot ? groupWakeRows(rows) : rows))
+  return groupPullRequestRows(bot ? groupWakeRows(rows) : rows)
 }
 
 function groupWakeRows(rows: ThreadRow[]) {
@@ -1221,24 +1221,6 @@ function stitchRuns(rows: ThreadRow[]) {
       working = true
   }
   close()
-}
-
-const previousRows = new WeakMap<ThreadItem, Map<string, ThreadRow>>()
-
-// Rows equal to the last call's keep their identity, so a streaming delta re-renders only the
-// row it changed. Keyed by the thread's first item, which outlives every delta and goes with the
-// thread.
-function reuseRows(first: ThreadItem | undefined, rows: ThreadRow[]) {
-  if (!first) return rows
-  const previous = previousRows.get(first)
-  const next = new Map<string, ThreadRow>()
-  for (const [index, row] of rows.entries()) {
-    const old = previous?.get(row.id)
-    if (old && same(old, row)) rows[index] = old
-    next.set(row.id, rows[index]!)
-  }
-  previousRows.set(first, next)
-  return rows
 }
 
 function same(a: unknown, b: unknown): boolean {
