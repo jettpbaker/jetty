@@ -509,26 +509,22 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
             input.permissionMode
           )
           let existing = sessions.get(input.threadId)
+          if (existing?.awaitingResult)
+            return yield* Effect.fail(new AgentError('Turn already active'))
           if (
             existing &&
             (existing.bot?.hash !== bot?.hash ||
               existing.full !== (input.permissionMode === 'full_access'))
           ) {
-            if (existing.awaitingResult)
-              return yield* Effect.fail(new AgentError('Turn already active'))
             existing.expired = true
             if (existing.idle) yield* Fiber.interrupt(existing.idle)
             if (existing.fiber) yield* Fiber.interrupt(existing.fiber)
             existing = undefined
           }
           if (existing) {
-            if (existing.awaitingResult)
-              return yield* Effect.fail(new AgentError('Turn already active'))
             yield* existing.publication
               .withPermit(
                 Effect.gen(function* () {
-                  if (existing!.awaitingResult)
-                    return yield* Effect.fail(new AgentError('Turn already active'))
                   if (existing!.idle) yield* Fiber.interrupt(existing!.idle)
                   existing!.idle = null
                   if (existing!.expired) return
