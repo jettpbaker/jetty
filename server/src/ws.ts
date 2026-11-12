@@ -899,9 +899,10 @@ export function createRpcHandlers(
           }
         }).pipe(Effect.mapError(wireError)),
       'bot.archive': ({ botId, archived }) =>
-        Effect.gen(function* () {
-          return { bot: yield* orch.archiveBot(botId, archived) }
-        }).pipe(Effect.mapError(wireError)),
+        orch.archiveBot(botId, archived).pipe(
+          Effect.map((bot) => ({ bot })),
+          Effect.mapError(wireError)
+        ),
       'bot.delete': ({ botId }) =>
         Effect.gen(function* () {
           const project = yield* store.getProject(botId)
