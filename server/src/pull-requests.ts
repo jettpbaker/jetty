@@ -1889,7 +1889,6 @@ export function createPullRequests(store: Store, hub: Hub) {
   const queuedWrites = new Map<string, number>()
   const writesNeedRefresh = new Set<string>()
   const lastDetection = new Map<string, number>()
-  const detecting = new Set<string>()
   const jobs = new Map<string, Job>()
   const queue: Job[] = []
   const watches = createWatches<string>(hub.clientActivity)
@@ -2456,14 +2455,8 @@ export function createPullRequests(store: Store, hub: Hub) {
       } else if (checksInterval) {
         const checkedAt = Math.max(lastChecks.get(key) ?? 0, snapshot.refreshedAt ?? 0)
         if (Date.now() - checkedAt >= checksInterval) yield* refreshChecks([ref])
-      } else if (
-        !detecting.has(key) &&
-        Date.now() - (lastDetection.get(key) ?? snapshot.refreshedAt ?? 0) >= interval
-      ) {
-        detecting.add(key)
-        yield* Effect.promise(() => detect(ref)).pipe(
-          Effect.ensuring(Effect.sync(() => detecting.delete(key)))
-        )
+      } else if (Date.now() - (lastDetection.get(key) ?? snapshot.refreshedAt ?? 0) >= interval) {
+        yield* Effect.promise(() => detect(ref))
         snapshot = yield* get(ref)
       }
       if (snapshot.data) markGeneratedHeads(ref, snapshot.data)
