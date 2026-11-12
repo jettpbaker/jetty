@@ -1019,7 +1019,7 @@ export function ThreadList({
     })
   })
   useLayoutCheck(scroller, virtualizer, latestRows, pinned)
-  useBlankCheck(scroller, virtualizer, trail, blankState)
+  const reportBlank = useBlankCheck(scroller, virtualizer, trail, blankState)
 
   useLayoutEffect(() => {
     const element = scroller.current
@@ -1184,6 +1184,19 @@ export function ThreadList({
             // virtualizer holding a reader's place as a row above grows doesn't.
             // A cancelled send glide can still have a scroll event queued.
             else if (!sendInterrupted.current && behind < (hand && !up ? pinSlack : 1)) pin(true)
+            // A chat stuck to its bottom rests at the transcript's end. Past it, with no glide
+            // taking it there and no hand on it, some other write moved it: put it back.
+            if (
+              pinned.current &&
+              !hand &&
+              !following.current &&
+              !sendGlide.current &&
+              element.scrollTop > sendTarget.current + 1
+            ) {
+              trail.note('past end')
+              reportBlank('past end')
+              land()
+            }
             checkMessages(element)
           }}
         >

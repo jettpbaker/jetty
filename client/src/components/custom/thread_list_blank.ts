@@ -1,11 +1,12 @@
 import type { Virtualizer } from '@tanstack/react-virtual'
 
 import { perf } from '@/perf'
-import { useEffect, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, type RefObject } from 'react'
 
 // A chat sometimes lands blank, its messages a screen or more above, and it has never happened on
-// demand. Until it's explained, a chat that draws nothing in its window for a second writes what
-// the list held and the scroll moves that led there to the field log, once per visit.
+// demand. Until it's explained, a chat that draws nothing in its window for a second, or that the
+// list had to pull back from past its end, writes what the list held and the scroll moves that led
+// there to the field log, once per visit.
 
 type Attributes = Record<string, number | string | boolean>
 
@@ -36,23 +37,13 @@ export function useBlankCheck(
   trail: ScrollTrail,
   stateRef: RefObject<() => Attributes>
 ) {
-  useEffect(() => {
-    let since = Infinity
-    let reported = false
-    const timer = setInterval(() => {
+  const reportedRef = useRef(false)
+  const report = useCallback(
+    (why: string) => {
       const element = scrollerRef.current
-      if (reported || !element || virtualizer.options.count === 0) return
-      const top = element.scrollTop
-      const bottom = top + element.clientHeight
+      if (reportedRef.current || !element) return
+      reportedRef.current = true
       const items = virtualizer.getVirtualItems()
-      // A hidden tab stops the frames that would finish a glide.
-      if (document.hidden || items.some((item) => item.end > top && item.start < bottom)) {
-        since = Infinity
-        return
-      }
-      since = Math.min(since, performance.now())
-      if (performance.now() - since < 1000) return
-      reported = true
       const spacer = element.firstElementChild as HTMLElement
       const first = items[0]
       const last = items.at(-1)
@@ -62,7 +53,8 @@ export function useBlankCheck(
       }
       perf.chatBlank({
         ...stateRef.current(),
-        scrollTop: top,
+        why,
+        scrollTop: element.scrollTop,
         scrollHeight: element.scrollHeight,
         clientHeight: element.clientHeight,
         spacer: spacer.style.height,
@@ -75,7 +67,26 @@ export function useBlankCheck(
         clamped: JSON.stringify(internals._clampedAdjustment ?? null),
         trail: trail.read(),
       })
+    },
+    [scrollerRef, virtualizer, trail, stateRef]
+  )
+  useEffect(() => {
+    let since = Infinity
+    const timer = setInterval(() => {
+      const element = scrollerRef.current
+      if (!element || virtualizer.options.count === 0) return
+      const top = element.scrollTop
+      const bottom = top + element.clientHeight
+      const items = virtualizer.getVirtualItems()
+      // A hidden tab stops the frames that would finish a glide.
+      if (document.hidden || items.some((item) => item.end > top && item.start < bottom)) {
+        since = Infinity
+        return
+      }
+      since = Math.min(since, performance.now())
+      if (performance.now() - since >= 1000) report('blank')
     }, 500)
     return () => clearInterval(timer)
-  }, [scrollerRef, virtualizer, trail, stateRef])
+  }, [scrollerRef, virtualizer, report])
+  return report
 }
