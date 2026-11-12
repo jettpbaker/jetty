@@ -49,9 +49,6 @@ function WorkHistory({
   const reducedMotion = useReducedMotion()
   const [initialEntries] = useState(() => new Set(entries.map((entry) => entry.id)))
   const scroller = useRef<HTMLDivElement>(null)
-  const pinned = useRef(true)
-  const releaseAnchorRef = useRef<(() => void) | null>(null)
-  const scrollRef = useRef<(() => void) | null>(null)
   const heightAnimationRef = useRef<Animation | null>(null)
   const previousView = useRef(view)
 
@@ -89,7 +86,7 @@ function WorkHistory({
     }
     list.style.marginTop = ''
     list.style.transform = ''
-    pinned.current = true
+    let pinned = true
     let bottom = 0
     let offset = 0
     let gliding = false
@@ -99,9 +96,8 @@ function WorkHistory({
       offset = top
       if (anchored) {
         // Remove older rows from the flow so shrinking details cannot clamp a bottom scroll pin.
-        list.style.marginTop = `${-(pinned.current ? bottom : top)}px`
-        list.style.transform =
-          pinned.current && top !== bottom ? `translateY(${bottom - top}px)` : ''
+        list.style.marginTop = `${-(pinned ? bottom : top)}px`
+        list.style.transform = pinned && top !== bottom ? `translateY(${bottom - top}px)` : ''
         element.scrollTop = 0
       } else {
         list.style.marginTop = ''
@@ -112,29 +108,29 @@ function WorkHistory({
     const glide = bottomGlide(element, {
       read: () => offset,
       apply: position,
-      onWrite: () => edges(element, pinned.current, offset),
+      onWrite: () => edges(element, pinned, offset),
       onRun: (running) => (gliding = running),
       target: () => bottom,
     })
-    releaseAnchorRef.current = () => {
-      pinned.current = false
+    function releaseAnchor() {
+      pinned = false
       glide.stop()
       anchored = false
       position(offset)
     }
-    scrollRef.current = () => {
+    function onScroll() {
       if (!anchored) {
         offset = element.scrollTop
-        if (bottom - offset < 2) pinned.current = true
+        if (bottom - offset < 2) pinned = true
       }
-      edges(element, pinned.current, offset)
+      edges(element, pinned, offset)
     }
     function anchorReader() {
       if (view !== 'preview' || switching || anchored) return
       offset = element.scrollTop
       anchored = true
       position(offset)
-      edges(element, pinned.current, offset)
+      edges(element, pinned, offset)
     }
     function onWheel(event: WheelEvent) {
       if (view !== 'preview' || !anchored || !event.deltaY) return
@@ -147,7 +143,7 @@ function WorkHistory({
       )
         return
       event.preventDefault()
-      releaseAnchorRef.current?.()
+      releaseAnchor()
       const step = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? element.clientHeight : 1
       element.scrollTop = Math.max(0, Math.min(bottom, offset + event.deltaY * step))
       offset = element.scrollTop
@@ -168,12 +164,12 @@ function WorkHistory({
       bottom = Math.max(0, list.offsetHeight - height)
       if (heightAnimationRef.current) {
         glide.write(historyBottom(element))
-      } else if (view === 'preview' && pinned.current && list.children.length > previewCount) {
+      } else if (view === 'preview' && pinned && list.children.length > previewCount) {
         if (initial || reducedMotion || (!moved && !gliding)) glide.write(bottom)
         else glide.start()
       }
       initial = false
-      edges(element, pinned.current, offset)
+      edges(element, pinned, offset)
     }
     measure()
     if (changedView && !reducedMotion && previousHeight !== element.clientHeight) {
@@ -207,7 +203,7 @@ function WorkHistory({
     function onKeyDown(event: KeyboardEvent) {
       if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) return
       if (view !== 'preview') {
-        releaseAnchorRef.current?.()
+        releaseAnchor()
         return
       }
       if (event.target instanceof Element && event.target.closest('.tool-output')) return
@@ -222,41 +218,34 @@ function WorkHistory({
       }
       const top = Math.max(0, Math.min(bottom, destinations[event.key]!))
       glide.stop()
-      pinned.current = top === bottom
+      pinned = top === bottom
       anchored = true
       position(top)
-      edges(element, pinned.current, offset)
+      edges(element, pinned, offset)
     }
+    const passive = { passive: true }
+    element.addEventListener('scroll', onScroll, passive)
+    element.addEventListener('touchstart', releaseAnchor, passive)
     element.addEventListener('keydown', onKeyDown)
     element.addEventListener('wheel', onWheel, { passive: false })
     element.addEventListener('scrollend', anchorReader)
     element.addEventListener('click', anchorReader, true)
     return () => {
       observer.disconnect()
+      element.removeEventListener('scroll', onScroll)
+      element.removeEventListener('touchstart', releaseAnchor)
       element.removeEventListener('keydown', onKeyDown)
       element.removeEventListener('wheel', onWheel)
       element.removeEventListener('scrollend', anchorReader)
       element.removeEventListener('click', anchorReader, true)
       glide.stop()
-      releaseAnchorRef.current = null
-      scrollRef.current = null
     }
   }, [live, view, reducedMotion])
-
-  function onScroll() {
-    scrollRef.current?.()
-  }
-
-  function unpin() {
-    releaseAnchorRef.current?.()
-  }
 
   return (
     <div
       ref={scroller}
       className={cn('work-scroll no-scrollbar', entries.length > previewCount && 'overflow-y-auto')}
-      onScroll={onScroll}
-      onTouchStart={unpin}
     >
       <div>
         {entries.map((entry, index) => (
