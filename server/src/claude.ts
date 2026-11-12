@@ -713,12 +713,8 @@ export function createClaudeAdapter(
                   events.push(event)
                   if (event.type === 'item.started' && event.item.kind === 'workflow')
                     session.runningWorkflows.add(event.item.id)
-                  if (event.type === 'item.completed' && session.runningWorkflows.has(event.itemId))
+                  if (event.type === 'item.completed') {
                     session.runningWorkflows.delete(event.itemId)
-                  if (
-                    event.type === 'item.completed' &&
-                    session.stoppedWorkflows.has(event.itemId)
-                  ) {
                     session.stoppedWorkflows.delete(event.itemId)
                   }
                 }
