@@ -1,7 +1,7 @@
-import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { Reply, ThreadItem } from '@jetty/shared/items'
 import type { QueuedMessage } from '@jetty/shared/wire'
 
+import { shownAttachment, uploadAttachment, type ReadyAttachment } from '@/hooks/use-attachments'
 import { revokeBlobUrl } from '@/lib/blob_urls'
 import { resendOnDrop, type Connection } from '@/net/connection'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
@@ -137,14 +137,7 @@ function addQueued(
     ...(replies?.length && { replies }),
     createdAt: Date.now(),
     hop: 0,
-    attachments: attachments.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
-      id: url,
-      name,
-      mimeType,
-      sizeBytes,
-      width,
-      height,
-    })),
+    attachments: attachments.map(shownAttachment),
   }
   const unarchive = unarchiveFirst(registry, threadId, isArchived(registry, threadId))
   const staged = stageSend(registry, threadId, {
@@ -170,11 +163,7 @@ function addQueued(
                 ...(replies?.length && { replies }),
                 ...(attachments.length > 0
                   ? {
-                      attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
-                        name,
-                        mimeType,
-                        dataUrl,
-                      })),
+                      attachments: attachments.map(uploadAttachment),
                     }
                   : {}),
               })

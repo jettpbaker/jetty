@@ -9,6 +9,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_TURN_ATTACHMENT_BYTES,
   type ImageMimeType,
+  type UploadAttachment,
 } from '@jetty/shared/wire'
 import { useEffect, useEffectEvent, useState } from 'react'
 
@@ -24,6 +25,22 @@ export type ComposerAttachment = {
 }
 export type ReadyAttachment = ComposerAttachment & { dataUrl: string }
 export type Attachments = ReturnType<typeof useAttachments>
+
+// A staged attachment as its message shows it before the server's copy arrives.
+export function shownAttachment({
+  url,
+  name,
+  mimeType,
+  sizeBytes,
+  width,
+  height,
+}: ReadyAttachment) {
+  return { id: url, name, mimeType, sizeBytes, width, height }
+}
+
+export function uploadAttachment({ name, mimeType, dataUrl }: ReadyAttachment): UploadAttachment {
+  return { name, mimeType, dataUrl }
+}
 
 // Pasting more than this much plain text attaches it as a file instead of filling the composer.
 const LONG_PASTE_CHARACTERS = 2000

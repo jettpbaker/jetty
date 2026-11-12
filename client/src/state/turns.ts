@@ -1,7 +1,7 @@
-import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { ApprovalDecision, Attachment, Reply, ThreadItem } from '@jetty/shared/items'
 import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
+import { shownAttachment, uploadAttachment, type ReadyAttachment } from '@/hooks/use-attachments'
 import { revokeBlobUrl } from '@/lib/blob_urls'
 import {
   equipModel,
@@ -195,14 +195,7 @@ function sendTurn(
     text,
     ...(replies?.length && { replies }),
     sentAt: Date.now(),
-    attachments: attachments.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
-      id: url,
-      name,
-      mimeType,
-      sizeBytes,
-      width,
-      height,
-    })),
+    attachments: attachments.map(shownAttachment),
   }
   const settle = showSent(registry, threadId, prompt)
   if (loadout) setPatch(registry, threadId, { provider: loadout.provider })
@@ -224,11 +217,7 @@ function sendTurn(
               permissionMode: registry.get(accessModeAtom),
               ...(attachments.length > 0
                 ? {
-                    attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
-                      name,
-                      mimeType,
-                      dataUrl,
-                    })),
+                    attachments: attachments.map(uploadAttachment),
                   }
                 : {}),
             })

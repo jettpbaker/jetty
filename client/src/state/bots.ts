@@ -1,8 +1,8 @@
-import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { Attachment, Reply } from '@jetty/shared/items'
 import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
 import { unlinkMentions } from '@/components/custom/slash_model'
+import { shownAttachment, uploadAttachment, type ReadyAttachment } from '@/hooks/use-attachments'
 import { resendOnDrop, type Connection } from '@/net/connection'
 import { useAtomValue } from '@effect/atom-react'
 import { hasMessage } from '@jetty/shared/history'
@@ -217,17 +217,7 @@ function sendToBot(
     id: crypto.randomUUID(),
     text,
     ...(replies?.length && { replies }),
-    attachments: [
-      ...held,
-      ...attachments.map(({ url, name, mimeType, sizeBytes, width, height }) => ({
-        id: url,
-        name,
-        mimeType,
-        sizeBytes,
-        width,
-        height,
-      })),
-    ],
+    attachments: [...held, ...attachments.map(shownAttachment)],
     sentAt: Date.now(),
   }
   const staged = stageSend(registry, fromDraft, {
@@ -252,11 +242,7 @@ function sendToBot(
             attachmentIds: held.map((attachment) => attachment.id),
           }),
           ...(attachments.length && {
-            attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
-              name,
-              mimeType,
-              dataUrl,
-            })),
+            attachments: attachments.map(uploadAttachment),
           }),
           ...(replies?.length && { replies }),
         })
