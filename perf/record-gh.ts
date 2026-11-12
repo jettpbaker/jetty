@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { format, perfDir, prepareTree } from './app'
-import { click, hasText, open, quiet, type Ctx } from './journey'
+import { click, diffTab, hasText, open, quiet, type Ctx } from './journey'
 import { journeyId, journeys } from './journeys'
 import { disposeVariant, iterate, makeVariant, type Variant } from './run'
 import { prNumbers, prRepo, seedHome } from './seed'
@@ -66,5 +66,3 @@ export async function recordGh(out: string) {
   await format(fixtures)
   console.log(`${readdirSync(fixtures).length} fixtures in ${fixtures}`)
 }
-
-const diffTab = `[...document.querySelectorAll('nav[aria-label="Pull request view"] button')].find((tab) => tab.textContent.trim() === 'Diff')`

@@ -40,6 +40,8 @@ export const composer = `document.querySelector('textarea[aria-label="Thread pro
 // on git: a journey on that page waits for it, or the list's render races the counted window.
 export const branchPicked = `document.querySelector('[aria-label^="From: "]')`
 
+export const diffTab = `[...document.querySelectorAll('nav[aria-label="Pull request view"] button')].find((tab) => tab.textContent.trim() === 'Diff')`
+
 export function row(title: string) {
   return `[...document.querySelectorAll('.thread-row')].find((row) => row.querySelector('.overflow-title-text')?.textContent === ${JSON.stringify(title)})`
 }

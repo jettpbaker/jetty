@@ -1,8 +1,7 @@
 import { hugeFixtures, hugeRef } from '../huge'
-import { click, waitFor, type Ctx, type Journey } from '../journey'
+import { click, diffTab, waitFor, type Ctx, type Journey } from '../journey'
 
 const path = `/pull-requests/${hugeRef.repo}/${hugeRef.number}`
-const diffTab = `[...document.querySelectorAll('nav[aria-label="Pull request view"] button')].find((tab) => tab.textContent.trim() === 'Diff')`
 const painted = `(() => {
   const diff = document.querySelector('[aria-label="File diffs"] diffs-container')
   return !!diff?.getClientRects().length && !!diff.shadowRoot?.querySelector('pre [data-line]')

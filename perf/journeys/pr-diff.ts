@@ -1,8 +1,6 @@
-import { click, hasText, open, type Journey } from '../journey'
+import { click, diffTab, hasText, open, type Journey } from '../journey'
 import { prRepo } from '../seed'
 import { prTitle } from './pr-open'
-
-const diffTab = `[...document.querySelectorAll('nav[aria-label="Pull request view"] button')].find((tab) => tab.textContent.trim() === 'Diff')`
 
 const diffText = `[...document.querySelectorAll('[aria-label="File diffs"] diffs-container')].some((diff) => diff.getClientRects().length && diff.shadowRoot?.querySelector('pre')?.textContent.includes('findDiscount'))`
 
