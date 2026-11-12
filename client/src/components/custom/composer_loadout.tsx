@@ -39,7 +39,7 @@ import { useSortable, isSortable } from '@dnd-kit/react/sortable'
 import { catalogModelName, modelLabelText } from '@jetty/shared/model-name'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useReducedMotion } from 'motion/react'
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 import { DisabledTooltip } from './disabled_tooltip'
 import { KeybindChip, KeybindTooltip, keybinds, appShortcut } from './keybinds'
@@ -334,7 +334,9 @@ export function ComposerLoadout({
     refresh()
   }
 
-  if (modelMenuRef) modelMenuRef.current = () => openSubmenu('model')
+  useLayoutEffect(() => {
+    if (modelMenuRef) modelMenuRef.current = () => openSubmenu('model')
+  })
 
   const shortcuts = hotkeys && <LoadoutShortcuts openSubmenu={openSubmenu} />
 
