@@ -8,22 +8,11 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import type { Store } from './store'
 
-import { botUserName, commitBotHome } from './bot-home'
+import { botUserName, commitBotHome, git, JETTY_COMMIT } from './bot-home'
 import { botTiming, type BotLifecycle } from './bot-lifecycle'
 import { claudeBin } from './claude-bin'
 import { codexTidyPrompt } from './codex-prompt'
 import { copilotTidyPrompt } from './copilot-prompt'
-
-async function botHomeGit(home: string, args: string[]) {
-  const proc = Bun.spawn(['git', '-C', home, ...args], { stdout: 'pipe', stderr: 'pipe' })
-  const [code, stdout, stderr] = await Promise.all([
-    proc.exited,
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ])
-  if (code !== 0) throw new Error(stderr.trim())
-  return stdout.trimEnd()
-}
 
 function within(root: string, path: string) {
   const child = relative(root, path)
@@ -155,13 +144,13 @@ async function restoreProtected(home: string, head: string) {
     ':(top,literal,exclude)index.md',
     ':(top,literal,exclude)instructions.md',
   ]
-  await botHomeGit(home, ['restore', '--source', head, '--staged', '--worktree', '--', ...paths])
-  await botHomeGit(home, ['clean', '-fdq', '--', ...paths])
+  await git(home, ['restore', '--source', head, '--staged', '--worktree', '--', ...paths])
+  await git(home, ['clean', '-fdq', '--', ...paths])
 }
 
 async function restoreHome(home: string, head: string) {
-  await botHomeGit(home, ['reset', '--hard', head])
-  await botHomeGit(home, ['clean', '-fdq'])
+  await git(home, ['reset', '--hard', head])
+  await git(home, ['clean', '-fdq'])
 }
 
 export function tidyBotHome(
@@ -177,9 +166,9 @@ export function tidyBotHome(
   return Effect.gen(function* () {
     yield* Effect.tryPromise(() => commitBotHome(home)).pipe(Effect.uninterruptible)
     hasInstructionsFile = Boolean(
-      yield* Effect.tryPromise(() => botHomeGit(home, ['ls-files', '--', 'instructions.md']))
+      yield* Effect.tryPromise(() => git(home, ['ls-files', '--', 'instructions.md']))
     )
-    const head = yield* Effect.tryPromise(() => botHomeGit(home, ['rev-parse', 'HEAD']))
+    const head = yield* Effect.tryPromise(() => git(home, ['rev-parse', 'HEAD']))
     const pages = yield* Effect.tryPromise(() =>
       readdir(join(home, 'pages'), { withFileTypes: true })
     )
@@ -223,14 +212,14 @@ export function tidyBotHome(
     yield* Effect.gen(function* () {
       if (toolHead) yield* Effect.tryPromise(() => restoreProtected(home, toolHead!))
       const changed = yield* Effect.tryPromise(() =>
-        botHomeGit(home, ['status', '--porcelain', '--', 'pages', 'index.md', 'instructions.md'])
+        git(home, ['status', '--porcelain', '--', 'pages', 'index.md', 'instructions.md'])
       )
       if (changed) {
         const instructionChanges = yield* Effect.tryPromise(() =>
-          botHomeGit(home, ['status', '--porcelain', '--', 'instructions.md'])
+          git(home, ['status', '--porcelain', '--', 'instructions.md'])
         )
         yield* Effect.tryPromise(() =>
-          botHomeGit(home, [
+          git(home, [
             'add',
             '--',
             'pages',
@@ -239,24 +228,13 @@ export function tidyBotHome(
           ])
         )
         yield* Effect.tryPromise(() =>
-          botHomeGit(home, [
-            '-c',
-            'user.name=Jetty',
-            '-c',
-            'user.email=jetty@localhost',
-            'commit',
-            '-q',
-            '-m',
-            'Tidy pass',
-            '-m',
-            changelog,
-          ])
+          git(home, [...JETTY_COMMIT, '-m', 'Tidy pass', '-m', changelog])
         )
       }
-      const sha = yield* Effect.tryPromise(() => botHomeGit(home, ['rev-parse', 'HEAD']))
+      const sha = yield* Effect.tryPromise(() => git(home, ['rev-parse', 'HEAD']))
       if (changed) {
         const patch = yield* Effect.tryPromise(() =>
-          botHomeGit(home, ['show', '--format=', '--no-ext-diff', sha])
+          git(home, ['show', '--format=', '--no-ext-diff', sha])
         )
         const user = yield* Effect.tryPromise(botUserName)
         const truncated = patch.length > 30_000
@@ -291,7 +269,7 @@ export function tidyBotHome(
           )
         } else {
           yield* Effect.tryPromise(() =>
-            botHomeGit(home, [
+            git(home, [
               'checkout',
               'HEAD',
               '--',
@@ -305,7 +283,7 @@ export function tidyBotHome(
             )
           )
           yield* Effect.tryPromise(() =>
-            botHomeGit(home, ['clean', '-fdq', '--', 'pages', 'instructions.md'])
+            git(home, ['clean', '-fdq', '--', 'pages', 'instructions.md'])
           ).pipe(
             Effect.catch((error) =>
               Effect.logWarning(`tidy pass for ${bot.id} cleanup failed: ${error}`)

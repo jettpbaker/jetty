@@ -10,12 +10,26 @@ import { botTiming } from './bot-lifecycle'
 import { BOT_PROMPT_FILES } from './bot-prompt'
 import { botJettyInstructions, jettyInstructions } from './jetty-instructions'
 
-async function git(cwd: string, args: string[]) {
+export async function git(cwd: string, args: string[]) {
   const proc = Bun.spawn(['git', '-C', cwd, ...args], { stdout: 'pipe', stderr: 'pipe' })
-  const code = await proc.exited
-  if (code !== 0) throw new Error(await new Response(proc.stderr).text())
-  return (await new Response(proc.stdout).text()).trim()
+  const [code, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  if (code !== 0) throw new Error(stderr.trim())
+  return stdout.trimEnd()
 }
+
+// `git commit` as Jetty, whatever identity the machine has or lacks.
+export const JETTY_COMMIT = [
+  '-c',
+  'user.name=Jetty',
+  '-c',
+  'user.email=jetty@localhost',
+  'commit',
+  '-q',
+]
 
 const sharedCommits = new Map<string, Promise<void>>()
 
@@ -114,16 +128,7 @@ async function commitSharedPreferencesNow(home: string) {
   await git(shared, ['add', 'preferences.md'])
   const staged = await git(shared, ['diff', '--cached', '--name-only'])
   if (!staged) return false
-  await git(shared, [
-    '-c',
-    'user.name=Jetty',
-    '-c',
-    'user.email=jetty@localhost',
-    'commit',
-    '-q',
-    '-m',
-    'Update shared preferences',
-  ])
+  await git(shared, [...JETTY_COMMIT, '-m', 'Update shared preferences'])
   return true
 }
 
@@ -131,16 +136,7 @@ export async function commitBotHome(home: string, message = 'Update bot home') {
   await git(home, ['add', '-A'])
   const staged = await git(home, ['diff', '--cached', '--name-only'])
   if (!staged) return false
-  await git(home, [
-    '-c',
-    'user.name=Jetty',
-    '-c',
-    'user.email=jetty@localhost',
-    'commit',
-    '-q',
-    '-m',
-    message,
-  ])
+  await git(home, [...JETTY_COMMIT, '-m', message])
   return true
 }
 
@@ -280,19 +276,7 @@ export async function commitManagedBotFiles(home: string, files: readonly string
   const changed = await git(home, ['diff', 'HEAD', '--name-only', '--', ...files])
   if (!changed) return
   await git(home, ['add', '--', ...files])
-  await git(home, [
-    '-c',
-    'user.name=Jetty',
-    '-c',
-    'user.email=jetty@localhost',
-    'commit',
-    '-q',
-    '--only',
-    '-m',
-    'Update managed bot files',
-    '--',
-    ...files,
-  ])
+  await git(home, [...JETTY_COMMIT, '--only', '-m', 'Update managed bot files', '--', ...files])
 }
 
 export async function restoreManagedBotFiles(
