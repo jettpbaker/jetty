@@ -208,7 +208,6 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
         if (existsSync(previous)) renameSync(previous, dist)
         throw error
       }
-      await rm(previous, { recursive: true, force: true })
       begin('Restart')
       console.log(
         `[update] took ${((Date.now() - started) / 1000).toFixed(1)}s: ${times.join(', ')}`
