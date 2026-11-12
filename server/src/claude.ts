@@ -171,6 +171,14 @@ type WarmSession = {
   translation: Semaphore.Semaphore
 }
 
+function storeFailed(error: { message: string }) {
+  return new AgentError(error.message)
+}
+
+function sdkFailed(error: unknown) {
+  return new AgentError(String(error))
+}
+
 function thinkingOnly(message: SessionMessage) {
   const content = (message.message as { content?: unknown } | null)?.content
   return (
@@ -296,7 +304,7 @@ export function createClaudeAdapter(
           if (next.permissionMode !== options.permissionMode)
             await query.setPermissionMode(next.permissionMode)
         },
-        catch: (error) => new AgentError(String(error)),
+        catch: sdkFailed,
       }).pipe(
         Effect.andThen(
           Effect.sync(() => {
@@ -556,7 +564,7 @@ export function createClaudeAdapter(
           }
         },
       }
-      return Stream.fromAsyncIterable(messages, (error) => new AgentError(String(error))).pipe(
+      return Stream.fromAsyncIterable(messages, sdkFailed).pipe(
         Stream.runForEach(({ message, sourceSeq }) =>
           Effect.gen(function* () {
             if (!current(session)) return
@@ -657,7 +665,7 @@ export function createClaudeAdapter(
               session.compactSucceeded = true
               yield* store
                 .setCompactAnchor(session.threadId, undefined)
-                .pipe(Effect.mapError((error) => new AgentError(error.message)))
+                .pipe(Effect.mapError(storeFailed))
             }
             // A resume Claude Code can't place drops the anchor too: a plain resume beats a bot whose
             // every turn fails.
@@ -675,7 +683,7 @@ export function createClaudeAdapter(
               session.rewoundTo = null
               yield* store
                 .setCompactAnchor(session.threadId, undefined)
-                .pipe(Effect.mapError((error) => new AgentError(error.message)))
+                .pipe(Effect.mapError(storeFailed))
             }
             if (message.type === 'result') {
               yield* session.publication.withPermit(
@@ -688,7 +696,7 @@ export function createClaudeAdapter(
               Effect.gen(function* () {
                 const translated = yield* Effect.try({
                   try: () => translate(message as SdkLikeMessage, session.ctx),
-                  catch: (error) => new AgentError(String(error)),
+                  catch: sdkFailed,
                 })
                 config.capture?.translation(
                   session.threadId,
@@ -721,7 +729,7 @@ export function createClaudeAdapter(
                 if (session.ctx.sessionId) {
                   yield* store
                     .setThreadSessionId(session.threadId, session.ctx.sessionId)
-                    .pipe(Effect.mapError((error) => new AgentError(error.message)))
+                    .pipe(Effect.mapError(storeFailed))
                   session.ctx.sessionId = null
                 }
                 for (const event of events) yield* publish(session, event, sourceSeq)
@@ -1027,13 +1035,11 @@ export function createClaudeAdapter(
         const options = sessionOptions(input, Boolean(bot))
         const resume = yield* store
           .getThreadSessionId(input.threadId)
-          .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          .pipe(Effect.mapError(storeFailed))
         const compactAnchor = yield* store
           .getCompactAnchor(input.threadId)
-          .pipe(Effect.mapError((error) => new AgentError(error.message)))
-        const behaviours = yield* store
-          .getAgentBehaviours()
-          .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          .pipe(Effect.mapError(storeFailed))
+        const behaviours = yield* store.getAgentBehaviours().pipe(Effect.mapError(storeFailed))
         const instructions =
           !bot && sdkMcp && jettyInstructions(behaviours, input.parentThreadId, workspace)
         const usageIdentity = config.query
@@ -1187,7 +1193,7 @@ export function createClaudeAdapter(
                   ],
                 },
               }),
-            catch: (error) => new AgentError(String(error)),
+            catch: sdkFailed,
           }),
           (q) => (session ? closeResources(session) : Effect.sync(() => q.close()))
         ).pipe(
@@ -1274,19 +1280,13 @@ export function createClaudeAdapter(
             )
           )
           const projectPath = workspace.workingPath
-          const bot = yield* store
-            .getBot(input.threadId)
-            .pipe(Effect.mapError((error) => new AgentError(error.message)))
-          const projects = bot
-            ? yield* store
-                .listProjects()
-                .pipe(Effect.mapError((error) => new AgentError(error.message)))
-            : []
+          const bot = yield* store.getBot(input.threadId).pipe(Effect.mapError(storeFailed))
+          const projects = bot ? yield* store.listProjects().pipe(Effect.mapError(storeFailed)) : []
           const instructionsHash = bot
             ? yield* Effect.gen(function* () {
                 const behaviours = yield* store
                   .getAgentBehaviours()
-                  .pipe(Effect.mapError((error) => new AgentError(error.message)))
+                  .pipe(Effect.mapError(storeFailed))
                 return yield* Effect.tryPromise({
                   try: () =>
                     prepareBotHome(bot, projects, behaviours, projectPath, async (text) => {
@@ -1300,7 +1300,7 @@ export function createClaudeAdapter(
                         })
                       )
                     }).then((prepared) => prepared.instructionsHash),
-                  catch: (error) => new AgentError(String(error)),
+                  catch: sdkFailed,
                 })
               })
             : undefined
@@ -1332,24 +1332,22 @@ export function createClaudeAdapter(
           }
           if (
             input.compact &&
-            !(yield* store
-              .getCompactAnchor(input.threadId)
-              .pipe(Effect.mapError((error) => new AgentError(error.message))))
+            !(yield* store.getCompactAnchor(input.threadId).pipe(Effect.mapError(storeFailed)))
           ) {
             const sessionId = yield* store
               .getThreadSessionId(input.threadId)
-              .pipe(Effect.mapError((error) => new AgentError(error.message)))
+              .pipe(Effect.mapError(storeFailed))
             if (sessionId) {
               const messages = yield* Effect.tryPromise({
                 try: () => getSessionMessages(sessionId, { dir: projectPath }),
-                catch: (error) => new AgentError(String(error)),
+                catch: sdkFailed,
               })
               // A resume drops a trailing reply that is only thinking, so it can't stop there.
               const anchor = messages.findLast((message) => !thinkingOnly(message))?.uuid
               if (anchor)
                 yield* store
                   .setCompactAnchor(input.threadId, anchor)
-                  .pipe(Effect.mapError((error) => new AgentError(error.message)))
+                  .pipe(Effect.mapError(storeFailed))
             }
           }
           const fresh = !session
@@ -1476,7 +1474,7 @@ export function createClaudeAdapter(
           const results = yield* Effect.forEach(tasks, (task) =>
             Effect.tryPromise({
               try: () => session.query.stopTask(task.id),
-              catch: (error) => new AgentError(String(error)),
+              catch: sdkFailed,
             }).pipe(
               Effect.tap(() => Effect.sync(() => session.backgroundTasks.remove(task.id))),
               Effect.result
@@ -1495,7 +1493,7 @@ export function createClaudeAdapter(
           session.stoppedWorkflows.add(taskId)
           yield* Effect.tryPromise({
             try: () => session.query.stopTask(taskId),
-            catch: (error) => new AgentError(String(error)),
+            catch: sdkFailed,
           }).pipe(Effect.onError(() => Effect.sync(() => session.stoppedWorkflows.delete(taskId))))
           return true
         })
@@ -1518,7 +1516,7 @@ export function createClaudeAdapter(
             Effect.tryPromise({
               try: () =>
                 session.query.applyFlagSettings(botAutoMode(bot.name, bot.allowRules ?? [])),
-              catch: (error) => new AgentError(String(error)),
+              catch: sdkFailed,
             })
           )
         )
@@ -1527,13 +1525,11 @@ export function createClaudeAdapter(
         const session = sessions.get(threadId)
         if (!session || !session.bot) return Effect.void
         return Effect.gen(function* () {
-          const bot = yield* store
-            .getBot(threadId)
-            .pipe(Effect.mapError((error) => new AgentError(error.message)))
+          const bot = yield* store.getBot(threadId).pipe(Effect.mapError(storeFailed))
           if (!bot) return
           yield* Effect.tryPromise({
             try: () => session.query.applyFlagSettings(botAutoMode(bot.name, rules)),
-            catch: (error) => new AgentError(String(error)),
+            catch: sdkFailed,
           })
         })
       },
@@ -1564,19 +1560,15 @@ export function createClaudeAdapter(
           (session, pending) =>
             Effect.gen(function* () {
               if (!pending.rule || decision !== 'always') return
-              const bot = yield* store
-                .getBot(threadId)
-                .pipe(Effect.mapError((error) => new AgentError(error.message)))
+              const bot = yield* store.getBot(threadId).pipe(Effect.mapError(storeFailed))
               if (!bot) return
               const rule = { id: itemId, ...pending.rule, createdAt: Date.now() }
               const rules = [...(bot.allowRules ?? []).filter((rule) => rule.id !== itemId), rule]
               yield* Effect.tryPromise({
                 try: () => session.query.applyFlagSettings(botAutoMode(bot.name, rules)),
-                catch: (error) => new AgentError(String(error)),
+                catch: sdkFailed,
               })
-              yield* store
-                .setBotAllowRules(threadId, rules)
-                .pipe(Effect.mapError((error) => new AgentError(error.message)))
+              yield* store.setBotAllowRules(threadId, rules).pipe(Effect.mapError(storeFailed))
             })
         )
       },
@@ -1585,7 +1577,7 @@ export function createClaudeAdapter(
           const message = answeredInChat
             ? `${yield* Effect.tryPromise({
                 try: botUserName,
-                catch: (error) => new AgentError(String(error)),
+                catch: sdkFailed,
               })} answered in the chat instead; their message is next.`
             : 'The user dismissed the questions'
           return yield* resolvePending(
