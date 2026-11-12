@@ -1326,9 +1326,9 @@ export const ChromePushData = Schema.Union([
     jobModels: Schema.optional(Schema.Record(JobName, JobModel)),
     agentBehaviours: Schema.optional(AgentBehaviours),
     // Oldest first.
-    bots: Schema.optional(Schema.Array(Bot)),
+    bots: Schema.Array(Bot),
     // Each bot's own thread, kept apart so it isn't listed with the others.
-    botThreads: Schema.optional(Schema.Array(ThreadMeta)),
+    botThreads: Schema.Array(ThreadMeta),
   }),
   Schema.Struct({ type: Schema.Literal('jettyUpdate'), state: Schema.optional(JettyUpdate) }),
   Schema.Struct({ type: Schema.Literal('bot.upserted'), bot: Bot }),

@@ -209,7 +209,14 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'bot.saveInstructions': () => Effect.succeed({ saved: true as const }),
           'bot.markSeen': () => Effect.succeed(null),
           'chrome.subscribe': () =>
-            Stream.succeed({ type: 'snapshot' as const, serverTime: 0, projects: [], threads: [] }),
+            Stream.succeed({
+              type: 'snapshot' as const,
+              serverTime: 0,
+              projects: [],
+              threads: [],
+              bots: [],
+              botThreads: [],
+            }),
           'github.activity': () => Stream.never,
           'bot.presence': () => Stream.never,
           'thread.subscribe': ({ threadId }) =>
