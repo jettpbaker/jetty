@@ -283,8 +283,21 @@ export function BotMentions({ text }: { text: string }) {
   return parts
 }
 
-const previewShell =
-  'flex w-72 max-w-[calc(100vw-24px)] flex-col gap-1.5 rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md'
+// A PR's or issue's hover card, under its link.
+function GitHubPreviewPopup({ children }: { children: ReactNode }) {
+  return (
+    <PreviewCard.Portal>
+      <PreviewCard.Positioner side='bottom' align='start' sideOffset={6} className='z-50'>
+        <PreviewCard.Popup
+          data-overflow-hover
+          className='flex w-72 max-w-[calc(100vw-24px)] flex-col gap-1.5 rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-md transition-opacity duration-100 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0 data-ending-style:duration-0 motion-reduce:transition-none'
+        >
+          {children}
+        </PreviewCard.Popup>
+      </PreviewCard.Positioner>
+    </PreviewCard.Portal>
+  )
+}
 
 function PullPreview({
   entity,
@@ -389,19 +402,9 @@ function PullLink({ entity, permalink }: { entity: string; permalink?: string })
       >
         {content}
       </PreviewCard.Trigger>
-      <PreviewCard.Portal>
-        <PreviewCard.Positioner side='bottom' align='start' sideOffset={6} className='z-50'>
-          <PreviewCard.Popup
-            data-overflow-hover
-            className={cn(
-              previewShell,
-              'transition-opacity duration-100 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0 data-ending-style:duration-0 motion-reduce:transition-none'
-            )}
-          >
-            <PullPreview entity={entity} pull={data.pull} look={look} />
-          </PreviewCard.Popup>
-        </PreviewCard.Positioner>
-      </PreviewCard.Portal>
+      <GitHubPreviewPopup>
+        <PullPreview entity={entity} pull={data.pull} look={look} />
+      </GitHubPreviewPopup>
     </PreviewCard.Root>
   )
 }
@@ -549,19 +552,9 @@ function IssueLink({ entity, permalink }: { entity: string; permalink?: string }
       >
         {content}
       </PreviewCard.Trigger>
-      <PreviewCard.Portal>
-        <PreviewCard.Positioner side='bottom' align='start' sideOffset={6} className='z-50'>
-          <PreviewCard.Popup
-            data-overflow-hover
-            className={cn(
-              previewShell,
-              'transition-opacity duration-100 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0 data-ending-style:duration-0 motion-reduce:transition-none'
-            )}
-          >
-            <IssuePreview entity={entity} issue={issue} look={look} />
-          </PreviewCard.Popup>
-        </PreviewCard.Positioner>
-      </PreviewCard.Portal>
+      <GitHubPreviewPopup>
+        <IssuePreview entity={entity} issue={issue} look={look} />
+      </GitHubPreviewPopup>
     </PreviewCard.Root>
   )
 }
