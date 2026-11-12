@@ -3,7 +3,7 @@
 // threads linked to pr-lab's `sandbox` PRs, so merges and reviews really happen. --replay runs
 // a fresh clone of the lab's golden home on recorded GitHub instead, offline.
 // usage: bun sandbox [--fresh | --replay]
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 
@@ -51,8 +51,10 @@ const markdownTurn = [
 
 const seed = replay || fresh || !existsSync(seeded)
 if (seed) rmSync(dir, { recursive: true, force: true })
-if (replay) await cloneHome(await goldenHome(tree), home)
-else if (seed) console.log(`seeding ${dir}…`)
+if (replay) {
+  mkdirSync(dir, { recursive: true })
+  await cloneHome(await goldenHome(tree), home)
+} else if (seed) console.log(`seeding ${dir}…`)
 const fixtures = seed && !replay ? await seedHome({ tree, dir, gh: { mode: 'replay' } }) : null
 
 const server = await startServer({
