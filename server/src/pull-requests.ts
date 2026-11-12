@@ -72,7 +72,7 @@ export async function githubConnection(): Promise<{
   }
 }
 
-export type UserIdentity = { login: string | null; name: string; avatarUrl: string | null }
+type UserIdentity = { login: string | null; name: string; avatarUrl: string | null }
 
 let viewerRead: { token: string; value: UserIdentity } | undefined
 

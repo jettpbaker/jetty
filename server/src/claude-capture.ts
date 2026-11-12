@@ -1,7 +1,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ThreadEvent } from '@jetty/shared/events'
 
-export type CaptureMetadata = {
+type CaptureMetadata = {
   threadId: string
   scenario: string
   sdkVersion: string

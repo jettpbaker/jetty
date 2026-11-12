@@ -44,7 +44,7 @@ export class GithubMediaError extends Error {
   }
 }
 
-export type GithubMedia = { path: string; mimeType: string } | GithubMediaError
+type GithubMedia = { path: string; mimeType: string } | GithubMediaError
 
 function ascii(bytes: Uint8Array, from: number, to: number) {
   return String.fromCharCode(...bytes.subarray(from, to))

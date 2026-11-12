@@ -6,7 +6,7 @@ import { bm25Scores, squashBm25 } from './bm25'
 import { chunkProseText } from './chunk'
 import { openSearchDb } from './db'
 
-export type SearchMessage = {
+type SearchMessage = {
   id: string
   threadId: string
   author: string
@@ -70,7 +70,7 @@ export function archivedMessageText(items: readonly ThreadItem[], threadId: stri
   return text.length > ARCHIVED_MESSAGE_TEXT_MAX ? text.slice(0, ARCHIVED_MESSAGE_TEXT_MAX) : text
 }
 
-export type ThreadCursor = { lastSeq: number }
+type ThreadCursor = { lastSeq: number }
 
 export function threadCursors(path: string): Record<string, ThreadCursor> {
   const db = openSearchDb(path)

@@ -34,7 +34,7 @@ const BINARY_EXT = new Set([
 
 const TEXT_EXT = new Set(['.md', '.txt', '.csv', '.json', '.yaml', '.yml', '.log', '.tsv'])
 
-export type MemoryFile = { rel: string; abs: string; bytes: Uint8Array; modifiedAt: number }
+type MemoryFile = { rel: string; abs: string; bytes: Uint8Array; modifiedAt: number }
 
 export function hashBytes(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')

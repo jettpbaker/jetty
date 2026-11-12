@@ -84,7 +84,7 @@ export type PullRequestNews = {
 export type Orchestrator = Effect.Success<ReturnType<typeof createOrchestrator>>
 export const OrchestratorService = Context.Service<Orchestrator>('jetty/Orchestrator')
 
-export type StartTurnInput = {
+type StartTurnInput = {
   threadId: string
   messageId?: string
   text: string

@@ -152,7 +152,7 @@ export function computeThreadDiff(cwd: string, baseCommit?: string) {
 }
 
 type Unavailable = { unavailable: 'tooLarge' | 'binary' }
-export type DiffFile = { before: string | null; after: string | null } | Unavailable
+type DiffFile = { before: string | null; after: string | null } | Unavailable
 
 const MAX_CONTENTS_BYTES = 1024 * 1024
 const tooLarge: Unavailable = { unavailable: 'tooLarge' }
@@ -225,7 +225,7 @@ export function readDiffFile(cwd: string, path: string, prevPath = path, baseCom
   })
 }
 
-export type ProjectFile = { contents: string | null; utf8?: false } | Unavailable
+type ProjectFile = { contents: string | null; utf8?: false } | Unavailable
 type SavedProjectFile = { saved: true } | { conflict: ProjectFile }
 
 function projectRoot(cwd: string) {

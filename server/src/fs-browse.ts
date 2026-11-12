@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 type BrowseEntry = { name: string; fullPath: string; isGitRepo: boolean }
-export type BrowseResult = { parentPath: string; entries: BrowseEntry[] }
+type BrowseResult = { parentPath: string; entries: BrowseEntry[] }
 
 const MAX_ENTRIES = 500
 

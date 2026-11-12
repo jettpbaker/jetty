@@ -11,7 +11,7 @@ import {
   githubGraphql,
 } from './pull-requests'
 
-export type IssueRef = { repo: string; number: number }
+type IssueRef = { repo: string; number: number }
 
 const issueFields = `number title state stateReason updatedAt author { login avatarUrl } labels(first:20) { nodes { name color } } assignees(first:10) { nodes { login avatarUrl } }`
 

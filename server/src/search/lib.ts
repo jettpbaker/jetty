@@ -7,7 +7,7 @@ import { chunkFile, type Chunk } from './chunk'
 import { openSearchDb } from './db'
 import { hashBytes, listMemoryFiles } from './walk'
 
-export type RecallHit = {
+type RecallHit = {
   path: string
   startLine: number
   endLine: number
@@ -15,7 +15,7 @@ export type RecallHit = {
   text: string
 }
 
-export type ReindexStats = {
+type ReindexStats = {
   files: number
   indexed: number
   unchanged: number

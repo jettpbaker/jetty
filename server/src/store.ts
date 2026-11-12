@@ -172,7 +172,7 @@ export type DesktopRecord =
   | { id: string; state: 'starting' }
   | { id: string; state: 'live'; display: string; port: number; token: string }
 
-export type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
+type ThreadLoadout = { model?: string; effort?: EffortLevel; fast?: boolean }
 
 const isEffort = Schema.is(EffortLevel)
 const isProjectIcon = Schema.is(ProjectIcon)

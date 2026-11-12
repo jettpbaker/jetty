@@ -86,7 +86,7 @@ export type Emit = (
   event: ThreadEvent,
   onCommit?: Effect.Effect<void>
 ) => Effect.Effect<void, AgentError>
-export type Turn = { await: Effect.Effect<void, AgentError> }
+type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
   updateBot?: (bot: Bot) => Effect.Effect<void, AgentError>
