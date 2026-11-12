@@ -663,7 +663,6 @@ export function createWorktrees(
   async function remove(
     threadId: string,
     deleting = false,
-    cleanedUp = false,
     timing?: (stage: string, ms: number) => void
   ) {
     const { thread, project } = await locate(threadId)
@@ -678,22 +677,17 @@ export function createWorktrees(
         timing?.(stage, Date.now() - start)
       }
     }
-    const checkArchivable = () =>
-      timed('clean', async () => {
-        if (await changes(folder)) throw new StoreError('conflict', dirtyArchive)
-        if (await strandsCommits(folder)) throw new StoreError('conflict', detachedArchive)
-      })
-    if (!deleting) {
-      if (await exists(folder)) await checkArchivable()
-      if (!cleanedUp) await cleanUp(threadId)
-    }
     const asked = Date.now()
     await serialized(project.path, async () => {
       timing?.('lock', Date.now() - asked)
       const record = await run(store.getWorktree(threadId))
       if (!record) return
       if (await exists(folder)) {
-        if (!deleting) await checkArchivable()
+        if (!deleting)
+          await timed('clean', async () => {
+            if (await changes(folder)) throw new StoreError('conflict', dirtyArchive)
+            if (await strandsCommits(folder)) throw new StoreError('conflict', detachedArchive)
+          })
         // Resume checks out the branch the worktree is on now, wherever its work moved.
         const current = deleting ? '' : await tryGit(folder, 'branch', '--show-current')
         if (current && current !== record.branch) {

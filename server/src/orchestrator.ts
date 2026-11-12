@@ -559,9 +559,7 @@ export function createOrchestrator({
                       )
                     yield* timing.stage('clean', checkTreeClean(tree))
                     for (const thread of [...group].reverse())
-                      yield* worktreeTask(() =>
-                        worktrees.remove(thread.id, false, true, timing.add)
-                      )
+                      yield* worktreeTask(() => worktrees.remove(thread.id, false, timing.add))
                   }
                   for (const thread of group) yield* timing.stage('stop', stopDesktop(thread.id))
                 }
