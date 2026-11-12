@@ -168,8 +168,12 @@ export const liveAtom = Atom.make((get) => {
   )
 }).pipe(Atom.keepAlive)
 
+const serverChromeAtom = Atom.readable((get) =>
+  AsyncResult.getOrElse(get(liveAtom), () => undefined)
+)
+
 export function serverChrome(registry: AtomRegistry.AtomRegistry) {
-  return AsyncResult.getOrElse(registry.get(liveAtom), () => undefined)
+  return registry.get(serverChromeAtom)
 }
 
 // A thread and the threads it created, all the way down: archive and delete take them together.
@@ -223,7 +227,7 @@ function withPending(
 }
 
 export const chromeAtom = Atom.readable((get) => {
-  const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
+  const chrome = get(serverChromeAtom)
   return (
     chrome &&
     withPending(
@@ -240,9 +244,7 @@ export const chromeAtom = Atom.readable((get) => {
 
 const noModels: readonly ProviderModel[] = []
 
-export const modelsAtom = Atom.readable(
-  (get) => AsyncResult.getOrElse(get(liveAtom), () => undefined)?.models ?? noModels
-)
+export const modelsAtom = Atom.readable((get) => get(serverChromeAtom)?.models ?? noModels)
 
 export function useChrome(): Chrome | undefined {
   return useAtomValue(chromeAtom)
@@ -311,7 +313,7 @@ export function useProviderCapabilities() {
 }
 
 const defaultEnvironmentAtom = Atom.readable(
-  (get) => AsyncResult.getOrElse(get(liveAtom), () => undefined)?.defaultEnvironment ?? 'worktree'
+  (get) => get(serverChromeAtom)?.defaultEnvironment ?? 'worktree'
 )
 
 // Settings › Preferences: what a new thread works in when its project doesn't say.
