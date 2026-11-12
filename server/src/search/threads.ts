@@ -54,7 +54,7 @@ export function searchableMessages(
 }
 
 // How much of a thread's messages the archived search reads. The rest is not indexed.
-export const ARCHIVED_MESSAGE_TEXT_MAX = 80_000
+const ARCHIVED_MESSAGE_TEXT_MAX = 80_000
 
 export function archivedMessageText(items: readonly ThreadItem[], threadId: string) {
   const text = searchableMessages(

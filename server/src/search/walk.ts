@@ -40,7 +40,7 @@ export function hashBytes(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-export function isBinary(rel: string, bytes: Uint8Array): boolean {
+function isBinary(rel: string, bytes: Uint8Array): boolean {
   if (BINARY_EXT.has(extname(rel).toLowerCase())) return true
   const n = Math.min(bytes.length, 8000)
   for (let i = 0; i < n; i++) if (bytes[i] === 0) return true
