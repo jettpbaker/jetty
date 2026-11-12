@@ -2087,13 +2087,20 @@ export function createPullRequests(store: Store, hub: Hub) {
         if (fetched.status === 'ready' && fetched.data) yield* listObserver(snapshot)
         hub.pushPullRequest(snapshot)
         if (snapshot.data && watches.has(prKey(ref))) markGeneratedHeads(ref, snapshot.data)
-        for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
-          const thread = yield* store.requireThread(threadId)
-          hub.pushChrome({ type: 'thread.upserted', thread })
-        }
+        yield* pushLinkedThreads(ref)
         return snapshot
       })
     )
+  }
+
+  // A linked thread's row and chips show the pull request's state, so they follow each save.
+  function pushLinkedThreads(ref: PullRequestRef) {
+    return Effect.gen(function* () {
+      for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
+        const thread = yield* store.requireThread(threadId)
+        hub.pushChrome({ type: 'thread.upserted', thread })
+      }
+    })
   }
 
   function refresh(ref: PullRequestRef): Effect.Effect<PullRequestSnapshot, StoreError> {
@@ -2507,10 +2514,7 @@ export function createPullRequests(store: Store, hub: Hub) {
             )
             yield* listObserver(decorate(snapshot))
             hub.pushPullRequest(decorate(snapshot))
-            for (const threadId of yield* store.threadsForPullRequest(ref.repo, ref.number)) {
-              const thread = yield* store.requireThread(threadId)
-              hub.pushChrome({ type: 'thread.upserted', thread })
-            }
+            yield* pushLinkedThreads(ref)
           })
         )
       }
