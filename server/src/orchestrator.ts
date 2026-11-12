@@ -1533,7 +1533,10 @@ export function createOrchestrator({
                   model: thread.model,
                   effort: thread.effort,
                   fast: thread.fast,
-                  permissionMode: yield* store.getPermissionMode(thread.id),
+                  // A follow-up keeps the shield from when it was queued. Anything Jetty queued
+                  // itself still uses the mode stored on the thread.
+                  permissionMode:
+                    queued.permissionMode ?? (yield* store.getPermissionMode(thread.id)),
                 }
               }
               if (!state(input.threadId).turnId)
@@ -2201,7 +2204,8 @@ export function createOrchestrator({
         messageId: string,
         text: string,
         uploads?: readonly UploadAttachment[],
-        replies?: readonly Reply[]
+        replies?: readonly Reply[],
+        permissionMode?: PermissionMode
       ) {
         return Effect.gen(function* () {
           if (!text && !uploads?.length)
@@ -2218,6 +2222,7 @@ export function createOrchestrator({
                   hop: 0,
                   ...(saved.meta.length ? { attachments: saved.meta } : {}),
                   ...(replies?.length && { replies }),
+                  ...(permissionMode ? { permissionMode } : {}),
                 })
                 .pipe(
                   Effect.tap((thread) =>
@@ -2535,6 +2540,27 @@ export function createOrchestrator({
             )
           )
         })
+      },
+      // The shield on a thread the user has open. A bot home keeps the mode stored on the bot.
+      setPermissionMode(threadId: string, mode: PermissionMode) {
+        return state(threadId).admission.withPermit(
+          Effect.gen(function* () {
+            if (yield* store.isBot(threadId)) return
+            let next = mode
+            const provider = yield* store.getThreadProvider(threadId)
+            const thread = yield* store.requireThread(threadId)
+            if (
+              next === 'full_access' &&
+              provider &&
+              allowsFullAccess &&
+              !(yield* allowsFullAccess(provider, thread.model))
+            )
+              next = 'auto'
+            yield* store.setPermissionMode(threadId, next)
+            const agent = yield* agentForThread(threadId)
+            if (agent.setPermissionMode) yield* agent.setPermissionMode(threadId, next)
+          })
+        )
       },
       updateBot(input: ParamsOf<'bot.update'>, model?: ProviderModel) {
         return state(input.botId).admission.withPermit(

@@ -1,6 +1,6 @@
 import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { Reply, ThreadItem } from '@jetty/shared/items'
-import type { QueuedMessage } from '@jetty/shared/wire'
+import type { PermissionMode, QueuedMessage } from '@jetty/shared/wire'
 
 import { revokeBlobUrl } from '@/lib/blob_urls'
 import { resendOnDrop, type Connection } from '@/net/connection'
@@ -130,7 +130,8 @@ function addQueued(
   threadId: string,
   text: string,
   attachments: readonly ReadyAttachment[] = [],
-  replies?: readonly Reply[]
+  replies?: readonly Reply[],
+  permissionMode?: PermissionMode
 ) {
   const message = {
     id: newId(),
@@ -170,6 +171,7 @@ function addQueued(
               threadId,
               messageId: message.id,
               text,
+              ...(permissionMode ? { permissionMode } : {}),
               ...(replies?.length && { replies }),
               ...(attachments.length > 0
                 ? {

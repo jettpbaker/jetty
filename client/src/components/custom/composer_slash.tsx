@@ -285,7 +285,10 @@ export function useComposerSlash(
       return option(
         mode,
         accessLabels[mode],
-        reason ?? accessDescriptions[mode],
+        reason ??
+          (mode === 'auto' && model?.autoMode === false
+            ? 'Ask before every action'
+            : accessDescriptions[mode]),
         mode === (blocked ? 'auto' : accessMode),
         () => setAccessMode(mode),
         mode === 'auto' ? <ShieldCheckIcon /> : <ShieldBreakIcon />,

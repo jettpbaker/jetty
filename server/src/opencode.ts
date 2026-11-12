@@ -265,6 +265,11 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
           yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
           return
         }
+        // Permissions are fixed when the process starts. Full access answers the prompts it still sends.
+        if (allow && (session.full || session.input.permissionMode === 'full_access')) {
+          yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
+          return
+        }
         if (!allow) {
           yield* connection.respond(id, { outcome: { outcome: 'cancelled' } })
           return
@@ -521,6 +526,45 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
       })
     }
 
+    function acceptPending(session: Session) {
+      return Effect.gen(function* () {
+        if (!session.connection) return
+        for (const [itemId, pending] of Array.from(session.pending)) {
+          yield* session.emit(
+            { type: 'item.completed', itemId, patch: { decision: 'allow' } },
+            Effect.sync(() => {
+              session.pending.delete(itemId)
+            })
+          )
+          yield* session.connection.respond(
+            pending.id,
+            acpPermissionOutcome(pending.options, 'allow')
+          )
+        }
+        if (session.awaitingResult)
+          yield* session.emit({
+            type: 'session.status',
+            status: session.pending.size ? 'awaiting_approval' : 'running',
+          })
+      })
+    }
+
+    function applyLivePermission(threadId: string, mode: NonNullable<TurnInput['permissionMode']>) {
+      return Effect.suspend(() => {
+        const session = sessions.get(threadId)
+        if (!session) return Effect.void
+        return session.publication
+          .withPermit(
+            Effect.gen(function* () {
+              session.input = { ...session.input, permissionMode: mode }
+              session.full = mode === 'full_access'
+              if (mode === 'full_access' && session.accepting) yield* acceptPending(session)
+            })
+          )
+          .pipe(Effect.uninterruptible)
+      })
+    }
+
     return {
       supportsCompaction: true,
       startTurn(input, emit) {
@@ -649,6 +693,12 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
       },
       setBotAllowRules() {
         return Effect.void
+      },
+      updateBot(bot) {
+        return applyLivePermission(bot.id, bot.permissionMode)
+      },
+      setPermissionMode(threadId, mode) {
+        return applyLivePermission(threadId, mode)
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {

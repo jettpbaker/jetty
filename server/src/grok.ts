@@ -319,6 +319,11 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             })
             return
           }
+          // Grok still asks after --permission-mode bypassPermissions. Full access answers.
+          if (allow && session.input.permissionMode === 'full_access') {
+            yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
+            return
+          }
           if (!allow) {
             yield* connection.respond(id, { outcome: { outcome: 'cancelled' } })
             return
@@ -669,6 +674,24 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
     }
 
     // Grok advertises /workflow stop as a prompt command, but no task-specific ACP stop request.
+    function applyLivePermission(threadId: string, mode: NonNullable<TurnInput['permissionMode']>) {
+      return Effect.gen(function* () {
+        const session = sessions.get(threadId)
+        if (!session) return
+        session.input = { ...session.input, permissionMode: mode }
+        if (mode !== 'full_access') return
+        for (const [itemId, pending] of Array.from(session.pending)) {
+          if (pending.questions) continue
+          yield* respond(
+            threadId,
+            itemId,
+            (item) => (item.questions ? undefined : acpPermissionOutcome(item.options, 'allow')),
+            { decision: 'allow' }
+          )
+        }
+      })
+    }
+
     return {
       supportsCompaction: true,
       startTurn(input, emit) {
@@ -905,6 +928,12 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             })
           }
         })
+      },
+      updateBot(bot) {
+        return applyLivePermission(bot.id, bot.permissionMode)
+      },
+      setPermissionMode(threadId, mode) {
+        return applyLivePermission(threadId, mode)
       },
       respondToApproval(threadId, itemId, decision, message?: string, decidedBy?) {
         return respond(

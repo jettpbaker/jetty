@@ -1,6 +1,6 @@
 import type { ReadyAttachment } from '@/hooks/use-attachments'
 import type { ApprovalDecision, Attachment, Reply, ThreadItem } from '@jetty/shared/items'
-import type { ProviderModel, ThreadMeta } from '@jetty/shared/wire'
+import type { PermissionMode, ProviderModel, ThreadMeta } from '@jetty/shared/wire'
 
 import { revokeBlobUrl } from '@/lib/blob_urls'
 import {
@@ -168,6 +168,16 @@ export function showSent(registry: Registry, threadId: string, prompt: PendingPr
     })
     registry.update(pendingTurnsAtom, (ids) => withoutId(ids, threadId))
   }
+}
+
+function setThreadPermissionMode(
+  registry: Registry,
+  threadId: string,
+  permissionMode: PermissionMode
+) {
+  run(registry, (connection) =>
+    resendOnDrop(connection.request('thread.setPermissionMode', { threadId, permissionMode }))
+  )
 }
 
 function sendTurn(
@@ -445,6 +455,10 @@ export function useDraftEpoch() {
 
 export function useBumpDraft() {
   return useAction(bumpDraft)
+}
+
+export function useSetThreadPermissionMode() {
+  return useAction(setThreadPermissionMode)
 }
 
 export function useSendTurn() {

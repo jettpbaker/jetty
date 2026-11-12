@@ -134,6 +134,42 @@ test('streams ACP, preserves partial tool output, filters replay, stays warm, an
   expect(f.log().filter((m) => m.method === 'session/load')).toHaveLength(1)
 })
 
+test('full access accepts a Grok command prompt without a card', async () => {
+  const f = await setup()
+  const turn = await Effect.runPromise(
+    f.agent.startTurn(
+      {
+        threadId: f.threadId,
+        turnId: newId(),
+        text: 'approval',
+        permissionMode: 'full_access',
+      },
+      f.emit
+    )
+  )
+  await Effect.runPromise(turn.await)
+  expect(
+    f.events.some((event) => event.type === 'item.started' && event.item.kind === 'approval')
+  ).toBe(false)
+  expect(f.log().find((message) => message.id === 'approval' && message.result).result).toEqual({
+    outcome: { outcome: 'selected', optionId: 'yes-once' },
+  })
+})
+
+test('turning on full access accepts a pending Grok command prompt', async () => {
+  const f = await setup()
+  const turn = await f.start('approval')
+  await until(f.events, (event) => event.type === 'item.started' && event.item.kind === 'approval')
+  await Effect.runPromise(f.agent.setPermissionMode(f.threadId, 'full_access'))
+  await Effect.runPromise(turn.await)
+  expect(f.events).toContainEqual(
+    expect.objectContaining({ type: 'item.completed', patch: { decision: 'allow' } })
+  )
+  expect(f.log().find((message) => message.id === 'approval' && message.result).result).toEqual({
+    outcome: { outcome: 'selected', optionId: 'yes-once' },
+  })
+})
+
 for (const decision of ['allow', 'deny'] as const)
   test('permission ' + decision, async () => {
     const f = await setup()

@@ -583,6 +583,48 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
       })
     }
 
+    function acceptPending(session: Session) {
+      return Effect.gen(function* () {
+        if (!session.connection) return
+        for (const [itemId, pending] of Array.from(session.pending)) {
+          yield* session.emit(
+            { type: 'item.completed', itemId, patch: { decision: 'allow' } },
+            Effect.sync(() => {
+              session.pending.delete(itemId)
+            })
+          )
+          yield* session.connection.respond(
+            pending.id,
+            acpPermissionOutcome(pending.options, 'allow')
+          )
+        }
+        if (session.awaitingResult)
+          yield* session.emit({
+            type: 'session.status',
+            status: session.pending.size ? 'awaiting_approval' : 'running',
+          })
+      })
+    }
+
+    // Full access still has to answer prompts Copilot sends with allow-all on. Switching the
+    // shield does both: turn allow-all on, and accept the card already waiting.
+    function applyLivePermission(threadId: string, mode: NonNullable<TurnInput['permissionMode']>) {
+      return Effect.suspend(() => {
+        const session = sessions.get(threadId)
+        if (!session) return Effect.void
+        return session.publication
+          .withPermit(
+            Effect.gen(function* () {
+              session.input = { ...session.input, permissionMode: mode }
+              if (mode === 'full_access' && session.accepting) yield* acceptPending(session)
+              if (session.connection && session.providerThreadId)
+                yield* configure(session, session.input)
+            })
+          )
+          .pipe(Effect.uninterruptible)
+      })
+    }
+
     return {
       supportsCompaction: true,
       startTurn(input, emit) {
@@ -706,6 +748,12 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
       },
       setBotAllowRules() {
         return Effect.void
+      },
+      updateBot(bot) {
+        return applyLivePermission(bot.id, bot.permissionMode)
+      },
+      setPermissionMode(threadId, mode) {
+        return applyLivePermission(threadId, mode)
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {

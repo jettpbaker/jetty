@@ -743,7 +743,8 @@ export function createRpcHandlers(
                   params.messageId,
                   params.text,
                   params.attachments,
-                  params.replies
+                  params.replies,
+                  params.permissionMode
                 )
                 .pipe(Effect.as(null))
             ),
@@ -782,6 +783,10 @@ export function createRpcHandlers(
         orch.compact(threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'thread.continue': ({ threadId }) =>
         orch.continueThread(threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
+      'thread.setPermissionMode': ({ threadId, permissionMode }) =>
+        orch
+          .setPermissionMode(threadId, permissionMode)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'turn.start': (params) =>
         Effect.gen(function* () {
           yield* store.noteUserMessage()

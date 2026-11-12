@@ -1116,6 +1116,28 @@ describe('scoped Claude sessions', () => {
     expect(f.queries[0]!.options.permissionMode).toBe('bypassPermissions')
   })
 
+  test('turning on full access accepts a pending tool approval', async () => {
+    const f = await setup({ supportsAutoMode: () => false })
+    await f.start(newId(), { permissionMode: 'auto', model: 'opus' })
+    const q = f.queries[0]!
+    const approval = q.options.canUseTool!(
+      'Bash',
+      { command: 'grep' },
+      {
+        signal: new AbortController().signal,
+        toolUseID: 'approval',
+        requestId: 'approval',
+      }
+    )
+    await f.runtime.runPromise(f.next('session.status'))
+    await f.runtime.runPromise(f.agent.setPermissionMode!(f.thread.id, 'full_access'))
+    expect(await approval).toMatchObject({ behavior: 'allow', updatedInput: { command: 'grep' } })
+    expect(q.controls).toContainEqual(['setPermissionMode', 'bypassPermissions'])
+    expect(f.events).toContainEqual(
+      expect.objectContaining({ type: 'item.completed', patch: { decision: 'allow' } })
+    )
+  })
+
   test('settled sessions stay warm and apply model, effort and mode changes live, recycling with resume only if that fails', async () => {
     const f = await setup()
     const first = await f.start('first')

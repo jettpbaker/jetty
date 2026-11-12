@@ -979,6 +979,41 @@ export function createClaudeAdapter(
       })
     }
 
+    // bypassPermissions stops new canUseTool calls. One already waiting still needs an answer.
+    function acceptPendingApprovals(session: WarmSession) {
+      return Effect.gen(function* () {
+        while (session.pendingApprovals.size > 0) {
+          const itemId = session.pendingApprovals.keys().next().value
+          if (!itemId) return
+          const accepted = yield* resolvePending(
+            session.threadId,
+            itemId,
+            (current) => current.pendingApprovals,
+            { decision: 'allow' },
+            (pending) => ({ behavior: 'allow', updatedInput: pending.input })
+          )
+          if (!accepted) return
+        }
+      })
+    }
+
+    function applyLivePermission(
+      session: WarmSession,
+      mode: NonNullable<TurnInput['permissionMode']>
+    ) {
+      return applyOptions(
+        session,
+        sessionOptions({
+          threadId: session.threadId,
+          turnId: session.activeTurnId,
+          text: '',
+          model: session.options.model,
+          effort: session.options.effort,
+          permissionMode: mode,
+        })
+      ).pipe(Effect.andThen(mode === 'full_access' ? acceptPendingApprovals(session) : Effect.void))
+    }
+
     function spawnSession(
       input: TurnInput,
       emit: Emit,
@@ -1525,8 +1560,16 @@ export function createClaudeAdapter(
                 session.query.applyFlagSettings(botAutoMode(bot.name, bot.allowRules ?? [])),
               catch: (error) => new AgentError(String(error)),
             })
+          ),
+          Effect.andThen(
+            bot.permissionMode === 'full_access' ? acceptPendingApprovals(session) : Effect.void
           )
         )
+      },
+      setPermissionMode(threadId, mode) {
+        const session = sessions.get(threadId)
+        if (!session || !current(session)) return Effect.void
+        return applyLivePermission(session, mode)
       },
       setBotAllowRules(threadId, rules) {
         const session = sessions.get(threadId)

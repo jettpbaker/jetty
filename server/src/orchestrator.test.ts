@@ -114,6 +114,43 @@ for (const expireFirst of [false, true]) {
   })
 }
 
+test('a queued follow-up keeps the composer access mode', async () => {
+  await runUploadTest(
+    Effect.gen(function* () {
+      const f = yield* makeUploadFixture()
+      const seen: string[] = []
+      f.agent.setPermissionMode = (_threadId, mode) =>
+        Effect.sync(() => {
+          seen.push(mode)
+        })
+      const orch = yield* createOrchestrator({
+        store: f.store,
+        agent: f.agent,
+        hub: f.hub,
+      })
+      yield* f.store.setPermissionMode(f.thread.id, 'auto')
+      yield* f.store.setQueuePaused(f.thread.id, true)
+      const messageId = newId()
+      yield* orch.enqueue(
+        f.thread.id,
+        messageId,
+        'grep the tree',
+        undefined,
+        undefined,
+        'full_access'
+      )
+      expect((yield* f.store.requireThread(f.thread.id)).pendingMessages?.[0]?.permissionMode).toBe(
+        'full_access'
+      )
+      yield* orch.sendQueuedNow(f.thread.id, messageId)
+      expect(f.started[0]?.permissionMode).toBe('full_access')
+      yield* orch.setPermissionMode(f.thread.id, 'full_access')
+      expect(seen).toEqual(['full_access'])
+      expect(yield* f.store.getPermissionMode(f.thread.id)).toBe('full_access')
+    })
+  )
+})
+
 test('Stop pauses a queued upload still persisting while no turn is active', async () => {
   await runUploadTest(
     Effect.gen(function* () {

@@ -157,6 +157,33 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       })
     }
 
+    // Codex fixes approvalPolicy when the thread starts. Full access still accepts a request that
+    // arrives, including one already on screen after the shield changes.
+    function allowNow(session: Session, id: RpcId, pending: Omit<Pending, 'id'>) {
+      return Effect.gen(function* () {
+        if (session.input.permissionMode !== 'full_access' || !session.connection) return false
+        const response = approvalResponse({ id, ...pending }, 'allow')
+        if (!response) return false
+        yield* session.connection.respond(id, response)
+        return true
+      })
+    }
+
+    function applyLivePermission(threadId: string, mode: NonNullable<TurnInput['permissionMode']>) {
+      return Effect.gen(function* () {
+        const session = sessions.get(threadId)
+        if (!session) return
+        session.input = { ...session.input, permissionMode: mode }
+        if (mode !== 'full_access') return
+        for (const [itemId, pending] of Array.from(session.pending)) {
+          if (pending.questions || pending.form) continue
+          yield* respond(threadId, itemId, (item) => approvalResponse(item, 'allow'), {
+            decision: 'allow',
+          })
+        }
+      })
+    }
+
     function handleRequest(session: Session, message: RpcMessage) {
       return Effect.gen(function* () {
         const connection = session.connection!
@@ -195,6 +222,8 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             amendment.every((part) => typeof part === 'string')
               ? (amendment as string[])
               : undefined
+          if (yield* allowNow(session, id, execpolicyAmendment ? { execpolicyAmendment } : {}))
+            return
           session.pending.set(itemId, {
             id,
             ...(execpolicyAmendment ? { execpolicyAmendment } : {}),
@@ -224,6 +253,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               ([key, value]) => (key === 'network' || key === 'fileSystem') && value != null
             )
           )
+          if (yield* allowNow(session, id, { permissions })) return
           session.pending.set(itemId, { id, permissions })
           yield* session.emit({
             type: 'item.started',
@@ -250,6 +280,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             : server && name
               ? `mcp__${server}__${name}`
               : name || 'mcpToolCall'
+          if (yield* allowNow(session, id, { mcpTool: true })) return
           session.pending.set(itemId, { id, mcpTool: true })
           yield* session.emit({
             type: 'item.started',
@@ -263,6 +294,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             },
           })
         } else if (method === 'mcpServer/elicitation/request' && params.mode === 'url') {
+          if (yield* allowNow(session, id, { mcpUrl: true })) return
           session.pending.set(itemId, { id, mcpUrl: true })
           yield* session.emit({
             type: 'item.started',
@@ -786,6 +818,12 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       },
       setBotAllowRules() {
         return Effect.void
+      },
+      updateBot(bot) {
+        return applyLivePermission(bot.id, bot.permissionMode)
+      },
+      setPermissionMode(threadId, mode) {
+        return applyLivePermission(threadId, mode)
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {

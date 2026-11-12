@@ -102,6 +102,43 @@ test('full access accepts a Copilot command prompt without a card', async () => 
   })
 })
 
+test('turning on full access accepts a pending Copilot command prompt', async () => {
+  const f = await setup()
+  const turn = await Effect.runPromise(
+    f.agent.startTurn(
+      {
+        threadId: f.threadId,
+        turnId: newId(),
+        text: 'approval',
+        permissionMode: 'auto',
+      },
+      f.emit
+    )
+  )
+  await until(f.events, (event) => event.type === 'item.started' && event.item.kind === 'approval')
+  await Effect.runPromise(f.agent.setPermissionMode(f.threadId, 'full_access'))
+  await Effect.runPromise(turn.await)
+  expect(f.events).toContainEqual(
+    expect.objectContaining({
+      type: 'item.completed',
+      patch: { decision: 'allow' },
+    })
+  )
+  expect(f.log().find((message) => message.id === 0)?.result).toEqual({
+    outcome: { outcome: 'selected', optionId: 'yes-once' },
+  })
+  expect(
+    f
+      .log()
+      .some(
+        (message) =>
+          message.method === 'session/set_config_option' &&
+          message.params.configId === 'allow_all' &&
+          message.params.value === 'on'
+      )
+  ).toBe(true)
+})
+
 test('edit approvals keep diffs and correlate the tool id before the tool arrives', async () => {
   const f = await setup()
   const turn = await f.start('edit approval')

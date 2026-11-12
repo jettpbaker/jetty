@@ -408,6 +408,9 @@ export const QueuedMessage = Schema.Struct({
   hop: Schema.Natural,
   attachments: Schema.optional(Schema.Array(Attachment)),
   replies: Schema.optional(Schema.Array(Reply)),
+  // The composer shield when this message was queued. A follow-up sent while a turn runs would
+  // otherwise start in whatever mode the thread stored last.
+  permissionMode: Schema.optional(PermissionMode),
 })
 export type QueuedMessage = Schema.Schema.Type<typeof QueuedMessage>
 
@@ -732,6 +735,14 @@ export const methods = {
   'thread.retrySetup': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
   // Resumes a thread the crash-loop guard paused, as a restart would have.
   'thread.continue': { params: Schema.Struct({ threadId: Schema.String }), result: Schema.Null },
+  // The shield on the open thread. Bot home keeps the mode on the bot.
+  'thread.setPermissionMode': {
+    params: Schema.Struct({
+      threadId: Schema.String,
+      permissionMode: PermissionMode,
+    }),
+    result: Schema.Null,
+  },
   'settings.setJobModel': {
     params: Schema.Struct({ job: JobName, ...JobModel.fields }),
     result: Schema.Null,
@@ -1096,6 +1107,7 @@ export const methods = {
         Schema.Array(UploadAttachment).check(Schema.isMaxLength(MAX_ATTACHMENTS_PER_TURN))
       ),
       replies: Schema.optional(Schema.Array(Reply)),
+      permissionMode: Schema.optional(PermissionMode),
     }),
     result: Schema.Null,
   },

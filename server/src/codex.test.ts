@@ -151,6 +151,42 @@ for (const decision of ['allow', 'deny'] as const)
     }
   })
 
+test('full access accepts a Codex command prompt without a card', async () => {
+  const f = await setup()
+  const turn = await Effect.runPromise(
+    f.agent.startTurn(
+      {
+        threadId: f.threadId,
+        turnId: newId(),
+        text: 'approval',
+        permissionMode: 'full_access',
+      },
+      f.emit
+    )
+  )
+  await Effect.runPromise(turn.await)
+  expect(
+    f.events.some((event) => event.type === 'item.started' && event.item.kind === 'approval')
+  ).toBe(false)
+  expect(f.log().find((message) => message.id === 'approval-1')).toMatchObject({
+    result: { decision: 'accept' },
+  })
+})
+
+test('turning on full access accepts a pending Codex command prompt', async () => {
+  const f = await setup()
+  const turn = await f.start('approval')
+  await until(f.events, (event) => event.type === 'item.started' && event.item.kind === 'approval')
+  await Effect.runPromise(f.agent.setPermissionMode(f.threadId, 'full_access'))
+  await Effect.runPromise(turn.await)
+  expect(f.events).toContainEqual(
+    expect.objectContaining({ type: 'item.completed', patch: { decision: 'allow' } })
+  )
+  expect(f.log().find((message) => message.id === 'approval-1')).toMatchObject({
+    result: { decision: 'accept' },
+  })
+})
+
 test('question responses map question text to provider ids; unknown requests fail closed', async () => {
   const f = await setup()
   const turn = await f.start('question')

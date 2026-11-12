@@ -50,6 +50,7 @@ import {
   useRespondQuestion,
   useRespondSecret,
   useSendTurn,
+  useSetThreadPermissionMode,
   useThreadLoadout,
   useThreadMeta,
   withQuotes,
@@ -151,6 +152,7 @@ export function ThreadComposer({
   const { loadouts, usable, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
   const { accessMode, setAccessMode } = useAccessMode()
+  const setThreadPermissionMode = useSetThreadPermissionMode()
   const sendTurn = useSendTurn()
   const interruptTurn = useInterruptTurn()
   const continueThread = useContinueThread()
@@ -200,6 +202,13 @@ export function ThreadComposer({
     }
   }, [threadId, update, read])
   const meta = useThreadMeta(threadId)
+  // The shield is the global access mode. Once this thread exists, keep its live session on that
+  // mode, including a turn that started earlier. A bot home has its own mode (its id is the bot id).
+  const threadReady = meta?.id === threadId
+  useEffect(() => {
+    if (!threadId || !threadReady || meta?.botId === threadId) return
+    setThreadPermissionMode(threadId, accessMode)
+  }, [accessMode, meta?.botId, setThreadPermissionMode, threadId, threadReady])
   const providerUnavailable = useProviderUnavailable(lockedProvider)
   const unavailable =
     lockedProvider && providerUnavailable && !running && !meta?.botId
@@ -369,7 +378,7 @@ export function ThreadComposer({
     } else if (!text && attachments.items.length === 0) return
     // A message sent over an open secret request closes it, which only turn.start does.
     else if (threadId && running && item?.kind !== 'secret_request')
-      queueActions.add(threadId, text, attachments.take(), takeQuotes())
+      queueActions.add(threadId, text, attachments.take(), takeQuotes(), accessMode)
     else return startTurn(text, background)
     clearDraft()
   }
@@ -418,7 +427,8 @@ export function ThreadComposer({
     if (queues && !attachments.ready) return setWaitingEdit(entry)
     if (previous && editingEntry) queueActions.edit(threadId, editingEntry.id, previous)
     else if (editingEntry) queueActions.release(threadId, editingEntry.id)
-    else if (queues) queueActions.add(threadId, previous, attachments.take(), takeQuotes())
+    else if (queues)
+      queueActions.add(threadId, previous, attachments.take(), takeQuotes(), accessMode)
     queueActions.hold(threadId, entry.id)
     focusEdit.current = true
     update({

@@ -81,6 +81,9 @@ export type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
   updateBot?: (bot: Bot) => Effect.Effect<void, AgentError>
+  // The open thread's shield changed while a turn is live. Full access reconfigures the provider
+  // and accepts approvals already on screen.
+  setPermissionMode?(threadId: string, mode: PermissionMode): Effect.Effect<void, AgentError>
   setBotAllowRules?: (
     threadId: string,
     rules: readonly BotAllowRule[]

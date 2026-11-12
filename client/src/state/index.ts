@@ -145,6 +145,7 @@ export {
   useRespondSecret,
   useSendingIds,
   useSendTurn,
+  useSetThreadPermissionMode,
   useStopWorkflow,
   useThreadLoadout,
   useThreadOverlay,
