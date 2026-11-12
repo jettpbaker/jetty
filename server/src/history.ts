@@ -39,7 +39,7 @@ function latestTurn(state: ThreadState) {
   return state.activeTurnId ?? state.items.findLast((item) => !item.agentId)?.turnId ?? null
 }
 
-export function projectItem(item: ThreadItem, latestTurnId: string | null): ThreadItem {
+function projectItem(item: ThreadItem, latestTurnId: string | null): ThreadItem {
   return item.turnId === latestTurnId ? item : omitToolOutput(item)
 }
 
@@ -92,8 +92,9 @@ export function historyPage(
   const range = alignedRange(state, start, end)
   const items = state.items.slice(range.start, range.end)
   const turnIds = new Set(items.map((item) => item.turnId))
+  const latest = latestTurn(state)
   return {
-    items: items.map((item) => projectItem(item, latestTurn(state))),
+    items: items.map((item) => projectItem(item, latest)),
     start: range.start,
     total: state.items.length,
     seq: state.lastSeq,
@@ -112,10 +113,11 @@ export function historyPage(
 }
 
 export function threadSnapshot(state: ThreadState): ThreadSnapshot {
+  const latest = latestTurn(state)
   if (state.items.length <= pageItems)
     return {
       ...state,
-      items: state.items.map((item) => projectItem(item, latestTurn(state))),
+      items: state.items.map((item) => projectItem(item, latest)),
       history: {
         total: state.items.length,
         ranges: [{ start: 0, end: state.items.length }],
@@ -124,7 +126,6 @@ export function threadSnapshot(state: ThreadState): ThreadSnapshot {
     }
   const page = historyPage(state, {})
   const items = page.items
-  const latest = latestTurn(state)
   const firstLatest = state.items.findIndex((item) => item.turnId === latest)
   const support = state.items.filter(
     (item) => summaryItem(item) && (item.kind !== 'tool_call' || item.turnId === latest)
