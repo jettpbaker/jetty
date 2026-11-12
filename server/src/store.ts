@@ -1084,6 +1084,15 @@ export function createStore() {
       }).pipe(atomically, Effect.mapError(storeError))
     }
 
+    // A report that can't be delivered leaves a note in the child, which subscribers need too.
+    function withReport(threadId: string, appended: AppendedEvent) {
+      return reportSettledChild(threadId, { userTurnOnly: true }).pipe(
+        Effect.map((result): [AppendedEvent, ...AppendedEvent[]] =>
+          'note' in result && result.note ? [appended, result.note] : [appended]
+        )
+      )
+    }
+
     function append(threadId: string, event: ThreadEvent) {
       return Effect.gen(function* () {
         const [thread] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
@@ -2730,10 +2739,10 @@ export function createStore() {
       },
       appendEvent(threadId: string, event: ThreadEvent) {
         return append(threadId, event).pipe(
-          Effect.tap((appended) =>
+          Effect.flatMap((appended) =>
             event.type === 'turn.completed' && !appended.prevAutomaticCompaction
-              ? reportSettledChild(threadId, { userTurnOnly: true })
-              : Effect.void
+              ? withReport(threadId, appended)
+              : Effect.succeed<[AppendedEvent, ...AppendedEvent[]]>([appended])
           ),
           atomically,
           Effect.tap(() =>
@@ -2747,13 +2756,14 @@ export function createStore() {
       appendEvents(threadId: string, events: readonly [ThreadEvent, ...ThreadEvent[]]) {
         return Effect.forEach(events, (event) =>
           append(threadId, event).pipe(
-            Effect.tap(() =>
+            Effect.flatMap((appended) =>
               event.type === 'turn.completed'
-                ? reportSettledChild(threadId, { userTurnOnly: true })
-                : Effect.void
+                ? withReport(threadId, appended)
+                : Effect.succeed([appended])
             )
           )
         ).pipe(
+          Effect.map((appended) => appended.flat()),
           atomically,
           Effect.tap(() => signalQueueChange),
           Effect.mapError(storeError)

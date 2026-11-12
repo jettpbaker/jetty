@@ -86,11 +86,11 @@ test('concurrent SQL appends serialize durable sequences and reduced projection 
   )
   const events = await runtime.runPromise(store.getEventsAfter(thread.id, 0))
   expect(events.map(({ seq }) => seq)).toEqual(Array.from({ length: 60 }, (_, index) => index + 1))
-  expect(new Set(appends.map(({ seq }) => seq)).size).toBe(60)
+  expect(new Set(appends.map(([{ seq }]) => seq)).size).toBe(60)
   expect(await runtime.runPromise(store.getThreadState(thread.id))).toEqual(
     events.reduce(applyEvent, emptyThread)
   )
-  const sorted = appends.toSorted((a, b) => a.seq - b.seq)
+  const sorted = appends.map(([appended]) => appended).toSorted((a, b) => a.seq - b.seq)
   for (const appended of sorted) {
     expect(appended.state).toEqual(events.slice(0, appended.seq).reduce(applyEvent, emptyThread))
   }
@@ -118,7 +118,7 @@ for (const table of ['thread_events', 'threads']) {
         await runtime.runPromise(
           store.appendEvent(thread.id, { type: 'turn.started', turnId: 'retry' })
         )
-      ).seq
+      )[0].seq
     ).toBe(1)
   })
 }
@@ -140,7 +140,7 @@ test('a failed COMMIT leaves no uncommitted events in the cached state', async (
   ).rejects.toThrow()
   expect(await runtime.runPromise(store.getEventsAfter(thread.id, 0))).toEqual([])
   expect(await runtime.runPromise(store.getThreadState(thread.id))).toEqual(before)
-  const next = await runtime.runPromise(
+  const [next] = await runtime.runPromise(
     store.appendEvent(thread.id, { type: 'turn.started', turnId: 'real' })
   )
   expect(next.seq).toBe(1)

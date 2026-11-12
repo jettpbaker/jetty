@@ -697,7 +697,7 @@ export function createOrchestrator({
           event = { ...event, item: { ...event.item, private: !fromUser } }
         }
         // A bad value in an item (a negative count, a malformed patch) loses that update, not the turn.
-        const appended = yield* store
+        const written = yield* store
           .appendEvent(threadId, event)
           .pipe(
             Effect.catch((error) =>
@@ -708,10 +708,11 @@ export function createOrchestrator({
                 : Effect.fail(error)
             )
           )
-        if (!appended) return yield* onCommit
+        if (!written) return yield* onCommit
+        const [appended] = written
         if (event.type === 'turn.started') live.turnId = event.turnId
         yield* onCommit
-        yield* publish(threadId, appended)
+        for (const each of written) yield* publish(threadId, each)
         if (
           event.type === 'item.completed' &&
           (onPullRequestOutput || onBranchPushed || onPullRequestWritten)
@@ -2161,7 +2162,7 @@ export function createOrchestrator({
                 return appended
               })
             )
-            yield* publish(threadId, appended)
+            for (const event of appended) yield* publish(threadId, event)
             hub.pushChrome({
               type: 'thread.upserted',
               thread: yield* store.requireThread(threadId),
@@ -2422,7 +2423,7 @@ export function createOrchestrator({
                       })
                     )
                     if (!appended) return
-                    yield* publish(thread.id, appended)
+                    for (const event of appended) yield* publish(thread.id, event)
                     hub.pushChrome({
                       type: 'thread.upserted',
                       thread: yield* store.requireThread(thread.id),
