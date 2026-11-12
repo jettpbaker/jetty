@@ -478,3 +478,31 @@ export function useThreadRowPrefetch() {
     },
   }
 }
+
+// What a failed turn's Retry reads: the message it would send again (the turn's last, when the
+// turn began with the user's own message), and whether the turn is the latest, failed, with the
+// thread idle. Its row re-renders only when one of those changes.
+const turnRetryAtom = Atom.family((key: string) => {
+  const [threadId, turnId] = JSON.parse(key) as [string, string]
+  return Atom.withEquality(
+    Atom.readable((get) => {
+      const thread = get(threadStructureAtom(threadId))
+      const messages = (thread?.items ?? []).flatMap((item) =>
+        item.turnId === turnId && item.kind === 'user_message' ? [item] : []
+      )
+      return {
+        sent: messages[0]?.from ? undefined : messages.findLast((item) => !item.from),
+        failed:
+          !!thread &&
+          Object.keys(thread.turnOutcomes).at(-1) === turnId &&
+          thread.lastTurnOutcome === 'failed' &&
+          !thread.activeTurnId,
+      }
+    }),
+    (a, b) => a.sent === b.sent && a.failed === b.failed
+  )
+})
+
+export function useTurnRetry(threadId: string, turnId: string) {
+  return useAtomValue(turnRetryAtom(JSON.stringify([threadId, turnId])))
+}
