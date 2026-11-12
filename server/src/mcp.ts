@@ -419,6 +419,10 @@ function result(value: unknown) {
   }
 }
 
+function failure(message: string) {
+  return { ...result(message), isError: true }
+}
+
 export function createMcpHandler(
   sessions: McpSessions,
   store: Store,
@@ -862,29 +866,18 @@ export function createMcpHandler(
           effect.pipe(
             Effect.map(result),
             Effect.catch((error) =>
-              Effect.succeed({
-                content: [
-                  {
-                    type: 'text' as const,
-                    text:
-                      error instanceof StoreError
-                        ? error.message
-                        : `Jetty tool failed: ${error.message}`,
-                  },
-                ],
-                isError: true,
-              })
+              Effect.succeed(
+                failure(
+                  error instanceof StoreError
+                    ? error.message
+                    : `Jetty tool failed: ${error.message}`
+                )
+              )
             )
           )
-        ).catch((error: unknown) => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: `Jetty tool failed: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        }))
+        ).catch((error: unknown) =>
+          failure(`Jetty tool failed: ${error instanceof Error ? error.message : String(error)}`)
+        )
       }
       server.registerTool(
         'list_threads',
@@ -1175,7 +1168,7 @@ export function createMcpHandler(
                   kind === 'wiki'
                     ? 'Read your index.md or grep your pages meanwhile.'
                     : 'Use list_threads and read_thread meanwhile.'
-                return { ...result(`Search isn't ready: ${reason}. ${fallback}`), isError: true }
+                return failure(`Search isn't ready: ${reason}. ${fallback}`)
               }
             }
           )
