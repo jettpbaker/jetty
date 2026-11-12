@@ -67,7 +67,6 @@ import { Link } from '@tanstack/react-router'
 import {
   cloneElement,
   memo,
-  createContext,
   isValidElement,
   useContext,
   useEffect,
@@ -635,11 +634,10 @@ function ChecksPill({ pr }: { pr: PrPull }) {
     </Popover>
   )
 }
-const StatusChange = createContext<(state: PrPull['state']) => void>(() => {})
 const statusOptions = ['open', 'draft', 'closed'] as const
 
 function StatusMenu({ pr }: { pr: PrPull }) {
-  const change = useContext(StatusChange)
+  const { actions } = usePrRuntime()
   if (pr.state === 'merged')
     return (
       <div className='flex h-7 items-center px-1'>
@@ -664,7 +662,7 @@ function StatusMenu({ pr }: { pr: PrPull }) {
       <DropdownMenuContent align='start' className='w-44'>
         <DropdownMenuRadioGroup
           value={pr.state}
-          onValueChange={(value) => change(value as PrPull['state'])}
+          onValueChange={(value) => void actions.state(value as (typeof statusOptions)[number])}
         >
           {statusOptions.map((state) => {
             const option = prPresentation[state]
@@ -1951,13 +1949,9 @@ function GuidePane({
   )
 }
 
-export function JettyStyle({ pr: original }: { pr: PrPull }) {
-  const pr = original
+export function JettyStyle({ pr }: { pr: PrPull }) {
   const { actions, ref, status, more, sidebar } = usePrRuntime()
   useNow(60_000)
-  const setState = (state: PrPull['state']) => {
-    if (state !== 'merged') void actions.state(state)
-  }
   const chrome = useChrome()
   const guidesOn = chrome?.agentBehaviours?.guidedReviews ?? true
   const guideUnavailable = chrome?.models?.length === 0
@@ -2116,321 +2110,317 @@ export function JettyStyle({ pr: original }: { pr: PrPull }) {
   const [attachSlot, setAttachSlot] = useState<HTMLDivElement | null>(null)
   const byline = (pr.state === 'merged' && pr.mergedBy) || pr.author
   return (
-    <StatusChange value={setState}>
-      <DiffStyleContext value={diffStyle}>
-        <DiffWrapContext value={wrap}>
-          <PrDiffRevisionContext value={revision}>
-            <PrDiffLoaderContext value={loadFile}>
-              <div
-                ref={view}
-                data-perf-region='pr-panel'
-                className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
-              >
-                <div className='flex shrink-0 items-center justify-between px-4 pt-3 pb-2'>
-                  {sidebar}
-                  <nav aria-label='Pull request view' className='flex gap-1'>
-                    {(
-                      [
-                        ['overview', 'Overview', 'Overview · 1'],
-                        ['diff', 'Diff', 'Diff · 2'],
-                        ['guide', 'Guide', guideReason ?? 'Guide · 3'],
-                      ] as const
-                    )
-                      .filter(([value]) => value !== 'guide' || guidesOn)
-                      .map(([value, label, hint]) => (
-                        <Hint key={value} text={hint}>
-                          <Button
-                            variant='ghost'
-                            tone='muted'
-                            size='sm'
-                            aria-pressed={tab === value}
-                            disabled={value === 'guide' && !!guideReason}
-                            aria-description={value === 'guide' ? guideReason : undefined}
-                            className='rounded-sm font-normal aria-pressed:bg-accent'
-                            {...pressProps(() => {
-                              if (value === 'diff') perf.start('pr.diff')
-                              setTab(value)
-                            })}
-                          >
-                            {label}
-                          </Button>
-                        </Hint>
-                      ))}
-                  </nav>
-                  <div className='ml-auto flex items-center gap-1'>
-                    {tab === 'guide' && guide.state?.guide && (
-                      <DiffDisplayOptions
-                        trigger={
-                          <Button
-                            variant='ghost'
-                            tone='muted'
-                            size='icon'
-                            aria-label='Diff display options'
-                          />
-                        }
-                        diffStyle={diffStyle}
-                        onDiffStyleChange={setDiffStyle}
-                        toggles={[
-                          ['Hide generated', hideGenerated, setHideGenerated],
-                          ['Wrap lines', wrap, setWrapChoice],
-                        ]}
-                      />
-                    )}
-                    {status}
-                    {pr.state === 'draft' ? (
-                      <Button
-                        size='sm'
-                        className='rounded-sm'
-                        disabled={!editable(pr)}
-                        onClick={() => setState('open')}
-                      >
-                        Ready for review
-                      </Button>
-                    ) : pr.state === 'open' ? (
-                      <MergeButton
-                        pr={pr}
-                        reason={reason}
-                        onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
-                      />
-                    ) : null}
-                    {more}
-                  </div>
-                </div>
-                {
-                  <div
-                    className={cn(
-                      'relative flex min-h-0 flex-1 flex-col',
-                      tab !== 'overview' && 'hidden'
-                    )}
-                  >
-                    <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
-                      <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
-                        <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
-                          <div className='space-y-1'>
-                            <div className='flex flex-wrap items-center gap-2.5'>
-                              <StatusPill pr={pr} />
-                              <Hint text='Opens in GitHub'>
-                                <a
-                                  href={pr.url}
-                                  target='_blank'
-                                  rel='noreferrer'
-                                  className='inline-flex items-center gap-1 font-mono text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
-                                >
-                                  {repoName(pr)} #{pr.number}
-                                  <ArrowUpRightIcon className='size-3.5' />
-                                </a>
-                              </Hint>
-                            </div>
-                            <h2 className='text-2xl font-medium'>
-                              <TitleEditor
-                                title={pr.title}
-                                disabled={!editable(pr)}
-                                onSave={(next) => void actions.title(next)}
-                              />
-                            </h2>
-                            <div className='flex items-center gap-1 text-xs'>
-                              <PersonAvatar
-                                login={byline.login}
-                                src={byline.avatarUrl || undefined}
-                                className='size-5.5 shrink-0'
-                              />
-                              {/* GitHub's header sentence; once merged, it names whoever merged. Branches wear the inline-code
-                        chip at the size table code uses. */}
-                              <span className='min-w-0'>
-                                {personName(byline)}{' '}
-                                <span className='text-muted-foreground'>
-                                  {pr.state === 'merged' ? 'merged into' : 'wants to merge into'}
-                                </span>{' '}
-                                <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
-                                  {pr.base}
-                                </code>{' '}
-                                <span className='text-muted-foreground'>from</span>{' '}
-                                <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
-                                  {pr.head}
-                                </code>{' '}
-                                <Ago at={(pr.state === 'merged' && pr.mergedAt) || pr.createdAt} />
-                              </span>
-                            </div>
-                          </div>
-                          <Properties pr={pr} />
-                          <Section
-                            title='Description'
-                            className='group/description'
-                            action={<div ref={setAttachSlot} className='flex' />}
-                          >
-                            <DescriptionEditor
-                              attachSlot={attachSlot}
-                              identity={`${ref.repo}#${ref.number}`}
-                              onSave={editable(pr) ? (body) => actions.body(body) : undefined}
-                              onUpload={editable(pr) ? actions.upload : undefined}
-                              disabled={!editable(pr)}
-                              body={pr.body}
-                              references={{
-                                repo: repoPath(pr),
-                                issues: [...(pr.issues ?? []), ...(pr.references ?? [])],
-                              }}
-                            />
-                          </Section>
-                          <Section title='Activity' className='flex flex-1 flex-col'>
-                            <MemoizedActivity pr={pr} />
-                          </Section>
-                        </div>
-                      </main>
-                    </div>
-                  </div>
-                }
-                {diffSeen && (
-                  <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'diff' && 'hidden')}>
-                    <DiffToolbar
-                      files={files}
-                      total={changed.length}
-                      pane={pane}
-                      paneId='linear-file-pane'
-                      onPaneChange={setPane}
-                      filter={filter}
-                      onFilter={setFilter}
-                      inView={inView}
-                      onSelect={(path) => {
-                        setSelected(path)
-                        setInView(path)
-                        view.current
-                          ?.querySelector<HTMLElement>(
-                            `section[id="${CSS.escape(`linear-file-${path}`)}"]`
-                          )
-                          ?.scrollIntoView({ block: 'start' })
-                      }}
+    <DiffStyleContext value={diffStyle}>
+      <DiffWrapContext value={wrap}>
+        <PrDiffRevisionContext value={revision}>
+          <PrDiffLoaderContext value={loadFile}>
+            <div
+              ref={view}
+              data-perf-region='pr-panel'
+              className='@container flex h-full min-h-0 flex-col bg-background text-sm outline-none'
+            >
+              <div className='flex shrink-0 items-center justify-between px-4 pt-3 pb-2'>
+                {sidebar}
+                <nav aria-label='Pull request view' className='flex gap-1'>
+                  {(
+                    [
+                      ['overview', 'Overview', 'Overview · 1'],
+                      ['diff', 'Diff', 'Diff · 2'],
+                      ['guide', 'Guide', guideReason ?? 'Guide · 3'],
+                    ] as const
+                  )
+                    .filter(([value]) => value !== 'guide' || guidesOn)
+                    .map(([value, label, hint]) => (
+                      <Hint key={value} text={hint}>
+                        <Button
+                          variant='ghost'
+                          tone='muted'
+                          size='sm'
+                          aria-pressed={tab === value}
+                          disabled={value === 'guide' && !!guideReason}
+                          aria-description={value === 'guide' ? guideReason : undefined}
+                          className='rounded-sm font-normal aria-pressed:bg-accent'
+                          {...pressProps(() => {
+                            if (value === 'diff') perf.start('pr.diff')
+                            setTab(value)
+                          })}
+                        >
+                          {label}
+                        </Button>
+                      </Hint>
+                    ))}
+                </nav>
+                <div className='ml-auto flex items-center gap-1'>
+                  {tab === 'guide' && guide.state?.guide && (
+                    <DiffDisplayOptions
+                      trigger={
+                        <Button
+                          variant='ghost'
+                          tone='muted'
+                          size='icon'
+                          aria-label='Diff display options'
+                        />
+                      }
                       diffStyle={diffStyle}
                       onDiffStyleChange={setDiffStyle}
                       toggles={[
                         ['Hide generated', hideGenerated, setHideGenerated],
-                        ['Hide viewed', hideViewed, setHideViewed],
                         ['Wrap lines', wrap, setWrapChoice],
                       ]}
-                      filters={
-                        <>
-                          {['all', 'comments'].map((value) => (
-                            <Button
-                              key={value}
-                              variant='ghost-text'
-                              size='sm'
-                              aria-pressed={mode === value}
-                              disabled={!!commit && value === 'comments'}
-                              className='px-2 font-normal'
-                              onClick={() => {
-                                setMode(value)
-                                setSelected(null)
-                              }}
-                            >
-                              {value === 'all' ? (
-                                'All'
-                              ) : (
-                                <>
-                                  Comments
-                                  <span className='text-muted-foreground tabular-nums'>
-                                    {pr.threads.filter((t) => !t.resolved).length}
-                                  </span>
-                                </>
-                              )}
-                            </Button>
-                          ))}
-                        </>
-                      }
+                    />
+                  )}
+                  {status}
+                  {pr.state === 'draft' ? (
+                    <Button
+                      size='sm'
+                      className='rounded-sm'
+                      disabled={!editable(pr)}
+                      onClick={() => void actions.state('open')}
                     >
-                      <CommitPicker
-                        commits={pr.commits}
-                        value={commit}
-                        onChange={(sha) => {
-                          setCommitSha(sha)
-                          setSelected(null)
-                          if (sha) setMode('all')
-                        }}
-                      />
-                    </DiffToolbar>
-                    <DiffFileList
-                      files={files}
-                      pane={pane}
-                      paneId='linear-file-pane'
-                      treeKey={commitSha ?? ''}
-                      filter={filter}
-                      onFilter={setFilter}
-                      selected={selected}
-                      inView={inView}
-                      onInView={setInView}
-                      onSelect={(path) => {
-                        if (path === inViewRef.current) return
-                        setSelected(path)
-                        setInView(path)
-                        view.current
-                          ?.querySelector<HTMLElement>(
-                            `section[id="${CSS.escape(`linear-file-${path}`)}"]`
-                          )
-                          ?.scrollIntoView({ block: 'start' })
-                      }}
-                      comments={commit ? undefined : commentCounts}
-                      listClassName='space-y-2 px-2 @max-[720px]:pl-2'
-                    >
-                      {files.map((f, index) => (
-                        <FileCardComponent
-                          key={`${commitSha}-${f.path}`}
-                          file={f}
-                          deferHeader={files.length > 100}
-                          initiallyNear={files.length > 100 && index < 8}
-                          pr={pr}
-                          threads={commit ? noThreads : (threadsByPath.get(f.path) ?? noThreads)}
-                          commit={commit}
-                          comments={mode === 'comments'}
-                          hideGenerated={hideGenerated}
-                          viewed={viewed.has(f.path)}
-                          onViewed={actions.viewed}
-                        />
-                      ))}
-                      {commit && !commitFiles.data && (
-                        <div className='text-xs text-muted-foreground'>
-                          {commitFiles.failed ? (
-                            <Button variant='ghost-text' size='sm' onClick={commitFiles.retry}>
-                              Couldn't load commit files · Retry
-                            </Button>
-                          ) : (
-                            <Loading label='Loading commit files…' />
-                          )}
-                        </div>
-                      )}
-                      {!files.length && (!commit || !!commitFiles.data) && (
-                        <p className='p-6 text-xs text-muted-foreground'>
-                          No files match this view
-                        </p>
-                      )}
-                    </DiffFileList>
-                  </div>
-                )}
-
-                {guideSeen && (
-                  <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'guide' && 'hidden')}>
-                    <PrDiffRevisionContext value={guideRevision}>
-                      <PrDiffLoaderContext value={guideLoadFile}>
-                        <GuidePane
-                          pr={pr}
-                          guide={guide}
-                          hideGenerated={hideGenerated}
-                          threadsByPath={threadsByPath}
-                        />
-                      </PrDiffLoaderContext>
-                    </PrDiffRevisionContext>
-                  </div>
-                )}
-
-                {(painted || diffSeen || guideSeen) && (
-                  <svg
-                    aria-hidden='true'
-                    className='absolute size-0 overflow-hidden'
-                    dangerouslySetInnerHTML={{ __html: charmedSprite }}
-                  />
-                )}
+                      Ready for review
+                    </Button>
+                  ) : pr.state === 'open' ? (
+                    <MergeButton
+                      pr={pr}
+                      reason={reason}
+                      onMerge={(method) => actions.merge(method, pr.data.pull.head.sha)}
+                    />
+                  ) : null}
+                  {more}
+                </div>
               </div>
-            </PrDiffLoaderContext>
-          </PrDiffRevisionContext>
-        </DiffWrapContext>
-      </DiffStyleContext>
-    </StatusChange>
+              {
+                <div
+                  className={cn(
+                    'relative flex min-h-0 flex-1 flex-col',
+                    tab !== 'overview' && 'hidden'
+                  )}
+                >
+                  <div className='scrollbar-subtle min-h-0 flex-1 overflow-auto'>
+                    <main className='flex min-h-full min-w-0 flex-col px-7 pt-7 pb-9'>
+                      <div className='mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-9'>
+                        <div className='space-y-1'>
+                          <div className='flex flex-wrap items-center gap-2.5'>
+                            <StatusPill pr={pr} />
+                            <Hint text='Opens in GitHub'>
+                              <a
+                                href={pr.url}
+                                target='_blank'
+                                rel='noreferrer'
+                                className='inline-flex items-center gap-1 font-mono text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
+                              >
+                                {repoName(pr)} #{pr.number}
+                                <ArrowUpRightIcon className='size-3.5' />
+                              </a>
+                            </Hint>
+                          </div>
+                          <h2 className='text-2xl font-medium'>
+                            <TitleEditor
+                              title={pr.title}
+                              disabled={!editable(pr)}
+                              onSave={(next) => void actions.title(next)}
+                            />
+                          </h2>
+                          <div className='flex items-center gap-1 text-xs'>
+                            <PersonAvatar
+                              login={byline.login}
+                              src={byline.avatarUrl || undefined}
+                              className='size-5.5 shrink-0'
+                            />
+                            {/* GitHub's header sentence; once merged, it names whoever merged. Branches wear the inline-code
+                        chip at the size table code uses. */}
+                            <span className='min-w-0'>
+                              {personName(byline)}{' '}
+                              <span className='text-muted-foreground'>
+                                {pr.state === 'merged' ? 'merged into' : 'wants to merge into'}
+                              </span>{' '}
+                              <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
+                                {pr.base}
+                              </code>{' '}
+                              <span className='text-muted-foreground'>from</span>{' '}
+                              <code className='inline-code rounded px-1 py-px font-mono text-xs wrap-anywhere'>
+                                {pr.head}
+                              </code>{' '}
+                              <Ago at={(pr.state === 'merged' && pr.mergedAt) || pr.createdAt} />
+                            </span>
+                          </div>
+                        </div>
+                        <Properties pr={pr} />
+                        <Section
+                          title='Description'
+                          className='group/description'
+                          action={<div ref={setAttachSlot} className='flex' />}
+                        >
+                          <DescriptionEditor
+                            attachSlot={attachSlot}
+                            identity={`${ref.repo}#${ref.number}`}
+                            onSave={editable(pr) ? (body) => actions.body(body) : undefined}
+                            onUpload={editable(pr) ? actions.upload : undefined}
+                            disabled={!editable(pr)}
+                            body={pr.body}
+                            references={{
+                              repo: repoPath(pr),
+                              issues: [...(pr.issues ?? []), ...(pr.references ?? [])],
+                            }}
+                          />
+                        </Section>
+                        <Section title='Activity' className='flex flex-1 flex-col'>
+                          <MemoizedActivity pr={pr} />
+                        </Section>
+                      </div>
+                    </main>
+                  </div>
+                </div>
+              }
+              {diffSeen && (
+                <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'diff' && 'hidden')}>
+                  <DiffToolbar
+                    files={files}
+                    total={changed.length}
+                    pane={pane}
+                    paneId='linear-file-pane'
+                    onPaneChange={setPane}
+                    filter={filter}
+                    onFilter={setFilter}
+                    inView={inView}
+                    onSelect={(path) => {
+                      setSelected(path)
+                      setInView(path)
+                      view.current
+                        ?.querySelector<HTMLElement>(
+                          `section[id="${CSS.escape(`linear-file-${path}`)}"]`
+                        )
+                        ?.scrollIntoView({ block: 'start' })
+                    }}
+                    diffStyle={diffStyle}
+                    onDiffStyleChange={setDiffStyle}
+                    toggles={[
+                      ['Hide generated', hideGenerated, setHideGenerated],
+                      ['Hide viewed', hideViewed, setHideViewed],
+                      ['Wrap lines', wrap, setWrapChoice],
+                    ]}
+                    filters={
+                      <>
+                        {['all', 'comments'].map((value) => (
+                          <Button
+                            key={value}
+                            variant='ghost-text'
+                            size='sm'
+                            aria-pressed={mode === value}
+                            disabled={!!commit && value === 'comments'}
+                            className='px-2 font-normal'
+                            onClick={() => {
+                              setMode(value)
+                              setSelected(null)
+                            }}
+                          >
+                            {value === 'all' ? (
+                              'All'
+                            ) : (
+                              <>
+                                Comments
+                                <span className='text-muted-foreground tabular-nums'>
+                                  {pr.threads.filter((t) => !t.resolved).length}
+                                </span>
+                              </>
+                            )}
+                          </Button>
+                        ))}
+                      </>
+                    }
+                  >
+                    <CommitPicker
+                      commits={pr.commits}
+                      value={commit}
+                      onChange={(sha) => {
+                        setCommitSha(sha)
+                        setSelected(null)
+                        if (sha) setMode('all')
+                      }}
+                    />
+                  </DiffToolbar>
+                  <DiffFileList
+                    files={files}
+                    pane={pane}
+                    paneId='linear-file-pane'
+                    treeKey={commitSha ?? ''}
+                    filter={filter}
+                    onFilter={setFilter}
+                    selected={selected}
+                    inView={inView}
+                    onInView={setInView}
+                    onSelect={(path) => {
+                      if (path === inViewRef.current) return
+                      setSelected(path)
+                      setInView(path)
+                      view.current
+                        ?.querySelector<HTMLElement>(
+                          `section[id="${CSS.escape(`linear-file-${path}`)}"]`
+                        )
+                        ?.scrollIntoView({ block: 'start' })
+                    }}
+                    comments={commit ? undefined : commentCounts}
+                    listClassName='space-y-2 px-2 @max-[720px]:pl-2'
+                  >
+                    {files.map((f, index) => (
+                      <FileCardComponent
+                        key={`${commitSha}-${f.path}`}
+                        file={f}
+                        deferHeader={files.length > 100}
+                        initiallyNear={files.length > 100 && index < 8}
+                        pr={pr}
+                        threads={commit ? noThreads : (threadsByPath.get(f.path) ?? noThreads)}
+                        commit={commit}
+                        comments={mode === 'comments'}
+                        hideGenerated={hideGenerated}
+                        viewed={viewed.has(f.path)}
+                        onViewed={actions.viewed}
+                      />
+                    ))}
+                    {commit && !commitFiles.data && (
+                      <div className='text-xs text-muted-foreground'>
+                        {commitFiles.failed ? (
+                          <Button variant='ghost-text' size='sm' onClick={commitFiles.retry}>
+                            Couldn't load commit files · Retry
+                          </Button>
+                        ) : (
+                          <Loading label='Loading commit files…' />
+                        )}
+                      </div>
+                    )}
+                    {!files.length && (!commit || !!commitFiles.data) && (
+                      <p className='p-6 text-xs text-muted-foreground'>No files match this view</p>
+                    )}
+                  </DiffFileList>
+                </div>
+              )}
+
+              {guideSeen && (
+                <div className={cn('flex min-h-0 flex-1 flex-col', tab !== 'guide' && 'hidden')}>
+                  <PrDiffRevisionContext value={guideRevision}>
+                    <PrDiffLoaderContext value={guideLoadFile}>
+                      <GuidePane
+                        pr={pr}
+                        guide={guide}
+                        hideGenerated={hideGenerated}
+                        threadsByPath={threadsByPath}
+                      />
+                    </PrDiffLoaderContext>
+                  </PrDiffRevisionContext>
+                </div>
+              )}
+
+              {(painted || diffSeen || guideSeen) && (
+                <svg
+                  aria-hidden='true'
+                  className='absolute size-0 overflow-hidden'
+                  dangerouslySetInnerHTML={{ __html: charmedSprite }}
+                />
+              )}
+            </div>
+          </PrDiffLoaderContext>
+        </PrDiffRevisionContext>
+      </DiffWrapContext>
+    </DiffStyleContext>
   )
 }
