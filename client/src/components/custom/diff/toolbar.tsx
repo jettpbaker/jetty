@@ -257,10 +257,7 @@ function FilesMenu({
         >
           <ChangedFilesTree
             key={files.map((f) => f.path).join()}
-            files={files.map((f) => ({
-              path: f.path,
-              status: f.status === 'removed' ? 'deleted' : f.status,
-            }))}
+            files={files}
             counts={Object.fromEntries(
               files.map((f) => [f.path, { additions: f.additions, deletions: f.deletions }])
             )}

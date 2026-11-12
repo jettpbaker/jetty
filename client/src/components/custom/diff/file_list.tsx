@@ -58,10 +58,7 @@ export function DiffFileList({
           <div className='-mx-1.5 min-h-0 flex-1'>
             <ChangedFilesTree
               key={`${treeKey}:${files.map((f) => f.path).join()}`}
-              files={files.map((f) => ({
-                path: f.path,
-                status: f.status === 'removed' ? 'deleted' : f.status,
-              }))}
+              files={files}
               comments={comments}
               selected={selected}
               active={inView}

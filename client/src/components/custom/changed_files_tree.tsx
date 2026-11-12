@@ -1,4 +1,4 @@
-import type { FileTreeVisibleRow, GitStatus } from '@pierre/trees'
+import type { FileTreeVisibleRow } from '@pierre/trees'
 
 import { centralMasks, centralSymbols } from '@/components/custom/central_icons'
 import { charmedFolderNames, charmedFolderSymbols } from '@/components/custom/charmed_folders'
@@ -9,6 +9,8 @@ import {
 } from '@/components/custom/charmed_icons'
 import { FileTree, useFileTree } from '@pierre/trees/react'
 import { useEffect, useRef } from 'react'
+
+import type { DiffFile } from './diff/model'
 
 import './changed_files_tree.css'
 import '@/components/custom/charmed_icons.css'
@@ -110,7 +112,7 @@ export function ChangedFilesTree({
   counts,
   active,
 }: {
-  files: { path: string; status: GitStatus }[]
+  files: Pick<DiffFile, 'path' | 'status'>[]
   selected: string | null
   onSelect: (path: string) => void
   // Open comment threads per path, shown at the end of the row.
@@ -135,7 +137,11 @@ export function ChangedFilesTree({
       .filter(Boolean)
       .join('\n'),
     initialSelectedPaths: selected ? [selected] : [],
-    gitStatus: files.map(({ path, status }) => ({ path, status })),
+    // The tree names a removed file git's way.
+    gitStatus: files.map(({ path, status }) => ({
+      path,
+      status: status === 'removed' ? ('deleted' as const) : status,
+    })),
     renderRowDecoration: ({ row }) => {
       if (row.kind === 'directory') return charmedTree.folderDecoration(row)
       const lines = counts?.[row.path]
