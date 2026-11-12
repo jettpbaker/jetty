@@ -937,9 +937,9 @@ export function createRpcHandlers(
           yield* liveBot(params.botId)
           if (!params.text.trim() && !params.attachments?.length && !params.attachmentIds?.length)
             return yield* Effect.fail(new StoreError('invalid_params', 'Message is empty'))
+          const state = yield* store.getThreadState(params.botId)
           const persistedAttachments = []
           if (params.attachmentIds?.length) {
-            const state = yield* store.getThreadState(params.botId)
             for (const id of params.attachmentIds) {
               const attachment = state.items
                 .flatMap((item) =>
@@ -953,7 +953,6 @@ export function createRpcHandlers(
           }
           const { replies } = params
           if (replies?.length) {
-            const state = yield* store.getThreadState(params.botId)
             for (const reply of replies) {
               const quoted = state.items.find((item) => item.id === reply.itemId)
               if (
@@ -965,7 +964,7 @@ export function createRpcHandlers(
                 )
             }
           }
-          const openQuestions = (yield* store.getThreadState(params.botId)).items.filter(
+          const openQuestions = state.items.filter(
             (item) =>
               item.kind === 'question' &&
               !item.agentId &&
