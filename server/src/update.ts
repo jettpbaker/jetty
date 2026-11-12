@@ -83,15 +83,12 @@ export function createUpdater(home: string, publish: (state: JettyUpdate | undef
     return head !== remote ? head : undefined
   }
 
+  // A checkout that can't update (off main, local changes, no network) offers nothing.
   async function check() {
-    try {
-      await command(['git', 'fetch', 'origin', 'main'], signal)
-      const available = await eligible()
-      if (!state || state.status === 'available')
-        set(available ? { status: 'available' } : undefined)
-    } catch {
-      if (!state || state.status === 'available') set(undefined)
-    }
+    const available = await command(['git', 'fetch', 'origin', 'main'], signal)
+      .then(eligible)
+      .catch(() => undefined)
+    if (!state || state.status === 'available') set(available ? { status: 'available' } : undefined)
   }
 
   // Only the restart touches the database, so this runs alongside the rest of the update.
