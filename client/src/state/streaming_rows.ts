@@ -9,7 +9,7 @@ import { useContext, useEffectEvent, useLayoutEffect, useState } from 'react'
 import { itemDeltasSince, sameItemStructure } from './item_selection'
 import { threadAtom } from './threads'
 
-export function createStreamingRows() {
+function createStreamingRows() {
   let base: readonly ThreadRow[] = []
   let rows: ThreadRow[] = []
   const indices = new Map<string, number>()

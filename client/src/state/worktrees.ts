@@ -67,7 +67,7 @@ export function useBranchList(projectId: string | undefined, localOnly: boolean)
 
 // Either list knows a project's git state; if neither has landed this session, load the cheap
 // local one, answering from the cache meanwhile.
-export function useProjectsGit(projectIds: readonly string[]) {
+function useProjectsGit(projectIds: readonly string[]) {
   const lists = useAtomValue(branchListsAtom)
   const fetchBranches = useBranches()
   const known = (map: ReadonlyMap<string, BranchList>, id: string) =>

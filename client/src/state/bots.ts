@@ -19,10 +19,10 @@ import { threadStructureAtom } from './threads'
 
 type Registry = AtomRegistry.AtomRegistry
 
-export type NewBot = Omit<ParamsOf<'bot.create'>, 'id'>
+type NewBot = Omit<ParamsOf<'bot.create'>, 'id'>
 
 // Shown in the chat from the moment it's sent, until the bot's thread has it.
-export type PendingBotMessage = {
+type PendingBotMessage = {
   id: string
   text: string
   replies?: readonly Reply[]

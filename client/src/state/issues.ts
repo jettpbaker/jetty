@@ -6,7 +6,7 @@ import { AsyncResult, Atom } from 'effect/reactivity'
 
 import { connectionAtom } from './connection'
 
-export type IssueRef = { repo: string; number: number }
+type IssueRef = { repo: string; number: number }
 
 function issueKey(ref: IssueRef) {
   return `${ref.repo}#${ref.number}`

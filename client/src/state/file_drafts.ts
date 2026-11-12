@@ -10,7 +10,7 @@ import { useAction } from './connection'
 // reloading never loses them. `base` is the file's text on disk that the edits started from.
 // `unverified`: a save that didn't confirm (a conflict, a lost reply) may have written over `base`,
 // so edits undone back to it stay a draft until the disk is read again.
-export type FileDraft = { base: string; text: string; unverified?: boolean }
+type FileDraft = { base: string; text: string; unverified?: boolean }
 
 const storageKey = (threadId: string, path: string) => `jetty.file-draft:${threadId}:${path}`
 

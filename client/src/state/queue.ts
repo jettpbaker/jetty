@@ -352,7 +352,7 @@ const threadRemovedAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => get(removedAtom).get(threadId))
 )
 
-export function useThreadQueue(threadId: string | undefined) {
+function useThreadQueue(threadId: string | undefined) {
   const server = useAtomValue(pendingMessagesAtom(threadId ?? ''))
   const ops = useAtomValue(threadQueueOpsAtom(threadId ?? ''))
   return useMemo(() => applyOps(server ?? noMessages, ops ?? []), [ops, server])

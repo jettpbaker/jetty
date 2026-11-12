@@ -8,7 +8,7 @@ import { useAction } from './connection'
 import { detailsRequestAtom } from './thread_tab'
 
 // A desktop lives on the thread whose agent started it; one no thread has any more has ended.
-export type Desktop = { threadId?: string; state: 'starting' | 'live' | 'ended' }
+type Desktop = { threadId?: string; state: 'starting' | 'live' | 'ended' }
 
 const ended: Desktop = { state: 'ended' }
 
