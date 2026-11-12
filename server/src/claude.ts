@@ -38,6 +38,7 @@ import type { Store } from './store'
 
 import {
   AgentError,
+  toAgentError,
   compactFailureReason,
   couldntCompact,
   type Agent,
@@ -167,10 +168,6 @@ type WarmSession = {
   publication: Semaphore.Semaphore
   // Keeps a message's translation and publishing together, so a hook's event can't overtake them.
   translation: Semaphore.Semaphore
-}
-
-function storeFailed(error: { message: string }) {
-  return new AgentError(error.message)
 }
 
 function sdkFailed(error: unknown) {
@@ -668,7 +665,7 @@ export function createClaudeAdapter(
               session.compactSucceeded = true
               yield* store
                 .setCompactAnchor(session.threadId, undefined)
-                .pipe(Effect.mapError(storeFailed))
+                .pipe(Effect.mapError(toAgentError))
             }
             // A resume Claude Code can't place drops the anchor too: a plain resume beats a bot whose
             // every turn fails.
@@ -686,7 +683,7 @@ export function createClaudeAdapter(
               session.rewoundTo = null
               yield* store
                 .setCompactAnchor(session.threadId, undefined)
-                .pipe(Effect.mapError(storeFailed))
+                .pipe(Effect.mapError(toAgentError))
             }
             if (message.type === 'result') {
               yield* session.publication.withPermit(
@@ -732,7 +729,7 @@ export function createClaudeAdapter(
                 if (session.ctx.sessionId) {
                   yield* store
                     .setThreadSessionId(session.threadId, session.ctx.sessionId)
-                    .pipe(Effect.mapError(storeFailed))
+                    .pipe(Effect.mapError(toAgentError))
                   session.ctx.sessionId = null
                 }
                 for (const event of events) yield* publish(session, event, sourceSeq)
@@ -1032,11 +1029,11 @@ export function createClaudeAdapter(
         const options = sessionOptions(input, Boolean(bot))
         const resume = yield* store
           .getThreadSessionId(input.threadId)
-          .pipe(Effect.mapError(storeFailed))
+          .pipe(Effect.mapError(toAgentError))
         const compactAnchor = yield* store
           .getCompactAnchor(input.threadId)
-          .pipe(Effect.mapError(storeFailed))
-        const behaviours = yield* store.getAgentBehaviours().pipe(Effect.mapError(storeFailed))
+          .pipe(Effect.mapError(toAgentError))
+        const behaviours = yield* store.getAgentBehaviours().pipe(Effect.mapError(toAgentError))
         const instructions =
           !bot && sdkMcp && jettyInstructions(behaviours, input.parentThreadId, workspace)
         const usageIdentity = config.query
@@ -1271,19 +1268,17 @@ export function createClaudeAdapter(
               workingPath: input.cwd ?? project.path,
               projectPath: project.path,
             }
-          }).pipe(
-            Effect.mapError((error) =>
-              error instanceof AgentError ? error : new AgentError(error.message)
-            )
-          )
+          }).pipe(Effect.mapError(toAgentError))
           const projectPath = workspace.workingPath
-          const bot = yield* store.getBot(input.threadId).pipe(Effect.mapError(storeFailed))
-          const projects = bot ? yield* store.listProjects().pipe(Effect.mapError(storeFailed)) : []
+          const bot = yield* store.getBot(input.threadId).pipe(Effect.mapError(toAgentError))
+          const projects = bot
+            ? yield* store.listProjects().pipe(Effect.mapError(toAgentError))
+            : []
           const instructionsHash = bot
             ? yield* Effect.gen(function* () {
                 const behaviours = yield* store
                   .getAgentBehaviours()
-                  .pipe(Effect.mapError(storeFailed))
+                  .pipe(Effect.mapError(toAgentError))
                 return yield* Effect.tryPromise({
                   try: () =>
                     prepareBotHome(bot, projects, behaviours, projectPath, async (text) => {
@@ -1329,11 +1324,11 @@ export function createClaudeAdapter(
           }
           if (
             input.compact &&
-            !(yield* store.getCompactAnchor(input.threadId).pipe(Effect.mapError(storeFailed)))
+            !(yield* store.getCompactAnchor(input.threadId).pipe(Effect.mapError(toAgentError)))
           ) {
             const sessionId = yield* store
               .getThreadSessionId(input.threadId)
-              .pipe(Effect.mapError(storeFailed))
+              .pipe(Effect.mapError(toAgentError))
             if (sessionId) {
               const messages = yield* Effect.tryPromise({
                 try: () => getSessionMessages(sessionId, { dir: projectPath }),
@@ -1344,7 +1339,7 @@ export function createClaudeAdapter(
               if (anchor)
                 yield* store
                   .setCompactAnchor(input.threadId, anchor)
-                  .pipe(Effect.mapError(storeFailed))
+                  .pipe(Effect.mapError(toAgentError))
             }
           }
           const fresh = !session
@@ -1522,7 +1517,7 @@ export function createClaudeAdapter(
         const session = sessions.get(threadId)
         if (!session || !session.bot) return Effect.void
         return Effect.gen(function* () {
-          const bot = yield* store.getBot(threadId).pipe(Effect.mapError(storeFailed))
+          const bot = yield* store.getBot(threadId).pipe(Effect.mapError(toAgentError))
           if (!bot) return
           yield* Effect.tryPromise({
             try: () => session.query.applyFlagSettings(botAutoMode(bot.name, rules)),
@@ -1557,7 +1552,7 @@ export function createClaudeAdapter(
           (session, pending) =>
             Effect.gen(function* () {
               if (!pending.rule || decision !== 'always') return
-              const bot = yield* store.getBot(threadId).pipe(Effect.mapError(storeFailed))
+              const bot = yield* store.getBot(threadId).pipe(Effect.mapError(toAgentError))
               if (!bot) return
               const rule = { id: itemId, ...pending.rule, createdAt: Date.now() }
               const rules = [...(bot.allowRules ?? []).filter((rule) => rule.id !== itemId), rule]
@@ -1565,7 +1560,7 @@ export function createClaudeAdapter(
                 try: () => session.query.applyFlagSettings(botAutoMode(bot.name, rules)),
                 catch: sdkFailed,
               })
-              yield* store.setBotAllowRules(threadId, rules).pipe(Effect.mapError(storeFailed))
+              yield* store.setBotAllowRules(threadId, rules).pipe(Effect.mapError(toAgentError))
             })
         )
       },

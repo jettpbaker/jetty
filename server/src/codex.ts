@@ -10,6 +10,7 @@ import type { Store } from './store'
 
 import {
   AgentError,
+  toAgentError,
   compactFailureReason,
   couldntCompact,
   type Agent,
@@ -614,7 +615,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                       )
                       yield* session.emit({ type: 'item.completed', itemId })
                     })
-                  ).pipe(Effect.mapError((error) => new AgentError(error.message)))
+                  ).pipe(Effect.mapError(toAgentError))
                 }
                 if (
                   ((message.method === 'item/started' || message.method === 'item/completed') &&
@@ -698,9 +699,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             )
           )
         ),
-        Effect.mapError((error) =>
-          error instanceof AgentError ? error : new AgentError(error.message)
-        )
+        Effect.mapError(toAgentError)
       )
     }
 
@@ -772,12 +771,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           )
           session.fiber = yield* Effect.forkIn(lifecycle, owner)
           return { await: Deferred.await(done) }
-        }).pipe(
-          Effect.mapError((error) =>
-            error instanceof AgentError ? error : new AgentError(error.message)
-          ),
-          admission.withPermit
-        )
+        }).pipe(Effect.mapError(toAgentError), admission.withPermit)
       },
       hasPendingUserMessage(threadId) {
         return (sessions.get(threadId)?.steerUnread.length ?? 0) > 0

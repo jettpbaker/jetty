@@ -50,6 +50,10 @@ export class AgentError extends Error {
   readonly _tag = 'AgentError'
 }
 
+export function toAgentError(error: { message: string }) {
+  return error instanceof AgentError ? error : new AgentError(error.message)
+}
+
 export function couldntCompact(turnId: string, reason: string): ThreadEvent {
   const detail = reason.trim() || 'Compaction failed'
   return {

@@ -33,7 +33,7 @@ import type { Secrets } from './secrets'
 import type { AppendedEvent, Store } from './store'
 import type { Worktrees } from './worktrees'
 
-import { AgentError, compactFailureReason, couldntCompact, type Agent } from './agent'
+import { AgentError, compactFailureReason, couldntCompact, toAgentError, type Agent } from './agent'
 import { fileSize } from './attachments'
 import { approvalCommand, botApproval, lowerFirst } from './bot-approval'
 import {
@@ -204,10 +204,6 @@ export function botStamp(date = new Date()) {
   const part = (name: Intl.DateTimeFormatPartTypes) =>
     parts.find((entry) => entry.type === name)!.value
   return `[${part('weekday')}, ${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')}]`
-}
-
-function toAgentError(error: Error) {
-  return new AgentError(error.message)
 }
 
 // A line in the server log per archive, so a slow one shows where its time went. "wait" is for

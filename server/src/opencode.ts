@@ -16,6 +16,7 @@ import { acpPrompt, jettyMcpServers } from './acp-session'
 import { acpContextUsage, acpToolName } from './acp-translate'
 import {
   AgentError,
+  toAgentError,
   couldntCompact,
   type Agent,
   type AgentImage,
@@ -605,12 +606,7 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
             Effect.forkIn(owner)
           )
           return { await: Deferred.await(session.done) }
-        }).pipe(
-          Effect.mapError((error) =>
-            error instanceof AgentError ? error : new AgentError(error.message)
-          ),
-          admission.withPermit
-        )
+        }).pipe(Effect.mapError(toAgentError), admission.withPermit)
       },
       hasPendingUserMessage(threadId) {
         return sessions.get(threadId)?.steerUnread ?? false

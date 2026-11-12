@@ -11,6 +11,7 @@ import { acpPermissionOutcome } from './acp-permissions'
 import { acpPrompt, jettyMcpServers } from './acp-session'
 import {
   AgentError,
+  toAgentError,
   compactFailureReason,
   couldntCompact,
   type Agent,
@@ -641,11 +642,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
             )
           }
         })
-      ).pipe(
-        Effect.mapError((error) =>
-          error instanceof AgentError ? error : new AgentError(error.message)
-        )
-      )
+      ).pipe(Effect.mapError(toAgentError))
     }
 
     // Grok advertises /workflow stop as a prompt command, but no task-specific ACP stop request.
@@ -793,12 +790,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           )
           session.fiber = yield* Effect.forkIn(lifecycle, owner)
           return { await: Deferred.await(done) }
-        }).pipe(
-          Effect.mapError((error) =>
-            error instanceof AgentError ? error : new AgentError(error.message)
-          ),
-          admission.withPermit
-        )
+        }).pipe(Effect.mapError(toAgentError), admission.withPermit)
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void) {
         return Effect.suspend(() => {
