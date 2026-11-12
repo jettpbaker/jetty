@@ -1524,12 +1524,7 @@ export function createStore() {
         )
       },
       setBotAllowRules(botId: string, rules: readonly BotAllowRule[]) {
-        return sql`INSERT INTO settings (key, value_json)
-          VALUES (${`bot_allow_rules.${botId}`}, ${JSON.stringify(rules)})
-          ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`.pipe(
-          Effect.asVoid,
-          Effect.mapError(storeError)
-        )
+        return writeSetting(`bot_allow_rules.${botId}`, rules)
       },
       getBotLifecycle,
       updateBotLifecycle,
