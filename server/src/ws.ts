@@ -279,7 +279,7 @@ export function createRpcHandlers(
       number: number
     }): Effect.Effect<{ repo: string; number: number }, StoreError> {
       return validPullRequestRef(ref)
-        ? Effect.succeed(ref)
+        ? Effect.succeed({ repo: ref.repo.toLowerCase(), number: ref.number })
         : Effect.fail(new StoreError('invalid_params', 'Invalid GitHub pull request reference'))
     }
 
@@ -632,44 +632,44 @@ export function createRpcHandlers(
             })
           : Effect.fail(new StoreError('invalid_params', 'Invalid reviewer search'))
         ).pipe(Effect.mapError(wireError)),
-      'pullRequest.setReviewRequest': ({ login, requested, kind, ...ref }) =>
+      'pullRequest.setReviewRequest': ({ login, requested, kind, ...input }) =>
         Effect.gen(function* () {
-          yield* checkedRef(ref)
+          const ref = yield* checkedRef(input)
           return yield* pullRequests.setReviewRequest(ref, login, requested, kind)
         }).pipe(Effect.mapError(wireError)),
-      'pullRequest.updateTitle': ({ title, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.updateTitle(ref, title)),
+      'pullRequest.updateTitle': ({ title, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.updateTitle(ref, title)),
           Effect.mapError(wireError)
         ),
-      'pullRequest.updateBody': ({ body, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.updateBody(ref, body)),
+      'pullRequest.updateBody': ({ body, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.updateBody(ref, body)),
           Effect.mapError(wireError)
         ),
-      'pullRequest.setState': ({ state, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.setState(ref, state)),
+      'pullRequest.setState': ({ state, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.setState(ref, state)),
           Effect.mapError(wireError)
         ),
-      'pullRequest.comment': ({ body, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.comment(ref, body)),
+      'pullRequest.comment': ({ body, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.comment(ref, body)),
           Effect.mapError(wireError)
         ),
-      'pullRequest.reply': ({ commentId, body, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.reply(ref, commentId, body)),
+      'pullRequest.reply': ({ commentId, body, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.reply(ref, commentId, body)),
           Effect.mapError(wireError)
         ),
-      'pullRequest.resolveThread': ({ threadId, resolved, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.resolveThread(ref, threadId, resolved)),
+      'pullRequest.resolveThread': ({ threadId, resolved, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.resolveThread(ref, threadId, resolved)),
           Effect.mapError(wireError)
         ),
-      'pullRequest.setViewed': ({ path, viewed, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.setViewed(ref, path, viewed)),
+      'pullRequest.setViewed': ({ path, viewed, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.setViewed(ref, path, viewed)),
           Effect.mapError(wireError)
         ),
       'pullRequest.commitFiles': ({ repo, sha }) =>
@@ -678,9 +678,9 @@ export function createRpcHandlers(
           catch: (error) =>
             error instanceof StoreError ? error : new StoreError('internal', String(error)),
         }).pipe(Effect.mapError(wireError)),
-      'pullRequest.merge': ({ sha, mergeMethod, ...ref }) =>
-        checkedRef(ref).pipe(
-          Effect.flatMap(() => pullRequests.merge(ref, sha, mergeMethod)),
+      'pullRequest.merge': ({ sha, mergeMethod, ...input }) =>
+        checkedRef(input).pipe(
+          Effect.flatMap((ref) => pullRequests.merge(ref, sha, mergeMethod)),
           Effect.mapError(wireError)
         ),
       'pullRequest.uploadAttachment': (params) =>
@@ -688,10 +688,10 @@ export function createRpcHandlers(
           try: () => uploadGithubAttachment(params),
           catch: wireError,
         }),
-      'pullRequest.subscribe': (ref, { client }) =>
+      'pullRequest.subscribe': (input, { client }) =>
         Stream.unwrap(
           Effect.gen(function* () {
-            yield* checkedRef(ref)
+            const ref = yield* checkedRef(input)
             yield* hub.watchGithubActivity(client.id)
             yield* pullRequests.watch(ref, client.id)
             const queue = yield* hub.subscribePullRequest(ref.repo, ref.number)
