@@ -787,27 +787,19 @@ export function DeferredMarkdownEditor({
           dangerouslySetInnerHTML={{ __html: markup }}
         />
       </div>
-      {props.attachSlot &&
-        createPortal(
-          <Button
-            variant='ghost'
-            size='icon-xs'
-            className='-my-1 opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
-            disabled={props.disabled || !props.onUpload}
-            aria-label='Attach image or video'
-            title='Attach image or video'
-            onClick={() => {
-              activate(false)
-              props.attachSlot
-                ?.closest('section')
-                ?.querySelector<HTMLButtonElement>('[aria-label="Attach image or video"]')
-                ?.click()
-            }}
-          >
-            <Paperclip2Icon />
-          </Button>,
-          props.attachSlot
-        )}
+      {props.attachSlot && (
+        <AttachSlotButton
+          slot={props.attachSlot}
+          disabled={props.disabled || !props.onUpload}
+          onClick={() => {
+            activate(false)
+            props.attachSlot
+              ?.closest('section')
+              ?.querySelector<HTMLButtonElement>('[aria-label="Attach image or video"]')
+              ?.click()
+          }}
+        />
+      )}
       {props.onSubmit && (
         <ComposerActions
           disabled={!!props.disabled}
@@ -856,6 +848,32 @@ export function DescriptionEditor({
       references={references}
       attachSlot={attachSlot}
     />
+  )
+}
+
+// A description's paperclip sits on its section heading, shown while the description is hovered or focused.
+function AttachSlotButton({
+  slot,
+  disabled,
+  onClick,
+}: {
+  slot: HTMLElement
+  disabled: boolean
+  onClick: () => void
+}) {
+  return createPortal(
+    <Button
+      variant='ghost'
+      size='icon-xs'
+      className='-my-1 opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
+      disabled={disabled}
+      aria-label='Attach image or video'
+      title='Attach image or video'
+      onClick={onClick}
+    >
+      <Paperclip2Icon />
+    </Button>,
+    slot
   )
 }
 
@@ -1582,22 +1600,9 @@ export function MarkdownEditor({
           event.target.value = ''
         }}
       />
-      {/* A description's paperclip sits on its section heading, shown while the description is hovered or focused. */}
-      {attachSlot &&
-        createPortal(
-          <Button
-            variant='ghost'
-            size='icon-xs'
-            className='-my-1 opacity-0 group-focus-within/description:opacity-100 group-hover/description:opacity-100 focus-visible:opacity-100'
-            disabled={disabled || !onUpload}
-            aria-label='Attach image or video'
-            title='Attach image or video'
-            onClick={pickFiles}
-          >
-            <Paperclip2Icon />
-          </Button>,
-          attachSlot
-        )}
+      {attachSlot && (
+        <AttachSlotButton slot={attachSlot} disabled={disabled || !onUpload} onClick={pickFiles} />
+      )}
       {onSubmit && (
         <ComposerActions
           disabled={disabled}
