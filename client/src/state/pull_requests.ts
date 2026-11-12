@@ -855,3 +855,12 @@ export function usePullRequestCommitFiles(repo: string, sha: string | null) {
     retry: () => registry.refresh(atom),
   }
 }
+
+const pullRequestRefreshingAtom = Atom.family((key: string) =>
+  Atom.readable((get) => get(refreshingAtom).has(key))
+)
+
+// Whether one PR is refreshing, without re-rendering on each of its snapshots.
+export function usePullRequestRefreshing(ref: PullRequestRef) {
+  return useAtomValue(pullRequestRefreshingAtom(pullRequestKey(ref)))
+}
