@@ -568,7 +568,7 @@ export const Bot = Schema.Struct({
   id: BotId,
   name: Schema.String,
   checkIns: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  allowRules: Schema.optional(Schema.Array(BotAllowRule)),
+  allowRules: Schema.Array(BotAllowRule),
   shape: BotShape,
   color: BotColor,
   provider: ProviderId,

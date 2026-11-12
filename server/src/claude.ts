@@ -1087,7 +1087,7 @@ export function createClaudeAdapter(
                   ...(bot
                     ? {
                         settings: {
-                          ...botAutoMode(bot.name, bot.allowRules ?? []),
+                          ...botAutoMode(bot.name, bot.allowRules),
                           idleCompaction: false,
                         },
                       }
@@ -1506,8 +1506,7 @@ export function createClaudeAdapter(
         ).pipe(
           Effect.andThen(
             Effect.tryPromise({
-              try: () =>
-                session.query.applyFlagSettings(botAutoMode(bot.name, bot.allowRules ?? [])),
+              try: () => session.query.applyFlagSettings(botAutoMode(bot.name, bot.allowRules)),
               catch: sdkFailed,
             })
           )
@@ -1555,7 +1554,7 @@ export function createClaudeAdapter(
               const bot = yield* store.getBot(threadId).pipe(Effect.mapError(toAgentError))
               if (!bot) return
               const rule = { id: itemId, ...pending.rule, createdAt: Date.now() }
-              const rules = [...(bot.allowRules ?? []).filter((rule) => rule.id !== itemId), rule]
+              const rules = [...bot.allowRules.filter((rule) => rule.id !== itemId), rule]
               yield* Effect.tryPromise({
                 try: () => session.query.applyFlagSettings(botAutoMode(bot.name, rules)),
                 catch: sdkFailed,

@@ -196,6 +196,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
                 unread: false,
                 archived: false,
                 tasks: [],
+                allowRules: [],
               },
             }),
           'bot.update': () => Effect.fail({ code: 'not_found' as const, message: 'Bot not found' }),
