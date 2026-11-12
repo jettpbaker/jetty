@@ -209,7 +209,6 @@ function toAgentError(error: Error) {
   return new AgentError(error.message)
 }
 
-// A worktree failure reaches the user with its own message, such as an archive script's output.
 // A line in the server log per archive, so a slow one shows where its time went. "wait" is for
 // other work on the thread's tree, "lock" for other worktree work in its repo.
 function archiveTiming(threadId: string) {
@@ -244,6 +243,7 @@ function archiveTiming(threadId: string) {
   }
 }
 
+// A worktree failure reaches the user with its own message, such as an archive script's output.
 function worktreeTask<A>(task: (signal: AbortSignal) => Promise<A>) {
   return Effect.tryPromise({
     try: task,
