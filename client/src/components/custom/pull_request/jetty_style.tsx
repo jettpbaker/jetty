@@ -1992,7 +1992,6 @@ export function JettyStyle({ pr }: { pr: PrPull }) {
   const [commitSha, setCommitSha] = useState<string | null>(null)
   // The file at the top of the diff as it scrolls; the tree's selection follows it.
   const [scrolledTo, setInView] = useState<string | null>(null)
-  const inViewRef = useRef<string | null>(null)
   const commit = pr.commits.find((c) => c.sha === commitSha)
   if (commitSha && !commit) setCommitSha(null)
   const [diffStyle, setDiffStyle] = useDiffStyle()
@@ -2102,7 +2101,6 @@ export function JettyStyle({ pr }: { pr: PrPull }) {
   )
   const FileCardComponent = pr.files.length > 100 ? MemoizedFileCard : FileCard
   const inView = files.some((f) => f.path === scrolledTo) ? scrolledTo : (files[0]?.path ?? null)
-  inViewRef.current = inView
   const reason = mergeReason(pr)
   const [attachSlot, setAttachSlot] = useState<HTMLDivElement | null>(null)
   const byline = (pr.state === 'merged' && pr.mergedBy) || pr.author
@@ -2346,7 +2344,7 @@ export function JettyStyle({ pr }: { pr: PrPull }) {
                     inView={inView}
                     onInView={setInView}
                     onSelect={(path) => {
-                      if (path !== inViewRef.current) showFile(path)
+                      if (path !== inView) showFile(path)
                     }}
                     comments={commit ? undefined : commentCounts}
                     listClassName='space-y-2 px-2 @max-[720px]:pl-2'
