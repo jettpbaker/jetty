@@ -107,3 +107,10 @@ function oledClass() {
 export function useOled() {
   return useSyncExternalStore(subscribeToThemeClass, oledClass)
 }
+
+export const themes = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'oled', label: 'OLED' },
+] as const
