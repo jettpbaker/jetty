@@ -599,9 +599,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                   yield* prompt(existing!, input.text, input.images)
                 })
               )
-              .pipe(
-                Effect.onError((cause) => stopOnFailure(existing!, String(Cause.squash(cause))))
-              )
+              .pipe(Effect.onError((cause) => stopOnFailure(existing!, causeMessage(cause))))
             if (existing.expired) {
               if (existing.fiber) yield* Fiber.interrupt(existing.fiber)
               existing = undefined
@@ -685,7 +683,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             )
             .pipe(
               Effect.uninterruptible,
-              Effect.onError((cause) => stopOnFailure(session, String(Cause.squash(cause))))
+              Effect.onError((cause) => stopOnFailure(session, causeMessage(cause)))
             )
         })
       },
@@ -742,7 +740,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             )
             .pipe(
               Effect.uninterruptible,
-              Effect.onError((cause) => stopOnFailure(session, String(Cause.squash(cause))))
+              Effect.onError((cause) => stopOnFailure(session, causeMessage(cause)))
             )
         })
       },
@@ -752,4 +750,9 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
       },
     } satisfies Agent
   })
+}
+
+function causeMessage(cause: Cause.Cause<unknown>) {
+  const error = Cause.squash(cause)
+  return error instanceof Error ? error.message : String(error)
 }

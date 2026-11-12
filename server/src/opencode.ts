@@ -537,9 +537,7 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
                   yield* prompt(existing!, input.text, input.images)
                 })
               )
-              .pipe(
-                Effect.onError((cause) => stopOnFailure(existing!, String(Cause.squash(cause))))
-              )
+              .pipe(Effect.onError((cause) => stopOnFailure(existing!, causeMessage(cause))))
             if (existing.expired) {
               if (existing.fiber) yield* Fiber.interrupt(existing.fiber)
               existing = undefined
@@ -624,7 +622,7 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
             )
             .pipe(
               Effect.uninterruptible,
-              Effect.onError((cause) => stopOnFailure(session, String(Cause.squash(cause))))
+              Effect.onError((cause) => stopOnFailure(session, causeMessage(cause)))
             )
         })
       },
@@ -681,7 +679,7 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
             )
             .pipe(
               Effect.uninterruptible,
-              Effect.onError((cause) => stopOnFailure(session, String(Cause.squash(cause))))
+              Effect.onError((cause) => stopOnFailure(session, causeMessage(cause)))
             )
         })
       },
@@ -691,4 +689,9 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
       },
     } satisfies Agent
   })
+}
+
+function causeMessage(cause: Cause.Cause<unknown>) {
+  const error = Cause.squash(cause)
+  return error instanceof Error ? error.message : String(error)
 }

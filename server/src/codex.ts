@@ -1,7 +1,7 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
 import { newId } from '@jetty/shared/wire'
-import { Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
+import { Cause, Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
 import type { Attachments } from './attachments'
@@ -796,7 +796,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             )
             .pipe(
               Effect.uninterruptible,
-              Effect.onError((cause) => stopOnFailure(session, String(cause)))
+              Effect.onError((cause) => stopOnFailure(session, causeMessage(cause)))
             )
         })
       },
@@ -931,7 +931,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
           )
           .pipe(
             Effect.uninterruptible,
-            Effect.onError((cause) => stopOnFailure(session, String(cause)))
+            Effect.onError((cause) => stopOnFailure(session, causeMessage(cause)))
           )
       })
     }
@@ -1001,4 +1001,9 @@ function approvalResponse(pending: Pending, decision: 'allow' | 'always' | 'deny
           ? 'accept'
           : 'decline',
   }
+}
+
+function causeMessage(cause: Cause.Cause<unknown>) {
+  const error = Cause.squash(cause)
+  return error instanceof Error ? error.message : String(error)
 }
