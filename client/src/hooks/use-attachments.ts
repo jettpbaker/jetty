@@ -21,8 +21,6 @@ export type ComposerAttachment = {
   dataUrl?: string
   width?: number
   height?: number
-  // why it can't be sent, for a composer that keeps failed attachments in view
-  error?: string
 }
 export type ReadyAttachment = ComposerAttachment & { dataUrl: string }
 export type Attachments = ReturnType<typeof useAttachments>
@@ -109,12 +107,7 @@ function lostNotice(names: readonly string[] | undefined) {
 // A queued message keeps the attachments it was queued with; an edit changes its text.
 const editingNotice = "Attachments can't be added while editing a queued message."
 
-// keepFailed leaves an attachment that can't be used in the row with its reason, rather than
-// dropping it with a notice under the composer.
-export function useAttachments(
-  key: string,
-  { editing = false, keepFailed = false }: { editing?: boolean; keepFailed?: boolean } = {}
-) {
+export function useAttachments(key: string, { editing = false }: { editing?: boolean } = {}) {
   const { draft, update: updateDraft, read } = useDraft(key)
   const items = draft.attachments
   const [error, setError] = useState<string>()
@@ -137,21 +130,16 @@ export function useAttachments(
     setError(problem)
   }
 
-  function fail(url: string, problem: string) {
-    if (!keepFailed) return drop(url, problem)
-    patch(url, (item) => ({ ...item, error: problem }))
-  }
-
   async function prepare(url: string, file: File) {
     const prepared = await readAttachment(file)
     if (!current().some((item) => item.url === url)) return
-    if (!prepared) return fail(url, `Couldn't read ${file.name}.`)
+    if (!prepared) return drop(url, `Couldn't read ${file.name}.`)
     const limit = isImageType(file.type) ? MAX_IMAGE_BYTES : MAX_FILE_BYTES
-    if (prepared.size > limit) return fail(url, `${file.name} must be under ${megabytes(limit)}.`)
+    if (prepared.size > limit) return drop(url, `${file.name} must be under ${megabytes(limit)}.`)
     const others = current().filter((item) => item.url !== url && item.dataUrl)
     const total = others.reduce((sum, item) => sum + item.sizeBytes, prepared.size)
     if (total > MAX_TURN_ATTACHMENT_BYTES)
-      return fail(
+      return drop(
         url,
         `Attachments in one message must total under ${megabytes(MAX_TURN_ATTACHMENT_BYTES)}.`
       )
@@ -169,20 +157,12 @@ export function useAttachments(
         problems.push(`${file.name} is empty.`)
       } else if (current().length + added.length >= MAX_ATTACHMENTS_PER_TURN) {
         overflow = true
+      } else if (!isImageType(file.type) && file.size > MAX_FILE_BYTES) {
+        // Images shrink on the way in, so only a file can be too big before it's read.
+        problems.push(`${file.name} must be under ${megabytes(MAX_FILE_BYTES)}.`)
       } else {
         const url = URL.createObjectURL(file)
-        const item = { url, name: file.name, mimeType: file.type, sizeBytes: file.size }
-        // Images shrink on the way in, so only a file can be too big before it's read.
-        if (!isImageType(file.type) && file.size > MAX_FILE_BYTES) {
-          const problem = `${file.name} must be under ${megabytes(MAX_FILE_BYTES)}.`
-          if (keepFailed) added.push({ ...item, error: problem })
-          else {
-            revokeBlobUrl(url)
-            problems.push(problem)
-          }
-          continue
-        }
-        added.push(item)
+        added.push({ url, name: file.name, mimeType: file.type, sizeBytes: file.size })
         void prepare(url, file)
       }
     }
@@ -214,7 +194,6 @@ export function useAttachments(
     const ready = current().flatMap((item) =>
       item.dataUrl ? [{ ...item, dataUrl: item.dataUrl }] : []
     )
-    for (const item of current()) if (item.error) revokeBlobUrl(item.url)
     update([])
     setError(undefined)
     return ready
@@ -236,7 +215,7 @@ export function useAttachments(
       lostNotice(draft.lostAttachments),
     // why attachments can't be added now
     refused: editing ? editingNotice : undefined,
-    ready: items.every((item) => item.dataUrl || item.error),
+    ready: items.every((item) => item.dataUrl),
     add,
     paste,
     remove,

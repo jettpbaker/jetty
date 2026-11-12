@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { isImageMimeType } from '@jetty/shared/wire'
 import { createContext, use } from 'react'
 
-import { ExclamationCircleIcon, CrossSmallIcon, FileTypeIcon } from './central_icons'
+import { CrossSmallIcon, FileTypeIcon } from './central_icons'
 import { mediaUrl } from './media_layout'
 
 // The images an agent sees inline; anything else, an SVG included, is a file it gets as a path.
@@ -102,34 +102,27 @@ export function FileLines({ files }: { files: readonly Attachment[] }) {
   )
 }
 
-// A staged file in a composer's row. One that can't be sent is ringed in red, as an image is.
+// A staged file in a composer's row.
 export function FileChip({
   name,
   mimeType,
-  error,
   onRemove,
   className,
 }: {
   name: string
   mimeType: string
-  error?: string
   onRemove: () => void
   className?: string
 }) {
   return (
     <span
-      title={error ?? name}
+      title={name}
       className={cn(
         'group/file flex h-10 max-w-40 shrink-0 items-center gap-1.5 rounded-lg bg-foreground/8 pr-1 pl-2.5 text-xs',
-        error && 'text-destructive ring-2 ring-destructive ring-inset',
         className
       )}
     >
-      {error ? (
-        <ExclamationCircleIcon className='shrink-0' />
-      ) : (
-        <FileTypeIcon mimeType={mimeType} name={name} className='shrink-0 text-muted-foreground' />
-      )}
+      <FileTypeIcon mimeType={mimeType} name={name} className='shrink-0 text-muted-foreground' />
       <span className='min-w-0 truncate'>{name}</span>
       <Button
         variant='ghost'

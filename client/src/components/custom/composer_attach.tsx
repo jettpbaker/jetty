@@ -70,7 +70,6 @@ export function ComposerAttachments({
             key={image.url}
             name={image.name}
             mimeType={image.mimeType}
-            error={image.error}
             className='h-12'
             onRemove={() => onRemove(image.url)}
           />
