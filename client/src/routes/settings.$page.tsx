@@ -46,7 +46,8 @@ function SettingsPageRoute() {
   useEffect(() => {
     if (hash) revealSettingsRow(hash)
   }, [page, hash])
-  const Page = pages[page]
+  // An inherited name like `constructor` is not a page.
+  const Page = Object.hasOwn(pages, page) ? pages[page] : undefined
   return Page ? (
     <Page />
   ) : (
