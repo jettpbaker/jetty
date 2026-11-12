@@ -1,5 +1,5 @@
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
-import type { ModelDiscovery, ProviderModel } from '@jetty/shared/wire'
+import type { ModelDiscovery, ProviderModel, ProviderUsage } from '@jetty/shared/wire'
 
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
@@ -677,6 +677,17 @@ function createServer(opts: ServerOptions = {}) {
       Effect.repeat(Schedule.spaced('5 seconds')),
       Effect.forkIn(discoveryScope)
     )
+    function providerUsage(
+      provider: ProviderId
+    ): Effect.Effect<ProviderUsage, never, ChildProcessSpawner.ChildProcessSpawner> {
+      if (agentKind === 'echo') return Effect.succeed(echoUsage(provider))
+      if (provider === 'copilot') return readCopilotProviderUsage(home, opts.copilot)
+      if (provider === 'opencode') return readOpencodeProviderUsage(home, opts.opencode)
+      if (provider === 'codex') return readCodexProviderUsage(home, opts.codex)
+      return Effect.promise(() =>
+        provider === 'grok' ? readGrokProviderUsage() : readClaudeProviderUsage()
+      )
+    }
     const admissionScope = yield* Scope.fork(yield* Effect.scope)
     const handlers = yield* createRpcHandlers(
       store,
@@ -687,24 +698,10 @@ function createServer(opts: ServerOptions = {}) {
       pullRequests,
       worktrees,
       () => modelDiscovery,
-      (provider) => {
-        if (agentKind === 'echo') return Effect.succeed(echoUsage(provider))
-        if (provider === 'copilot')
-          return readCopilotProviderUsage(home, opts.copilot).pipe(
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-          )
-        if (provider === 'opencode')
-          return readOpencodeProviderUsage(home, opts.opencode).pipe(
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-          )
-        if (provider === 'codex')
-          return readCodexProviderUsage(home, opts.codex).pipe(
-            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
-          )
-        return Effect.promise(() =>
-          provider === 'grok' ? readGrokProviderUsage() : readClaudeProviderUsage()
-        )
-      },
+      (provider) =>
+        providerUsage(provider).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner)
+        ),
       home,
       version,
       updater,
