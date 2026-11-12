@@ -116,7 +116,9 @@ export function ThreadDetailsLayout({
   )
   // A file's unsaved edits outlive its tab as a draft; letting go of the tab says where they went.
   const fileViewNow = useRef(fileView)
-  fileViewNow.current = fileView
+  useLayoutEffect(() => {
+    fileViewNow.current = fileView
+  }, [fileView])
   const showFile = useCallback((next: ThreadFileTarget | undefined) => {
     const left = fileViewNow.current
     setFileView(next)
