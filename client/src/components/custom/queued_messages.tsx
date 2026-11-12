@@ -48,11 +48,13 @@ function clampsQueued(text: string) {
   return text.split('\n').length > 4 || text.length > 280
 }
 
+// A crash-loop hold has its own Resume in the composer, so it says nothing here.
+function showsPaused(queue: ComposerQueueState) {
+  return !queue.held && queue.paused && queue.unsent.length > 0
+}
+
 export function showsQueue(queue: ComposerQueueState | undefined) {
-  return Boolean(
-    queue &&
-    (queue.own.length || queue.removed || (!queue.held && queue.paused && queue.unsent.length))
-  )
+  return Boolean(queue && (queue.own.length || queue.removed || showsPaused(queue)))
 }
 
 // A message being edited can leave the queue under the composer: removed in another window, or
@@ -257,7 +259,7 @@ export function ComposerQueue({
             running={running}
           />
         ))}
-        {!queue.held && queue.paused && queue.unsent.length > 0 && (
+        {showsPaused(queue) && (
           <div
             data-strip='queue'
             className='flex items-center gap-2 bg-popover px-3 py-2 text-xs text-muted-foreground first:rounded-t-md'
