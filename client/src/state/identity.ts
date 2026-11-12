@@ -1,7 +1,6 @@
 import { storage } from '@/platform'
 import { useAtomValue } from '@effect/atom-react'
-import { Schema } from 'effect'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useEffect } from 'react'
 
