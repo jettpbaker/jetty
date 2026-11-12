@@ -794,6 +794,14 @@ export function ThreadList({
     },
     [virtualizer, releaseScrollSpace]
   )
+  // The one way a pinned chat is put at rest: the end of the transcript, or of the room reserved
+  // under a sent message. Never the end of whatever the scroller happens to hold.
+  const land = useCallback(() => {
+    const element = scroller.current
+    if (!element) return
+    element.scrollTop = sendTarget.current
+    shownTop.current = element.scrollTop
+  }, [])
   // The browser's End and Home aim at the ends of rows still at their estimated sizes, so they
   // land short once those rows measure (639px in a 200-turn thread). Keys aimed at something
   // focused inside the chat (a scrolling tool output) stay its own.
@@ -805,7 +813,7 @@ export function ThreadList({
       if ((event.key === 'End' && !meta) || (event.key === 'ArrowDown' && meta)) {
         event.preventDefault()
         pin(true)
-        virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
+        land()
       } else if ((event.key === 'Home' && !meta) || (event.key === 'ArrowUp' && meta)) {
         event.preventDefault()
         pin(false)
@@ -818,7 +826,7 @@ export function ThreadList({
     }
     element.addEventListener('keydown', jump)
     return () => element.removeEventListener('keydown', jump)
-  }, [pin, virtualizer, history, agentId, historyActions])
+  }, [pin, land, virtualizer, history, agentId, historyActions])
   useLayoutEffect(() => {
     const element = scroller.current
     sendTarget.current = Math.max(0, scrollSize - (element?.clientHeight ?? 0))
@@ -887,7 +895,7 @@ export function ThreadList({
     glider.current?.stop()
     releaseScrollSpace()
     trail.note('land')
-    virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
+    land()
   }, [
     virtualizer,
     rows.length,
@@ -902,6 +910,7 @@ export function ThreadList({
     stopSendGlide,
     releaseScrollSpace,
     trail,
+    land,
   ])
   useEffect(
     () => () => {
@@ -933,13 +942,13 @@ export function ThreadList({
     stopSendGlide()
     trail.note('to bottom')
     if (reducedMotion.matches) {
-      virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
+      land()
       return
     }
     const start = element.scrollHeight - element.clientHeight * 2
     if (element.scrollTop < start) element.scrollTop = start
     gliderFor(element).start()
-  }, [pin, virtualizer, gliderFor, stopSendGlide, trail])
+  }, [pin, land, gliderFor, stopSendGlide, trail])
 
   const [seekFirst, setSeekFirst] = useState(false)
   useLayoutEffect(() => {
