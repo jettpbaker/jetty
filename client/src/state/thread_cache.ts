@@ -203,6 +203,14 @@ export function createThreadSaver(threadId: string) {
     }, delay)
   }
 
+  // A thread left mid-turn would otherwise keep the copy from before the turn.
+  function flush() {
+    if (current && current !== saved) save(current)
+  }
+
+  // Best effort, and not on pagehide: a write started that late never lands.
+  addEventListener('beforeunload', flush)
+
   return {
     update(state: ThreadView) {
       current = state
@@ -211,8 +219,8 @@ export function createThreadSaver(threadId: string) {
     dispose() {
       disposed = true
       clearTimeout(timer)
-      // A thread left mid-turn would otherwise keep the copy from before the turn.
-      if (current && current !== saved) save(current)
+      removeEventListener('beforeunload', flush)
+      flush()
       current = undefined
     },
   }
