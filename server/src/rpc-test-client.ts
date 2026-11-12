@@ -1,19 +1,10 @@
 import type { ChromePushData, ParamsOf, ResultOf } from '@jetty/shared/wire'
 
-import { JettyRpcs, type ThreadUpdate } from '@jetty/shared/rpc'
+import { JettyRpcs, type ThreadUpdate, type UnaryMethod } from '@jetty/shared/rpc'
 import { Cause, Effect, Exit, Fiber, Layer, Scope, Stream } from 'effect'
-import { RpcClient, type RpcGroup, RpcSerialization } from 'effect/rpc'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
 import { Socket } from 'effect/socket'
 
-type UnaryMethod = Exclude<
-  RpcGroup.Rpcs<typeof JettyRpcs>['_tag'],
-  | 'chrome.subscribe'
-  | 'github.activity'
-  | 'bot.presence'
-  | 'thread.subscribe'
-  | 'pullRequest.subscribe'
-  | 'pullRequestList.subscribe'
->
 export type ThreadMessage = ThreadUpdate & { threadId: string }
 export type TestMessage = ThreadMessage | ChromePushData
 type Snapshot = Extract<ThreadUpdate, { type: 'snapshot' }>

@@ -23,17 +23,17 @@ export const ThreadUpdate = Schema.Union([
 ])
 export type ThreadUpdate = Schema.Schema.Type<typeof ThreadUpdate>
 
-function unary<
-  M extends Exclude<
-    MethodName,
-    | 'chrome.subscribe'
-    | 'github.activity'
-    | 'bot.presence'
-    | 'thread.subscribe'
-    | 'pullRequest.subscribe'
-    | 'pullRequestList.subscribe'
-  >,
->(name: M) {
+// The methods that open a stream. Every other method answers once.
+export type StreamMethod =
+  | 'chrome.subscribe'
+  | 'github.activity'
+  | 'bot.presence'
+  | 'thread.subscribe'
+  | 'pullRequest.subscribe'
+  | 'pullRequestList.subscribe'
+export type UnaryMethod = Exclude<MethodName, StreamMethod>
+
+function unary<M extends UnaryMethod>(name: M) {
   return Rpc.make<
     M,
     (typeof methods)[M]['params'],
