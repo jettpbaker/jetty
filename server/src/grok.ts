@@ -783,8 +783,9 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
               return cleanup(error instanceof Error ? error.message : String(error), true)
             }),
             Effect.ensuring(
-              Effect.sync(() => {
+              Effect.gen(function* () {
                 if (sessions.get(input.threadId) === session) sessions.delete(input.threadId)
+                if (session.idle) yield* Fiber.interrupt(session.idle)
               })
             ),
             Effect.onExit((exit) => Deferred.done(session.done, exit))
