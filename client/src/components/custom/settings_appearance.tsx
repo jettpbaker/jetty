@@ -11,7 +11,7 @@ import {
   useAppearance,
   type Appearance,
 } from '@/lib/appearance'
-import { useAnimatedTheme } from '@/lib/theme'
+import { themes, useAnimatedTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { pickFiles } from '@/platform'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -21,13 +21,6 @@ import { DisabledTooltip } from './disabled_tooltip'
 import { Mono, SettingsCard, SettingsPage, SettingsRow, SettingsSection } from './settings_layout'
 import { WallpaperEditor } from './wallpaper_editor'
 import './settings_appearance.css'
-
-const themes = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'oled', label: 'OLED' },
-] as const
 
 function TilePanel({ tile }: { tile?: 'light' | 'dark' }) {
   return (

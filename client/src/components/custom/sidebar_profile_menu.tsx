@@ -19,19 +19,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useAnimatedTheme } from '@/lib/theme'
+import { themes, useAnimatedTheme } from '@/lib/theme'
 import { useIdentity } from '@/state/identity'
 import { usePrefetchProviderUsage } from '@/state/provider-usage'
 import { useNavigate } from '@tanstack/react-router'
 
 import { KeybindChip, keybinds } from './keybinds'
-
-const themes = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'oled', label: 'OLED' },
-] as const
 
 export function SidebarProfileMenu({ rowClass }: { rowClass: string }) {
   const navigate = useNavigate()
