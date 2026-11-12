@@ -2,10 +2,10 @@ import type { AgentBehaviourKey, JobModel, JobName, ProviderId, ResultOf } from 
 
 import { useAtomValue } from '@effect/atom-react'
 import { Effect } from 'effect'
-import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useEffect, useState } from 'react'
 
-import { chromeAtom, liveAtom, modelsAtom } from './chrome'
+import { chromeAtom, modelsAtom, serverChromeAtom } from './chrome'
 import { run, useAction } from './connection'
 import { observeOptimistic } from './optimistic'
 
@@ -53,9 +53,9 @@ function setJobModel(
 ) {
   const pending = observeOptimistic(
     registry,
-    liveAtom,
-    (state) => {
-      const server = AsyncResult.getOrElse(state, () => undefined)?.jobModels?.[job]
+    serverChromeAtom,
+    (chrome) => {
+      const server = chrome?.jobModels?.[job]
       return (
         !!server &&
         choice.model?.provider === server.model?.provider &&
@@ -86,8 +86,8 @@ function setAgentBehaviour(
 ) {
   const pending = observeOptimistic(
     registry,
-    liveAtom,
-    (state) => AsyncResult.getOrElse(state, () => undefined)?.agentBehaviours?.[key] === enabled,
+    serverChromeAtom,
+    (chrome) => chrome?.agentBehaviours?.[key] === enabled,
     settled
   )
   run(

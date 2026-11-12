@@ -159,7 +159,7 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
 // The server's own view, before this tab's pending changes.
 export const chromeSnapshotAtom = Atom.make<Chrome | undefined>(undefined).pipe(Atom.keepAlive)
 
-export const liveAtom = Atom.make((get) => {
+const liveAtom = Atom.make((get) => {
   const snapshot = get(chromeSnapshotAtom)
   if (snapshot) return Stream.succeed(snapshot)
   return subscribe(get, (connection) => connection.subscribeChrome()).pipe(
@@ -168,7 +168,7 @@ export const liveAtom = Atom.make((get) => {
   )
 }).pipe(Atom.keepAlive)
 
-const serverChromeAtom = Atom.readable((get) =>
+export const serverChromeAtom = Atom.readable((get) =>
   AsyncResult.getOrElse(get(liveAtom), () => undefined)
 )
 

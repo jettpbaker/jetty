@@ -2,11 +2,11 @@ import { storage } from '@/platform'
 import { useAtomValue } from '@effect/atom-react'
 import { methods, type ResultOf, type ThreadMeta } from '@jetty/shared/wire'
 import { Effect, Schema } from 'effect'
-import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
-import { liveAtom } from './chrome'
+import { serverChromeAtom } from './chrome'
 import { run, useAction } from './connection'
 import { observeOptimistic } from './optimistic'
 
@@ -100,8 +100,8 @@ function setDefaultEnvironment(
 ) {
   const pending = observeOptimistic(
     registry,
-    liveAtom,
-    (state) => AsyncResult.getOrElse(state, () => undefined)?.defaultEnvironment === environment,
+    serverChromeAtom,
+    (chrome) => chrome?.defaultEnvironment === environment,
     settled
   )
   run(

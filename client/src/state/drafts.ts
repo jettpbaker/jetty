@@ -8,11 +8,11 @@ import { hasMessage } from '@jetty/shared/history'
 import { Reply } from '@jetty/shared/items'
 import { ProviderId } from '@jetty/shared/wire'
 import { Equal, Schema } from 'effect'
-import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
+import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 
 import { botsAtom } from './bots'
-import { createdThreadsAtom, liveAtom } from './chrome'
+import { createdThreadsAtom, serverChromeAtom } from './chrome'
 import { without } from './mutations'
 import { threadStructureAtom } from './threads'
 
@@ -369,7 +369,7 @@ type UnsureSend = { key: string; entry: Sending; known: boolean; queued: boolean
 // Each new message a reload cut off, and whether the server knows its thread or holds it queued.
 // Equal while those hold, so a chrome push doesn't restart the watches.
 const unsureSendsAtom = Atom.readable((get): readonly UnsureSend[] | undefined => {
-  const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
+  const chrome = get(serverChromeAtom)
   if (!chrome) return undefined
   const sends: UnsureSend[] = []
   for (const [key, draft] of get(draftsAtom))
@@ -438,7 +438,7 @@ function settleUnsure(registry: Registry, key: string, entry: Sending, restore: 
 
 // By value, so only a thread or draft coming or going runs the cleanup below.
 const serverThreadIdsAtom = Atom.readable((get) => {
-  const chrome = AsyncResult.getOrElse(get(liveAtom), () => undefined)
+  const chrome = get(serverChromeAtom)
   return (
     chrome &&
     new Set([...chrome.threads.map((thread) => thread.id), ...get(botsAtom).map((bot) => bot.id)])

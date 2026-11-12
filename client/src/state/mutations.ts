@@ -10,10 +10,10 @@ import {
   createdThreadsAtom,
   deletedProjectsAtom,
   deletedThreadsAtom,
-  liveAtom,
   projectIconPatchesAtom,
   projectTitlePatchesAtom,
   serverChrome,
+  serverChromeAtom,
   threadPatchesAtom,
   threadTreeIds,
   type ThreadPatch,
@@ -122,7 +122,7 @@ export function setPatch(registry: Registry, threadId: string, patch: ThreadPatc
     const id = `${threadId}:${key}`
     agreements.get(id)?.stop()
     const agreement = { value: patch[key], seen: false, stop: () => {} }
-    agreement.stop = registry.subscribe(liveAtom, () => {
+    agreement.stop = registry.subscribe(serverChromeAtom, () => {
       agreement.seen ||= serverHolds(registry, threadId, key, patch[key])
     })
     agreements.set(id, agreement)
@@ -168,7 +168,7 @@ export function settleWhen(registry: Registry, agrees: () => boolean, clear: () 
     clearTimeout(timeout)
     clear()
   }
-  const stop = registry.subscribe(liveAtom, check)
+  const stop = registry.subscribe(serverChromeAtom, check)
   const timeout = setTimeout(() => {
     stop()
     clear()
