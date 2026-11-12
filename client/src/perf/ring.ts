@@ -1,13 +1,4 @@
-export type PerfRecord = {
-  v: 1
-  t: number
-  sid: string
-  k: 'journey' | 'loaf' | 'event' | 'shift' | 'ws' | 'snapshot'
-  n: string
-  d?: number
-  jid?: string
-  a?: Record<string, number | string | boolean>
-}
+import type { PerfRecord } from '@jetty/shared/perf'
 
 const capacity = 2000
 const flushAt = 500

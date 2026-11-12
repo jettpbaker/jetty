@@ -15,7 +15,8 @@
     "./github-media": "./src/github-media.ts",
     "./bots": "./src/bots.ts",
     "./bot-search": "./src/bot-search.ts",
-    "./search": "./src/search.ts"
+    "./search": "./src/search.ts",
+    "./perf": "./src/perf.ts"
   },
   "dependencies": {
     "effect": "4.0.0",

@@ -1,4 +1,5 @@
 import type { Client } from '@jetty/server/src/rpc-test-client'
+import type { PerfRecord } from '@jetty/shared/perf'
 
 import { JettyRpcs } from '@jetty/shared/rpc'
 import { RpcSchema } from 'effect/rpc'
@@ -28,17 +29,6 @@ import { cloneHome, goldenHome, type Golden } from './seed'
 import { createSourceMapper, type SourceMapper } from './sourcemap'
 
 const cpuThrottle = 4
-
-type PerfRecord = {
-  v: 1
-  t: number
-  sid: string
-  k: string
-  n: string
-  d?: number
-  jid?: string
-  a?: { [key: string]: number | string | boolean }
-}
 
 export type Iteration = {
   journey: string

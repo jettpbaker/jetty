@@ -1,21 +1,12 @@
+import { perfKinds, type PerfRecord } from '@jetty/shared/perf'
 import { appendFile, mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const maxBodyBytes = 1024 * 1024
 const maxFileBytes = 10 * 1024 * 1024
 const keepFiles = 14
-const kinds = new Set(['journey', 'loaf', 'event', 'shift', 'ws', 'snapshot'])
-
-type PerfRecord = {
-  v: 1
-  t: number
-  sid: string
-  k: string
-  n: string
-  d?: number
-  jid?: string
-  a?: Record<string, number | string | boolean>
-}
+const kinds: ReadonlySet<unknown> = new Set(perfKinds)
+const isKind = (value: unknown): value is PerfRecord['k'] => kinds.has(value)
 
 const shortString = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= max
@@ -47,8 +38,7 @@ function parsePerfRecord(line: string): PerfRecord | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { v, t, sid, k, n, d, jid, a } = value as Record<string, unknown>
   if (v !== 1 || typeof t !== 'number' || !Number.isFinite(t)) return undefined
-  if (!shortString(sid, 64) || !shortString(n, 128) || typeof k !== 'string' || !kinds.has(k))
-    return undefined
+  if (!shortString(sid, 64) || !shortString(n, 128) || !isKind(k)) return undefined
   if (d !== undefined && (typeof d !== 'number' || !Number.isFinite(d))) return undefined
   if (jid !== undefined && !shortString(jid, 64)) return undefined
   const attributes = a === undefined ? undefined : parseAttributes(a)
