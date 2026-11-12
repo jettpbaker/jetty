@@ -15,6 +15,7 @@ import type {
   ThreadMeta,
 } from '@jetty/shared/wire'
 
+import { threadStatus } from '@/components/custom/thread_status'
 import { observeServerTime } from '@/lib/server_time'
 import { newThreadProject } from '@/lib/thread_project'
 import { reload, session } from '@/platform'
@@ -398,4 +399,22 @@ const noProjectAtom = Atom.make<string | undefined>(undefined)
 // The project a new thread starts in when none is picked; only worked out while `wanted`.
 export function useNewThreadProject(wanted: boolean, selectedId: string | undefined) {
   return useAtomValue(wanted ? newThreadProjectAtom(selectedId ?? '') : noProjectAtom)
+}
+
+const jettyUpdateAtom = Atom.readable((get) => get(serverChromeAtom)?.jettyUpdate)
+
+export function useJettyUpdate() {
+  return useAtomValue(jettyUpdateAtom)
+}
+
+const workingThreadCountAtom = Atom.readable(
+  (get) =>
+    get(chromeAtom)?.threads.filter(
+      (thread) =>
+        !thread.archived && threadStatus(thread.status, thread.readyForReview) === 'working'
+    ).length ?? 0
+)
+
+export function useWorkingThreadCount() {
+  return useAtomValue(workingThreadCountAtom)
 }
