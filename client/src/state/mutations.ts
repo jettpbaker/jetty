@@ -224,6 +224,18 @@ addEventListener('pagehide', () => {
   for (const commit of pendingDeletions) commit()
 })
 
+// A deletion already hidden: `send` waits for `commit`, so `undo` can `restore` it first. Whichever
+// comes first settles it.
+function undoable(restore: () => void, send: () => void) {
+  function settle(act: () => void) {
+    if (!pendingDeletions.delete(deletion.commit)) return
+    act()
+  }
+  const deletion = { undo: () => settle(restore), commit: () => settle(send) }
+  pendingDeletions.add(deletion.commit)
+  return deletion
+}
+
 // Hides the thread now; the server delete waits for `commit`, so `undo` can bring it back.
 function deleteThread(registry: Registry, threadId: string) {
   const tree = threadTreeIds(registry.get(chromeAtom)?.threads ?? [], threadId)
@@ -234,30 +246,16 @@ function deleteThread(registry: Registry, threadId: string) {
       for (const id of tree) next.delete(id)
       return next
     })
-  let settled = false
-  const deletion = {
-    undo() {
-      if (settled) return
-      settled = true
-      pendingDeletions.delete(deletion.commit)
-      restore()
-    },
-    commit() {
-      if (settled) return
-      settled = true
-      pendingDeletions.delete(deletion.commit)
-      run(
-        registry,
-        (connection) =>
-          awaitCreation(threadId).pipe(
-            Effect.andThen(connection.request('thread.delete', { threadId }))
-          ),
-        restore
-      )
-    },
-  }
-  pendingDeletions.add(deletion.commit)
-  return deletion
+  return undoable(restore, () =>
+    run(
+      registry,
+      (connection) =>
+        awaitCreation(threadId).pipe(
+          Effect.andThen(connection.request('thread.delete', { threadId }))
+        ),
+      restore
+    )
+  )
 }
 
 // Like a thread delete: hidden at once, removed on the server (threads included) on `commit`.
@@ -265,30 +263,16 @@ function deleteProject(registry: Registry, projectId: string) {
   registry.update(deletedProjectsAtom, (deleted) => new Set(deleted).add(projectId))
   const restore = () =>
     registry.update(deletedProjectsAtom, (deleted) => withoutId(deleted, projectId))
-  let settled = false
-  const deletion = {
-    undo() {
-      if (settled) return
-      settled = true
-      pendingDeletions.delete(deletion.commit)
-      restore()
-    },
-    commit() {
-      if (settled) return
-      settled = true
-      pendingDeletions.delete(deletion.commit)
-      run(
-        registry,
-        (connection) =>
-          connection
-            .request('project.delete', { projectId })
-            .pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))),
-        restore
-      )
-    },
-  }
-  pendingDeletions.add(deletion.commit)
-  return deletion
+  return undoable(restore, () =>
+    run(
+      registry,
+      (connection) =>
+        connection
+          .request('project.delete', { projectId })
+          .pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))),
+      restore
+    )
+  )
 }
 
 // Sending to an archived thread brings it back first; the server won't queue on archived threads.
