@@ -1,19 +1,19 @@
 import { expect, test } from 'bun:test'
 import { Deferred, Effect, Fiber } from 'effect'
 
-import { createQueueRequests } from '../../client/src/state/queue_requests'
+import { createRequestChain } from '../../client/src/state/queue_requests'
 
 for (const action of ['remove', 'edit', 'sendNow', 'hold', 'release']) {
   test(`${action} after Undo waits for the pending remove and restore`, async () => {
     await Effect.runPromise(
       Effect.gen(function* () {
-        const request = createQueueRequests()
+        const request = createRequestChain()
         const removed = yield* Deferred.make<void>()
         const restored = yield* Deferred.make<void>()
         const calls: string[] = []
         let queued = true
         function start(name: string, effect: Effect.Effect<void>) {
-          return request('thread', 'message', (wait) =>
+          return request('message', (wait) =>
             Effect.runFork(
               wait.pipe(Effect.andThen(Effect.sync(() => calls.push(name))), Effect.andThen(effect))
             )
@@ -62,19 +62,19 @@ for (const action of ['remove', 'edit', 'sendNow', 'hold', 'release']) {
   })
 }
 
-test('queue requests isolate threads and continue after a failed predecessor', async () => {
+test('queue requests isolate keys and continue after a failed predecessor', async () => {
   await Effect.runPromise(
     Effect.gen(function* () {
-      const request = createQueueRequests()
+      const request = createRequestChain()
       const release = yield* Deferred.make<void>()
-      const first = request('first', 'message', (wait) =>
+      const first = request('first', (wait) =>
         Effect.runFork(
           wait.pipe(Effect.andThen(Deferred.await(release)), Effect.andThen(Effect.fail('failed')))
         )
       )
-      const second = request('second', 'message', (wait) => Effect.runFork(wait))
+      const second = request('second', (wait) => Effect.runFork(wait))
       yield* Fiber.join(second)
-      const next = request('first', 'message', (wait) => Effect.runFork(wait))
+      const next = request('first', (wait) => Effect.runFork(wait))
       yield* Deferred.succeed(release, undefined)
       yield* Fiber.await(first)
       yield* Fiber.join(next)

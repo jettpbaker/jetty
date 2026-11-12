@@ -6,7 +6,7 @@ import { revokeBlobUrl } from '@/lib/blob_urls'
 import { resendOnDrop, type Connection } from '@/net/connection'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { newId } from '@jetty/shared/wire'
-import { Effect, Equal, Exit, Fiber } from 'effect'
+import { Effect, Equal, Exit } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
@@ -15,7 +15,7 @@ import { chatThreadAtom, chromeAtom } from './chrome'
 import { run, useAction } from './connection'
 import { editingDrafts, stageSend } from './drafts'
 import { unarchiveFirst, without } from './mutations'
-import { createQueueRequests } from './queue_requests'
+import { createRequestChain } from './queue_requests'
 import { showSent, useSendingIds } from './turns'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -102,8 +102,11 @@ function track(
   )
 }
 
-const queueRequests = createQueueRequests()
-const latestAdd = new Map<string, Fiber.Fiber<unknown, unknown>>()
+// A message's requests reach the server in the order they were made. So do a thread's adds: a
+// message whose attachments take a while to store still reaches the queue before a text-only one
+// sent after it.
+const messageRequests = createRequestChain()
+const threadAdds = createRequestChain()
 
 function runQueued<A, E>(
   registry: Registry,
@@ -112,13 +115,9 @@ function runQueued<A, E>(
   request: (connection: Connection) => Effect.Effect<A, E>,
   onFailure?: () => void
 ) {
-  return queueRequests(threadId, messageId, (wait) =>
+  return messageRequests(JSON.stringify([threadId, messageId]), (wait) =>
     run(registry, (connection) => wait.pipe(Effect.andThen(request(connection))), onFailure)
   )
-}
-
-function awaitFiber(fiber: Fiber.Fiber<unknown, unknown> | undefined) {
-  return fiber ? Fiber.join(fiber).pipe(Effect.ignore) : Effect.void
 }
 
 function isArchived(registry: Registry, threadId: string) {
@@ -154,51 +153,46 @@ function addQueued(
     quotes: replies,
     sent: { threadId, messageId: message.id },
   })
-  // Adds go out one at a time per thread, so a message whose attachments take a while to store still
-  // reaches the queue before a text-only one sent after it.
-  const previous = latestAdd.get(threadId)
-  const add = track(
-    registry,
-    threadId,
-    { kind: 'add', message },
-    (connection) =>
-      awaitFiber(previous).pipe(
-        Effect.andThen(unarchive(connection)),
-        Effect.andThen(
-          resendOnDrop(
-            connection.request('queue.add', {
-              threadId,
-              messageId: message.id,
-              text,
-              ...(replies?.length && { replies }),
-              ...(attachments.length > 0
-                ? {
-                    attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
-                      name,
-                      mimeType,
-                      dataUrl,
-                    })),
-                  }
-                : {}),
-            })
+  threadAdds(threadId, (previous) =>
+    track(
+      registry,
+      threadId,
+      { kind: 'add', message },
+      (connection) =>
+        previous.pipe(
+          Effect.andThen(unarchive(connection)),
+          Effect.andThen(
+            resendOnDrop(
+              connection.request('queue.add', {
+                threadId,
+                messageId: message.id,
+                text,
+                ...(replies?.length && { replies }),
+                ...(attachments.length > 0
+                  ? {
+                      attachments: attachments.map(({ name, mimeType, dataUrl }) => ({
+                        name,
+                        mimeType,
+                        dataUrl,
+                      })),
+                    }
+                  : {}),
+              })
+            )
           )
-        )
-      ),
-    {
-      onSuccess() {
-        staged.sent()
-        for (const attachment of attachments) revokeBlobUrl(attachment.url)
-      },
-      onFailure() {
-        staged.failed(threadId)
-        toast.error("Couldn't queue message")
-      },
-    }
+        ),
+      {
+        onSuccess() {
+          staged.sent()
+          for (const attachment of attachments) revokeBlobUrl(attachment.url)
+        },
+        onFailure() {
+          staged.failed(threadId)
+          toast.error("Couldn't queue message")
+        },
+      }
+    )
   )
-  latestAdd.set(threadId, add)
-  add.addObserver(() => {
-    if (latestAdd.get(threadId) === add) latestAdd.delete(threadId)
-  })
 }
 
 function currentQueue(registry: Registry, threadId: string) {
