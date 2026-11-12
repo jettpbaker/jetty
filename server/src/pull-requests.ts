@@ -2448,11 +2448,7 @@ export function createPullRequests(store: Store, hub: Hub) {
       const interval = snapshot.rateLimit?.cadenceMs
       if (!interval) return
       const checksInterval = snapshot.rateLimit?.checksCadenceMs
-      if (
-        !snapshot.data ||
-        Date.now() - (snapshot.refreshedAt ?? 0) >=
-          Math.max(interval, 5 * 60_000 * cadenceMultiplier())
-      ) {
+      if (!detectable(snapshot, interval)) {
         snapshot = yield* refresh(ref)
         lastDetection.set(key, Date.now())
       } else if (checksInterval) {
