@@ -1145,13 +1145,7 @@ export function createMcpHandler(
                 if (!search) throw new Error('search service unavailable')
                 const value =
                   kind === 'wiki'
-                    ? await search.wiki(
-                        bot.id,
-                        (await run(
-                          store.getProject((await run(store.requireThread(bot.id))).projectId)
-                        ))!.path,
-                        input
-                      )
+                    ? await search.wiki(bot.id, (await run(store.getProject(bot.id)))!.path, input)
                     : await search.threads(
                         bot.id,
                         bot.name,
@@ -1197,8 +1191,7 @@ export function createMcpHandler(
           ({ instruction, reason }) =>
             invoke(
               Effect.gen(function* () {
-                const thread = yield* store.requireThread(bot.id)
-                const home = yield* store.getProject(thread.projectId)
+                const home = yield* store.getProject(bot.id)
                 if (!home)
                   return yield* Effect.fail(new StoreError('not_found', 'Bot home not found'))
                 const date = new Date().toISOString().slice(0, 10)

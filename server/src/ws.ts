@@ -179,8 +179,7 @@ export function createRpcHandlers(
       return Effect.gen(function* () {
         if (!(yield* store.isBot(botId)))
           return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
-        const thread = yield* store.requireThread(botId)
-        const project = yield* store.getProject(thread.projectId)
+        const project = yield* store.getProject(botId)
         if (!project) return yield* Effect.fail(new StoreError('not_found', 'Bot home not found'))
         return project.path
       })
