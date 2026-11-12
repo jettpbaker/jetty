@@ -549,11 +549,6 @@ export function createMcpHandler(
               new StoreError('invalid_params', 'Maximum 5 threads per turn')
             )
           const catalog = models()
-          const bot = yield* store.getBot(caller.id)
-          if (bot && input.effort === 'max')
-            return yield* Effect.fail(
-              new StoreError('invalid_params', "max isn't available to bots; use xhigh")
-            )
           if (!catalog)
             return yield* Effect.fail(
               new StoreError('invalid_params', 'Provider discovery is still running; retry shortly')
