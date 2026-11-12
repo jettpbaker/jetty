@@ -13,7 +13,7 @@ import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useRef, useMemo } from 'react'
 
 import { threadMetaAtom } from './chrome'
-import { connectionAtom, subscribe, useAction } from './connection'
+import { request, subscribe, useAction } from './connection'
 import { foldHistoryEvent, mergeHistory, type ThreadView as ThreadState } from './history_merge'
 import { createItemSelection, noteItemDelta, sameItemStructure, sameItems } from './item_selection'
 import { awaitCreation } from './mutations'
@@ -254,11 +254,8 @@ function fetchHistory(
   const existing = historyRequests.get(key)
   if (existing) return existing
   const flight = recordFlight(threadId)
-  const request = Effect.runPromise(
-    AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap((connection) =>
-        resendOnDrop(connection.request('thread.history', { threadId, ...params }))
-      ),
+  const loading = request(registry, (connection) =>
+    resendOnDrop(connection.request('thread.history', { threadId, ...params })).pipe(
       Effect.tap((page) =>
         Effect.sync(() => {
           const state = registry.get(resumeAtom(threadId))
@@ -275,8 +272,8 @@ function fetchHistory(
       flight.release()
       historyRequests.delete(key)
     })
-  historyRequests.set(key, request)
-  return request
+  historyRequests.set(key, loading)
+  return loading
 }
 
 function olderHistory(registry: AtomRegistry.AtomRegistry, threadId: string) {
@@ -358,12 +355,8 @@ async function flushToolOutputs(registry: AtomRegistry.AtomRegistry, threadId: s
     for (const id of batch) active.add(id)
     const flight = recordFlight(threadId)
     try {
-      const result = await Effect.runPromise(
-        AtomRegistry.getResult(registry, connectionAtom).pipe(
-          Effect.flatMap((connection) =>
-            resendOnDrop(connection.request('thread.toolOutputs', { threadId, itemIds: batch }))
-          )
-        )
+      const result = await request(registry, (connection) =>
+        resendOnDrop(connection.request('thread.toolOutputs', { threadId, itemIds: batch }))
       )
       const cached = new Map(registry.get(toolOutputsAtom(threadId)))
       for (const { itemId, output } of result.outputs) {
