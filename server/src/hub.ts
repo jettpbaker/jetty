@@ -37,6 +37,37 @@ function latest<A>() {
   return Queue.sliding<A, WireError>(1)
 }
 
+// The queues subscribed under each key. A subscriber holds its queue until its scope closes.
+function subscriptions<K, A>(makeQueue: Effect.Effect<Queue.Queue<A, WireError>>) {
+  const byKey = new Map<K, Set<Queue.Queue<A, WireError>>>()
+  return {
+    push(key: K, value: A) {
+      const subs = byKey.get(key)
+      if (subs) offer(subs, value)
+    },
+    subscribe(key: K) {
+      return Effect.acquireRelease(
+        Effect.map(makeQueue, (queue) => {
+          const subs = byKey.get(key) ?? new Set()
+          byKey.set(key, subs.add(queue))
+          return queue
+        }),
+        (queue) =>
+          Effect.sync(() => {
+            const subs = byKey.get(key)
+            subs?.delete(queue)
+            if (subs?.size === 0) byKey.delete(key)
+          }).pipe(Effect.andThen(Queue.shutdown(queue)))
+      )
+    },
+    count() {
+      let total = 0
+      for (const subs of byKey.values()) total += subs.size
+      return total
+    },
+  }
+}
+
 // The closest attention any of them pays.
 export function closestActivity(values: readonly GitHubActivity[]): GitHubActivity {
   return values.includes('focused') ? 'focused' : values.includes('blurred') ? 'blurred' : 'hidden'
@@ -164,12 +195,9 @@ export function createHub() {
     }
     return { open, draft }
   }
-  const threadSubs = new Map<string, Set<Queue.Queue<ThreadUpdate, WireError>>>()
-  const pullRequestSubs = new Map<string, Set<Queue.Queue<PullRequestSnapshot, WireError>>>()
-  const pullRequestListSubs = new Map<
-    PullRequestListTab,
-    Set<Queue.Queue<PullRequestList, WireError>>
-  >()
+  const threadSubs = subscriptions<string, ThreadUpdate>(Queue.bounded(SUBSCRIPTION_BACKLOG))
+  const pullRequestSubs = subscriptions<string, PullRequestSnapshot>(latest())
+  const pullRequestListSubs = subscriptions<PullRequestListTab, PullRequestList>(latest())
 
   function offerChrome(data: ChromePushData) {
     offer(chromeSubs, data)
@@ -208,9 +236,7 @@ export function createHub() {
   }
 
   function pushThread(threadId: string, update: Extract<ThreadUpdate, { type: 'event' }>) {
-    const subs = threadSubs.get(threadId)
-    if (!subs) return
-    offer(subs, update)
+    threadSubs.push(threadId, update)
   }
 
   function subscribeChrome() {
@@ -226,70 +252,23 @@ export function createHub() {
   }
 
   function subscribeThread(threadId: string) {
-    return Effect.acquireRelease(
-      Effect.gen(function* () {
-        const queue = yield* Queue.bounded<ThreadUpdate, WireError>(SUBSCRIPTION_BACKLOG)
-        let subs = threadSubs.get(threadId)
-        if (!subs) {
-          subs = new Set()
-          threadSubs.set(threadId, subs)
-        }
-        subs.add(queue)
-        return queue
-      }),
-      (queue) =>
-        Effect.sync(() => {
-          const subs = threadSubs.get(threadId)
-          subs?.delete(queue)
-          if (subs?.size === 0) threadSubs.delete(threadId)
-        }).pipe(Effect.andThen(Queue.shutdown(queue)))
-    )
+    return threadSubs.subscribe(threadId)
   }
 
   function pushPullRequest(snapshot: PullRequestSnapshot) {
-    for (const queue of pullRequestSubs.get(`${snapshot.repo}#${snapshot.number}`) ?? [])
-      Queue.offerUnsafe(queue, snapshot)
+    pullRequestSubs.push(`${snapshot.repo}#${snapshot.number}`, snapshot)
   }
 
   function subscribePullRequest(repo: string, number: number) {
-    const key = `${repo}#${number}`
-    return Effect.acquireRelease(
-      Effect.gen(function* () {
-        const queue = yield* latest<PullRequestSnapshot>()
-        const subs = pullRequestSubs.get(key) ?? new Set()
-        subs.add(queue)
-        pullRequestSubs.set(key, subs)
-        return queue
-      }),
-      (queue) =>
-        Effect.sync(() => {
-          const subs = pullRequestSubs.get(key)
-          subs?.delete(queue)
-          if (subs?.size === 0) pullRequestSubs.delete(key)
-        }).pipe(Effect.andThen(Queue.shutdown(queue)))
-    )
+    return pullRequestSubs.subscribe(`${repo}#${number}`)
   }
 
   function pushPullRequestList(list: PullRequestList) {
-    for (const queue of pullRequestListSubs.get(list.tab) ?? []) Queue.offerUnsafe(queue, list)
+    pullRequestListSubs.push(list.tab, list)
   }
 
   function subscribePullRequestList(tab: PullRequestListTab) {
-    return Effect.acquireRelease(
-      Effect.gen(function* () {
-        const queue = yield* latest<PullRequestList>()
-        const subs = pullRequestListSubs.get(tab) ?? new Set()
-        subs.add(queue)
-        pullRequestListSubs.set(tab, subs)
-        return queue
-      }),
-      (queue) =>
-        Effect.sync(() => {
-          const subs = pullRequestListSubs.get(tab)
-          subs?.delete(queue)
-          if (subs?.size === 0) pullRequestListSubs.delete(tab)
-        }).pipe(Effect.andThen(Queue.shutdown(queue)))
-    )
+    return pullRequestListSubs.subscribe(tab)
   }
 
   return {
@@ -325,10 +304,7 @@ export function createHub() {
     subscribePullRequestList,
     subscriberCount: Effect.sync(
       () =>
-        chromeSubs.size +
-        [...threadSubs.values()].reduce((total, subs) => total + subs.size, 0) +
-        [...pullRequestSubs.values()].reduce((total, subs) => total + subs.size, 0) +
-        [...pullRequestListSubs.values()].reduce((total, subs) => total + subs.size, 0)
+        chromeSubs.size + threadSubs.count() + pullRequestSubs.count() + pullRequestListSubs.count()
     ),
   }
 }
