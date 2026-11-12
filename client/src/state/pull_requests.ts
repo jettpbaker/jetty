@@ -611,6 +611,8 @@ function requestPullRequest<E>(
 }
 
 let optimisticCommentId = 0
+// Markdown still pointing at a local blob: an attachment whose upload hasn't finished.
+const unsentUpload = /\]\(blob:|src=["']blob:/i
 
 export function usePullRequestActions(ref: PullRequestRef) {
   const registry = useContext(RegistryContext)
@@ -627,7 +629,7 @@ export function usePullRequestActions(ref: PullRequestRef) {
       )
     }
     function body(body: string) {
-      if (/\]\(blob:|src=["']blob:/i.test(body)) {
+      if (unsentUpload.test(body)) {
         toast.error("Couldn't save the description", {
           description: 'Finish uploading attachments first.',
         })
@@ -704,7 +706,7 @@ export function usePullRequestActions(ref: PullRequestRef) {
     function comment(body: string, commentId?: number) {
       const data = registry.get(snapshotAtom(pullRequestKey(ref)))?.data
       if (!data?.viewer) return Promise.resolve(false)
-      if (/\]\(blob:|src=["']blob:/i.test(body)) {
+      if (unsentUpload.test(body)) {
         toast.error(commentId === undefined ? "Couldn't post comment" : "Couldn't post reply", {
           description: 'Finish uploading attachments first.',
         })
