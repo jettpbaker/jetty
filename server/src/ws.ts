@@ -175,6 +175,16 @@ export function createRpcHandlers(
       })
     }
 
+    function liveBot(botId: string) {
+      return Effect.gen(function* () {
+        const bot = yield* store.getBot(botId)
+        if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
+        if (bot.archived)
+          return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
+        return bot
+      })
+    }
+
     function botHome(botId: string) {
       return Effect.gen(function* () {
         if (!(yield* store.isBot(botId)))
@@ -876,10 +886,7 @@ export function createRpcHandlers(
             return yield* Effect.fail(
               new StoreError('invalid_params', "max isn't available to bots; use xhigh")
             )
-          const bot = yield* store.getBot(params.botId)
-          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
-          if (bot.archived)
-            return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
+          const bot = yield* liveBot(params.botId)
           const id = params.model ?? bot.model
           const model = getModels()?.find(
             (model) => model.provider === bot.provider && model.id === id
@@ -929,10 +936,7 @@ export function createRpcHandlers(
       'bot.saveInstructions': ({ botId, instructions, base }) =>
         mutation(
           Effect.gen(function* () {
-            const bot = yield* store.getBot(botId)
-            if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
-            if (bot.archived)
-              return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
+            yield* liveBot(botId)
             const home = yield* botHome(botId)
             const result = yield* diff.writeProjectFile(home, 'instructions.md', instructions, base)
             if ('saved' in result)
@@ -943,10 +947,7 @@ export function createRpcHandlers(
       'bot.send': (params) =>
         Effect.gen(function* () {
           yield* store.noteUserMessage()
-          const bot = yield* store.getBot(params.botId)
-          if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
-          if (bot.archived)
-            return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
+          yield* liveBot(params.botId)
           if (!params.text.trim() && !params.attachments?.length && !params.attachmentIds?.length)
             return yield* Effect.fail(new StoreError('invalid_params', 'Message is empty'))
           const persistedAttachments = []
@@ -1017,10 +1018,7 @@ export function createRpcHandlers(
       'bot.setAllowRules': ({ botId, rules }) =>
         mutation(
           Effect.gen(function* () {
-            const bot = yield* store.getBot(botId)
-            if (!bot) return yield* Effect.fail(new StoreError('not_found', 'Bot not found'))
-            if (bot.archived)
-              return yield* Effect.fail(new StoreError('conflict', `${bot.name} is archived`))
+            yield* liveBot(botId)
             yield* orch.setBotAllowRules(botId, rules)
             return null
           })
