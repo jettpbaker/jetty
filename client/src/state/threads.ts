@@ -91,16 +91,21 @@ const liveAtom = Atom.family((threadId: string) =>
     // The ones before it wait for it and land together, so a reopened thread paints once.
     let live = false
     const missed: ThreadUpdate[] = []
-    return subscribe(get, (connection) => {
-      live = false
-      missed.length = 0
-      return Stream.unwrap(
+    return subscribe(get, (connection) =>
+      Stream.unwrap(
         Effect.promise(() => hydration).pipe(
           Effect.andThen(awaitCreation(threadId)),
-          Effect.map(() => connection.subscribeThread(threadId, () => get.once(resume)?.lastSeq))
+          Effect.map(() =>
+            // Asked each time the subscription opens, a retry included: it catches up again.
+            connection.subscribeThread(threadId, () => {
+              live = false
+              missed.length = 0
+              return get.once(resume)?.lastSeq
+            })
+          )
         )
       )
-    }).pipe(
+    ).pipe(
       Stream.mapEffect((update) =>
         Effect.sync(() => {
           perf.threadUpdate(threadId, update)
