@@ -140,7 +140,7 @@ function RefreshFailed({ link, error }: { link: PullRequestAddress; error: strin
   )
 }
 
-export function PullRequestView({
+function PullRequestView({
   data,
   link,
   refreshFailed,
