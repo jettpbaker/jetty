@@ -18,6 +18,7 @@ import {
   usePullRequestThreads,
   useRefreshPullRequest,
   usePullRequestActions,
+  usePullRequestRefreshing,
   useReviewRequestPatches,
   useThreadPullRequests,
   useUnlinkPullRequest,
@@ -74,7 +75,7 @@ function UnlinkItem({ threadId, link }: { threadId: string; link: PullRequestAdd
 
 function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: string }) {
   const refresh = useRefreshPullRequest()
-  const { refreshing } = usePullRequest(link)
+  const refreshing = usePullRequestRefreshing(link)
   const links = useThreadPullRequests(threadId ?? '')
   const linkedThreadId =
     threadId && links.some((entry) => entry.repo === link.repo && entry.number === link.number)
@@ -116,7 +117,7 @@ function MoreMenu({ link, threadId }: { link: PullRequestAddress; threadId?: str
 // Cached data stays on screen when a refresh fails, so say so: its checks and reviews may be stale.
 function RefreshFailed({ link, error }: { link: PullRequestAddress; error: string }) {
   const refresh = useRefreshPullRequest()
-  const { refreshing } = usePullRequest(link)
+  const refreshing = usePullRequestRefreshing(link)
   return (
     <div className='flex items-center gap-2'>
       <span className='hidden text-xs text-muted-foreground @md:inline'>Couldn’t refresh</span>
