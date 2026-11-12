@@ -201,17 +201,22 @@ const undoMs = 6000
 function removeQueued(registry: Registry, threadId: string, messageId: string) {
   const queue = currentQueue(registry, threadId)
   const index = queue.findIndex((message) => message.id === messageId)
-  if (index !== -1) {
-    const removed = { message: queue[index]!, index }
+  const removed = index === -1 ? undefined : { message: queue[index]!, index }
+  const forget = () =>
+    registry.update(removedAtom, (map) =>
+      removed && map.get(threadId) === removed ? without(map, [threadId]) : map
+    )
+  if (removed) {
     registry.update(removedAtom, (map) => new Map(map).set(threadId, removed))
-    setTimeout(() => {
-      registry.update(removedAtom, (map) =>
-        map.get(threadId) === removed ? without(map, [threadId]) : map
-      )
-    }, undoMs)
+    setTimeout(forget, undoMs)
   }
-  track(registry, threadId, { kind: 'remove', id: messageId }, (connection) =>
-    connection.request('queue.remove', { threadId, messageId })
+  // A remove that fails puts the message back, so there's nothing to undo.
+  track(
+    registry,
+    threadId,
+    { kind: 'remove', id: messageId },
+    (connection) => connection.request('queue.remove', { threadId, messageId }),
+    { onFailure: forget }
   )
 }
 
