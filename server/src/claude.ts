@@ -1515,7 +1515,7 @@ export function createClaudeAdapter(
       },
       setBotAllowRules(threadId, rules) {
         const session = sessions.get(threadId)
-        if (!session || !session.bot) return Effect.void
+        if (!session || !current(session) || !session.bot) return Effect.void
         return Effect.gen(function* () {
           const bot = yield* store.getBot(threadId).pipe(Effect.mapError(toAgentError))
           if (!bot) return
