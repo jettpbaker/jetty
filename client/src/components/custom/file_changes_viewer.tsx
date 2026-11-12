@@ -59,10 +59,8 @@ export function FileChangesViewer({
   const [diffStyle, setDiffStyle] = useDiffStyle()
   const [wrap, setWrap] = useDiffWrap(root)
   const [collapsedFiles, setCollapsedFiles] = useState<ReadonlySet<string>>(() => new Set())
-  const [noContext, setNoContext] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
-    () => new Map()
-  )
-  const [hydrated, setHydrated] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
+  // What each diff shows once its file loads: the diff with full context, or without any.
+  const [replacements, setReplacements] = useState<ReadonlyMap<FileDiffMetadata, FileDiffMetadata>>(
     () => new Map()
   )
   const diffs = useMemo(() => new Set(changes.map((file) => file.diff)), [changes])
@@ -71,12 +69,10 @@ export function FileChangesViewer({
     currentDiffs.current = diffs
   }, [diffs])
   useEffect(() => {
-    function prune(previous: ReadonlyMap<FileDiffMetadata, FileDiffMetadata>) {
+    setReplacements((previous) => {
       const next = new Map([...previous].filter(([diff]) => diffs.has(diff)))
       return next.size === previous.size ? previous : next
-    }
-    setHydrated(prune)
-    setNoContext(prune)
+    })
   }, [diffs])
   const models = useMemo(() => {
     const sorted: ChangedFile[] = []
@@ -114,7 +110,7 @@ export function FileChangesViewer({
             if (!patchMatchesContents(diff, contents))
               throw new Error(`Patch does not match file contents for ${diff.name}`)
             const files = loadedFiles(diff, contents)
-            setHydrated((previous) =>
+            setReplacements((previous) =>
               currentDiffs.current.has(diff)
                 ? new Map(previous).set(diff, hydratedDiff(diff, files))
                 : previous
@@ -122,7 +118,7 @@ export function FileChangesViewer({
             return files
           })
           .catch((error) => {
-            setNoContext((previous) =>
+            setReplacements((previous) =>
               currentDiffs.current.has(diff)
                 ? new Map(previous).set(diff, withoutContext(diff))
                 : previous
@@ -262,7 +258,7 @@ export function FileChangesViewer({
                     ) : (
                       <div className='min-w-0 overflow-x-auto'>
                         <DiffBody
-                          diff={hydrated.get(file.diff) ?? noContext.get(file.diff) ?? file.diff}
+                          diff={replacements.get(file.diff) ?? file.diff}
                           loadDiffFiles={loadDiffFiles}
                         />
                       </div>
