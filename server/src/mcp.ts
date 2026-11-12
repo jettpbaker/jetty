@@ -1667,52 +1667,17 @@ export function createMcpHandler(
       const identity = sessions.authenticate(request.headers.get('authorization'))
       if (!identity) return new Response('Unauthorized', { status: 401 })
       if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
-      const body = (await request
-        .clone()
-        .json()
-        .catch(() => null)) as {
-        method?: string
-        params?: { name?: string; arguments?: { wait?: boolean } }
-      } | null
-      const waiting =
-        body?.method === 'tools/call' &&
-        body.params?.name === 'create_thread' &&
-        body.params?.arguments?.wait === true
       const server = new McpServer({ name: 'jetty', version: '1.0.0' })
       const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
-        enableJsonResponse: !waiting,
+        enableJsonResponse: true,
       })
       try {
         await register(server, identity)
         await server.connect(transport)
         const response = await transport.handleRequest(request)
-        if (!waiting || !response.body) {
-          await server.close()
-          return response
-        }
-        const reader = response.body.getReader()
-        return new Response(
-          new ReadableStream({
-            async pull(controller) {
-              try {
-                const next = await reader.read()
-                if (next.done) {
-                  controller.close()
-                  await server.close()
-                } else controller.enqueue(next.value)
-              } catch (error) {
-                controller.error(error)
-                await server.close()
-              }
-            },
-            async cancel() {
-              await reader.cancel()
-              await server.close()
-            },
-          }),
-          { status: response.status, headers: response.headers }
-        )
+        await server.close()
+        return response
       } catch (error) {
         await server.close()
         return new Response(error instanceof Error ? error.message : 'Thread unavailable', {
