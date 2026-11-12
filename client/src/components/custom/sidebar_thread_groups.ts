@@ -76,11 +76,11 @@ function startOfMondayWeek(date: Date, weekOffset = 0) {
   return startOfLocalDay(date, -daysFromMonday + weekOffset * 7)
 }
 
-function dateGroupId(updatedAt: number, now: Date) {
-  if (updatedAt >= startOfLocalDay(now)) return 'today'
-  if (updatedAt >= startOfLocalDay(now, -1)) return 'yesterday'
-  if (updatedAt >= startOfMondayWeek(now)) return 'this-week'
-  if (updatedAt >= startOfMondayWeek(now, -1)) return 'last-week'
+function dateGroupId(listedAt: number, now: Date) {
+  if (listedAt >= startOfLocalDay(now)) return 'today'
+  if (listedAt >= startOfLocalDay(now, -1)) return 'yesterday'
+  if (listedAt >= startOfMondayWeek(now)) return 'this-week'
+  if (listedAt >= startOfMondayWeek(now, -1)) return 'last-week'
   return 'earlier'
 }
 
@@ -100,7 +100,7 @@ function threadInGroup(thread: ListedThread, grouping: ThreadGrouping, groupId: 
   if (grouping === 'project') return thread.projectId === groupId
   if (grouping === 'status') return thread.status === groupId
   if (grouping === 'bot') return (thread.botId ?? '') === groupId
-  return dateGroupId(thread.listedDay, now) === groupId
+  return dateGroupId(thread.listedAt, now) === groupId
 }
 
 type ThreadListView = {
