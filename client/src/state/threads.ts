@@ -382,8 +382,11 @@ const threadContextAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => get(threadAtom(threadId))?.context ?? null)
 )
 
+const noContextAtom = Atom.readable(() => null)
+
+// No thread, no subscription: the new-thread composer asks too.
 export function useThreadContext(threadId: string | undefined) {
-  return useAtomValue(threadContextAtom(threadId ?? ''))
+  return useAtomValue(threadId ? threadContextAtom(threadId) : noContextAtom)
 }
 
 export const threadStatusAtom = Atom.family((threadId: string) =>

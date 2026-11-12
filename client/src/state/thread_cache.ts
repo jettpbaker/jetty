@@ -44,7 +44,6 @@ function evict(transaction: IDBTransaction) {
 }
 
 export async function touchThreadCache(threadId: string) {
-  if (!threadId) return
   try {
     const db = await openDatabase()
     if (!db || removed.has(threadId)) return
@@ -59,7 +58,6 @@ const entrySchema = Schema.Struct({ version: Schema.String, state: ThreadSnapsho
 const decode = Schema.decodeUnknownSync(entrySchema)
 
 export async function readThreadCache(threadId: string) {
-  if (!threadId) return
   try {
     const db = await openDatabase()
     if (!db || removed.has(threadId)) return
