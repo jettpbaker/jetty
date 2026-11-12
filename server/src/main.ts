@@ -544,10 +544,9 @@ function createServer(opts: ServerOptions = {}) {
     const discoveryScope = yield* Effect.scope
     let inFlight: Deferred.Deferred<void> | undefined
     let lastDiscovery = -Infinity
-    // Whether Claude is signed in decides where an unspecified turn goes; after the first answer,
-    // the cached one does.
-    let claudeSettled = false
-    let codexSettled = false
+    // Providers whose first discovery has landed. Whether Claude is signed in decides where an
+    // unspecified turn goes; after the first answer, the cached one does.
+    const settled = new Set<ProviderId>()
 
     function refreshModels(force = false) {
       return Effect.uninterruptibleMask((restore) =>
@@ -613,17 +612,12 @@ function createServer(opts: ServerOptions = {}) {
                     discovery.pipe(
                       Effect.flatMap(({ provider, models: next }) => {
                         if (next) lists.set(provider, next)
-                        if (provider === 'claude') claudeSettled = true
                         modelDiscovery = {
                           ...modelDiscovery,
                           [provider]: next ? 'ready' : 'error',
                         }
                         return publish().pipe(
-                          Effect.andThen(
-                            Effect.sync(() => {
-                              if (provider === 'codex') codexSettled = true
-                            })
-                          ),
+                          Effect.andThen(Effect.sync(() => settled.add(provider))),
                           Effect.andThen(publishStatus())
                         )
                       })
@@ -649,7 +643,8 @@ function createServer(opts: ServerOptions = {}) {
     yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
     function modelCatalog() {
       return Effect.gen(function* () {
-        if (models === null || (agentKind === 'claude' && !claudeSettled)) yield* refreshModels()
+        if (models === null || (agentKind === 'claude' && !settled.has('claude')))
+          yield* refreshModels()
         else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
         return models ?? []
       })
@@ -657,7 +652,7 @@ function createServer(opts: ServerOptions = {}) {
     function allowsFullAccess(provider: string, model: string | undefined) {
       return Effect.gen(function* () {
         // Queued turns start at boot, before Codex discovery has read its policy.
-        if (provider === 'codex' && !codexSettled) yield* refreshModels()
+        if (provider === 'codex' && !settled.has('codex')) yield* refreshModels()
         return findProviderModel(models ?? [], provider, model)?.fullAccess !== false
       })
     }
