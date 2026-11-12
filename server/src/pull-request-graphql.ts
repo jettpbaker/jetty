@@ -147,7 +147,7 @@ const checkContextNodes = `nodes { __typename
 }`
 
 // One page is the whole rollup for a normal PR. Further pages are separate requests.
-export function checkContextsField(after?: string) {
+function checkContextsField(after?: string) {
   return `contexts(first:100${after ? `,after:${JSON.stringify(after)}` : ''}) {
     ${pageFields}
     ${checkContextNodes}

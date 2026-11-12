@@ -257,7 +257,7 @@ export async function botInstructions(
     .digest('hex')
 }
 
-export const MANAGED_BOT_FILES = ['instructions.md', 'CLAUDE.md', 'open-tasks.md'] as const
+const MANAGED_BOT_FILES = ['instructions.md', 'CLAUDE.md', 'open-tasks.md'] as const
 
 const managedEdits = new Map<string, Promise<void>>()
 

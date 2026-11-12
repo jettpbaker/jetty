@@ -9,7 +9,7 @@ const TITLE_TIMEOUT = '30 seconds'
 const REPLY_OPENER = /^(i['’]d|i['’]ll|i['’]m|i can|sure|happy|of course|certainly)\b/i
 
 // Adapted from T3 Code's initial thread title prompt.
-export const TITLE_INSTRUCTIONS = `Generate a title that will help the user recognize this Jetty thread weeks later. Do not answer the request. Reply with only the title, without quotes.
+const TITLE_INSTRUCTIONS = `Generate a title that will help the user recognize this Jetty thread weeks later. Do not answer the request. Reply with only the title, without quotes.
 
 Before answering, silently reduce the request to:
 - Subject: What system, feature, or problem is this really about?
@@ -34,10 +34,10 @@ Editorial rules:
 
 Example: “can you look into why the login test keeps failing on CI?” → “Fix flaky login test”.`
 
-export const titlePrompt = (text: string, linkedItems: readonly string[] = []) =>
+const titlePrompt = (text: string, linkedItems: readonly string[] = []) =>
   `Title this conversation opener:\n\n<opening-message>\n${text}\n</opening-message>${linkedItems.length ? `\n\n<linked-items>\n${linkedItems.join('\n')}\n</linked-items>` : ''}`
 
-export function normalizeTitle(raw: string | null | undefined): string | null {
+function normalizeTitle(raw: string | null | undefined): string | null {
   if (!raw) return null
   let title = raw.trim()
   if (

@@ -120,7 +120,7 @@ function escapeAttribute(value: string) {
 export const CHILD_REPORT_INSTRUCTION =
   "The thread that sent this created yours. When you're done, Jetty sends your final message back to it, so write that message for it. If you need its decision, ask it with ask_parent. Mention the attachment ids of any images or videos you showed, so it can re-post them."
 
-export const REPORT_CAP = 20_000
+const REPORT_CAP = 20_000
 
 export type ReportOutcome =
   | { type: 'finished' }

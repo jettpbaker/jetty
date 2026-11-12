@@ -55,7 +55,7 @@ export function setOpencodeModel(
 }
 
 // `opencode models --verbose` prints a `provider/model` line, then that model's JSON.
-export function parseOpencodeModels(output: string): ProviderModel[] {
+function parseOpencodeModels(output: string): ProviderModel[] {
   const models: ProviderModel[] = []
   let heading = ''
   let body: string[] = []

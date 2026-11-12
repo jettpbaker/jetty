@@ -25,7 +25,7 @@ function values(value: unknown): Record<string, unknown>[] {
     : []
 }
 
-export function copilotModels(session: Record<string, unknown>): ProviderModel[] {
+function copilotModels(session: Record<string, unknown>): ProviderModel[] {
   const models = values(copilotConfig(session, 'model', 'model')?.options)
   const available = models.length ? models : values(object(session.models).availableModels)
   const thought = copilotConfig(session, 'thought_level', 'reasoning_effort')

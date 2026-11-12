@@ -128,7 +128,7 @@ function validSha(sha: string): boolean {
   return /^[a-f0-9]{40,64}$/i.test(sha)
 }
 
-export function validLogin(login: string): boolean {
+function validLogin(login: string): boolean {
   return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/.test(login)
 }
 
@@ -150,7 +150,7 @@ export function parsePullRequestUrl(value: string): PullRequestRef | null {
   }
 }
 
-export function pullRequestUrls(text: string): PullRequestRef[] {
+function pullRequestUrls(text: string): PullRequestRef[] {
   const found = new Map<string, PullRequestRef>()
   for (const match of text.matchAll(
     /(?:https?:\/\/)?github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[0-9]+[^\s<>]*/gi
@@ -283,7 +283,7 @@ export async function projectRemote(path: string): Promise<string | null> {
   }
 }
 
-export function resolvePullRequestReference(
+function resolvePullRequestReference(
   value: string,
   remote: string | null
 ): Effect.Effect<PullRequestRef, StoreError> {
@@ -366,10 +366,7 @@ let secondaryFailures = 0
 const restCache = new Map<string, { etag: string; value: unknown }>()
 const apiInFlight = new Map<string, Promise<unknown>>()
 
-export function githubRateLimitHealth(
-  cadenceMs: number | null,
-  checksCadenceMs: number | null = null
-) {
+function githubRateLimitHealth(cadenceMs: number | null, checksCadenceMs: number | null = null) {
   return {
     ...rateHealth,
     backoffUntil:
@@ -3034,7 +3031,7 @@ function listItem(value: unknown): PullRequestListItem | null {
   }
 }
 
-export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[]) {
+function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[]) {
   const searches = tabs.flatMap(listSearches).map((search) => search.query)
   const fields = `issueCount nodes { ... on PullRequest {
     id number title url headRefOid isDraft state merged updatedAt closedAt repository { nameWithOwner }
@@ -3052,11 +3049,7 @@ export function pullRequestListGraphqlQuery(tabs: readonly PullRequestListTab[])
   }
 }
 
-export function mapPullRequestList(
-  value: unknown,
-  tabs: readonly PullRequestListTab[],
-  tabIndex = 0
-) {
+function mapPullRequestList(value: unknown, tabs: readonly PullRequestListTab[], tabIndex = 0) {
   const data = record(record(value).data)
   const since = Date.parse(recentSince())
   const found = new Map<string, PullRequestListItem>()

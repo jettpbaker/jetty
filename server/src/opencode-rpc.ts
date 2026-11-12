@@ -6,7 +6,7 @@ import { AgentError } from './agent'
 import { providerCli } from './provider-cli'
 import { openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
 
-export const OPENCODE_ARGS = ['acp']
+const OPENCODE_ARGS = ['acp']
 
 export function opencodeBin(options: StdioProcessOptions = {}) {
   const command =

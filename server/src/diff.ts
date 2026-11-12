@@ -258,7 +258,7 @@ type ProjectEntry = { name: string; directory: boolean }
 
 // One folder of the thread's project ('' is its top), without .git or anything git ignores. A
 // folder that isn't there lists nothing.
-export function readProjectDirectory(cwd: string, path: string) {
+function readProjectDirectory(cwd: string, path: string) {
   return Effect.gen(function* () {
     const paths = yield* Path.Path
     const { root, file: folder } =
