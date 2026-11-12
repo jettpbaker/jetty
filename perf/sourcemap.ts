@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SourceMapConsumer } from 'source-map-js'
 
-export type Location = { source: string; line: number; name: string }
+type Location = { source: string; line: number; name: string }
 
 export type SourceMapper = {
   locate(file: string, offset: number, fallbackName: string): Location

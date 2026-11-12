@@ -71,7 +71,7 @@ export async function click(page: Page, element: string, what: string) {
   await park(page)
 }
 
-export async function park(page: Page) {
+async function park(page: Page) {
   await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1439, y: 899 })
 }
 

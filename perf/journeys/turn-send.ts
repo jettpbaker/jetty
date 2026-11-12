@@ -1,6 +1,6 @@
 import { click, composer, deleteThread, newThread, open, type Journey } from '../journey'
 
-export const message = 'Hello from the perf lab'
+const message = 'Hello from the perf lab'
 // The sidebar title, the user message and the finished echo reply.
 const finished = `!document.querySelector('[aria-label="Stop"]') && document.getElementById('root').textContent.split(${JSON.stringify(message)}).length >= 4`
 

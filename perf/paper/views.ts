@@ -40,7 +40,7 @@ const allThemes: Theme[] = ['dark', 'light', 'oled']
 const prompt = `document.querySelector('textarea[aria-label="Thread prompt"]')`
 const text = (value: string) =>
   `[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(value)})`
-export const button = (label: string) =>
+const button = (label: string) =>
   `document.querySelector('button[aria-label=${JSON.stringify(label)}]')`
 
 async function details(ctx: Context) {

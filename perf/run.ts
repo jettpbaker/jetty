@@ -27,9 +27,9 @@ import { hugeJourneys } from './journeys/pr-huge'
 import { cloneHome, goldenHome, type Golden } from './seed'
 import { createSourceMapper, type SourceMapper } from './sourcemap'
 
-export const cpuThrottle = 4
+const cpuThrottle = 4
 
-export type PerfRecord = {
+type PerfRecord = {
   v: 1
   t: number
   sid: string

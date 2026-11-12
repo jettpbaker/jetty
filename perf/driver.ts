@@ -9,14 +9,14 @@ export const viewport = { width: 1440, height: 900 }
 
 const cacheRoot = join(homedir(), 'Library/Caches/jetty-perf')
 
-export function chromePath() {
+function chromePath() {
   return join(
     cacheRoot,
     `chrome/mac_arm-${chrome.version}/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`
   )
 }
 
-export async function ensureChrome() {
+async function ensureChrome() {
   const path = chromePath()
   if (await Bun.file(path).exists()) return path
   console.log(`installing Chrome for Testing ${chrome.version}…`)

@@ -41,7 +41,7 @@ async function run(cmd: string[], cwd: string, env?: Record<string, string | und
   return out.trim()
 }
 
-export function git(args: string[], cwd = repoRoot) {
+function git(args: string[], cwd = repoRoot) {
   return run(['git', ...args], cwd)
 }
 

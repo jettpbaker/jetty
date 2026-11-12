@@ -5,7 +5,7 @@ import type { Page } from '../driver'
 import { repoRoot } from '../app'
 
 export type Theme = 'dark' | 'light' | 'oled'
-export type Token = { name: string; value: string }
+type Token = { name: string; value: string }
 
 export async function readTokens(page: Page, theme: Theme) {
   const css = await Bun.file(join(repoRoot, 'client/src/index.css')).text()
