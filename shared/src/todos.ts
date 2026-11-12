@@ -154,7 +154,3 @@ export function foldTodos(
   const list: Todo[] = todos.filter((todo) => shown(todo, current))
   return { todos: list, tracked: todos, updates }
 }
-
-export function currentTodos(items: readonly ThreadItem[], current = items.at(-1)?.turnId): Todo[] {
-  return foldTodos(items, current).todos
-}

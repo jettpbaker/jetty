@@ -115,30 +115,6 @@ export function prepareArchivedSearch(fields: ArchivedSearchFields): ArchivedSea
   }
 }
 
-// Zero is no match. An empty query matches nothing here; the page lists everything on its own.
-export function scoreArchivedSearch(query: string, docs: readonly ArchivedSearchDoc[]): number[] {
-  const wanted = unique(contentTokens(query.trim().toLowerCase()))
-  if (!wanted.length) return docs.map(() => 0)
-  const bm25 = bm25TokenScores(
-    [...new Set(tokenize(query))],
-    docs.map((doc) => doc.bm25)
-  )
-  return docs.map((doc, index) => {
-    const all = searchFields.flatMap((name) => doc.prefix[name])
-    if (!wanted.every((token) => tokenHits(token, all))) return 0
-    let score = bm25[index] ?? 0
-    for (const token of wanted) {
-      for (const name of searchFields) {
-        const have = doc.prefix[name]
-        if (have.some((candidate) => candidate === token)) score += fieldWeight[name] * 3
-        else if (!STOP.has(token) && have.some((candidate) => candidate.startsWith(token)))
-          score += fieldWeight[name]
-      }
-    }
-    return score
-  })
-}
-
 function findToken(text: string, token: string) {
   const lower = text.toLowerCase()
   const exact = STOP.has(token)
@@ -155,34 +131,6 @@ function findToken(text: string, token: string) {
 }
 
 const visibleFields = ['title', 'project', 'branch', 'pr'] as const
-
-// A short excerpt when the query needed the message text. Undefined when the title,
-// project, branch or PR already show why the row matched. Uses the prepared tokens,
-// so a keystroke doesn't retokenize the message text.
-export function archivedMessageSnippet(
-  query: string,
-  messages: string,
-  doc: ArchivedSearchDoc
-): string | undefined {
-  const wanted = unique(contentTokens(query.trim().toLowerCase()))
-  if (!wanted.length || !messages) return undefined
-  const needsMessage = wanted.some(
-    (token) =>
-      tokenHits(token, doc.prefix.messages) &&
-      !visibleFields.some((name) => tokenHits(token, doc.prefix[name]))
-  )
-  if (!needsMessage) return undefined
-  let at = -1
-  for (const token of wanted) {
-    const found = findToken(messages, token)
-    if (found !== -1 && (at === -1 || found < at)) at = found
-  }
-  if (at < 0) return undefined
-  const start = Math.max(0, at - 28)
-  const end = Math.min(messages.length, at + 72)
-  const slice = messages.slice(start, end).replace(/\s+/g, ' ').trim()
-  return `${start > 0 ? '…' : ''}${slice}${end < messages.length ? '…' : ''}`
-}
 
 export type ArchivedMessageHit = {
   id: string
