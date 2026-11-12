@@ -35,6 +35,7 @@ import {
   pullRequestChecksFields,
   copilotWriteLogin,
   githubUser as user,
+  graphqlErrors,
   findPullRequestReferences,
   mapPullRequestGraphql,
   mapPullRequestReferences,
@@ -814,7 +815,7 @@ async function fetchGraphqlBatch(
 ) {
   const response = record(await queryGraphql(pullRequestGraphqlQuery(refs, fields)))
   const data = record(response.data)
-  const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+  const errors = graphqlErrors(response)
   return Promise.all(
     refs.map(async (ref, index) => {
       try {
@@ -911,7 +912,7 @@ async function paginatePullRequest(ref: PullRequestRef, pull: Record<string, unk
         const response = record(
           await queryGraphql(pullRequestGraphqlQuery([ref], connectionField(field, cursor)))
         )
-        const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+        const errors = graphqlErrors(response)
         const failed = errors.filter((error) => Array.isArray(error.path) && error.path[0] === 'p0')
         if (failed.length) {
           const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
@@ -967,7 +968,7 @@ async function paginateThread(
       } }
     }`)
     )
-    const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+    const errors = graphqlErrors(response)
     if (errors.some((error) => Array.isArray(error.path) && error.path[0] === 'node')) {
       const previous = cacheRead(lastPulls, `${prKey(ref)}\0${pullRequestGraphqlFields}`)
       const saved =
@@ -1010,7 +1011,7 @@ async function paginateCheckContexts(ref: PullRequestRef, pull: Record<string, u
       )
       return
     }
-    const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+    const errors = graphqlErrors(response)
     if (errors.length) {
       console.warn(`[pr-fetch] ${prKey(ref)} check page failed: ${string(errors[0]?.message)}`)
       return
@@ -1401,7 +1402,7 @@ async function classifyFiles(
       return
     }
     // A reference that doesn't resolve fails on its own; file metadata must not.
-    const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+    const errors = graphqlErrors(response)
     if (
       errors.some((error) => !/^r0_\d+$/.test(String((error.path as unknown[] | undefined)?.[0])))
     )
@@ -3149,8 +3150,7 @@ async function probePullRequestLists(tabs: readonly PullRequestListTab[], ids: r
 
   }`)
   const data = record(record(response).data)
-  const failures = record(response).errors
-  const errors = Array.isArray(failures) ? failures.map(record) : []
+  const errors = graphqlErrors(response)
   if (errors.some((error) => !['FORBIDDEN', 'NOT_FOUND'].includes(string(error.type))))
     throw new GhFailure(
       'unavailable',
@@ -3186,7 +3186,7 @@ async function fetchPullRequestLists(tabs: readonly PullRequestListTab[]) {
   )
   // Partial data drops rows (a search or PR nulled by the error), so keep the last good list,
   // unless every error is lost access: those rows never come back.
-  const errors = Array.isArray(response.errors) ? response.errors.map(record) : []
+  const errors = graphqlErrors(response)
   const data = record(response.data)
   if (
     errors.some((error) => !['FORBIDDEN', 'NOT_FOUND'].includes(string(error.type))) ||

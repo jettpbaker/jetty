@@ -241,6 +241,12 @@ export function string(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
 }
 
+// The errors a GraphQL response carries beside its data.
+export function graphqlErrors(response: unknown) {
+  const errors = record(response).errors
+  return Array.isArray(errors) ? errors.map(record) : []
+}
+
 // GitHub's connection nodes are nullable: a node it couldn't resolve comes back as null.
 export function nodes(value: unknown): unknown[] {
   return ((record(value).nodes as unknown[] | undefined) ?? []).filter((node) => node != null)
