@@ -316,6 +316,25 @@ export const AppSidebar = memo(function AppSidebar() {
     [readChrome, confirmRemove, checkChanges]
   )
 
+  const rowHandlers = {
+    onSelect: openThread,
+    onArchive: archive,
+    onUnarchive: archiveThread,
+    onDelete: remove,
+    onPin: pinThread,
+    onRename: renameThread,
+    onOpenPullRequest: openPullRequest,
+  }
+
+  function prefetchOnHover(id: string) {
+    return {
+      onPointerEnter: () => {
+        if (id !== selectedId) prefetch.enter(id)
+      },
+      onPointerLeave: () => prefetch.leave(id),
+    }
+  }
+
   return (
     <Sidebar
       data-perf-region='sidebar'
@@ -404,27 +423,14 @@ export const AppSidebar = memo(function AppSidebar() {
                   <CollapsibleContent>
                     <div className='flex flex-col gap-0.5 pt-0.5'>
                       {(botThreads.get(bot.id) ?? []).map(({ id }) => (
-                        <div
-                          key={id}
-                          data-thread-row
-                          onPointerEnter={() => {
-                            if (id !== selectedId) prefetch.enter(id)
-                          }}
-                          onPointerLeave={() => prefetch.leave(id)}
-                        >
+                        <div key={id} data-thread-row {...prefetchOnHover(id)}>
                           <SidebarThreadRow
                             id={id}
                             now={now}
                             nested
                             shortcut={shortcutFor('thread', id)}
                             selected={selectedId === id}
-                            onSelect={openThread}
-                            onArchive={archive}
-                            onUnarchive={archiveThread}
-                            onDelete={remove}
-                            onPin={pinThread}
-                            onRename={renameThread}
-                            onOpenPullRequest={openPullRequest}
+                            {...rowHandlers}
                           />
                         </div>
                       ))}
@@ -545,23 +551,14 @@ export const AppSidebar = memo(function AppSidebar() {
                     layoutDependency={layoutDependency}
                     initial={false}
                     transition={{ layout: rowLayoutTransition }}
-                    onPointerEnter={() => {
-                      if (item.id !== selectedId) prefetch.enter(item.id)
-                    }}
-                    onPointerLeave={() => prefetch.leave(item.id)}
+                    {...prefetchOnHover(item.id)}
                   >
                     <SidebarThreadRow
                       id={item.id}
                       now={now}
                       shortcut={shortcutFor('thread', item.id)}
                       selected={selectedId === item.id}
-                      onSelect={openThread}
-                      onArchive={archive}
-                      onUnarchive={archiveThread}
-                      onDelete={remove}
-                      onPin={pinThread}
-                      onRename={renameThread}
-                      onOpenPullRequest={openPullRequest}
+                      {...rowHandlers}
                     />
                   </motion.div>
                 )
