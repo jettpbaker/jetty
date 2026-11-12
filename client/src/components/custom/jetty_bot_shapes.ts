@@ -17,7 +17,7 @@ export type Body = {
 
 const round = (n: number) => Math.round(n * 100) / 100
 const at = (p: Point) => `${round(p[0])} ${round(p[1])}`
-const toward = (from: Point, to: Point, r: number): Point => {
+function toward(from: Point, to: Point, r: number): Point {
   const dx = to[0] - from[0],
     dy = to[1] - from[1],
     len = Math.hypot(dx, dy)
