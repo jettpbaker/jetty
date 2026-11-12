@@ -12,6 +12,7 @@ import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
+import { acpPrompt } from './acp-session'
 import {
   AgentError,
   AgentService,
@@ -74,17 +75,6 @@ type Session = {
   commands: Set<string>
   compactionId?: string
   compactionOutput: string
-}
-
-export function opencodeInput(text: string, images?: AgentImage[]) {
-  return [
-    ...(text ? [{ type: 'text', text }] : []),
-    ...(images ?? []).map((image) => ({
-      type: 'image',
-      data: image.base64data,
-      mimeType: image.mimeType,
-    })),
-  ]
 }
 
 // ACP has no field for system instructions. OpenCode reads instruction files named in its config,
@@ -219,9 +209,7 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
             },
           })
         }
-        const blocks = session.input.compact
-          ? opencodeInput('/compact')
-          : opencodeInput(text, images)
+        const blocks = session.input.compact ? acpPrompt('/compact') : acpPrompt(text, images)
         session.denied = false
         session.requestId = yield* session.connection!.startRequest('session/prompt', {
           sessionId: session.providerThreadId,

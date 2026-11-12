@@ -12,6 +12,7 @@ import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
+import { acpPrompt } from './acp-session'
 import {
   AgentError,
   AgentService,
@@ -73,17 +74,6 @@ type Session = {
   commands: Set<string>
   compactionId?: string
   compactionOutput: string
-}
-
-export function copilotInput(text: string, images?: AgentImage[]) {
-  return [
-    ...(text ? [{ type: 'text', text }] : []),
-    ...(images ?? []).map((image) => ({
-      type: 'image',
-      data: image.base64data,
-      mimeType: image.mimeType,
-    })),
-  ]
 }
 
 // ACP has no field for system instructions. Copilot reads always-on instruction files from the
@@ -256,7 +246,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             },
           })
         }
-        const blocks = session.input.compact ? copilotInput('/compact') : copilotInput(text, images)
+        const blocks = session.input.compact ? acpPrompt('/compact') : acpPrompt(text, images)
         session.denied = false
         session.requestId = yield* session.connection!.startRequest('session/prompt', {
           sessionId: session.providerThreadId,
@@ -461,7 +451,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
             yield* connection
               .request('session/prompt', {
                 sessionId,
-                prompt: copilotInput('/permissions assisted'),
+                prompt: acpPrompt('/permissions assisted'),
               })
               .pipe(Effect.timeout('10 seconds'), Effect.ignore)
             yield* drain

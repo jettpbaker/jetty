@@ -9,7 +9,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import type { ModelPrompt } from './title-model'
 
-import { copilotInput } from './copilot'
+import { acpPrompt } from './acp-session'
 import { setCopilotModel } from './copilot-models'
 import { COPILOT_ARGS, copilotError, openCopilotConnection } from './copilot-rpc'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
@@ -86,7 +86,7 @@ function copilotPrompt(
       yield* Queue.takeAll(connection.messages)
       const requestId = yield* connection.startRequest('session/prompt', {
         sessionId,
-        prompt: copilotInput(text),
+        prompt: acpPrompt(text),
       })
       let reply = ''
       while (true) {

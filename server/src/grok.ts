@@ -8,6 +8,7 @@ import type { McpSessions } from './mcp-sessions'
 import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
+import { acpPrompt } from './acp-session'
 import {
   AgentError,
   AgentService,
@@ -87,17 +88,6 @@ function noteCompactFailure(session: Session, failure: string) {
     session.compactFailureNoted = true
     yield* session.emit(couldntCompact(session.input.turnId, detail))
   })
-}
-
-function grokInput(text: string, images?: AgentImage[]) {
-  return [
-    ...(text ? [{ type: 'text', text }] : []),
-    ...(images ?? []).map((image) => ({
-      type: 'image',
-      data: image.base64data,
-      mimeType: image.mimeType,
-    })),
-  ]
 }
 
 export function grokArgs(input: TurnInput) {
@@ -413,7 +403,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
         session.promptId = newId()
         session.requestId = yield* session.connection!.startRequest('session/prompt', {
           sessionId: session.providerThreadId,
-          prompt: grokInput(text, images),
+          prompt: acpPrompt(text, images),
           _meta: { promptId: session.promptId, requestId: session.promptId },
         })
       })

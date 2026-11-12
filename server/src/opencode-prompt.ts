@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 
 import type { ModelPrompt } from './title-model'
 
-import { opencodeInput } from './opencode'
+import { acpPrompt } from './acp-session'
 import { setOpencodeModel } from './opencode-models'
 import {
   opencodeConfigEnv,
@@ -55,7 +55,7 @@ function opencodePrompt(
       yield* Queue.takeAll(connection.messages)
       const requestId = yield* connection.startRequest('session/prompt', {
         sessionId,
-        prompt: opencodeInput(text),
+        prompt: acpPrompt(text),
       })
       let reply = ''
       while (true) {
