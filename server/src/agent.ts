@@ -315,7 +315,7 @@ type EchoSession = {
   accepting: boolean
   publication: Semaphore.Semaphore
   hold: EchoHold | null
-  emit: Emit | null
+  emit: Emit
 }
 
 // `echo:approval` and `echo:question` pause the turn on that card until it is answered or stopped.
@@ -395,11 +395,10 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
     ) {
       return Effect.gen(function* () {
         const hold = session?.hold
-        const emit = session?.emit
-        if (!session || !hold || !emit || hold.itemId !== itemId || hold.kind !== kind) return false
+        if (!session || !hold || hold.itemId !== itemId || hold.kind !== kind) return false
         session.hold = null
-        yield* emit({ type: 'item.completed', itemId, patch })
-        yield* emit({ type: 'session.status', status: 'running' })
+        yield* session.emit({ type: 'item.completed', itemId, patch })
+        yield* session.emit({ type: 'session.status', status: 'running' })
         yield* Deferred.succeed(hold.gate, undefined)
         return true
       })
@@ -473,17 +472,16 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
             return yield* Effect.fail(new AgentError('Turn already active'))
           const queue = yield* Queue.make<string>()
           const done = yield* Deferred.make<void, AgentError>()
+          const publication = yield* Semaphore.make(1)
+          const emit: Emit = (event, onCommit) => publication.withPermit(publish(event, onCommit))
           const session = {
             input: queue,
             reason: 'server shutdown',
             accepting: true,
-            publication: yield* Semaphore.make(1),
+            publication,
             hold: null,
-            emit: null,
+            emit,
           } as EchoSession
-          const emit: Emit = (event, onCommit) =>
-            session.publication.withPermit(publish(event, onCommit))
-          session.emit = emit
           const { from, to } = nextContextTarget(input.threadId)
           const ramp = [0.25, 0.5, 0.75, 1].map((f) => Math.round(from + (to - from) * f))
           const itemBase = () => ({ id: newId(), turnId: input.turnId, createdAt: Date.now() })
