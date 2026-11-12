@@ -12,7 +12,7 @@ import type {
 
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { patchPullRequestListItem } from '@jetty/shared/pull-request'
+import { patchPullRequestListItems } from '@jetty/shared/pull-request'
 import { useNavigate } from '@tanstack/react-router'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
@@ -41,24 +41,13 @@ const cacheAtom = Atom.family((_key: string) =>
 
 function cachePullRequest(registry: Registry, snapshot: PullRequestSnapshot) {
   registry.set(cacheAtom(pullRequestKey(snapshot)), snapshot)
-  const data = snapshot.data
-  if (!data || (snapshot.status !== 'ready' && !snapshot.pendingOperation)) return
+  if (!snapshot.data || (snapshot.status !== 'ready' && !snapshot.pendingOperation)) return
   for (const tab of ['for-you', 'created'] as const) {
     const atom = listCacheAtom(tab)
     const list = registry.get(atom)
     if (!list?.items) continue
-    let changed = false
-    const items = list.items.map((item) => {
-      if (
-        pullRequestKey(item) !== pullRequestKey(snapshot) ||
-        (!snapshot.pendingOperation && Date.parse(data.pull.updated_at) < item.updatedAt)
-      )
-        return item
-      const patched = patchPullRequestListItem(item, data)
-      if (patched !== item) changed = true
-      return patched
-    })
-    if (changed) registry.set(atom, { ...list, items })
+    const items = patchPullRequestListItems(list.items, snapshot)
+    if (items !== list.items) registry.set(atom, { ...list, items })
   }
 }
 

@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 
-import type { PullRequestListItem } from './wire'
+import type { PullRequestListItem, PullRequestSnapshot } from './wire'
 
 export const GitHubUser = Schema.Struct({
   login: Schema.String,
@@ -336,4 +336,28 @@ export function patchPullRequestListItem(
     updatedAt: Date.parse(pull.updated_at) || 0,
   }
   return JSON.stringify(item) === JSON.stringify(patched) ? item : patched
+}
+
+// A list's rows with this pull request's row brought up to the snapshot, or the same array when
+// nothing changed. A row the list read after the snapshot stands, unless a write is under way:
+// its optimistic data still carries the older timestamp.
+export function patchPullRequestListItems(
+  items: readonly PullRequestListItem[],
+  snapshot: PullRequestSnapshot
+) {
+  const { data } = snapshot
+  if (!data) return items
+  let changed = false
+  const patched = items.map((item) => {
+    if (
+      item.repo !== snapshot.repo ||
+      item.number !== snapshot.number ||
+      (!snapshot.pendingOperation && Date.parse(data.pull.updated_at) < item.updatedAt)
+    )
+      return item
+    const next = patchPullRequestListItem(item, data)
+    if (next !== item) changed = true
+    return next
+  })
+  return changed ? patched : items
 }

@@ -11,7 +11,12 @@ import type {
   ThreadMeta,
 } from '@jetty/shared/wire'
 
-import { PullRequestData, patchPullRequestListItem, rollupChecks } from '@jetty/shared/pull-request'
+import {
+  PullRequestData,
+  patchPullRequestListItem,
+  patchPullRequestListItems,
+  rollupChecks,
+} from '@jetty/shared/pull-request'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { PullRequestReference } from './pull-request-graphql'
@@ -3341,24 +3346,13 @@ export function createPullRequestLists(
 
   pulls.observeLists((snapshot) =>
     Effect.gen(function* () {
-      const data = snapshot.data
-      if (!data) return
+      if (!snapshot.data) return
       publishedAt.set(prKey(snapshot), Date.now())
       for (const tab of ['for-you', 'created'] as const) {
         const list = yield* store.getPullRequestList(tab)
-        let changed = false
-        const items = list.items?.map((item) => {
-          if (
-            prKey(item) !== prKey(snapshot) ||
-            (!snapshot.pendingOperation && Date.parse(data.pull.updated_at) < item.updatedAt)
-          )
-            return item
-          const patched = patchPullRequestListItem(item, data)
-          if (patched === item) return item
-          changed = true
-          return patched
-        })
-        if (!changed) continue
+        if (!list.items) continue
+        const items = patchPullRequestListItems(list.items, snapshot)
+        if (items === list.items) continue
         const patched = { ...list, items }
         yield* store.savePullRequestList(patched)
         hub.pushPullRequestList(decorate(patched))
