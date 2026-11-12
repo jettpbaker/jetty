@@ -20,7 +20,7 @@ import { observeServerTime } from '@/lib/server_time'
 import { newThreadProject } from '@/lib/thread_project'
 import { reload, session } from '@/platform'
 import { useAtomValue } from '@effect/atom-react'
-import { Equal, Stream } from 'effect'
+import { Effect, Equal, Stream } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 
 import { subscribe, useAction } from './connection'
@@ -78,21 +78,6 @@ function upsert<T extends { id: string }>(list: readonly T[], item: T) {
 function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
   switch (update.type) {
     case 'snapshot':
-      observeServerTime(update.serverTime)
-      void pruneThreadCache([
-        ...update.threads.map((thread) => thread.id),
-        ...(update.bots ?? []).map((bot) => bot.id),
-      ])
-      if (
-        import.meta.env.PROD &&
-        update.serverVersion &&
-        update.serverVersion !== import.meta.env.JETTY_VERSION &&
-        // Once per version: a checkout pulled without a rebuild would otherwise reload forever.
-        session.get('jetty.reloadedFor') !== update.serverVersion
-      ) {
-        session.set('jetty.reloadedFor', update.serverVersion)
-        reload()
-      }
       return {
         jettyUpdate: update.jettyUpdate,
         projects: update.projects,
@@ -124,18 +109,12 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
     case 'thread.upserted':
       return { ...chrome, threads: upsert(chrome.threads, update.thread) }
     case 'project.removed':
-      void dropThreadCache(
-        chrome.threads
-          .filter((thread) => thread.projectId === update.projectId)
-          .map((thread) => thread.id)
-      )
       return {
         ...chrome,
         projects: chrome.projects.filter((project) => project.id !== update.projectId),
         threads: chrome.threads.filter((thread) => thread.projectId !== update.projectId),
       }
     case 'thread.removed':
-      void dropThreadCache([update.threadId])
       return {
         ...chrome,
         threads: chrome.threads.filter((thread) => thread.id !== update.threadId),
@@ -157,6 +136,38 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
   }
 }
 
+// What a push does besides changing chrome; `before` is chrome as the push found it.
+function pushEffects(before: Chrome, update: ChromePushData) {
+  switch (update.type) {
+    case 'snapshot':
+      observeServerTime(update.serverTime)
+      void pruneThreadCache([
+        ...update.threads.map((thread) => thread.id),
+        ...(update.bots ?? []).map((bot) => bot.id),
+      ])
+      if (
+        import.meta.env.PROD &&
+        update.serverVersion &&
+        update.serverVersion !== import.meta.env.JETTY_VERSION &&
+        // Once per version: a checkout pulled without a rebuild would otherwise reload forever.
+        session.get('jetty.reloadedFor') !== update.serverVersion
+      ) {
+        session.set('jetty.reloadedFor', update.serverVersion)
+        reload()
+      }
+      return
+    case 'project.removed':
+      void dropThreadCache(
+        before.threads
+          .filter((thread) => thread.projectId === update.projectId)
+          .map((thread) => thread.id)
+      )
+      return
+    case 'thread.removed':
+      void dropThreadCache([update.threadId])
+  }
+}
+
 // The server's own view, before this tab's pending changes.
 export const chromeSnapshotAtom = Atom.make<Chrome | undefined>(undefined).pipe(Atom.keepAlive)
 
@@ -164,8 +175,15 @@ const liveAtom = Atom.make((get) => {
   const snapshot = get(chromeSnapshotAtom)
   if (snapshot) return Stream.succeed(snapshot)
   return subscribe(get, (connection) => connection.subscribeChrome()).pipe(
-    Stream.scan(() => emptyChrome, foldChrome),
-    Stream.drop(1)
+    Stream.mapAccum(
+      () => emptyChrome,
+      (before, update) => {
+        const chrome = foldChrome(before, update)
+        return [chrome, [{ before, update, chrome }]]
+      }
+    ),
+    Stream.tap(({ before, update }) => Effect.sync(() => pushEffects(before, update))),
+    Stream.map(({ chrome }) => chrome)
   )
 }).pipe(Atom.keepAlive)
 
