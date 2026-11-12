@@ -1349,14 +1349,17 @@ async function classifyFiles(
   // Body references a cold read couldn't know to ask for ride along on the first query.
   references: readonly PullRequestReference[] = []
 ) {
+  // A file's flags come from its directory at the head, or at the base once it is removed.
+  function directory(file: PullRequestFile) {
+    const removed = file.status === 'removed'
+    const source = { repo: removed ? repo : headRepo, sha: removed ? baseSha : headSha }
+    const dir = file.filename.slice(0, Math.max(0, file.filename.lastIndexOf('/')))
+    return { ...source, dir, key: `${source.repo.toLowerCase()}\0${source.sha}\0${dir}` }
+  }
   const directories = new Map<string, { repo: string; sha: string; dir: string }>()
   for (const file of files) {
-    const sha = file.status === 'removed' ? baseSha : headSha
-    if (!sha) continue
-    const dir = file.filename.slice(0, Math.max(0, file.filename.lastIndexOf('/')))
-    const sourceRepo = file.status === 'removed' ? repo : headRepo
-    const key = `${sourceRepo.toLowerCase()}\0${sha}\0${dir}`
-    directories.set(key, { repo: sourceRepo, sha, dir })
+    const { key, sha, ...rest } = directory(file)
+    if (sha) directories.set(key, { ...rest, sha })
   }
   const directoryFlags = new Map<string, Map<string, FileFlags>>()
   for (const [key] of directories) {
@@ -1448,12 +1451,7 @@ async function classifyFiles(
         ? undefined
         : mapPullRequestReferences(referenceData, references, 0),
     files: files.map((file) => {
-      const sha = file.status === 'removed' ? baseSha : headSha
-      const dir = file.filename.slice(0, Math.max(0, file.filename.lastIndexOf('/')))
-      const sourceRepo = file.status === 'removed' ? repo : headRepo
-      const flags = directoryFlags
-        .get(`${sourceRepo.toLowerCase()}\0${sha}\0${dir}`)
-        ?.get(file.filename)
+      const flags = directoryFlags.get(directory(file).key)?.get(file.filename)
       return { ...file, binary: flags?.binary ?? false, generated: flags?.generated ?? false }
     }),
   }
