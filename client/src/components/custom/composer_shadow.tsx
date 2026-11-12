@@ -1,8 +1,12 @@
-import type { ComposerShadowSettings } from '@/lib/composer-shadow-settings'
-
 import { useAppearance } from '@/lib/appearance'
 
 import './composer_shadow.css'
+
+const strength = 5
+const falloffPx = 480
+const inset = Math.min(falloffPx * 0.1, 8)
+const layer = `0 0 ${falloffPx}px ${-inset}px var(--composer-shadow-color)`
+const boxShadow = Array.from({ length: strength }, () => layer).join(', ')
 
 // Whether the heavy shadow lifts the composer off a wallpaper; otherwise its own small lift does.
 export function useWallpaperUnderComposer() {
@@ -10,12 +14,9 @@ export function useWallpaperUnderComposer() {
   return !!(wallpaper || video)
 }
 
-export function ComposerShadow({ settings }: { settings: ComposerShadowSettings }) {
+export function ComposerShadow() {
   const underneath = useWallpaperUnderComposer()
-  if (!settings.enabled || !underneath) return null
-  const inset = Math.min(settings.falloffPx * 0.1, 8)
-  const layer = `0 0 ${settings.falloffPx}px ${-inset}px var(--composer-shadow-color)`
-  const boxShadow = Array.from({ length: settings.strength }, () => layer).join(', ')
+  if (!underneath) return null
 
   return (
     <div

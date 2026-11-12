@@ -1,7 +1,4 @@
 import { useAppearance } from '@/lib/appearance'
-import { initialBlurSettings } from '@/lib/blur-settings'
-import { initialDitherSettings } from '@/lib/dither-settings'
-import { initialFadeSettings } from '@/lib/fade-settings'
 import { useResolvedTheme } from '@/lib/theme'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
@@ -12,10 +9,7 @@ import { DriftingDither } from './drifting_dither'
 import { OpacityFade } from './opacity_fade'
 import './new_thread_backdrop.css'
 
-const curve = {
-  curveStart: initialFadeSettings.curveStart,
-  curveStrength: initialFadeSettings.curveStrength,
-}
+const curve = { curveStart: 0.35, curveStrength: 2.5 }
 const fadeBackground = 'var(--backdrop-fade)'
 
 function WallpaperVideo({ src, playing }: { src: string; playing: boolean }) {
@@ -46,27 +40,33 @@ export function NewThreadBackdrop({ visible }: { visible: boolean }) {
   const resolvedTheme = useResolvedTheme()
   const reducedMotion = useReducedMotion()
   const light = resolvedTheme === 'light'
-  const fade = { ...initialFadeSettings, topOpacity: light ? 0.9 : 0.8 }
+  const topOpacity = light ? 0.9 : 0.8
   if (!image && !video)
     return hasWebGL() ? (
-      <OpacityFade settings={fade} background={fadeBackground}>
+      <OpacityFade curve={curve} topOpacity={topOpacity} background={fadeBackground}>
         <DitherDrift />
       </OpacityFade>
     ) : null
   return (
     <div className='pointer-events-none absolute inset-0 overflow-hidden' aria-hidden='true'>
       {video ? (
-        <OpacityFade settings={fade} background={fadeBackground}>
+        <OpacityFade curve={curve} topOpacity={topOpacity} background={fadeBackground}>
           <WallpaperVideo src={video} playing={visible && !reducedMotion} />
         </OpacityFade>
       ) : (
-        <OpacityFade settings={fade} background={fadeBackground}>
-          <DownwardBlur settings={initialBlurSettings} curve={curve}>
+        <OpacityFade curve={curve} topOpacity={topOpacity} background={fadeBackground}>
+          <DownwardBlur curve={curve}>
             {hasWebGL() ? (
               <DriftingDither
                 className='wallpaper'
                 image={image}
-                {...initialDitherSettings}
+                type='4x4'
+                fit='cover'
+                originalColors
+                inverted={false}
+                scale={1}
+                size={2.5}
+                colorSteps={6}
                 offsetX={0}
                 offsetY={0}
                 drift={0}

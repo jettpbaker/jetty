@@ -19,7 +19,6 @@ import {
   InputGroupTextarea,
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { initialComposerShadowSettings } from '@/lib/composer-shadow-settings'
 import { inComposition } from '@/lib/composition'
 import { cn } from '@/lib/utils'
 import { perf } from '@/perf'
@@ -182,7 +181,7 @@ export function Composer({
             ambient ? ({ '--composer-radius': 'var(--radius-md)' } as CSSProperties) : undefined
           }
         >
-          {ambient && <ComposerShadow settings={initialComposerShadowSettings} />}
+          {ambient && <ComposerShadow />}
           <InputGroup
             className={cn(
               'relative w-full max-w-[825px] border-0 bg-popover dark:bg-popover',

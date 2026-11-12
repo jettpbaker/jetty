@@ -1,16 +1,16 @@
-import type { FadeSettings } from '@/lib/fade-settings'
 import type { ReactNode } from 'react'
 
-import { opacityMask } from '@/lib/opacity-curve'
+import { curveMask, type CurveSettings } from '@/lib/vertical-curve'
 
 type OpacityFadeProps = {
-  settings: FadeSettings
+  curve: CurveSettings
+  topOpacity: number
   background: string
   children: ReactNode
 }
 
-export function OpacityFade({ settings, background, children }: OpacityFadeProps) {
-  const mask = opacityMask(settings)
+export function OpacityFade({ curve, topOpacity, background, children }: OpacityFadeProps) {
+  const mask = curveMask(curve, topOpacity, 0)
 
   return (
     <div className='background-stack' style={{ background }} aria-hidden='true'>
