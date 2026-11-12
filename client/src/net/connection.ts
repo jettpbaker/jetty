@@ -2,23 +2,12 @@ import type { GitHubActivity } from '@jetty/shared/pull-request'
 import type { PullRequestListTab } from '@jetty/shared/wire'
 
 import { perf } from '@/perf'
-import { JettyRpcs } from '@jetty/shared/rpc'
+import { JettyRpcs, type StreamMethod } from '@jetty/shared/rpc'
 import { Effect, Latch, Layer, Schedule, Stream } from 'effect'
 import { RpcClient, RpcClientError, type RpcGroup, RpcSerialization } from 'effect/rpc'
 import { Socket } from 'effect/socket'
 
-type UnaryRpcs = Exclude<
-  RpcGroup.Rpcs<typeof JettyRpcs>,
-  {
-    readonly _tag:
-      | 'chrome.subscribe'
-      | 'github.activity'
-      | 'bot.presence'
-      | 'thread.subscribe'
-      | 'pullRequest.subscribe'
-      | 'pullRequestList.subscribe'
-  }
->
+type UnaryRpcs = Exclude<RpcGroup.Rpcs<typeof JettyRpcs>, { readonly _tag: StreamMethod }>
 
 const backoff = Schedule.min([
   Schedule.exponential('500 millis', 1.5),
