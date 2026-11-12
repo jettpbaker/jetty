@@ -12,7 +12,7 @@ import { jettyResultTools } from './jetty_tool_results'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
-import { ToolCall, toolCallDetails } from './tool_call'
+import { ToolCall, toolCallDetails, withFetchedOutput } from './tool_call'
 import {
   describeToolBatch,
   workEnded,
@@ -33,10 +33,7 @@ function CachedJettyToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?
   const ids = batch.calls.filter((call) => call.outputBytes !== undefined).map((call) => call.id)
   const outputs = useToolOutputs(threadId, ids)
   const cached = new Map(ids.map((id, index) => [id, outputs[index]]))
-  const calls = batch.calls.map((call) => {
-    const output = cached.get(call.id)
-    return output === undefined ? call : { ...call, output, outputBytes: undefined }
-  })
+  const calls = batch.calls.map((call) => withFetchedOutput(call, cached.get(call.id)))
   return <JettyToolGroup batch={{ ...batch, calls }} />
 }
 

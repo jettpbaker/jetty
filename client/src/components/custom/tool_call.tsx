@@ -28,13 +28,14 @@ export function toolCallDetails(call: ToolActivity, threadId?: string) {
   )
 }
 
+// A call whose output stayed off the wire (outputBytes), with its output once fetched.
+export function withFetchedOutput(call: ToolActivity, output: string | undefined) {
+  return output === undefined ? call : { ...call, output, outputBytes: undefined }
+}
+
 function CachedToolCallDetails({ call, threadId }: { call: ToolActivity; threadId: string }) {
   const [output] = useToolOutputs(threadId, [call.id])
-  return (
-    <ToolCallDetails
-      call={output === undefined ? call : { ...call, output, outputBytes: undefined }}
-    />
-  )
+  return <ToolCallDetails call={withFetchedOutput(call, output)} />
 }
 
 export function ToolCallDetails({ call }: { call: ToolActivity }) {
