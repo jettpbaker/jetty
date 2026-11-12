@@ -673,9 +673,12 @@ export function ThreadList({
   // The reply consumes this space before its growth needs to move the conversation.
   const scrollSize =
     pinStart === undefined ? totalSize : Math.max(totalSize, pinStart - sentInset + viewportHeight)
-  // Never shorter than what's on screen, so the spring has room to brake when finishing work
-  // shrinks the transcript: the browser can't clamp the chat, and the room goes as it eases up.
-  const scrollSpace = Math.max(scrollSize, (virtualizer.scrollOffset ?? 0) + viewportHeight)
+  // A pinned chat is never shorter than what's on screen, so the spring has room to brake when
+  // finishing work shrinks the transcript: the browser can't clamp it, and the room goes as it
+  // eases up. Nothing brings an unpinned chat back from past its end, so the browser clamps that.
+  const scrollSpace = pinned.current
+    ? Math.max(scrollSize, (virtualizer.scrollOffset ?? 0) + viewportHeight)
+    : scrollSize
   const scrollExtent = useRef(scrollSize)
   const reserved = useRef(false)
 
