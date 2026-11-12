@@ -1166,6 +1166,18 @@ export function createOrchestrator({
       )
     }
 
+    function enqueueAndPublish(threadId: string, message: QueuedMessage) {
+      return hub.withChromePublication(
+        store
+          .enqueue(threadId, message)
+          .pipe(
+            Effect.tap((thread) =>
+              Effect.sync(() => hub.pushChrome({ type: 'thread.upserted', thread }))
+            )
+          )
+      )
+    }
+
     function requireFound(what: string) {
       return (found: boolean) =>
         found ? Effect.void : Effect.fail(new StoreError('not_found', `No pending ${what}`))
@@ -1646,17 +1658,7 @@ export function createOrchestrator({
                   // A Current checkout's message joins the paused queue only now, so a stopped or
                   // failed preparation keeps it for Resume all the same.
                   if (!input.queued) {
-                    yield* hub.withChromePublication(
-                      store
-                        .enqueue(thread.id, message)
-                        .pipe(
-                          Effect.tap((queued) =>
-                            Effect.sync(() =>
-                              hub.pushChrome({ type: 'thread.upserted', thread: queued })
-                            )
-                          )
-                        )
-                    )
+                    yield* enqueueAndPublish(thread.id, message)
                     yield* onCommit
                   }
                   return { turnId: '' }
@@ -1726,17 +1728,7 @@ export function createOrchestrator({
                     attachments: saved.meta,
                     ...(input.replies?.length && { replies: input.replies }),
                   }
-                  yield* hub.withChromePublication(
-                    store
-                      .enqueue(input.threadId, message)
-                      .pipe(
-                        Effect.tap((queued) =>
-                          Effect.sync(() =>
-                            hub.pushChrome({ type: 'thread.upserted', thread: queued })
-                          )
-                        )
-                      )
-                  )
+                  yield* enqueueAndPublish(input.threadId, message)
                   yield* onCommit
                   return { turnId: '' }
                 }
