@@ -157,8 +157,8 @@ export function VideoPlayer({
           <MediaAction label={paused ? 'Play' : 'Pause'} onClick={toggle}>
             {paused ? <PlayIcon filled /> : <PauseIcon filled />}
           </MediaAction>
-          <Scrubber media={media} duration={duration} />
-          <Volume media={media} muted={muted} />
+          <Scrubber mediaRef={media} duration={duration} />
+          <Volume mediaRef={media} muted={muted} />
           <MediaAction
             label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
@@ -174,16 +174,16 @@ export function VideoPlayer({
 
 // Owns the per-frame time so playback re-renders only the scrubber, not the player.
 function Scrubber({
-  media,
+  mediaRef,
   duration,
 }: {
-  media: RefObject<HTMLVideoElement | null>
+  mediaRef: RefObject<HTMLVideoElement | null>
   duration?: number
 }) {
-  const [time, setTime] = useState(() => media.current?.currentTime ?? 0)
+  const [time, setTime] = useState(() => mediaRef.current?.currentTime ?? 0)
 
   useEffect(() => {
-    const element = media.current
+    const element = mediaRef.current
     if (!element) return
     let frame = 0
     const sync = () => setTime(element.currentTime)
@@ -205,7 +205,7 @@ function Scrubber({
       element.removeEventListener('seeked', sync)
       element.removeEventListener('timeupdate', sync)
     }
-  }, [media])
+  }, [mediaRef])
 
   return (
     <MediaSlider
@@ -215,7 +215,7 @@ function Scrubber({
       value={Math.min(time, duration ?? 0)}
       disabled={duration === undefined}
       onChange={(next) => {
-        if (media.current) media.current.currentTime = next
+        if (mediaRef.current) mediaRef.current.currentTime = next
         setTime(next)
       }}
     />
@@ -223,18 +223,24 @@ function Scrubber({
 }
 
 // Short demos, so the volume starts at half; the slider slides out of the speaker on hover or focus.
-function Volume({ media, muted }: { media: RefObject<HTMLVideoElement | null>; muted: boolean }) {
+function Volume({
+  mediaRef,
+  muted,
+}: {
+  mediaRef: RefObject<HTMLVideoElement | null>
+  muted: boolean
+}) {
   const [volume, setVolume] = useState(0.5)
   useEffect(() => {
-    if (media.current) media.current.volume = volume
-  }, [media, volume])
+    if (mediaRef.current) mediaRef.current.volume = volume
+  }, [mediaRef, volume])
   const silent = muted || volume === 0
   return (
     <div className='group/volume flex items-center'>
       <MediaAction
         label={silent ? 'Unmute' : 'Mute'}
         onClick={() => {
-          const element = media.current
+          const element = mediaRef.current
           if (!element) return
           if (!silent) element.muted = true
           else {
@@ -253,7 +259,7 @@ function Volume({ media, muted }: { media: RefObject<HTMLVideoElement | null>; m
           value={silent ? 0 : volume}
           onChange={(next) => {
             setVolume(next)
-            if (media.current) media.current.muted = next === 0
+            if (mediaRef.current) mediaRef.current.muted = next === 0
           }}
         />
       </div>

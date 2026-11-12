@@ -406,7 +406,7 @@ export function FileEditor({
             className='diff-scroll-viewport min-h-0 flex-1 overflow-auto'
           />
         </EditProvider>
-        <ScrollOverlay viewport={viewport} controls={id} />
+        <ScrollOverlay viewportRef={viewport} controls={id} />
       </div>
     </section>
   )

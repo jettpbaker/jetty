@@ -44,7 +44,7 @@ export function ProjectFolderDialog({
           Browse folders and choose a project directory.
         </DialogDescription>
         <FolderPicker
-          back={back}
+          backRef={back}
           existingPaths={existingPaths}
           onAdd={(path) => {
             onAdd(path)
@@ -57,16 +57,16 @@ export function ProjectFolderDialog({
 }
 
 function FolderPicker({
-  back,
+  backRef,
   existingPaths,
   onAdd,
 }: {
-  back: RefObject<() => boolean>
+  backRef: RefObject<() => boolean>
   existingPaths: readonly string[]
   onAdd: (path: string) => void
 }) {
   const picker = useFolderPicker(existingPaths, onAdd)
-  useImperativeHandle(back, () => picker.back)
+  useImperativeHandle(backRef, () => picker.back)
   const scrollIdle = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   function onScroll(event: UIEvent<HTMLElement>) {

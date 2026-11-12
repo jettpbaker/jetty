@@ -128,7 +128,7 @@ export function ProposedDiff({ id, changes }: { id: string; changes: ProposedCha
           })}
         </div>
       )}
-      <ScrollOverlay viewport={viewport} controls={id} />
+      <ScrollOverlay viewportRef={viewport} controls={id} />
     </section>
   )
 }

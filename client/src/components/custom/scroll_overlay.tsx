@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react'
 
 export function ScrollOverlay({
-  viewport,
+  viewportRef,
   controls,
 }: {
-  viewport: RefObject<HTMLDivElement | null>
+  viewportRef: RefObject<HTMLDivElement | null>
   controls: string
 }) {
   const track = useRef<HTMLDivElement>(null)
@@ -13,7 +13,7 @@ export function ScrollOverlay({
   const drag = useRef<{ y: number; scroll: number } | null>(null)
 
   useLayoutEffect(() => {
-    const scroller = viewport.current
+    const scroller = viewportRef.current
     const rail = track.current
     const handle = thumb.current
     if (!scroller || !rail || !handle) return
@@ -63,7 +63,7 @@ export function ScrollOverlay({
       rail.removeEventListener('wheel', wheel)
       scroller.removeEventListener('scroll', update)
     }
-  }, [viewport])
+  }, [viewportRef])
 
   return (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- track clicks are a pointer shortcut; the thumb carries keyboard scrolling
@@ -71,9 +71,9 @@ export function ScrollOverlay({
       ref={track}
       className='diff-scroll-track'
       onClick={(event) => {
-        if (event.target !== event.currentTarget || !viewport.current) return
+        if (event.target !== event.currentTarget || !viewportRef.current) return
         const { maximum } = metrics.current
-        viewport.current.scrollTop =
+        viewportRef.current.scrollTop =
           ((event.clientY - event.currentTarget.getBoundingClientRect().top) /
             event.currentTarget.clientHeight) *
           maximum
@@ -91,16 +91,16 @@ export function ScrollOverlay({
         aria-valuemax={0}
         aria-valuenow={0}
         onPointerDown={(event) => {
-          if (event.button !== 0 || !viewport.current) return
+          if (event.button !== 0 || !viewportRef.current) return
           event.preventDefault()
           event.currentTarget.focus({ preventScroll: true })
           event.currentTarget.setPointerCapture(event.pointerId)
-          drag.current = { y: event.clientY, scroll: viewport.current.scrollTop }
+          drag.current = { y: event.clientY, scroll: viewportRef.current.scrollTop }
         }}
         onPointerMove={(event) => {
-          if (!drag.current || !viewport.current) return
+          if (!drag.current || !viewportRef.current) return
           const { travel, maximum } = metrics.current
-          viewport.current.scrollTop =
+          viewportRef.current.scrollTop =
             drag.current.scroll + ((event.clientY - drag.current.y) * maximum) / Math.max(1, travel)
         }}
         onPointerUp={(event) => {
@@ -115,7 +115,7 @@ export function ScrollOverlay({
           drag.current = null
         }}
         onKeyDown={(event) => {
-          const scroller = viewport.current
+          const scroller = viewportRef.current
           if (!scroller) return
           const offsets: Record<string, number> = {
             ArrowDown: 40,
