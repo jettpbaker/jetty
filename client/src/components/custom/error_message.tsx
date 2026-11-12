@@ -6,10 +6,10 @@ import {
   useSendingIds,
   useSendToBot,
   useSendTurn,
-  useThreadStructure,
   useThreadMeta,
 } from '@/state'
 import { useProviderUnavailable } from '@/state/models'
+import { useTurnRetry } from '@/state/threads'
 
 import { ArrowRotateClockwiseIcon } from './central_icons'
 import { DisabledTooltip } from './disabled_tooltip'
@@ -25,7 +25,7 @@ export function ErrorMessage({
   threadId: string
   turnId: string
 }) {
-  const thread = useThreadStructure(threadId)
+  const turn = useTurnRetry(threadId, turnId)
   const isBot = useBot(threadId) !== undefined
   const provider = useThreadMeta(threadId)?.provider
   const providerUnavailable = useProviderUnavailable(provider)
@@ -37,24 +37,10 @@ export function ErrorMessage({
   const pendingBot = usePendingBotMessages(threadId)
   const sendTurn = useSendTurn()
   const sendToBot = useSendToBot()
-  const sent = thread?.items.findLast(
-    (item) => item.turnId === turnId && item.kind === 'user_message' && !item.from
-  )
-  const first = thread?.items.find((item) => item.turnId === turnId && item.kind === 'user_message')
+  const { sent } = turn
   // A thread's own send can't carry attachments it has already stored; a bot's can.
-  const retryable =
-    sent?.kind === 'user_message' &&
-    first?.kind === 'user_message' &&
-    !first.from &&
-    (isBot || sent.attachments.length === 0)
-  const latest = thread && Object.keys(thread.turnOutcomes).at(-1) === turnId
-  const failed =
-    retryable &&
-    latest &&
-    thread.lastTurnOutcome === 'failed' &&
-    !thread.activeTurnId &&
-    sending.length === 0 &&
-    pendingBot.length === 0
+  const retryable = sent !== undefined && (isBot || sent.attachments.length === 0)
+  const failed = retryable && turn.failed && sending.length === 0 && pendingBot.length === 0
   function retry() {
     if (!failed || unavailable) return
     if (isBot) sendToBot(threadId, sent.text, sent.replies, sent.attachments)
