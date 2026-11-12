@@ -96,15 +96,19 @@ async function measure(
   return { results, baseline }
 }
 
+function compare(ref: string) {
+  return measure(
+    'compare',
+    [{ label: 'base', ref }, { label: 'head' }],
+    `Perf compare: working tree vs ${ref}`
+  )
+}
+
 switch (command) {
   case 'run': {
     const ref = flag('--compare')
     if (ref) {
-      await measure(
-        'compare',
-        [{ label: 'base', ref }, { label: 'head' }],
-        `Perf compare: working tree vs ${ref}`
-      )
+      await compare(ref)
       break
     }
     const { results, baseline } = await measure('run', [{ label: 'head' }], 'Perf run')
@@ -133,11 +137,7 @@ switch (command) {
   case 'compare': {
     const ref = rest[0]
     if (!ref || ref.startsWith('-')) throw new Error('usage: bun perf compare <git-ref>')
-    await measure(
-      'compare',
-      [{ label: 'base', ref }, { label: 'head' }],
-      `Perf compare: working tree vs ${ref}`
-    )
+    await compare(ref)
     break
   }
   case 'noise': {
