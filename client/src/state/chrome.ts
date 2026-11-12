@@ -137,13 +137,15 @@ function foldChrome(chrome: Chrome, update: ChromePushData): Chrome {
 }
 
 // What a push does besides changing chrome; `before` is chrome as the push found it.
-function pushEffects(before: Chrome, update: ChromePushData) {
+function pushEffects(before: Chrome, update: ChromePushData, created: Iterable<string>) {
   switch (update.type) {
     case 'snapshot':
       observeServerTime(update.serverTime)
+      // A thread created here may not have reached the server yet.
       void pruneThreadCache([
         ...update.threads.map((thread) => thread.id),
         ...(update.bots ?? []).map((bot) => bot.id),
+        ...created,
       ])
       if (
         import.meta.env.PROD &&
@@ -182,7 +184,9 @@ const liveAtom = Atom.make((get) => {
         return [chrome, [{ before, update, chrome }]]
       }
     ),
-    Stream.tap(({ before, update }) => Effect.sync(() => pushEffects(before, update))),
+    Stream.tap(({ before, update }) =>
+      Effect.sync(() => pushEffects(before, update, get.once(createdThreadsAtom).keys()))
+    ),
     Stream.map(({ chrome }) => chrome)
   )
 }).pipe(Atom.keepAlive)
