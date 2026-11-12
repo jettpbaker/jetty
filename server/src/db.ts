@@ -321,6 +321,16 @@ const migrations = SqliteMigrator.fromRecord({
     yield* sql`INSERT INTO bot_projects SELECT id, project_id FROM bots WHERE project_id IS NOT NULL`
     yield* sql`ALTER TABLE bots DROP COLUMN project_id`
   }),
+  '043_thread_has_items': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    yield* addThreadColumns({ has_items: 'INTEGER NOT NULL DEFAULT 0' })
+    yield* sql`UPDATE threads SET has_items = 1 WHERE
+      EXISTS (SELECT 1 FROM thread_items i WHERE i.thread_id = threads.id)
+      OR EXISTS (SELECT 1 FROM thread_states s WHERE s.thread_id = threads.id
+        AND json_array_length(s.state_json, '$.items') > 0)
+      OR EXISTS (SELECT 1 FROM thread_events e WHERE e.thread_id = threads.id
+        AND json_extract(e.payload_json, '$.type') = 'item.started')`
+  }),
 })
 
 export function databaseLayer(home: string) {

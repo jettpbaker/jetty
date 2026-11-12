@@ -475,6 +475,8 @@ export const ThreadMeta = Schema.Struct({
   updatedAt: Schema.Int,
   turnStartedAt: Schema.optional(Schema.Int),
   turnEndedAt: Schema.optional(Schema.Int),
+  // Its transcript has at least one item, known without loading it.
+  hasItems: Schema.optional(Schema.Boolean),
   provider: Schema.optional(ProviderId),
   model: Schema.optional(Schema.String),
   effort: Schema.optional(EffortLevel),

@@ -114,6 +114,7 @@ type ThreadRow = {
   updated_at: number
   turn_started_at: number | null
   turn_ended_at: number | null
+  has_items: number
   provider: string | null
   model: string | null
   effort: string | null
@@ -269,6 +270,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     updatedAt: row.updated_at,
     ...(row.turn_started_at === null ? {} : { turnStartedAt: row.turn_started_at }),
     ...(row.turn_ended_at === null ? {} : { turnEndedAt: row.turn_ended_at }),
+    ...(row.has_items ? { hasItems: true } : {}),
     createdBy: row.created_by,
     ...(row.parent_thread_id ? { parentThreadId: row.parent_thread_id } : {}),
     ...(row.bot_id ? { botId: row.bot_id } : {}),
@@ -1142,8 +1144,10 @@ export function createStore() {
             : validated.type === 'turn.completed' || validated.type === 'turn.failed'
               ? ts
               : (thread.turnEndedAt ?? null)
+        const hasItems = state.items.length > 0
         yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${updatedAt},
-          turn_started_at = ${turnStartedAt}, turn_ended_at = ${turnEndedAt} WHERE id = ${threadId}`
+          turn_started_at = ${turnStartedAt}, turn_ended_at = ${turnEndedAt},
+          has_items = ${hasItems ? 1 : 0} WHERE id = ${threadId}`
         return {
           seq,
           ts,
@@ -1157,6 +1161,7 @@ export function createStore() {
             updatedAt,
             turnStartedAt: turnStartedAt ?? undefined,
             turnEndedAt: turnEndedAt ?? undefined,
+            ...(hasItems && { hasItems }),
           },
         } satisfies AppendedEvent
       })

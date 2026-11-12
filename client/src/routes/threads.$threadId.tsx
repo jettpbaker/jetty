@@ -38,12 +38,10 @@ function Thread() {
   const archiveThread = useArchiveThread()
   const owner = useBot(meta?.botId)
   const ownerId = owner && !owner.archived ? meta?.botId : undefined
-  // Until the thread loads, a thread that has never started a turn is taken to be empty. Threads
-  // from before turn times were recorded only have their provider to show for it. A first message
-  // held in the queue (its worktree setup stopped or failed) still shows in the chat.
-  const started = meta?.turnStartedAt !== undefined || meta?.provider !== undefined
-  const empty =
-    overlay.empty && !meta?.pendingMessages?.length && (thread !== undefined || !started)
+  // The server says whether a thread has anything in it: the copy in hand can predate its first
+  // item. A first message held in the queue (its worktree setup stopped or failed) still shows in
+  // the chat.
+  const empty = overlay.empty && !meta?.hasItems && !meta?.pendingMessages?.length
   const composerOnly = empty && !meta?.pullRequests?.length
   const composer = (
     <ThreadComposer
@@ -61,7 +59,7 @@ function Thread() {
     />
   )
   if (chromeReady && !meta) return <ThreadNotFound />
-  if (!meta && !thread && overlay.empty)
+  if (!meta && overlay.empty)
     return (
       <section className='flex h-full min-h-0 flex-col' aria-label='Thread'>
         <PageSidebarTrigger standalone />
@@ -87,7 +85,7 @@ function Thread() {
           />
           {empty ? (
             <div className='flex min-h-0 flex-1 flex-col justify-center'>{composer}</div>
-          ) : thread || !overlay.empty ? (
+          ) : !overlay.empty || (thread && !meta?.hasItems) ? (
             <ThreadList
               // The composer beside it is keyed by the thread too; a shared key leaves the last
               // thread's transcript behind.

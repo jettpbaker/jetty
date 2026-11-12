@@ -668,7 +668,9 @@ export function createOrchestrator({
             appended.event.type === 'item.updated' ||
             appended.event.type === 'item.completed') &&
           hub.setRunningSubagents(threadId, runningSubagents(appended.state.items))
-        if (appended.state.status !== appended.prevStatus || subagentsChanged) {
+        const firstItem =
+          appended.event.type === 'item.started' && appended.state.items.length === 1
+        if (appended.state.status !== appended.prevStatus || subagentsChanged || firstItem) {
           const thread = yield* store.requireThread(threadId)
           hub.pushChrome({ type: 'thread.upserted', thread })
         }
