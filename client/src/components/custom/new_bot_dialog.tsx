@@ -25,7 +25,7 @@ import {
 import { BOT_EFFORTS } from '@jetty/shared/bots'
 import { BOT_NAME_MAX } from '@jetty/shared/wire'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { Folder1Icon, FolderAddLeftIcon, CircleInfoIcon, FoldersIcon } from './central_icons'
 import { fullAccessDisabled } from './composer_access_mode'
@@ -141,17 +141,13 @@ function NewBotForm({ onOpenChange }: { onOpenChange: (open: boolean) => void })
   const [loadout, setLoadout] = useState<Loadout | undefined>(() =>
     firstBotLoadout(loadouts, catalog)
   )
-  const [projectIds, setProjectIds] = useState(() => onlyProject(loadedProjects))
-  const projectReady = useRef(loadedProjects !== undefined)
+  // Until one is picked, a sole project is the default; the list may still be loading at open.
+  const [pickedProjectIds, setProjectIds] = useState<readonly string[]>()
+  const projectIds = pickedProjectIds ?? onlyProject(loadedProjects)
   const [access, setAccess] = useState<PermissionMode>('auto')
   const nameRef = useRef<HTMLInputElement>(null)
   const chosenLoadout = loadout ?? firstBotLoadout(loadouts, catalog)
   const blocked = fullAccessDisabled(chosenLoadout && findModel(catalog, chosenLoadout))
-  useEffect(() => {
-    if (projectReady.current || !loadedProjects) return
-    projectReady.current = true
-    setProjectIds(onlyProject(loadedProjects))
-  }, [loadedProjects])
 
   function submit() {
     if (
