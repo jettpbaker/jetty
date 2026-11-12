@@ -165,8 +165,7 @@ export function ThreadDetailsTabs({
   const [linking, setLinking] = useState(false)
   const closedSet = new Set(closed)
   const chatOpen = chat && !closedSet.has('chat')
-  const available = order
-  const openSortable = available.filter((id) => !closedSet.has(id))
+  const openSortable = order.filter((id) => !closedSet.has(id))
   const shownSortable =
     openSortable.length > 0 ||
     chatOpen ||
@@ -175,8 +174,8 @@ export function ThreadDetailsTabs({
     subagents.visible.length > 0 ||
     file
       ? openSortable
-      : [available[0]!]
-  const catalog = [...(chat ? ['chat' as const] : []), ...available]
+      : [order[0]!]
+  const catalog = [...(chat ? ['chat' as const] : []), ...order]
   const visible: string[] = [
     ...(chatOpen ? ['chat' as const] : []),
     ...shownSortable,
@@ -188,7 +187,7 @@ export function ThreadDetailsTabs({
   const fileName = file?.path.split('/').at(-1)
   const valueVisible = visible.includes(value)
   const first = visible[0]!
-  const fallback = available[0]!
+  const fallback = order[0]!
   const reopenFirst = shownSortable !== openSortable
   useEffect(() => {
     storage.set(storageKey, JSON.stringify({ order, closed }))
