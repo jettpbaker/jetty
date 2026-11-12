@@ -1,4 +1,4 @@
-import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
+import type { ThreadEvent } from '@jetty/shared/events'
 
 import { createAcpTranslator } from './acp-translate'
 import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
@@ -64,27 +64,6 @@ function opencodeToolOutput(value: unknown): string {
   if (output.content !== undefined) return opencodeToolOutput(output.content)
   if (output.output !== undefined) return opencodeToolOutput(output.output)
   return value == null ? '' : JSON.stringify(value)
-}
-
-export function opencodeContextUsage(update: Record<string, unknown>): ContextUsage | null {
-  if (update.sessionUpdate !== 'usage_update') return null
-  const usedTokens = update.used
-  const maxTokens = update.size
-  if (
-    typeof usedTokens !== 'number' ||
-    typeof maxTokens !== 'number' ||
-    !Number.isFinite(usedTokens) ||
-    !Number.isFinite(maxTokens) ||
-    usedTokens < 0 ||
-    maxTokens <= 0
-  )
-    return null
-  return {
-    usedTokens: Math.floor(usedTokens),
-    maxTokens: Math.floor(maxTokens),
-    slices: [],
-    asOf: Date.now(),
-  }
 }
 
 export function createOpencodeTranslator(turnId: string) {

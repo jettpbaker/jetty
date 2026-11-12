@@ -13,6 +13,7 @@ import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
 import { acpPrompt, jettyMcpServers } from './acp-session'
+import { acpContextUsage } from './acp-translate'
 import {
   AgentError,
   AgentService,
@@ -26,12 +27,7 @@ import { approvalChanges, approvalInputWithoutChanges } from './approval-changes
 import { prepareBot } from './bot-preparation'
 import { copilotConfig, setCopilotModel } from './copilot-models'
 import { COPILOT_ARGS, copilotError, openCopilotConnection } from './copilot-rpc'
-import {
-  copilotContextUsage,
-  copilotToolInput,
-  copilotToolName,
-  createCopilotTranslator,
-} from './copilot-translate'
+import { copilotToolInput, copilotToolName, createCopilotTranslator } from './copilot-translate'
 import { jettyInstructions } from './jetty-instructions'
 import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 import {
@@ -470,7 +466,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
                     session.steerUnread = false
                     session.steerFolding = false
                   }
-                  const usage = copilotContextUsage(update)
+                  const usage = acpContextUsage(update)
                   if (usage) yield* session.emit({ type: 'context.updated', usage })
                   if (session.input.compact && update.sessionUpdate === 'agent_message_chunk')
                     session.compactionOutput += string(object(update.content).text)
