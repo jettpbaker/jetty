@@ -21,8 +21,7 @@ const cachedMessages = new Map<string, Cached>()
 function remember(id: string, lastSeq: number, items: readonly ThreadItem[]) {
   try {
     const text = archivedMessageText(items, id)
-    const prepared = prepareArchivedMessage(text)
-    const entry = { lastSeq, text, tokens: prepared.tokens, bm25: prepared.bm25 }
+    const entry = { lastSeq, text, ...prepareArchivedMessage(text) }
     cachedMessages.set(id, entry)
     return entry
   } catch {
@@ -44,25 +43,19 @@ export function searchArchivedThreads(store: Store, query: string) {
   return Effect.gen(function* () {
     const cursors = yield* store.listArchivedCursors()
     const byId = new Map(cursors.map((cursor) => [cursor.id, cursor]))
-    const docs: {
-      id: string
-      text: string
-      tokens: readonly string[]
-      bm25: readonly string[]
-    }[] = []
+    const docs: (Cached & { id: string })[] = []
     const read: string[] = []
     const replay: string[] = []
 
     for (const cursor of cursors) {
       const hit = cachedMessages.get(cursor.id)
       if (hit && hit.lastSeq === cursor.lastSeq) {
-        docs.push({ id: cursor.id, text: hit.text, tokens: hit.tokens, bm25: hit.bm25 })
+        docs.push({ id: cursor.id, ...hit })
         continue
       }
       if (cursor.items) {
         const entry = remember(cursor.id, cursor.lastSeq, cursor.items)
-        if (entry)
-          docs.push({ id: cursor.id, text: entry.text, tokens: entry.tokens, bm25: entry.bm25 })
+        if (entry) docs.push({ id: cursor.id, ...entry })
         continue
       }
       if (cursor.replay) replay.push(cursor.id)
@@ -76,7 +69,7 @@ export function searchArchivedThreads(store: Store, query: string) {
         const cursor = byId.get(id)
         const items = itemsFromState(jsonById.get(id) ?? '')
         const entry = cursor && items ? remember(id, cursor.lastSeq, items) : undefined
-        if (entry) docs.push({ id, text: entry.text, tokens: entry.tokens, bm25: entry.bm25 })
+        if (entry) docs.push({ id, ...entry })
         else replay.push(id)
       }
     }
@@ -87,7 +80,7 @@ export function searchArchivedThreads(store: Store, query: string) {
         .pipe(Effect.catch(() => Effect.succeed(undefined)))
       if (!state) continue
       const entry = remember(id, state.lastSeq, state.items)
-      if (entry) docs.push({ id, text: entry.text, tokens: entry.tokens, bm25: entry.bm25 })
+      if (entry) docs.push({ id, ...entry })
     }
 
     for (const id of cachedMessages.keys()) {
