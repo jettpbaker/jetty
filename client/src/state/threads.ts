@@ -210,6 +210,14 @@ export function useThreadStructure(threadId: string) {
   return useAtomValue(threadStructureAtom(threadId))
 }
 
+// The thread once its subscription has caught up: until then it may be the cached copy, from
+// before whatever the server has taken since.
+export const caughtUpThreadAtom = Atom.family((threadId: string) =>
+  Atom.readable((get) =>
+    AsyncResult.isSuccess(get(liveAtom(threadId))) ? get(threadStructureAtom(threadId)) : undefined
+  )
+)
+
 const threadSummaryAtom = Atom.family((threadId: string) =>
   Atom.readable((get) => get(threadAtom(threadId))?.summary)
 )

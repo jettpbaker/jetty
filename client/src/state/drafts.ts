@@ -14,7 +14,7 @@ import { useCallback, useContext, useEffect } from 'react'
 import { botsAtom } from './bots'
 import { createdThreadsAtom, serverChromeAtom } from './chrome'
 import { without } from './mutations'
-import { threadStructureAtom } from './threads'
+import { caughtUpThreadAtom } from './threads'
 
 type Registry = AtomRegistry.AtomRegistry
 
@@ -400,7 +400,7 @@ function sameSends(a?: readonly UnsureSend[], b?: readonly UnsureSend[]) {
 }
 
 // A new message a reload cut off goes back to its composer unless the server has it: waiting in
-// the thread's queue, or in the thread once that has loaded.
+// the thread's queue, or in the thread once that has caught up.
 export function useSettleUnsureSends() {
   const registry = useContext(RegistryContext)
   const sends = useAtomValue(unsureSendsAtom)
@@ -413,7 +413,7 @@ export function useSettleUnsureSends() {
       else
         watches.push(
           registry.subscribe(
-            threadStructureAtom(threadId),
+            caughtUpThreadAtom(threadId),
             (state) => {
               if (state) settleUnsure(registry, key, entry, !hasMessage(state, messageId))
             },
