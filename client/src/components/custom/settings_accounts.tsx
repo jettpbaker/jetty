@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { run, useAction } from '@/state/connection'
 import { useModelAvailability, useProviderEnabled } from '@/state/loadouts'
 import { useModelRefresh } from '@/state/models'
-import { useProviderUsage } from '@/state/provider-usage'
+import { usageFreshMs, useProviderUsage, useRefreshProviderUsage } from '@/state/provider-usage'
 import { modelLabelText } from '@jetty/shared/model-name'
 import { Effect } from 'effect'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
@@ -328,12 +328,12 @@ function GitHubCard() {
 
 export function SettingsAccounts() {
   const { refresh: refreshModels } = useModelRefresh()
-  const { refresh } = useProviderUsage()
+  const refresh = useRefreshProviderUsage()
   useEffect(() => {
     refreshModels()
     refresh(
       providers.map((provider) => provider.id),
-      30_000
+      usageFreshMs
     )
   }, [refreshModels, refresh])
   return (
