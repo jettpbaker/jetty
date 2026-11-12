@@ -2,7 +2,7 @@ import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 
 import { Effect } from 'effect'
 
-import { copilotBin, probeCopilotSession } from './copilot-rpc'
+import { copilotBin, copilotSignedOut, probeCopilotSession } from './copilot-rpc'
 import { ghToken } from './pull-requests'
 import { object, string, type StdioProcessOptions } from './stdio-rpc'
 
@@ -36,11 +36,7 @@ export function readCopilotProviderUsage(cwd: string, options: StdioProcessOptio
         connected: false,
         installed: true,
         windows: [],
-        ...(/not.*(?:logged|signed)\s*in|authentication required|login required|unauthenticated/i.test(
-          String(error)
-        )
-          ? {}
-          : { failed: true }),
+        ...(copilotSignedOut(String(error)) ? {} : { failed: true }),
       })
     )
   )

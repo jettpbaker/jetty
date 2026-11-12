@@ -26,11 +26,15 @@ export function copilotBin(options: StdioProcessOptions = {}) {
   return Bun.which(command, { PATH }) ?? command
 }
 
+export function copilotSignedOut(message: string) {
+  return /not.*(?:logged|signed)\s*in|authentication required|login required|unauthenticated/i.test(
+    message
+  )
+}
+
 export function copilotError(message: string) {
   return new AgentError(
-    /not.*(?:logged|signed)\s*in|authentication required|login required|unauthenticated/i.test(
-      message
-    )
+    copilotSignedOut(message)
       ? 'GitHub Copilot is not signed in. Run copilot login in your terminal.'
       : message
   )
