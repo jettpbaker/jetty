@@ -1,7 +1,6 @@
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
 import {
-  useBumpDraft,
   useConnectionNotice,
   useForgetDeletedDrafts,
   useRenewQueueHolds,
@@ -11,7 +10,7 @@ import { useHotkey } from '@tanstack/react-hotkeys'
 import { useLocation, useMatches, useNavigate } from '@tanstack/react-router'
 import { useEffect, type CSSProperties, type ReactNode } from 'react'
 
-import { AppSidebar } from './app_sidebar'
+import { AppSidebar, useNewThread } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
 import { appShortcut, inDialog, keybinds } from './keybinds'
 import { NewThreadBackdrop } from './new_thread_backdrop'
@@ -57,7 +56,7 @@ function Workspace({
   children: ReactNode
 }) {
   const navigate = useNavigate()
-  const bumpDraft = useBumpDraft()
+  const newThread = useNewThread()
   const { setOpenMobile, open, isMobile } = useSidebar()
   const pathname = useMatches({ select: (matches) => matches.at(-1)?.pathname ?? '/' })
   const href = useLocation({ select: (location) => location.href })
@@ -82,14 +81,11 @@ function Workspace({
     },
     { requireReset: true, ignoreInputs: false }
   )
-  // The thread sidebar unmounts on Settings, so this lives with the shell. The sidebar button
-  // calls the same two steps.
+  // The thread sidebar unmounts on Settings, so this lives with the shell.
   useHotkey(
     keybinds.newThread.hotkey,
     (event) => {
-      if (!appShortcut(event)) return
-      bumpDraft()
-      void navigate({ to: '/' })
+      if (appShortcut(event)) newThread()
     },
     { requireReset: true, ignoreInputs: false }
   )

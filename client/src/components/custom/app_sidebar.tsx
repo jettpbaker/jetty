@@ -100,6 +100,15 @@ const rowLayoutTransition = { type: 'spring' as const, duration: 0.25, bounce: 0
 const navigationButtonClass =
   'h-7 w-full justify-start gap-2 rounded-sm px-2.5 font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground'
 
+export function useNewThread() {
+  const bumpDraft = useBumpDraft()
+  const navigate = useNavigate()
+  return () => {
+    bumpDraft()
+    void navigate({ to: '/' })
+  }
+}
+
 function uncommitted(count: number) {
   return count === 1 ? '1 uncommitted change' : `${count} uncommitted changes`
 }
@@ -172,7 +181,7 @@ export const AppSidebar = memo(function AppSidebar() {
       archived: group.archived,
     })),
   ])
-  const bumpDraft = useBumpDraft()
+  const newThread = useNewThread()
   const startThreadJourney = useThreadJourney()
   const archiveThread = useArchiveThread()
   const renameThread = useRenameThread()
@@ -217,11 +226,6 @@ export const AppSidebar = memo(function AppSidebar() {
     },
     { enabled: selectedId !== undefined, requireReset: true, ignoreInputs: false }
   )
-
-  function newThread() {
-    bumpDraft()
-    void navigate({ to: '/' })
-  }
 
   function toggleBot(botId: string) {
     setOpenBots((open) =>
