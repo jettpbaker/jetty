@@ -1184,15 +1184,15 @@ export function createStore() {
     }
 
     function readBotAllowRules(botId: string) {
-      return Effect.gen(function* () {
-        const [row] = yield* sql<{ value_json: string }>`SELECT value_json FROM settings
-          WHERE key = ${`bot_allow_rules.${botId}`}`
-        return row
-          ? yield* Schema.decodeUnknownEffect(Schema.Array(BotAllowRule))(
-              JSON.parse(row.value_json)
-            )
-          : []
-      }).pipe(Effect.mapError(storeError))
+      return readSetting<unknown>(`bot_allow_rules.${botId}`).pipe(
+        Effect.flatMap((value) =>
+          value === undefined
+            ? Effect.succeed([])
+            : Schema.decodeUnknownEffect(Schema.Array(BotAllowRule))(value).pipe(
+                Effect.mapError(storeError)
+              )
+        )
+      )
     }
 
     let lastUserMessageAt: number | undefined
