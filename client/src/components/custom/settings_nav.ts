@@ -14,12 +14,31 @@ import {
   SparklesThreeIcon,
 } from './central_icons'
 
+export type SettingsPageId =
+  | 'preferences'
+  | 'appearance'
+  | 'keyboard'
+  | 'notifications'
+  | 'connected-accounts'
+  | 'models'
+  | 'intelligence'
+  | 'guided-reviews'
+  | 'pr-activity'
+  | 'bots'
+  | 'projects'
+  | 'archived'
+  | 'worktrees'
+  | 'about'
+
+// Where /settings, or a page that doesn't exist, lands.
+export const defaultSettingsPage: SettingsPageId = 'preferences'
+
 export type SettingsPage = {
-  id: string
+  id: SettingsPageId
   title: string
   icon: Icon
   // A sub-page lives under its parent in the nav, with a link back to it.
-  parent?: string
+  parent?: SettingsPageId
 }
 
 export const settingsGroups: { label: string; pages: SettingsPage[] }[] = [
@@ -75,7 +94,13 @@ export function settingsPage(id: string) {
 
 // What search finds: each row by its title, and by the words someone might look for it under.
 // A row found by one of those shows it beside the title, or its `hint` when it has one.
-type SettingsRow = { page: string; id: string; title: string; keywords?: string; hint?: string }
+type SettingsRow = {
+  page: SettingsPageId
+  id: string
+  title: string
+  keywords?: string
+  hint?: string
+}
 
 const settingsRows: SettingsRow[] = [
   { page: 'preferences', id: 'open-on-launch', title: 'Open on launch', keywords: 'startup' },

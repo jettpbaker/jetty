@@ -13,6 +13,7 @@ import {
 import { SettingsKeyboard } from '@/components/custom/settings_keyboard'
 import { revealSettingsRow } from '@/components/custom/settings_layout'
 import { SettingsModels } from '@/components/custom/settings_models'
+import { defaultSettingsPage, type SettingsPageId } from '@/components/custom/settings_nav'
 import { SettingsNotifications } from '@/components/custom/settings_notifications'
 import { SettingsPreferences } from '@/components/custom/settings_preferences'
 import { SettingsProjects } from '@/components/custom/settings_projects'
@@ -37,7 +38,7 @@ const pages: Record<string, ComponentType> = {
   archived: SettingsArchived,
   worktrees: SettingsWorktrees,
   about: SettingsAbout,
-}
+} satisfies Record<SettingsPageId, ComponentType>
 
 function SettingsPageRoute() {
   const { page } = Route.useParams()
@@ -49,6 +50,6 @@ function SettingsPageRoute() {
   return Page ? (
     <Page />
   ) : (
-    <Navigate to='/settings/$page' params={{ page: 'preferences' }} replace />
+    <Navigate to='/settings/$page' params={{ page: defaultSettingsPage }} replace />
   )
 }
