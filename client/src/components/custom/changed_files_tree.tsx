@@ -13,7 +13,6 @@ import { useEffect, useRef } from 'react'
 import './changed_files_tree.css'
 import '@/components/custom/charmed_icons.css'
 
-const treeRowHeight = 26
 // trees.software rotates the chevron slot -90deg when collapsed, so one glyph covers both states.
 const treeCaretSprite = `${centralSymbols.caretDown}<symbol id="jetty-empty" viewBox="0 0 6 6"></symbol>`
 const treeRemap = {
@@ -26,12 +25,6 @@ const treeRemap = {
   // Every folder in a PR tree contains changes, so the "has changes" dot carries no information.
   'file-tree-icon-dot': { name: 'jetty-empty', width: 6, height: 6, viewBox: '0 0 6 6' },
 }
-const builtInIcons = {
-  set: 'complete',
-  colored: true,
-  spriteSheet: `<svg aria-hidden="true" width="0" height="0">${treeCaretSprite}</svg>`,
-  remap: treeRemap,
-} as const
 const charmedIcon = (icon: string) => ({
   name: `ci-${icon}`,
   width: 16,
@@ -113,8 +106,6 @@ export function ChangedFilesTree({
   files,
   selected,
   onSelect,
-  icons = 'built-in',
-  markers = 'letters',
   comments,
   counts,
   active,
@@ -122,9 +113,6 @@ export function ChangedFilesTree({
   files: { path: string; status: GitStatus }[]
   selected: string | null
   onSelect: (path: string) => void
-  icons?: 'built-in' | 'charmed'
-  // How a file's change shows: a trailing status letter, or (Linear's way) on the name itself.
-  markers?: 'letters' | 'names'
   // Open comment threads per path, shown at the end of the row.
   comments?: Record<string, number>
   // Or each file's added and removed lines (Capy's file menu), in the status colours.
@@ -141,21 +129,15 @@ export function ChangedFilesTree({
     paths: files.map((file) => file.path),
     initialExpansion: 'open',
     flattenEmptyDirectories: true,
-    itemHeight: markers === 'names' ? namesRowHeight : treeRowHeight,
-    icons: icons === 'charmed' ? charmedIcons([...paths]) : builtInIcons,
-    unsafeCSS: [
-      treeUnsafeCSS,
-      markers === 'names' && namesUnsafeCSS,
-      icons === 'charmed' && charmedFolderUnsafeCSS,
-      counts ? countsUnsafeCSS : comments && badgeUnsafeCSS,
-    ]
+    itemHeight: charmedTree.itemHeight,
+    icons: charmedTree.icons([...paths]),
+    unsafeCSS: [charmedTree.unsafeCSS, counts ? countsUnsafeCSS : comments && badgeUnsafeCSS]
       .filter(Boolean)
       .join('\n'),
     initialSelectedPaths: selected ? [selected] : [],
     gitStatus: files.map(({ path, status }) => ({ path, status })),
     renderRowDecoration: ({ row }) => {
-      if (row.kind === 'directory')
-        return icons === 'charmed' ? charmedTree.folderDecoration(row) : null
+      if (row.kind === 'directory') return charmedTree.folderDecoration(row)
       const lines = counts?.[row.path]
       if (lines) {
         const parts = [
@@ -197,11 +179,5 @@ export function ChangedFilesTree({
     item.select()
     model.scrollToPath(active!, { focus: false })
   }, [model, active])
-  return (
-    <FileTree
-      model={model}
-      data-charmed={icons === 'charmed' ? 'soft' : undefined}
-      className='changed-files-tree h-full w-full'
-    />
-  )
+  return <FileTree model={model} data-charmed='soft' className='changed-files-tree h-full w-full' />
 }

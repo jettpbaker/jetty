@@ -257,8 +257,6 @@ function FilesMenu({
         >
           <ChangedFilesTree
             key={files.map((f) => f.path).join()}
-            icons='charmed'
-            markers='names'
             files={files.map((f) => ({
               path: f.path,
               status: f.status === 'removed' ? 'deleted' : f.status,
