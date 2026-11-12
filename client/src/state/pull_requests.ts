@@ -30,6 +30,16 @@ export function pullRequestKey(ref: PullRequestRef) {
   return `${ref.repo}#${ref.number}`
 }
 
+// What the server said went wrong, when a failed request carries it.
+function errorMessage(error: unknown) {
+  return error !== null &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof error.message === 'string'
+    ? error.message
+    : undefined
+}
+
 function parseKey(key: string): PullRequestRef {
   const split = key.lastIndexOf('#')
   return { repo: key.slice(0, split), number: Number(key.slice(split + 1)) }
@@ -320,10 +330,7 @@ function setReviewRequest(
             requested
               ? `Couldn't request review from ${user.login}`
               : `Couldn't remove ${user.login}`,
-            {
-              description:
-                'message' in error && typeof error.message === 'string' ? error.message : undefined,
-            }
+            { description: errorMessage(error) }
           )
         },
       })
@@ -537,10 +544,7 @@ export function useLinkPullRequest() {
             connection.request('pullRequest.link', { threadId, reference })
           ),
           Effect.match({
-            onFailure: (error) =>
-              'message' in error && typeof error.message === 'string'
-                ? error.message
-                : "Couldn't link the pull request",
+            onFailure: (error) => errorMessage(error) ?? "Couldn't link the pull request",
             onSuccess: ({ ref }) => {
               openPullRequest(registry, threadId, ref)
               return undefined
@@ -597,15 +601,7 @@ function requestPullRequest<E>(
     .then(
       () => true,
       (error: unknown) => {
-        toast.error(failure, {
-          description:
-            error !== null &&
-            typeof error === 'object' &&
-            'message' in error &&
-            typeof error.message === 'string'
-              ? error.message
-              : undefined,
-        })
+        toast.error(failure, { description: errorMessage(error) })
         return false
       }
     )
