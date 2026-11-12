@@ -37,6 +37,10 @@ type Measured = {
   fontSize?: number
   height: number
 }
+// Measured texts, the oldest dropped first. The server sends a thread's latest 100 turns, then older
+// history 1,000 items a page, and a row measures one to a few texts: 10,000 keeps a long thread's
+// rows several pages back without holding every thread opened this session.
+const cacheLimit = 10_000
 const cache = new Map<string, Measured>()
 // Prepared text (about 20 bytes a character) only serves laying it out again at a new width, so past
 // this many characters the least recently used give theirs up.
@@ -93,7 +97,9 @@ function textHeight(
   let entry = cache.get(id)
   if (!entry || entry.text !== text || entry.fontSize !== fontSize) {
     entry = { text, fontSize, height: 0 }
+    cache.delete(id)
     cache.set(id, entry)
+    if (cache.size > cacheLimit) cache.delete(cache.keys().next().value!)
   }
   if (entry.width !== width || entry.lineHeight !== leading) {
     entry.prepared ??= prepare(
