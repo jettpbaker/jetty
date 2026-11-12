@@ -392,13 +392,14 @@ function toActivity(
   const labelOutput = item.outputMeta?.fields ? JSON.stringify(item.outputMeta.fields) : item.output
   const input = typeof item.input === 'string' ? item.input : JSON.stringify(item.input, null, 2)
   const name = toolAction(item.toolName)
+  const mcp = mcpTool(item.toolName)
   const jetty = jettyTool(item.toolName)
   const fields = (item.input && typeof item.input === 'object' ? item.input : {}) as Record<
     string,
     unknown
   >
   const kind = toolKind(item.toolName)
-  const answering = mcpTool(item.toolName)?.tool === 'answer_approval'
+  const answering = mcp?.tool === 'answer_approval'
   const denying =
     answering && (fields.decision === 'deny' || resultField(labelOutput, 'decision') === 'deny')
   const toolWords = answering
@@ -409,12 +410,11 @@ function toActivity(
     id: item.id,
     kind,
     name,
-    jettyTool:
-      mcpTool(item.toolName)?.server === 'jetty' ? mcpTool(item.toolName)?.tool : undefined,
+    jettyTool: mcp?.server === 'jetty' ? mcp.tool : undefined,
     words: toolWords,
     target: jetty
       ? (jetty.target(fields, labelOutput) ?? toolWords?.singular ?? jetty.words.singular)
-      : mcpTool(item.toolName)
+      : mcp
         ? name
         : toolTarget(item.toolName, item.input, projectPath),
     description: toolDescription(item.input),
