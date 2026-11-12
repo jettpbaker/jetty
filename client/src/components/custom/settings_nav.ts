@@ -67,7 +67,7 @@ const subPages: SettingsPage[] = [
   },
 ]
 
-export const settingsPages = [...settingsGroups.flatMap((group) => group.pages), ...subPages]
+const settingsPages = [...settingsGroups.flatMap((group) => group.pages), ...subPages]
 
 export function settingsPage(id: string) {
   return settingsPages.find((page) => page.id === id)
@@ -77,7 +77,7 @@ export function settingsPage(id: string) {
 // A row found by one of those shows it beside the title, or its `hint` when it has one.
 type SettingsRow = { page: string; id: string; title: string; keywords?: string; hint?: string }
 
-export const settingsRows: SettingsRow[] = [
+const settingsRows: SettingsRow[] = [
   { page: 'preferences', id: 'open-on-launch', title: 'Open on launch', keywords: 'startup' },
   { page: 'preferences', id: 'send-key', title: 'Send messages with', keywords: 'Enter keys' },
   {

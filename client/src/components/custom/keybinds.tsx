@@ -82,7 +82,7 @@ export function keyTarget(event: KeyboardEvent) {
 }
 
 // Keys typed into a text field stay there, except in the composer.
-export function typingOutsideComposer(event: KeyboardEvent) {
+function typingOutsideComposer(event: KeyboardEvent) {
   const field = keyTarget(event)
   return (
     field instanceof HTMLElement &&
@@ -178,7 +178,7 @@ export function KeybindProvider({ children }: { children: ReactNode }) {
   return <ModifierContext value={revealed}>{children}</ModifierContext>
 }
 
-export function useHeldModifiers() {
+function useHeldModifiers() {
   return useContext(ModifierContext)
 }
 
