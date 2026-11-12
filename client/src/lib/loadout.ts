@@ -35,7 +35,7 @@ export function findModel(
   return findProviderModel(catalog, loadout.provider, loadout.model)
 }
 
-export function fitEffort(model: ProviderModel, effort?: EffortLevel) {
+function fitEffort(model: ProviderModel, effort?: EffortLevel) {
   if (effort && model.efforts.includes(effort)) return effort
   if (model.defaultEffort) return model.defaultEffort
   return model.efforts.includes('high') ? 'high' : model.efforts.at(-1)

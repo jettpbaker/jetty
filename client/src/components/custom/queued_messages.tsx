@@ -354,7 +354,7 @@ function QueuedRow({
   )
 }
 
-export function QueueRemoved({ threadId }: { threadId: string }) {
+function QueueRemoved({ threadId }: { threadId: string }) {
   const actions = useQueueActions()
   return (
     <div className='flex h-6 items-center justify-end gap-1 text-xs text-muted-foreground'>

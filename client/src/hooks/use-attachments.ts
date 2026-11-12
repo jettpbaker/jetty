@@ -25,8 +25,6 @@ export type ComposerAttachment = {
 export type ReadyAttachment = ComposerAttachment & { dataUrl: string }
 export type Attachments = ReturnType<typeof useAttachments>
 
-export const isImageType = isImageMimeType
-
 // Pasting more than this much plain text attaches it as a file instead of filling the composer.
 const LONG_PASTE_CHARACTERS = 2000
 const PASTED_TEXT_NAME = 'Pasted text'
@@ -87,7 +85,7 @@ async function encode(file: File, type: ImageMimeType) {
 
 async function readAttachment(file: File) {
   const type = file.type
-  if (isImageType(type)) {
+  if (isImageMimeType(type)) {
     const encoded = await encode(file, type).catch(() => undefined)
     if (!encoded) return undefined
     const { blob, dataUrl, width, height } = encoded
@@ -134,7 +132,7 @@ export function useAttachments(key: string, { editing = false }: { editing?: boo
     const prepared = await readAttachment(file)
     if (!current().some((item) => item.url === url)) return
     if (!prepared) return drop(url, `Couldn't read ${file.name}.`)
-    const limit = isImageType(file.type) ? MAX_IMAGE_BYTES : MAX_FILE_BYTES
+    const limit = isImageMimeType(file.type) ? MAX_IMAGE_BYTES : MAX_FILE_BYTES
     if (prepared.size > limit) return drop(url, `${file.name} must be under ${megabytes(limit)}.`)
     const others = current().filter((item) => item.url !== url && item.dataUrl)
     const total = others.reduce((sum, item) => sum + item.sizeBytes, prepared.size)
@@ -157,7 +155,7 @@ export function useAttachments(key: string, { editing = false }: { editing?: boo
         problems.push(`${file.name} is empty.`)
       } else if (current().length + added.length >= MAX_ATTACHMENTS_PER_TURN) {
         overflow = true
-      } else if (!isImageType(file.type) && file.size > MAX_FILE_BYTES) {
+      } else if (!isImageMimeType(file.type) && file.size > MAX_FILE_BYTES) {
         // Images shrink on the way in, so only a file can be too big before it's read.
         problems.push(`${file.name} must be under ${megabytes(MAX_FILE_BYTES)}.`)
       } else {

@@ -12,7 +12,7 @@ export type SlashQuery = {
 
 export type MentionBot = Pick<Bot, 'id' | 'name' | 'shape' | 'color'>
 
-export type SlashToken = { start: number; end: number; name: string; bot?: MentionBot }
+type SlashToken = { start: number; end: number; name: string; bot?: MentionBot }
 
 export function activeSlash(text: string, caret: number): SlashQuery | undefined {
   const before = text.slice(0, caret)

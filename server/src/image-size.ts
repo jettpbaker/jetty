@@ -1,4 +1,4 @@
-export type ImageSize = { width: number; height: number }
+type ImageSize = { width: number; height: number }
 
 function size(width: number, height: number): ImageSize | undefined {
   return width > 0 && height > 0 ? { width, height } : undefined

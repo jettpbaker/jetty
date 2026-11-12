@@ -50,9 +50,7 @@ function loadStored(): unknown {
 
 const storedAtom = Atom.make(loadStored()).pipe(Atom.keepAlive)
 
-export const loadoutsAtom = Atom.readable((get) =>
-  restoreLoadouts(get(storedAtom), get(modelsAtom))
-)
+const loadoutsAtom = Atom.readable((get) => restoreLoadouts(get(storedAtom), get(modelsAtom)))
 
 const discoveryAtom = Atom.map(chromeAtom, (chrome) => chrome?.modelDiscovery)
 

@@ -51,7 +51,7 @@ function viewable(attachment: Attachment) {
 }
 
 // Text opens in the viewer; anything else, or text with nowhere to open, downloads.
-export function useOpenAttachmentFile() {
+function useOpenAttachmentFile() {
   const open = use(OpenAttachment)
   return (attachment: Attachment) => {
     if (viewable(attachment) && open(attachment)) return
@@ -69,7 +69,7 @@ export function bytes(size: number) {
 }
 
 // A sent file as one quiet line, opened on click.
-export function FileLine({ attachment }: { attachment: Attachment }) {
+function FileLine({ attachment }: { attachment: Attachment }) {
   const open = useOpenAttachmentFile()
   return (
     <button

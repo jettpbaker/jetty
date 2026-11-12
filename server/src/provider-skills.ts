@@ -6,7 +6,7 @@ import { openCodexConnection } from './codex-rpc'
 import { probeCopilotSession } from './copilot-rpc'
 import { object, string, type StdioConnection } from './stdio-rpc'
 
-export type CodexSkill = Skill & { path: string }
+type CodexSkill = Skill & { path: string }
 
 export function codexSkills(connection: StdioConnection, cwd: string) {
   return Effect.gen(function* () {

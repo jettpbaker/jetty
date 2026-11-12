@@ -24,7 +24,7 @@ export type Approval = {
   always?: { patterns: readonly string[]; scope?: string }
 }
 
-export type ProposedFile = {
+type ProposedFile = {
   path: string
   added: number
   removed: number
@@ -168,7 +168,7 @@ function patchHunks(diff: string) {
   return { text: text.endsWith('\n') ? text : `${text}\n`, added, removed }
 }
 
-export function proposedChanges(
+function proposedChanges(
   changes: ApprovalItem['changes'],
   projectPath: string | undefined
 ): ProposedChanges | undefined {
@@ -306,7 +306,7 @@ function viewOf(
   }
 }
 
-export function itemSource(
+function itemSource(
   item: ThreadItem,
   agentTitles: ReadonlyMap<string, string>,
   provider: string

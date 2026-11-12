@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 
 // A quote is a whole reply's markdown or text selected from it. Only paired marks at word
 // edges come off, so a selection's snake_case and arithmetic read as they did.
-export function plainQuote(markdown: string) {
+function plainQuote(markdown: string) {
   return markdown
     .replace(/!?\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/(`+)(.+?)\1/g, '$2')

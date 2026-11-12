@@ -51,7 +51,7 @@ export function fileSize(bytes: number) {
 }
 
 // A file keeps its name, in a folder of its own, so the agent reads ci.log rather than an id.
-export function safeFileName(name: string) {
+function safeFileName(name: string) {
   const safe = [...name]
     .map((char) => {
       const code = char.charCodeAt(0)

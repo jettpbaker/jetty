@@ -20,8 +20,8 @@ export type PickerOption = {
   icon?: ReactNode
   hint?: string
 }
-export type PickerAction = { label: string; icon: ReactNode; onSelect?: () => void }
-export type PickerToggle = {
+type PickerAction = { label: string; icon: ReactNode; onSelect?: () => void }
+type PickerToggle = {
   label: string
   checked: boolean
   onCheckedChange: (checked: boolean) => void
