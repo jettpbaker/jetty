@@ -606,13 +606,6 @@ export function createRpcHandlers(
           hub.pushChrome({ type: 'thread.upserted', thread })
           return { thread }
         }).pipe(Effect.mapError(wireError)),
-      'pullRequest.get': (ref) =>
-        Effect.gen(function* () {
-          yield* checkedRef(ref)
-          const snapshot = yield* pullRequests.get(ref)
-          yield* refreshInBackground(ref)
-          return snapshot
-        }).pipe(Effect.mapError(wireError)),
       'pullRequest.prefetch': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.prefetch), Effect.mapError(wireError)),
       'pullRequest.guide': (ref) =>

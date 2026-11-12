@@ -917,10 +917,6 @@ export const methods = {
     params: Schema.Struct({ threadId: Schema.String, reference: Schema.String }),
     result: Schema.Struct({ thread: ThreadMeta }),
   },
-  'pullRequest.get': {
-    params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
-    result: PullRequestSnapshot,
-  },
   'pullRequest.guide': {
     params: Schema.Struct({ repo: Schema.String, number: Schema.Int }),
     result: PullRequestGuideState,

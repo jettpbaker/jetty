@@ -129,8 +129,6 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
             Effect.fail({ code: 'not_found' as const, message: 'Not found' }),
           'pullRequest.unlink': () =>
             Effect.fail({ code: 'not_found' as const, message: 'Not found' }),
-          'pullRequest.get': ({ repo, number }) =>
-            Effect.succeed({ repo, number, status: 'loading' as const }),
           'pullRequest.prefetch': ({ repo, number }) =>
             Effect.succeed({ repo, number, status: 'loading' as const }),
           'issue.prefetch': ({ repo, number }) =>
