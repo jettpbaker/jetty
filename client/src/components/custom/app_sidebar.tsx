@@ -656,7 +656,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       botId={row.thread.botId}
       shortcut={shortcut}
       selected={selected}
-      nested={nested}
       oneLine={nested}
       actions={{
         pinned: thread.pinned,
