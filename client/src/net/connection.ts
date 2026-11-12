@@ -25,12 +25,16 @@ const backoff = Schedule.min([
   Schedule.spaced('5 seconds'),
 ])
 
-// A subscription the server ended for falling behind picks up where it got to, as after a drop.
+// A subscription the server ended for falling behind, or failed to open, picks up where it got to,
+// as after a drop. Only an answer that can't change (a thread that's gone) ends it.
 const reconnect = backoff.pipe(
   Schedule.while(
     ({ input }) =>
       input instanceof RpcClientError.RpcClientError ||
-      (typeof input === 'object' && input !== null && 'code' in input && input.code === 'lagged')
+      (typeof input === 'object' &&
+        input !== null &&
+        'code' in input &&
+        (input.code === 'lagged' || input.code === 'internal'))
   )
 )
 
