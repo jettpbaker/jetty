@@ -27,24 +27,12 @@ let playing: HTMLVideoElement | null = null
 
 const idleDelay = 2000
 
-export function VideoMessage({
-  video,
-  caption,
-  align = 'start',
-}: {
-  video: Attachment
-  caption?: string
-  align?: 'start' | 'center'
-}) {
+export function VideoMessage({ video, caption }: { video: Attachment; caption?: string }) {
   return (
     <Message align='start'>
       <MessageContent>
         <figure className='flex flex-col gap-2'>
-          <VideoPlayer
-            video={video}
-            className={align === 'center' ? 'mx-auto' : undefined}
-            actions
-          />
+          <VideoPlayer video={video} actions />
           {caption ? (
             <figcaption className='text-sm text-muted-foreground'>{caption}</figcaption>
           ) : null}
