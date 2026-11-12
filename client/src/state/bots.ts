@@ -11,7 +11,7 @@ import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { chromeAtom, serverChrome } from './chrome'
+import { chromeAtom, createdBotsAtom, serverChrome } from './chrome'
 import { connectionAtom, run, subscribe, useAction } from './connection'
 import { stageSend } from './drafts'
 import { settleWhen, trackCreation, without, withoutId } from './mutations'
@@ -30,8 +30,7 @@ type PendingBotMessage = {
   sentAt: number
 }
 
-// Bots this tab created that the server hasn't listed yet, and changes it hasn't confirmed.
-const createdBotsAtom = Atom.make<ReadonlyMap<string, Bot>>(new Map()).pipe(Atom.keepAlive)
+// Changes to bots the server hasn't confirmed; the ones this tab created wait in createdBotsAtom.
 const botPatchesAtom = Atom.make<ReadonlyMap<string, Partial<Bot>>>(new Map()).pipe(Atom.keepAlive)
 const deletedBotsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive)
 const pendingMessagesAtom = Atom.make<ReadonlyMap<string, readonly PendingBotMessage[]>>(

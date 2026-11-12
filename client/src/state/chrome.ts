@@ -36,6 +36,7 @@ export type ThreadPatch = {
 export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(
   Atom.keepAlive
 )
+export const createdBotsAtom = Atom.make<ReadonlyMap<string, Bot>>(new Map()).pipe(Atom.keepAlive)
 export const threadPatchesAtom = Atom.make<ReadonlyMap<string, ThreadPatch>>(new Map()).pipe(
   Atom.keepAlive
 )
@@ -141,7 +142,7 @@ function pushEffects(before: Chrome, update: ChromePushData, created: Iterable<s
   switch (update.type) {
     case 'snapshot':
       observeServerTime(update.serverTime)
-      // A thread created here may not have reached the server yet.
+      // A thread or bot created here may not have reached the server yet.
       void pruneThreadCache([
         ...update.threads.map((thread) => thread.id),
         ...update.bots.map((bot) => bot.id),
@@ -185,7 +186,12 @@ const liveAtom = Atom.make((get) => {
       }
     ),
     Stream.tap(({ before, update }) =>
-      Effect.sync(() => pushEffects(before, update, get.once(createdThreadsAtom).keys()))
+      Effect.sync(() =>
+        pushEffects(before, update, [
+          ...get.once(createdThreadsAtom).keys(),
+          ...get.once(createdBotsAtom).keys(),
+        ])
+      )
     ),
     Stream.map(({ chrome }) => chrome)
   )
