@@ -14,26 +14,22 @@ export function ActivityChevron() {
 export function ActivityDisclosure({
   title,
   titleSuffix,
-  defaultView = 'preview',
   ended = false,
   hasContent = true,
-  footer,
   renderContent,
   flushHeader = false,
   animateHeader = false,
 }: {
   title: ReactNode
   titleSuffix?: ReactNode
-  defaultView?: ActivityView
   ended?: boolean
   hasContent?: boolean
-  footer?: ReactNode
   renderContent: (view: ActivityView) => ReactNode
   flushHeader?: boolean
   animateHeader?: boolean
 }) {
   const id = useId()
-  const [view, setView] = useState<ActivityView>(defaultView)
+  const [view, setView] = useState<ActivityView>('preview')
   const [previousEnded, setPreviousEnded] = useState(ended)
   const [closed, setClosed] = useState(ended)
   if (previousEnded !== ended) {
@@ -78,7 +74,6 @@ export function ActivityDisclosure({
       <ActivityContent id={id} open={!ended || !closed}>
         {renderContent(ended ? 'full' : view)}
       </ActivityContent>
-      {footer}
     </div>
   )
 }
