@@ -1,5 +1,5 @@
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
-import type { ModelDiscovery, ProviderId, ProviderModel } from '@jetty/shared/wire'
+import type { ModelDiscovery, ProviderModel } from '@jetty/shared/wire'
 
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import { BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
@@ -11,7 +11,7 @@ import {
 } from '@jetty/shared/items'
 import { findProviderModel } from '@jetty/shared/model-name'
 import { JettyRpcs } from '@jetty/shared/rpc'
-import { MAX_TURN_ATTACHMENT_BYTES, newId } from '@jetty/shared/wire'
+import { MAX_TURN_ATTACHMENT_BYTES, newId, ProviderId } from '@jetty/shared/wire'
 import { Database } from 'bun:sqlite'
 import {
   Cause,
@@ -121,6 +121,12 @@ function selectTitler(
             chainTitlers(titleModelTitler(prompt, items), firstLineTitler)(text)
           )
         )
+}
+
+function discoveryStatus(status: ModelDiscovery[ProviderId]) {
+  return Object.fromEntries(
+    ProviderId.literals.map((provider) => [provider, status])
+  ) as ModelDiscovery
 }
 
 function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
@@ -485,21 +491,7 @@ function createServer(opts: ServerOptions = {}) {
     }
     const discovers = typeof agentKind === 'string' && agentKind !== 'echo'
     let models: readonly ProviderModel[] | null = agentKind === 'echo' ? ECHO_MODELS : null
-    let modelDiscovery: ModelDiscovery = discovers
-      ? {
-          claude: 'loading',
-          codex: 'loading',
-          grok: 'loading',
-          copilot: 'loading',
-          opencode: 'loading',
-        }
-      : {
-          claude: 'ready',
-          codex: 'ready',
-          grok: 'ready',
-          copilot: 'ready',
-          opencode: 'ready',
-        }
+    let modelDiscovery = discoveryStatus(discovers ? 'loading' : 'ready')
     let registerClaudeMcp:
       | ((
           server: McpSdkServerConfigWithInstance['instance'],
@@ -558,7 +550,7 @@ function createServer(opts: ServerOptions = {}) {
           const done = Deferred.makeUnsafe<void>()
           inFlight = done
           const lists = new Map<ProviderId, readonly ProviderModel[]>(
-            (['claude', 'codex', 'grok', 'copilot', 'opencode'] as const).map((provider) => [
+            ProviderId.literals.map((provider) => [
               provider,
               models?.filter((model) => model.provider === provider) ?? [],
             ])
@@ -576,13 +568,7 @@ function createServer(opts: ServerOptions = {}) {
               Effect.sync(() => hub.pushChrome({ type: 'modelDiscovery', status: modelDiscovery }))
             )
           }
-          modelDiscovery = {
-            claude: 'loading',
-            codex: 'loading',
-            grok: 'loading',
-            copilot: 'loading',
-            opencode: 'loading',
-          }
+          modelDiscovery = discoveryStatus('loading')
           function probe<E, R>(
             provider: ProviderId,
             discovery: Effect.Effect<readonly ProviderModel[], E, R>
