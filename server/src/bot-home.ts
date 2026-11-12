@@ -50,9 +50,11 @@ async function readExisting(path: string) {
   }
 }
 
+export const EMPTY_INSTRUCTIONS = '# Your instructions\n\n'
+
 async function createInstructions(home: string) {
   try {
-    await writeFile(join(home, 'instructions.md'), '# Your instructions\n\n', { flag: 'wx' })
+    await writeFile(join(home, 'instructions.md'), EMPTY_INSTRUCTIONS, { flag: 'wx' })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
   }

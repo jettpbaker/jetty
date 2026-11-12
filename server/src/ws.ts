@@ -22,7 +22,7 @@ import type { ModelPrompt } from './title-model'
 import type { Updater } from './update'
 import type { Worktrees } from './worktrees'
 
-import { botUserName, commitManagedBotFiles, createBotHome } from './bot-home'
+import { botUserName, commitManagedBotFiles, createBotHome, EMPTY_INSTRUCTIONS } from './bot-home'
 import { GitDiff } from './diff'
 import { FileBrowser } from './fs-browse'
 import { FileSearch } from './fs-search'
@@ -918,7 +918,7 @@ export function createRpcHandlers(
           const instructions = yield* fromPromise(() =>
             readFile(join(home, 'instructions.md'), 'utf8').catch((error) => {
               if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-              return '# Your instructions\n\n'
+              return EMPTY_INSTRUCTIONS
             })
           )
           return { instructions }
