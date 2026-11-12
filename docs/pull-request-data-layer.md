@@ -29,8 +29,7 @@ Status events are chronological. The first ready/draft event determines
 whether the PR opened as a draft; without one, its current draft flag determines
 that.
 
-REST supplies file patches, with ETags per page and Link pagination up to GitHub's
-3,000-file limit. A full load reuses previous patches when the head SHA and
+REST supplies file patches, with Link pagination up to GitHub's 3,000-file limit. A full load reuses previous patches when the head SHA and
 changed-file, addition, and deletion counts match, even if the base branch moved.
 Viewed states always come freshly from GraphQL; mergeability and `behindBy` also
 refresh. Legacy snapshots lacking file flags receive classification on their next
@@ -128,7 +127,7 @@ backoff from one to fifteen minutes.
 
 Counts below assume one page per connection, stable revisions, no newly discovered
 body references, and cold directory metadata where a diff revision changes.
-Concurrent PRs can share GraphQL requests. ETag 304s still count as requests.
+Concurrent PRs can share GraphQL requests.
 
 | Action                                     | Before |                                                      After |
 | ------------------------------------------ | -----: | ---------------------------------------------------------: |
