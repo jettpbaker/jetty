@@ -225,7 +225,6 @@ function rowStamp(row: ThreadRow) {
               : activity.type === 'subagent'
                 ? `${activity.id}:${activity.status}:${activity.waiting}`
                 : activity.type === 'todo' ||
-                    activity.type === 'created' ||
                     activity.type === 'question' ||
                     activity.type === 'approval'
                   ? activity.id

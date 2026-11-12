@@ -44,7 +44,6 @@ export type ThinkingActivity = {
   elapsedSeconds?: number
 }
 type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }
-type CreatedActivity = { type: 'created'; id: string; threadId: string; title?: string }
 type SubagentActivity = {
   type: 'subagent'
   id: string
@@ -69,17 +68,14 @@ export type WorkActivity =
   | ToolActivity
   | ThinkingActivity
   | TodoActivity
-  | CreatedActivity
   | SubagentActivity
   | TextActivity
   | QuestionActivity
   | ApprovalActivity
 export type ToolBatch = { type: 'tools'; id: string; calls: ToolActivity[]; sealed: boolean }
-export type ThreadBatch = { type: 'threads'; id: string; threads: CreatedActivity[] }
 export type SubagentBatch = { type: 'subagents'; id: string; agents: SubagentActivity[] }
 export type WorkEntry =
   | ToolBatch
-  | ThreadBatch
   | SubagentBatch
   | ThinkingActivity
   | TodoActivity
@@ -176,8 +172,6 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
       (activity.kind !== 'generic' || head.name === activity.name)
     ) {
       previous.calls.push(activity)
-    } else if (activity.type === 'created' && previous?.type === 'threads') {
-      previous.threads.push(activity)
     } else if (activity.type === 'subagent' && previous?.type === 'subagents') {
       previous.agents.push(activity)
     } else {
@@ -185,11 +179,9 @@ export function groupWorkActivities(activities: readonly WorkActivity[], ended: 
       entries.push(
         activity.type === 'tool'
           ? { type: 'tools', id: activity.id, calls: [activity], sealed: false }
-          : activity.type === 'created'
-            ? { type: 'threads', id: activity.id, threads: [activity] }
-            : activity.type === 'subagent'
-              ? { type: 'subagents', id: activity.id, agents: [activity] }
-              : activity
+          : activity.type === 'subagent'
+            ? { type: 'subagents', id: activity.id, agents: [activity] }
+            : activity
       )
     }
   }
@@ -225,13 +217,6 @@ export function createWorkEntries() {
         entry.sealed === old.sealed &&
         entry.calls.length === old.calls.length &&
         entry.calls.every((call, index) => sameActivity(call, old.calls[index]!))
-      )
-        return old
-      if (
-        entry.type === 'threads' &&
-        old?.type === 'threads' &&
-        entry.threads.length === old.threads.length &&
-        entry.threads.every((thread, index) => sameActivity(thread, old.threads[index]!))
       )
         return old
       if (

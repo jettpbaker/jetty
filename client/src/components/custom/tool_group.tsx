@@ -7,19 +7,13 @@ import { useState } from 'react'
 
 import { ActivityChevron, useAutoOpen } from './activity_disclosure'
 import { CountedResults, ThreadRow } from './jetty_result_rows'
-import { JettyThreadRow, JettyToolGroup } from './jetty_tool_group'
+import { JettyToolGroup } from './jetty_tool_group'
 import { jettyResultTools } from './jetty_tool_results'
 import { RollingNumber } from './rolling_number'
 import { RollingText } from './rolling_text'
 import { SubagentGlyph, subagentGlyphState } from './subagent_glyph'
 import { ToolCall, toolCallDetails, withFetchedOutput } from './tool_call'
-import {
-  describeToolBatch,
-  workEnded,
-  type SubagentBatch,
-  type ThreadBatch,
-  type ToolBatch,
-} from './work_model'
+import { describeToolBatch, workEnded, type SubagentBatch, type ToolBatch } from './work_model'
 
 export function ToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: string }) {
   return batch.calls[0]?.jettyTool && jettyResultTools[batch.calls[0].jettyTool] ? (
@@ -103,19 +97,6 @@ function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: st
         )}
       </CollapsibleContent>
     </Collapsible>
-  )
-}
-
-export function ThreadGroup({ batch }: { batch: ThreadBatch }) {
-  return (
-    <CountedResults verb='Created' count={batch.threads.length} noun='thread'>
-      {batch.threads.map((thread) => (
-        <JettyThreadRow
-          key={thread.id}
-          result={{ id: thread.threadId, title: thread.title ?? thread.threadId }}
-        />
-      ))}
-    </CountedResults>
   )
 }
 
