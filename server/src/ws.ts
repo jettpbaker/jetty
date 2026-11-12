@@ -467,20 +467,15 @@ export function createRpcHandlers(
             bot.projectIds.includes(params.projectId)
           )
           yield* mutation(
-            store
-              .deleteProject(params.projectId)
-              .pipe(
-                Effect.tap(() =>
-                  Effect.sync(() =>
-                    hub.pushChrome({ type: 'project.removed', projectId: params.projectId })
-                  )
-                )
-              )
+            Effect.gen(function* () {
+              yield* store.deleteProject(params.projectId)
+              hub.pushChrome({ type: 'project.removed', projectId: params.projectId })
+              for (const { id } of covering) {
+                const bot = yield* store.getBot(id)
+                if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
+              }
+            })
           )
-          for (const { id } of covering) {
-            const bot = yield* store.getBot(id)
-            if (bot) hub.pushChrome({ type: 'bot.upserted', bot })
-          }
           return null
         }).pipe(Effect.mapError(wireError)),
       'project.setIcon': (params) =>
@@ -602,9 +597,13 @@ export function createRpcHandlers(
       'pullRequest.unlink': (params) =>
         Effect.gen(function* () {
           const ref = yield* pullRequestLinks.resolve(params.threadId, params.reference)
-          const thread = yield* store.unlinkPullRequest(params.threadId, ref.repo, ref.number)
-          hub.pushChrome({ type: 'thread.upserted', thread })
-          return { thread }
+          return yield* mutation(
+            Effect.gen(function* () {
+              const thread = yield* store.unlinkPullRequest(params.threadId, ref.repo, ref.number)
+              hub.pushChrome({ type: 'thread.upserted', thread })
+              return { thread }
+            })
+          )
         }).pipe(Effect.mapError(wireError)),
       'pullRequest.prefetch': (ref) =>
         checkedRef(ref).pipe(Effect.flatMap(pullRequests.prefetch), Effect.mapError(wireError)),
