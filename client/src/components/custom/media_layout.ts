@@ -107,11 +107,11 @@ function useProbedSize(src: string, video: boolean, enabled: boolean) {
   return enabled && probed.src === src ? probed.size : undefined
 }
 
-export function useVideoSize(src: string, enabled = true) {
+export function useVideoSize(src: string, enabled: boolean) {
   const size = useProbedSize(src, true, enabled)
   return size === 'failed' ? undefined : size
 }
 
-export function useImageSize(src: string, enabled = true) {
+export function useImageSize(src: string, enabled: boolean) {
   return useProbedSize(src, false, enabled)
 }
