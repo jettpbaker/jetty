@@ -111,7 +111,7 @@ export function Diff({
                 cacheKey: `${revision}:${file.path}:after`,
               }
         const diff = parseDiffFromFile(oldFile, newFile)
-        diff.cacheKey ??= `${revision}:${file.path}`
+        if (diff.cacheKey === undefined) diff.cacheKey = `${revision}:${file.path}`
         setDeferred({ revision, diff })
       })
       .catch(() => active && setDeferred({ revision, error: 'Diff unavailable' }))

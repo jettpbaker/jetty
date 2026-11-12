@@ -1164,7 +1164,7 @@ export function MarkdownEditor({
   const loaded = useRef(initial)
   useLayoutEffect(() => {
     if (!editor) return
-    unchanged.current ??= markdownOf(editor)
+    if (unchanged.current === null) unchanged.current = markdownOf(editor)
     onReady?.(editor)
   }, [editor, onReady])
   useEffect(() => {
