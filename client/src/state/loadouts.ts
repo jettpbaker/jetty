@@ -1,4 +1,6 @@
-import { findModel, restoreLoadouts, type LoadoutSlot } from '@/lib/loadout'
+import type { ProviderModel } from '@jetty/shared/wire'
+
+import { findModel, modelKey, restoreLoadouts, type LoadoutSlot } from '@/lib/loadout'
 import {
   loadProviderEnabled,
   saveProviderEnabled,
@@ -36,7 +38,7 @@ export const enabledModelsAtom = Atom.readable((get) => {
   const providers = get(providerEnabledAtom)
   const enabled = get(modelEnabledAtom)
   return get(modelsAtom).filter(
-    (model) => providers[model.provider] && enabled[`${model.provider}:${model.id}`] !== false
+    (model) => providers[model.provider] && enabled[modelKey(model)] !== false
   )
 })
 
@@ -102,8 +104,8 @@ export function useModelAvailability() {
   const catalog = useAtomValue(modelsAtom)
   const enabled = useAtomValue(modelEnabledAtom)
   const setEnabled = useCallback(
-    (model: { provider: string; id: string }, checked: boolean) => {
-      const next = { ...registry.get(modelEnabledAtom), [`${model.provider}:${model.id}`]: checked }
+    (model: ProviderModel, checked: boolean) => {
+      const next = { ...registry.get(modelEnabledAtom), [modelKey(model)]: checked }
       registry.set(modelEnabledAtom, next)
       storage.set(modelEnabledKey, JSON.stringify(next))
     },
