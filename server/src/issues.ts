@@ -3,7 +3,13 @@ import type { GitHubIssue, IssueSnapshot } from '@jetty/shared/wire'
 import { Effect } from 'effect'
 
 import { nodes, record, string } from './pull-request-graphql'
-import { chipRefreshInterval, GhFailure, githubGraphql } from './pull-requests'
+import {
+  cacheRead,
+  cacheWrite,
+  chipRefreshInterval,
+  GhFailure,
+  githubGraphql,
+} from './pull-requests'
 
 export type IssueRef = { repo: string; number: number }
 
@@ -25,31 +31,17 @@ function issueKey(ref: IssueRef) {
   return `${ref.repo.toLowerCase()}#${ref.number}`
 }
 
-function readCache(key: string) {
-  const snapshot = cache.get(key)
-  if (!snapshot) return
-  cache.delete(key)
-  cache.set(key, snapshot)
-  return snapshot
-}
-
 function stillFresh(snapshot: IssueSnapshot) {
   const interval = chipRefreshInterval(snapshot.issue?.state === 'closed')
   if (interval === null) return true
   return snapshot.refreshedAt !== undefined && Date.now() - snapshot.refreshedAt < interval
 }
 
-function remember(snapshot: IssueSnapshot) {
-  const key = issueKey(snapshot)
-  cache.delete(key)
-  cache.set(key, snapshot)
-  if (cache.size > 256) cache.delete(cache.keys().next().value!)
-  return snapshot
-}
-
 function settle(waiter: Waiter, snapshot: IssueSnapshot) {
-  inflight.delete(issueKey(waiter.ref))
-  waiter.resolve(remember(snapshot))
+  const key = issueKey(waiter.ref)
+  inflight.delete(key)
+  cacheWrite(cache, key, snapshot, 256)
+  waiter.resolve(snapshot)
 }
 
 function failed(ref: IssueRef, error: unknown): IssueSnapshot {
@@ -154,7 +146,7 @@ function drain() {
 
 export function prefetchIssue(ref: IssueRef) {
   const key = issueKey(ref)
-  const cached = readCache(key)
+  const cached = cacheRead(cache, key)
   if (cached && stillFresh(cached)) return Effect.succeed(cached)
   if (chipRefreshInterval(cached?.issue?.state === 'closed') === null)
     return Effect.succeed(

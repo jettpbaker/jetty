@@ -683,7 +683,7 @@ type DiffContents = string | null | { unavailable: 'tooLarge' | 'binary' }
 
 const maxDiffContentsBytes = 1024 * 1024
 
-function cacheRead<T>(cache: Map<string, T>, key: string) {
+export function cacheRead<T>(cache: Map<string, T>, key: string) {
   const value = cache.get(key)
   if (value !== undefined) {
     cache.delete(key)
@@ -692,7 +692,7 @@ function cacheRead<T>(cache: Map<string, T>, key: string) {
   return value
 }
 
-function cacheWrite<T>(cache: Map<string, T>, key: string, value: T, limit = 64) {
+export function cacheWrite<T>(cache: Map<string, T>, key: string, value: T, limit = 64) {
   cache.delete(key)
   cache.set(key, value)
   if (cache.size > limit) cache.delete(cache.keys().next().value!)
