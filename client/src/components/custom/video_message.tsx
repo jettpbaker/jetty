@@ -180,7 +180,7 @@ function Scrubber({
   mediaRef: RefObject<HTMLVideoElement | null>
   duration?: number
 }) {
-  const [time, setTime] = useState(() => mediaRef.current?.currentTime ?? 0)
+  const [time, setTime] = useState(0)
 
   useEffect(() => {
     const element = mediaRef.current
