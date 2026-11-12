@@ -298,6 +298,15 @@ export const PullRequestData = Schema.Struct({
 })
 export type PullRequestData = Schema.Schema.Type<typeof PullRequestData>
 
+export function pullRequestState(
+  pull: Pick<PullRequestData['pull'], 'merged' | 'state' | 'draft'>
+): 'draft' | 'open' | 'merged' | 'closed' {
+  if (pull.merged) return 'merged'
+  if (pull.state === 'closed') return 'closed'
+  if (pull.draft) return 'draft'
+  return 'open'
+}
+
 export function patchPullRequestListItem(
   item: PullRequestListItem,
   data: PullRequestData
@@ -305,13 +314,7 @@ export function patchPullRequestListItem(
   const { pull } = data
   const patched: PullRequestListItem = {
     ...item,
-    state: pull.merged
-      ? 'merged'
-      : pull.state === 'closed'
-        ? 'closed'
-        : pull.draft
-          ? 'draft'
-          : 'open',
+    state: pullRequestState(pull),
     title: pull.title,
     url: pull.html_url,
     author: {

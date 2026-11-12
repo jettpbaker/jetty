@@ -1,6 +1,4 @@
-import type { PullRequestData } from '@jetty/shared/pull-request'
-
-import { pullRequestState } from '../pull_request_model'
+import { pullRequestState, type PullRequestData } from '@jetty/shared/pull-request'
 
 export type PrUser = { login: string; name: string | null; avatarUrl: string }
 export type PrCheck = {
