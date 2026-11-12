@@ -1875,7 +1875,6 @@ export function createPullRequests(store: Store, hub: Hub) {
     key: string
     priority: 'visible' | 'arrival' | 'prefetch'
     queuedAt: number
-    started: boolean
     revision: number
     promise: Promise<PullRequestSnapshot | undefined>
     resolve: (snapshot: PullRequestSnapshot | undefined) => void
@@ -1893,8 +1892,6 @@ export function createPullRequests(store: Store, hub: Hub) {
   const detecting = new Set<string>()
   const jobs = new Map<string, Job>()
   const queue: Job[] = []
-  let activeVisible = 0
-  let activePrefetches = 0
   const watches = createWatches<string>(hub.clientActivity)
   const lastChecks = new Map<string, number>()
   const checking = new Set<string>()
@@ -1911,10 +1908,16 @@ export function createPullRequests(store: Store, hub: Hub) {
     return revisions.get(key) ?? 0
   }
 
+  // Reads under way, which have left the queue: the visible ones, or the rest, which share a limit.
+  function active(visible: boolean) {
+    let count = 0
+    for (const job of jobs.values())
+      if ((job.priority === 'visible') === visible && !queue.includes(job)) count++
+    return count
+  }
+
   function finish(job: Job, fetched: PullRequestSnapshot) {
     if (!jobs.delete(job.key)) return
-    if (job.priority !== 'visible') activePrefetches--
-    else activeVisible--
     void Effect.runPromise(publish(job.ref, fetched, job.revision)).then(job.resolve, (error) => {
       console.error(`[pr-fetch] ${job.key} publication failed`, error)
       if (job.revision !== revision(job.key)) return job.resolve(undefined)
@@ -1996,17 +1999,13 @@ export function createPullRequests(store: Store, hub: Hub) {
       const batch: Job[] = []
       while (batch.length < 5) {
         let index =
-          activeVisible < visibleLimit ? queue.findIndex((job) => job.priority === 'visible') : -1
-        if (index < 0 && activePrefetches < prefetchLimit)
+          active(true) < visibleLimit ? queue.findIndex((job) => job.priority === 'visible') : -1
+        if (index < 0 && active(false) < prefetchLimit)
           index = queue.findIndex((job) => job.priority === 'arrival')
-        if (index < 0 && activePrefetches < prefetchLimit)
+        if (index < 0 && active(false) < prefetchLimit)
           index = queue.findIndex((job) => job.priority === 'prefetch')
         if (index < 0) break
-        const job = queue.splice(index, 1)[0]!
-        job.started = true
-        if (job.priority !== 'visible') activePrefetches++
-        else activeVisible++
-        batch.push(job)
+        batch.push(queue.splice(index, 1)[0]!)
       }
       if (!batch.length) return
       void fetchBatch(batch)
@@ -2029,10 +2028,6 @@ export function createPullRequests(store: Store, hub: Hub) {
     const existing = jobs.get(key)
     if (existing) {
       if (priority === 'visible' && existing.priority !== 'visible') {
-        if (existing.started) {
-          activePrefetches--
-          activeVisible++
-        }
         existing.priority = 'visible'
       } else if (priority === 'arrival' && existing.priority === 'prefetch') {
         existing.priority = 'arrival'
@@ -2055,7 +2050,6 @@ export function createPullRequests(store: Store, hub: Hub) {
       key,
       priority,
       queuedAt: Date.now(),
-      started: false,
       revision: revision(key),
       promise,
       resolve,
