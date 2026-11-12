@@ -195,6 +195,11 @@ function missingWindows(usage: ProviderUsage) {
   return undefined
 }
 
+// A read that failed, showing the last good windows it kept.
+function isStale(usage: ProviderUsage, failed: ReadonlySet<UsageProvider>) {
+  return (usage.failed || failed.has(usage.provider)) && usage.windows.length > 0
+}
+
 function UsageWindows({
   usage,
   now,
@@ -304,7 +309,7 @@ export function UsagePage({
                   <h2 id={`usage-${provider}`} className='text-sm font-medium'>
                     {providerNames[provider]}
                   </h2>
-                  {item && (item.failed || failed.has(provider)) && item.windows.length > 0 && (
+                  {item && isStale(item, failed) && (
                     <span className='ml-auto text-xs'>
                       Couldn’t refresh
                       {item.asOf !== undefined && ` · last read ${updatedLabel(item.asOf, now)}`}
@@ -529,7 +534,7 @@ export function RingLimits({
 }) {
   const plan = usage[provider]
   const missing = plan && missingWindows(plan)
-  const stale = plan && (plan.failed || failed.has(provider)) && plan.windows.length > 0
+  const stale = plan && isStale(plan, failed)
   const connected = others.flatMap((id) => {
     const item = usage[id]
     return item?.connected && item.windows.length > 0 ? [item] : []
