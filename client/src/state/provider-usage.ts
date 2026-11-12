@@ -45,7 +45,8 @@ const loadingAtom = Atom.make(new Set<UsageProvider>()).pipe(Atom.keepAlive)
 const failedAtom = Atom.make(new Set<UsageProvider>()).pipe(Atom.keepAlive)
 
 // A read this recent is good enough to open on; pointing at Usage or opening it refreshes older ones.
-export const usageFreshMs = 30_000
+// The server keeps its reads for 60s, so reading again sooner would only return the same copy.
+export const usageFreshMs = 60_000
 // The server gives up on a provider within 8s; a read still unanswered well past that has hung,
 // and would otherwise hold the provider "loading", skipped by every refresh, for the page's life.
 const readTimeout = '20 seconds'
@@ -111,19 +112,22 @@ export function useProviderUsage() {
   }
 }
 
-// These providers' last reads, and a clock never behind the newest of them.
+// These providers' last reads, a clock never behind the newest of them, and when the oldest was
+// read: the server's own time where it gives one, since it may answer with a copy it kept.
 export function useUsageReads(providers: readonly UsageProvider[]) {
   const { reads, loading, failed, refresh } = useProviderUsage()
   const usage: Partial<Record<UsageProvider, ProviderUsage>> = {}
   const at: number[] = []
+  const asOf: number[] = []
   for (const provider of providers) {
     const read = reads[provider]
     if (!read) continue
     usage[provider] = read.usage
     at.push(read.at)
+    asOf.push(read.usage.asOf ?? read.at)
   }
   const now = Math.max(useNow(60_000), ...at)
-  const oldest = at.length ? Math.min(...at) : undefined
+  const oldest = asOf.length ? Math.min(...asOf) : undefined
   return { usage, now, oldest, loading, failed, refresh }
 }
 
