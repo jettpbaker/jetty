@@ -20,7 +20,7 @@ import {
 } from '@/state/archived'
 import { rankArchivedSearch } from '@jetty/shared/search'
 import { Link } from '@tanstack/react-router'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -195,11 +195,11 @@ export function SettingsArchived() {
     () => (chrome?.threads ?? []).filter((thread) => thread.archived),
     [chrome]
   )
+  useEffect(() => retainArchivedSearchDocs(archived.map((thread) => thread.id)), [archived])
   const { hits, settled, failed } = useArchivedMessageSearch(query)
   const hitById = useMemo(() => new Map((hits ?? []).map((hit) => [hit.id, hit])), [hits])
   const prepared = useMemo(() => {
     const projects = new Map((chrome?.projects ?? []).map((project) => [project.id, project]))
-    retainArchivedSearchDocs(archived.map((thread) => thread.id))
     return archived.map((thread) => {
       const project = projects.get(thread.projectId)
       const fields = archivedFields(thread, project?.title ?? '', '')
