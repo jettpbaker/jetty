@@ -128,7 +128,7 @@ export function Diff({
   const diff = parsed ?? some
   const loadDiffFiles = useMemo(() => {
     if (!loadFile || suggestion || patch !== undefined || hunks) return undefined
-    return async (diff: import('@pierre/diffs').FileDiffMetadata) => {
+    return async (diff: FileDiffMetadata) => {
       try {
         const contents = await loadFile(file.path, file.previousPath)
         if ('unavailable' in contents)
@@ -289,7 +289,7 @@ export function Body({
       </Markdown>
     )
   const replacement = suggestion[1]!.trimEnd().split('\n')
-  const patch = `@@ -${thread.line ?? 1},1 +${thread.line ?? 1},${replacement.length} @@\n-${old}\n${replacement.map((l) => `+${l}`).join('\n')}`
+  const patch = `@@ -${thread.line},1 +${thread.line},${replacement.length} @@\n-${old}\n${replacement.map((l) => `+${l}`).join('\n')}`
   return (
     <>
       <Markdown html className={className}>
