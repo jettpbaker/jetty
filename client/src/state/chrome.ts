@@ -418,3 +418,18 @@ const workingThreadCountAtom = Atom.readable(
 export function useWorkingThreadCount() {
   return useAtomValue(workingThreadCountAtom)
 }
+
+const guidedReviewsAtom = Atom.readable(
+  (get) => get(serverChromeAtom)?.agentBehaviours?.guidedReviews ?? true
+)
+
+export function useGuidedReviews() {
+  return useAtomValue(guidedReviewsAtom)
+}
+
+// No models at all once discovery has answered; unknown until then.
+const noModelsAtom = Atom.readable((get) => get(serverChromeAtom)?.models?.length === 0)
+
+export function useNoModels() {
+  return useAtomValue(noModelsAtom)
+}
