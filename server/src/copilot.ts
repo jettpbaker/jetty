@@ -16,6 +16,7 @@ import { acpPrompt, jettyMcpServers } from './acp-session'
 import { acpContextUsage, acpToolName } from './acp-translate'
 import {
   AgentError,
+  sessionTtlMs,
   toAgentError,
   couldntCompact,
   type Agent,
@@ -116,7 +117,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
     const sessions = new Map<string, Session>()
     const admission = yield* Semaphore.make(1)
     const graceMs = options.interruptGraceMs ?? 2000
-    const ttlMs = options.ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? 10 * 60 * 1000)
+    const ttlMs = sessionTtlMs(options.ttlMs)
 
     function armIdle(session: Session) {
       return Effect.gen(function* () {

@@ -11,6 +11,7 @@ import { acpPermissionOutcome } from './acp-permissions'
 import { acpPrompt, jettyMcpServers } from './acp-session'
 import {
   AgentError,
+  sessionTtlMs,
   toAgentError,
   compactFailureReason,
   couldntCompact,
@@ -118,7 +119,7 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const sessions = new Map<string, Session>()
     const admission = yield* Semaphore.make(1)
-    const ttlMs = options.ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? 10 * 60 * 1000)
+    const ttlMs = sessionTtlMs(options.ttlMs)
 
     function armIdle(session: Session) {
       return Effect.gen(function* () {

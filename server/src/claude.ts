@@ -38,6 +38,7 @@ import type { Store } from './store'
 
 import {
   AgentError,
+  sessionTtlMs,
   toAgentError,
   compactFailureReason,
   couldntCompact,
@@ -71,7 +72,6 @@ import { readUsage } from './usage'
 // The rest of Jetty's tools, add_project included, go through Claude's own reviewer: the auto-mode
 // classifier judges them.
 const AUTO_ALLOWED_TOOLS = new Set(SELF_TOOLS.map((name) => `mcp__jetty__${name}`))
-const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export type QueryFactory = (input: Parameters<typeof query>[0]) => Query
 export type ClaudeOptions = {
@@ -272,7 +272,7 @@ export function createClaudeAdapter(
     const context = yield* Effect.context<never>()
     const run = Effect.runPromiseWith(context)
     const sessions = new Map<string, WarmSession>()
-    const ttlMs = config.ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? DEFAULT_TTL_MS)
+    const ttlMs = sessionTtlMs(config.ttlMs)
     const makeQuery = config.query ?? query
     const supportsAutoMode = config.supportsAutoMode ?? (() => true)
     const modelUsage = new Map<string, NonNullable<SdkLikeMessage['modelUsage']>>()

@@ -50,6 +50,11 @@ export class AgentError extends Error {
   readonly _tag = 'AgentError'
 }
 
+// How long a provider keeps an idle session open.
+export function sessionTtlMs(ttlMs: number | undefined) {
+  return ttlMs ?? Number(process.env.JETTY_SESSION_TTL_MS ?? 10 * 60 * 1000)
+}
+
 export function toAgentError(error: { message: string }) {
   return error instanceof AgentError ? error : new AgentError(error.message)
 }
