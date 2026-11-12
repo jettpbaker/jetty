@@ -1,5 +1,5 @@
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
-import { storage } from '@/platform'
+import { isBoolean, useStoredState } from '@/lib/stored-state'
 import {
   useBumpDraft,
   useConnectionNotice,
@@ -9,7 +9,7 @@ import {
 } from '@/state'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useLocation, useMatches, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, type CSSProperties, type ReactNode } from 'react'
 
 import { AppSidebar } from './app_sidebar'
 import { FileDropOverlay } from './file_drop_overlay'
@@ -20,27 +20,18 @@ import { ShellNavigation } from './shell_navigation'
 import { SidebarResizeHandle } from './sidebar_resize_handle'
 import './app_shell.css'
 
-const widthKey = 'jetty.sidebar.width'
-const openKey = 'jetty.sidebar.open'
+function isWidth(value: unknown): value is number {
+  return typeof value === 'number' && value > 0
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => Number(storage.get(widthKey)) || 250)
-  const [open, setOpen] = useState(() => storage.get(openKey) !== 'false')
-
-  function changeWidth(width: number) {
-    setSidebarWidth(width)
-    storage.set(widthKey, String(width))
-  }
-
-  function changeOpen(next: boolean) {
-    setOpen(next)
-    storage.set(openKey, String(next))
-  }
+  const [sidebarWidth, setSidebarWidth] = useStoredState('jetty.sidebar.width', 250, isWidth)
+  const [open, setOpen] = useStoredState('jetty.sidebar.open', true, isBoolean)
 
   return (
     <SidebarProvider
       open={open}
-      onOpenChange={changeOpen}
+      onOpenChange={setOpen}
       className='h-dvh min-h-0 overflow-hidden bg-sidebar text-foreground'
       style={
         {
@@ -49,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         } as CSSProperties
       }
     >
-      <Workspace sidebarWidth={sidebarWidth} onSidebarWidthChange={changeWidth}>
+      <Workspace sidebarWidth={sidebarWidth} onSidebarWidthChange={setSidebarWidth}>
         {children}
       </Workspace>
     </SidebarProvider>
