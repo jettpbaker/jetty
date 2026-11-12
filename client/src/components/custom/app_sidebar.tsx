@@ -29,7 +29,6 @@ import {
 import { useNow } from '@/hooks/use-now'
 import { pressProps } from '@/lib/press'
 import { isBoolean, useStoredState } from '@/lib/stored-state'
-import { storage } from '@/platform'
 import {
   useArchiveThread,
   useBumpDraft,
@@ -78,20 +77,19 @@ type SidebarView = {
   showArchived: boolean
 }
 
-function storedView(): SidebarView {
-  let saved: Record<string, unknown> = {}
-  try {
-    const parsed: unknown = JSON.parse(storage.get(viewKey) ?? '{}')
-    if (parsed && typeof parsed === 'object') saved = { ...parsed }
-  } catch {}
-  return {
-    grouping:
-      saved.grouping === 'project' || saved.grouping === 'status' || saved.grouping === 'bot'
-        ? saved.grouping
-        : 'date',
-    showPinned: saved.showPinned !== false,
-    showArchived: saved.showArchived === true,
-  }
+const defaultView: SidebarView = { grouping: 'date', showPinned: true, showArchived: false }
+
+function isSidebarView(value: unknown): value is SidebarView {
+  if (!value || typeof value !== 'object') return false
+  const { grouping, showPinned, showArchived } = value as Record<string, unknown>
+  return (
+    (grouping === 'date' ||
+      grouping === 'project' ||
+      grouping === 'status' ||
+      grouping === 'bot') &&
+    typeof showPinned === 'boolean' &&
+    typeof showArchived === 'boolean'
+  )
 }
 
 const MotionSidebarContent = motion.create(SidebarContent)
@@ -130,7 +128,7 @@ export const AppSidebar = memo(function AppSidebar() {
   const [deletePrompt, setDeletePrompt] = useState<{ threadId: string; count: number }>()
   const checkChanges = useWorktreeChanges()
   const [query, setQuery] = useState('')
-  const [view, setView] = useState(storedView)
+  const [view, setView] = useStoredState(viewKey, defaultView, isSidebarView)
   const { grouping, showPinned, showArchived } = view
   const [archivedOpen, setArchivedOpen] = useStoredState(
     'jetty.sidebar.archivedOpen',
@@ -138,9 +136,7 @@ export const AppSidebar = memo(function AppSidebar() {
     isBoolean
   )
   function changeView(patch: Partial<SidebarView>) {
-    const next = { ...view, ...patch }
-    setView(next)
-    storage.set(viewKey, JSON.stringify(next))
+    setView((current) => ({ ...current, ...patch }))
   }
   const prefetch = useThreadRowPrefetch()
   const openPullRequest = useOpenPullRequest()
