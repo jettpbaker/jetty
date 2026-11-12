@@ -24,7 +24,7 @@ export const ThreadUpdate = Schema.Union([
 export type ThreadUpdate = Schema.Schema.Type<typeof ThreadUpdate>
 
 // The methods that open a stream. Every other method answers once.
-type StreamMethod =
+export type StreamMethod =
   | 'chrome.subscribe'
   | 'github.activity'
   | 'bot.presence'
