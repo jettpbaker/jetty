@@ -314,27 +314,26 @@ function setReviewRequest(
       clear()
     }
   }
-  Effect.runFork(
-    AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap((connection) =>
-        connection.request('pullRequest.setReviewRequest', { ...ref, login: user.login, requested })
-      ),
-      Effect.match({
-        onSuccess: (snapshot) => {
-          cachePullRequest(registry, snapshot)
-          clearWhenShown()
-        },
-        onFailure: (error) => {
-          clear()
-          toast.error(
-            requested
-              ? `Couldn't request review from ${user.login}`
-              : `Couldn't remove ${user.login}`,
-            { description: errorMessage(error) }
-          )
-        },
-      })
-    )
+  run(registry, (connection) =>
+    connection
+      .request('pullRequest.setReviewRequest', { ...ref, login: user.login, requested })
+      .pipe(
+        Effect.match({
+          onSuccess: (snapshot) => {
+            cachePullRequest(registry, snapshot)
+            clearWhenShown()
+          },
+          onFailure: (error) => {
+            clear()
+            toast.error(
+              requested
+                ? `Couldn't request review from ${user.login}`
+                : `Couldn't remove ${user.login}`,
+              { description: errorMessage(error) }
+            )
+          },
+        })
+      )
   )
 }
 
