@@ -65,17 +65,15 @@ import {
 import { GUIDE_MIN_CHANGED_LINES } from '@jetty/shared/wire'
 import { Link } from '@tanstack/react-router'
 import {
-  cloneElement,
   memo,
-  isValidElement,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
   useLayoutEffect,
+  type ComponentProps,
   type CSSProperties,
-  type ReactElement,
   type ReactNode,
 } from 'react'
 import { toast } from 'sonner'
@@ -367,53 +365,51 @@ const capyWords: Record<string, string> = {
   REQUESTED: 'Requested',
 }
 
+type ReviewerPickerProps = Omit<ComponentProps<typeof ReviewerPicker>, 'current' | 'trigger'>
+
 // Capy's take: each reviewer as an avatar and name. The row opens the picker, which lists them first.
-function ReviewerList({ people, children }: { people: Reviewer[]; children: ReactNode }) {
+function ReviewerList({ people, ...picker }: { people: Reviewer[] } & ReviewerPickerProps) {
   const overflow = people.length > 3
   const shown = overflow ? people.slice(0, 3) : people
   const remaining = people.slice(3)
   return (
     <div className={cn('px-1', overflow && 'flex min-w-0 items-center gap-2 [&>span]:min-w-0')}>
-      {isValidElement<{ trigger?: ReactElement; current?: unknown }>(children) &&
-        cloneElement(children, {
-          current: people.map(({ user, state, team }) => ({
-            user: githubUser(user),
-            label: personName(user),
-            word: capyWords[state] ?? 'Requested',
-            team: !!team,
-          })),
-          trigger: (
-            <Button
-              variant='ghost'
-              size='sm'
-              className={cn(
-                '-mx-1 h-7 gap-3 px-0.75 font-normal',
-                overflow && 'w-max min-w-0 shrink'
-              )}
-            >
-              {shown.map(({ user, state, team }) => (
-                <span
-                  key={user.login}
-                  className={cn('inline-flex items-center gap-2', overflow && 'min-w-0')}
-                >
-                  <span className='relative shrink-0'>
-                    <PersonAvatar
-                      login={personName(user)}
-                      src={user.avatarUrl || undefined}
-                      className={cn('size-4', team && 'rounded-menu-item [&>*]:rounded-menu-item')}
-                    />
-                    <VerdictBadge state={state} />
-                  </span>
-                  {overflow ? (
-                    <span className='truncate'>{personName(user)}</span>
-                  ) : (
-                    personName(user)
-                  )}
+      <ReviewerPicker
+        {...picker}
+        current={people.map(({ user, state, team }) => ({
+          user: githubUser(user),
+          label: personName(user),
+          word: capyWords[state] ?? 'Requested',
+          team: !!team,
+        }))}
+        trigger={
+          <Button
+            variant='ghost'
+            size='sm'
+            className={cn(
+              '-mx-1 h-7 gap-3 px-0.75 font-normal',
+              overflow && 'w-max min-w-0 shrink'
+            )}
+          >
+            {shown.map(({ user, state, team }) => (
+              <span
+                key={user.login}
+                className={cn('inline-flex items-center gap-2', overflow && 'min-w-0')}
+              >
+                <span className='relative shrink-0'>
+                  <PersonAvatar
+                    login={personName(user)}
+                    src={user.avatarUrl || undefined}
+                    className={cn('size-4', team && 'rounded-menu-item [&>*]:rounded-menu-item')}
+                  />
+                  <VerdictBadge state={state} />
                 </span>
-              ))}
-            </Button>
-          ),
-        })}
+                {overflow ? <span className='truncate'>{personName(user)}</span> : personName(user)}
+              </span>
+            ))}
+          </Button>
+        }
+      />
       {overflow && (
         <Popover>
           <PopoverTrigger
@@ -781,36 +777,33 @@ const propertyRows = ['Status', 'Checks', 'Reviewers', 'Issues']
 function Properties({ pr }: { pr: PrPull }) {
   const { ref, threads } = usePrRuntime()
   const setReviewRequest = useSetReviewRequest()
-  const picker = (
-    <ReviewerPicker
-      repo={ref.repo}
-      author={pr.author.login}
-      requested={pr.data.pull.requested_reviewers}
-      suggested={pr.data.suggestedReviewers}
-      disabledReason={
-        !pr.data.viewerCanRequestReviews
-          ? "You can't request reviewers for this pull request"
-          : editable(pr)
-            ? undefined
-            : `Only ${personName(pr.author)} can request reviewers`
-      }
-      onToggle={(user, request) => setReviewRequest(ref, user, request)}
-    />
-  )
+  const picker: ReviewerPickerProps = {
+    repo: ref.repo,
+    author: pr.author.login,
+    requested: pr.data.pull.requested_reviewers,
+    suggested: pr.data.suggestedReviewers,
+    disabledReason: !pr.data.viewerCanRequestReviews
+      ? "You can't request reviewers for this pull request"
+      : editable(pr)
+        ? undefined
+        : `Only ${personName(pr.author)} can request reviewers`,
+    onToggle: (user, request) => setReviewRequest(ref, user, request),
+  }
   const values: Record<string, ReactNode> = {
     Status: <StatusMenu pr={pr} />,
     Reviewers: pr.reviewers.length ? (
-      <ReviewerList people={pr.reviewers}>{picker}</ReviewerList>
+      <ReviewerList people={pr.reviewers} {...picker} />
     ) : (
       <div className='px-0.75'>
-        {cloneElement(picker, {
-          trigger: (
+        <ReviewerPicker
+          {...picker}
+          trigger={
             <Button variant='ghost-text' size='sm' className='h-7 gap-2 px-0 font-normal'>
               <PlusMediumIcon className='size-4' />
               Add reviewers
             </Button>
-          ),
-        })}
+          }
+        />
       </div>
     ),
     Thread: (
