@@ -758,16 +758,11 @@ export function createStore() {
 
     function setJobModel(job: JobName, { model, effort, fast }: JobModel) {
       const prefix = jobPrefixes[job]
-      const write = (key: string, value: unknown) =>
-        value === undefined || value === null || value === false
-          ? sql`DELETE FROM settings WHERE key = ${`${prefix}_${key}`}`
-          : sql`INSERT INTO settings (key, value_json) VALUES (${`${prefix}_${key}`}, ${JSON.stringify(value)})
-              ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`
-      return Effect.all([write('model', model), write('effort', effort), write('fast', fast)]).pipe(
-        sql.withTransaction,
-        Effect.asVoid,
-        Effect.mapError(storeError)
-      )
+      return Effect.all([
+        writeSetting(`${prefix}_model`, model ?? undefined),
+        writeSetting(`${prefix}_effort`, effort),
+        writeSetting(`${prefix}_fast`, fast || undefined),
+      ]).pipe(sql.withTransaction, Effect.asVoid, Effect.mapError(storeError))
     }
 
     function notifiesParent(threadId: string) {
@@ -1675,30 +1670,15 @@ export function createStore() {
         )
       },
       getBranchPrefix() {
-        return sql<{
-          value_json: string
-        }>`SELECT value_json FROM settings WHERE key = 'branchPrefix'`.pipe(
-          Effect.map((rows) => (rows[0] ? (JSON.parse(rows[0].value_json) as string) : 'jetty')),
-          Effect.mapError(storeError)
-        )
+        return readSetting<string>('branchPrefix').pipe(Effect.map((prefix) => prefix ?? 'jetty'))
       },
       getDefaultEnvironment() {
-        return sql<{
-          value_json: string
-        }>`SELECT value_json FROM settings WHERE key = 'defaultEnvironment'`.pipe(
-          Effect.map((rows) =>
-            rows[0]
-              ? (JSON.parse(rows[0].value_json) as ThreadMeta['environment'])
-              : ('worktree' as const)
-          ),
-          Effect.mapError(storeError)
+        return readSetting<ThreadMeta['environment']>('defaultEnvironment').pipe(
+          Effect.map((environment) => environment ?? 'worktree')
         )
       },
       setDefaultEnvironment(environment: ThreadMeta['environment']) {
-        return sql`INSERT INTO settings (key, value_json) VALUES ('defaultEnvironment', ${JSON.stringify(environment)}) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`.pipe(
-          Effect.asVoid,
-          Effect.mapError(storeError)
-        )
+        return writeSetting('defaultEnvironment', environment)
       },
       setBranchPrefix(prefix: string) {
         return Effect.gen(function* () {
@@ -1712,8 +1692,8 @@ export function createStore() {
                 'Use letters, digits, hyphens, underscores and single slashes for the branch prefix'
               )
             )
-          yield* sql`INSERT INTO settings (key, value_json) VALUES ('branchPrefix', ${JSON.stringify(prefix)}) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`
-        }).pipe(Effect.mapError(storeError))
+          yield* writeSetting('branchPrefix', prefix)
+        })
       },
       // A worktree thread starts from a resolved base commit; everything else fills in at first send.
       setThreadEnvironment(threadId: string, baseCommit?: string) {
@@ -1826,12 +1806,7 @@ export function createStore() {
         )
       },
       setAgentBehaviour(key: AgentBehaviourKey, enabled: boolean) {
-        return sql`INSERT INTO settings (key, value_json)
-          VALUES (${`agent_behaviour.${key}`}, ${JSON.stringify(enabled)})
-          ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`.pipe(
-          Effect.asVoid,
-          Effect.mapError(storeError)
-        )
+        return writeSetting(`agent_behaviour.${key}`, enabled)
       },
       setQueuePaused(threadId: string, paused: boolean) {
         return sql`UPDATE threads SET queue_paused = ${paused ? 1 : 0} WHERE id = ${threadId}`.pipe(
