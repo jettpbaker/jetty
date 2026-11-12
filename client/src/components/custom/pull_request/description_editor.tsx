@@ -37,6 +37,7 @@ import { InputGroupButton } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { revokeBlobUrl } from '@/lib/blob_urls'
 import { whenIdle } from '@/lib/preload'
+import { unsentUpload } from '@/state/pull_requests'
 import { githubMediaPath, githubMediaSource } from '@jetty/shared/github-media'
 import { Extension, Node, getSchema, type Editor } from '@tiptap/core'
 import Code from '@tiptap/extension-code'
@@ -1272,7 +1273,7 @@ export function MarkdownEditor({
     if (!editor) return
     const markdown = markdownOf(editor)
     if (disabled || pendingUploads.current.size || !markdown.trim()) return
-    if (/\]\(blob:|src=["']blob:/i.test(markdown)) {
+    if (unsentUpload.test(markdown)) {
       toast.error("Couldn't post comment", { description: 'Finish uploading attachments first.' })
       return
     }
