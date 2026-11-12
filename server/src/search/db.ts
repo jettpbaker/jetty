@@ -25,3 +25,14 @@ export function openSearchDb(path: string) {
     CREATE INDEX IF NOT EXISTS search_messages_by_thread ON search_messages(thread_id);`)
   return db
 }
+
+// A path opens the database for one call; an open database stays the caller's to close.
+export function borrowSearchDb(target: string | Database) {
+  const db = typeof target === 'string' ? openSearchDb(target) : target
+  return {
+    db,
+    done() {
+      if (db !== target) db.close()
+    },
+  }
+}

@@ -1,10 +1,12 @@
+import type { Database } from 'bun:sqlite'
+
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 import { bm25Scores, squashBm25 } from './bm25'
 import { chunkFile, type Chunk } from './chunk'
-import { openSearchDb } from './db'
+import { borrowSearchDb } from './db'
 import { hashBytes, listMemoryFiles } from './walk'
 
 type RecallHit = {
@@ -31,13 +33,12 @@ type ChunkRow = {
   modified_at: number
 }
 
-export async function reindex(home: string, dbPath: string): Promise<ReindexStats> {
+export async function reindex(home: string, target: string | Database): Promise<ReindexStats> {
   const homeAbs = resolve(home)
-  const dbAbs = resolve(dbPath)
   if (!existsSync(homeAbs)) throw new Error(`home not found: ${homeAbs}`)
-  await mkdir(dirname(dbAbs), { recursive: true })
+  if (typeof target === 'string') await mkdir(dirname(resolve(target)), { recursive: true })
   const files = await listMemoryFiles(homeAbs)
-  const db = openSearchDb(dbAbs)
+  const { db, done } = borrowSearchDb(typeof target === 'string' ? resolve(target) : target)
   try {
     const existing = new Map(
       db
@@ -91,14 +92,14 @@ export async function reindex(home: string, dbPath: string): Promise<ReindexStat
       chunks,
     }
   } finally {
-    db.close()
+    done()
   }
 }
 
-export function recall(dbPath: string, query: string, k = 5): RecallHit[] {
+export function recall(target: string | Database, query: string, k = 5): RecallHit[] {
   if (!Number.isInteger(k) || k < 1) throw new Error(`k must be a positive integer, got ${k}`)
   if (!query.trim()) throw new Error('query is empty')
-  const db = openSearchDb(resolve(dbPath))
+  const { db, done } = borrowSearchDb(typeof target === 'string' ? resolve(target) : target)
   try {
     const rows = db
       .query<ChunkRow, []>(
@@ -128,6 +129,6 @@ export function recall(dbPath: string, query: string, k = 5): RecallHit[] {
       )
       .slice(0, k)
   } finally {
-    db.close()
+    done()
   }
 }

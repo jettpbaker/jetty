@@ -1,10 +1,11 @@
 import type { ThreadItem } from '@jetty/shared/items'
+import type { Database } from 'bun:sqlite'
 
 import { setImmediate } from 'node:timers/promises'
 
 import { bm25Scores, squashBm25 } from './bm25'
 import { chunkProseText } from './chunk'
-import { openSearchDb } from './db'
+import { borrowSearchDb } from './db'
 
 type SearchMessage = {
   id: string
@@ -72,8 +73,8 @@ export function archivedMessageText(items: readonly ThreadItem[], threadId: stri
 
 type ThreadCursor = { lastSeq: number }
 
-export function threadCursors(path: string): Record<string, ThreadCursor> {
-  const db = openSearchDb(path)
+export function threadCursors(target: string | Database): Record<string, ThreadCursor> {
+  const { db, done } = borrowSearchDb(target)
   try {
     return Object.fromEntries(
       db
@@ -82,12 +83,16 @@ export function threadCursors(path: string): Record<string, ThreadCursor> {
         .map((row) => [row.id, { lastSeq: row.last_seq }])
     )
   } finally {
-    db.close()
+    done()
   }
 }
 
-export async function reindexThreads(path: string, scope: SearchThread[], updates: ThreadUpdate[]) {
-  const db = openSearchDb(path)
+export async function reindexThreads(
+  target: string | Database,
+  scope: SearchThread[],
+  updates: ThreadUpdate[]
+) {
+  const { db, done } = borrowSearchDb(target)
   try {
     const ids = new Set(scope.map((thread) => thread.id))
     const removed = db
@@ -135,17 +140,17 @@ export async function reindexThreads(path: string, scope: SearchThread[], update
       removed: removed.length,
     }
   } finally {
-    db.close()
+    done()
   }
 }
 
 export function recallThreads(
-  path: string,
+  target: string | Database,
   query: string,
   k: number,
   excludeMessageIds: readonly string[] = []
 ) {
-  const db = openSearchDb(path)
+  const { db, done } = borrowSearchDb(target)
   try {
     const excluded = new Set(excludeMessageIds)
     const rows = db
@@ -179,6 +184,6 @@ export function recallThreads(
       )
       .slice(0, k)
   } finally {
-    db.close()
+    done()
   }
 }
