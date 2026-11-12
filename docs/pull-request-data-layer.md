@@ -191,8 +191,9 @@ linked sidebar metadata.
 - `pullRequest.commitFiles { repo, sha }` lazily reads a commit's own file changes
   against its first parent. REST pages and classification are cached by repository
   and immutable SHA; successful results and concurrent work share a 64-entry LRU.
-  Directory flags and diff/merge-base caches also retain 64 entries, REST page
-  metadata retains 512 entries, and raw GraphQL reads retain 32 PR/query shapes.
+  Directory flags and diff/merge-base caches also retain 64 entries, REST responses
+  kept for ETag revalidation retain 512 entries, and raw GraphQL reads retain 32
+  PR/query shapes.
   It returns `{ files, parentSha }`, with null for a root commit's parent.
 - `pullRequest.merge { repo, number, sha, mergeMethod? }` retains the head guard
   and squash default. HTTP 405 reports merge requirements; 409 reports a moved head.

@@ -446,6 +446,8 @@ type ApiRequest = {
   accept?: string
 }
 type ApiResponse = { status: number; headers: Headers; text: string; detail: string }
+// A response body, and whether its Link header names a page after it.
+type ApiPage = { value: unknown; next: boolean }
 
 // Points the API at a stand-in (the perf lab's fake GitHub), which is never sent the login.
 const apiUrl = process.env.JETTY_GITHUB_API_URL
@@ -531,7 +533,11 @@ async function sendApi(request: ApiRequest, etag?: string) {
   return fresh && fresh !== token ? fetchApi(request, etag, fresh) : response
 }
 
-async function requestApi(request: ApiRequest, revalidate = false): Promise<unknown> {
+async function requestApi(request: ApiRequest): Promise<unknown> {
+  return (await requestPage(request)).value
+}
+
+async function requestPage(request: ApiRequest, revalidate = false): Promise<ApiPage> {
   checkBackoff()
   const cached = revalidate ? cacheRead(restCache, request.path) : undefined
   const started = performance.now()
@@ -583,7 +589,8 @@ async function requestApi(request: ApiRequest, revalidate = false): Promise<unkn
     console.warn(
       `[pr-api] ${request.method} ${request.path} status=${status} request-id=${headers.get('x-github-request-id')} message=${message} errors=${JSON.stringify(errors ?? null)}`
     )
-  if (status === 304 && cached) return cached.value
+  const next = /rel="next"/.test(headers.get('link') ?? '')
+  if (status === 304 && cached) return { value: cached.value, next }
   const graph = request.path === 'graphql'
   const partialGraph =
     graph &&
@@ -621,26 +628,28 @@ async function requestApi(request: ApiRequest, revalidate = false): Promise<unkn
         /timeout|timed out|exceeds the maximum|complexity/i.test(message)
     )
   }
-  if (request.method === 'GET')
-    cacheWrite(restNext, request.path, /rel="next"/.test(headers.get('link') ?? ''), 512)
   const etag = headers.get('etag')
   if (revalidate && etag) cacheWrite(restCache, request.path, { etag, value }, 512)
-  return value
+  return { value, next }
 }
 
-function shared(key: string, request: () => Promise<unknown>) {
+function shared<T>(key: string, request: () => Promise<T>) {
   const existing = apiInFlight.get(key)
-  if (existing) return existing
+  if (existing) return existing as Promise<T>
   const promise = request().finally(() => apiInFlight.delete(key))
   apiInFlight.set(key, promise)
   return promise
+}
+
+function restPage(path: string, revalidate = false) {
+  return shared(path, () => requestPage({ method: 'GET', path }, revalidate))
 }
 
 // REST reads share in-flight requests. Only a read that can come back unchanged keeps its body to
 // revalidate with its ETag: commit-pinned reads are cached by sha above this, and a PR's file
 // pages are only re-read once its head has moved.
 export function restGet(path: string, { revalidate = false } = {}) {
-  return shared(path, () => requestApi({ method: 'GET', path }, revalidate))
+  return restPage(path, revalidate).then((page) => page.value)
 }
 
 // body_html (and the signed image URLs inside it) is only present on this media type.
@@ -1020,38 +1029,31 @@ async function paginateCheckContexts(ref: PullRequestRef, pull: Record<string, u
   }
 }
 
-const restNext = new Map<string, boolean>()
-
 async function ghPages(path: string, total?: number): Promise<unknown[]> {
+  async function read(page: number) {
+    const { value, next } = await restPage(
+      `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${page}`
+    )
+    if (!Array.isArray(value)) throw new GhFailure('unavailable', 'Invalid GitHub file list')
+    return { items: value as unknown[], next }
+  }
   const items: unknown[] = []
   for (let page = 1; page <= 30; page++) {
-    const endpoint = `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${page}`
-    const result = await restGet(endpoint)
-    if (!Array.isArray(result)) throw new GhFailure('unavailable', 'Invalid GitHub file list')
-    items.push(...result)
-    if (page === 1 && total && total > 100 && cacheRead(restNext, endpoint) !== false) {
+    const result = await read(page)
+    items.push(...result.items)
+    if (page === 1 && total && total > 100 && result.next) {
       const pages = Array.from(
         { length: Math.min(30, Math.ceil(total / 100)) - 1 },
         (_, index) => index + 2
       )
       const rest = await Effect.runPromise(
-        Effect.forEach(
-          pages,
-          (next) =>
-            Effect.promise(async () => {
-              const result = await restGet(
-                `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${next}`
-              )
-              if (!Array.isArray(result))
-                throw new GhFailure('unavailable', 'Invalid GitHub file list')
-              return result
-            }),
-          { concurrency: 4 }
-        )
+        Effect.forEach(pages, (next) => Effect.promise(async () => (await read(next)).items), {
+          concurrency: 4,
+        })
       )
       return [...items, ...rest.flat()]
     }
-    if (cacheRead(restNext, endpoint) === false || result.length < 100) break
+    if (!result.next || result.items.length < 100) break
   }
   return items
 }
@@ -1463,13 +1465,15 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
     const files: PullRequestData['files'][number][] = []
     let parentSha: string | null = null
     for (let page = 1; page <= 30; page++) {
-      const endpoint = `repos/${repo}/commits/${sha}?per_page=100&page=${page}`
-      const result = record(await restGet(endpoint))
+      const { value, next } = await restPage(
+        `repos/${repo}/commits/${sha}?per_page=100&page=${page}`
+      )
+      const result = record(value)
       if (page === 1)
         parentSha = string(record((result.parents as unknown[] | undefined)?.[0]).sha) || null
       const values = (result.files as unknown[] | undefined) ?? []
       files.push(...values.map(mapFile))
-      if (cacheRead(restNext, endpoint) === false || values.length < 100) break
+      if (!next || values.length < 100) break
     }
     const classified = await classifyFiles(repo, sha, parentSha, files)
     return { files: classified.files.map(markGenerated), parentSha }
