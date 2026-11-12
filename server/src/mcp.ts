@@ -503,6 +503,8 @@ export function createMcpHandler(
                 : "You can't archive a thread above yours. It would archive you too."
             )
           )
+        if (target.botId === target.id)
+          return yield* Effect.fail(new StoreError('invalid_params', "Bots can't be archived"))
         const underCaller = yield* store.threadTree(caller.id)
         const ownDescendant = underCaller.some((thread) => thread.id === target.id)
         if (!ownDescendant && underTarget.some((thread) => stillWorking(thread.status)))
