@@ -1,4 +1,4 @@
-import type { SequencedEvent } from '@jetty/shared/events'
+import type { SequencedEvent, ThreadEvent } from '@jetty/shared/events'
 import type { ThreadUpdate } from '@jetty/shared/rpc'
 
 import { resendOnDrop } from '@/net/connection'
@@ -53,6 +53,16 @@ export function completedAgo(itemId: string) {
 export function noteCompleted(itemId: string) {
   completedHere.set(itemId, performance.now())
   if (completedHere.size > 200) completedHere.delete(completedHere.keys().next().value!)
+}
+
+// A tool call's output once the event has landed; undefined when the event leaves it alone.
+function outputAfter(output: string, event: ThreadEvent) {
+  if (event.type === 'item.delta') return output + event.delta
+  if (
+    (event.type === 'item.updated' || event.type === 'item.completed') &&
+    typeof event.patch?.output === 'string'
+  )
+    return event.patch.output
 }
 
 const resumeAtom = Atom.family((_threadId: string) =>
@@ -110,22 +120,15 @@ const liveAtom = Atom.family((threadId: string) =>
             const { event } = update
             if ('itemId' in event) {
               const output = outputs.get(event.itemId)
-              if (
-                output !== undefined &&
-                update.seq > output.seq &&
-                (event.type === 'item.delta' ||
-                  ((event.type === 'item.updated' || event.type === 'item.completed') &&
-                    typeof event.patch?.output === 'string'))
-              ) {
-                const next =
-                  event.type === 'item.delta'
-                    ? output.output + event.delta
-                    : (event.patch!.output as string)
+              const next =
+                output !== undefined && update.seq > output.seq
+                  ? outputAfter(output.output, event)
+                  : undefined
+              if (next !== undefined)
                 get.set(
                   toolOutputsAtom(threadId),
                   new Map(outputs).set(event.itemId, { output: next, seq: update.seq })
                 )
-              }
             }
           }
           if (update.type !== 'event') live = true
@@ -367,12 +370,7 @@ async function flushToolOutputs(registry: AtomRegistry.AtomRegistry, threadId: s
         for (const { seq, event } of flight.events) {
           if (seq <= result.seq || !('itemId' in event) || event.itemId !== itemId) continue
           bodySeq = Math.max(bodySeq, seq)
-          if (event.type === 'item.delta') body += event.delta
-          else if (
-            (event.type === 'item.updated' || event.type === 'item.completed') &&
-            typeof event.patch?.output === 'string'
-          )
-            body = event.patch.output
+          body = outputAfter(body, event) ?? body
         }
         cached.set(itemId, { output: body, seq: bodySeq })
       }
