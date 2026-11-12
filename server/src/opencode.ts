@@ -645,9 +645,6 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
       hasPendingUserMessage(threadId) {
         return sessions.get(threadId)?.steerUnread ?? false
       },
-      setBotAllowRules() {
-        return Effect.void
-      },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {
           const session = sessions.get(threadId)

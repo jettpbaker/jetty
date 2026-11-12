@@ -784,9 +784,6 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       hasPendingUserMessage(threadId) {
         return (sessions.get(threadId)?.steerUnread.length ?? 0) > 0
       },
-      setBotAllowRules() {
-        return Effect.void
-      },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {
           const session = sessions.get(threadId)
