@@ -661,7 +661,7 @@ function createServer(opts: ServerOptions = {}) {
         return findProviderModel(models ?? [], provider, model)?.fullAccess !== false
       })
     }
-    const titlePrompt = yield* createTitlePrompt({
+    const titlePrompt = createTitlePrompt({
       prompt: modelPrompt,
       catalog: modelCatalog,
       choice: () => store.getJobModel('title').pipe(Effect.orElseSucceed(() => ({ model: null }))),

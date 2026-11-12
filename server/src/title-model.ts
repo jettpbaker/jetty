@@ -48,25 +48,17 @@ export function createModelPrompt(options: {
 }
 
 export function createTitlePrompt(options: {
-  codex?: StdioProcessOptions
-  copilot?: StdioProcessOptions
-  grok?: StdioProcessOptions
-  opencode?: StdioProcessOptions
-  prompt?: ModelPrompt
+  prompt: ModelPrompt
   catalog: () => Effect.Effect<readonly ProviderModel[]>
   choice: () => Effect.Effect<JobModel>
-}) {
-  return Effect.gen(function* () {
-    const modelPrompt = options.prompt ?? (yield* createModelPrompt(options))
-    const prompt: TitlePrompt = (instructions, text) =>
-      Effect.gen(function* () {
-        const choice = yield* options.choice()
-        const model = resolveTitleModel(choice.model, yield* options.catalog())
-        if (!model) return yield* Effect.fail(new Error('No title model is available'))
-        const effort = resolveTitleEffort(model, choice.effort)
-        const fast = model.fast && choice.fast === true
-        return yield* modelPrompt(model, effort, fast, instructions, text)
-      })
-    return prompt
-  })
+}): TitlePrompt {
+  return (instructions, text) =>
+    Effect.gen(function* () {
+      const choice = yield* options.choice()
+      const model = resolveTitleModel(choice.model, yield* options.catalog())
+      if (!model) return yield* Effect.fail(new Error('No title model is available'))
+      const effort = resolveTitleEffort(model, choice.effort)
+      const fast = model.fast && choice.fast === true
+      return yield* options.prompt(model, effort, fast, instructions, text)
+    })
 }
