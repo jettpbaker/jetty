@@ -1,7 +1,7 @@
 import { createConnection, type Connection } from '@/net/connection'
 import { connectionUrl } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
-import { Effect, Exit, Stream } from 'effect'
+import { Effect, Stream } from 'effect'
 import { Atom, AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect } from 'react'
 import { toast } from 'sonner'
@@ -58,11 +58,7 @@ export function run<A, E>(
   return Effect.runFork(
     AtomRegistry.getResult(registry, connectionAtom).pipe(
       Effect.flatMap(request),
-      Effect.onExit((exit) =>
-        Effect.sync(() => {
-          if (Exit.isFailure(exit)) onFailure?.()
-        })
-      )
+      Effect.onError(() => Effect.sync(() => onFailure?.()))
     )
   )
 }
