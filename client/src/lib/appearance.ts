@@ -1,8 +1,8 @@
 import { blobs, storage } from '@/platform'
 import { useSyncExternalStore } from 'react'
 
-import { accentStorageKey, loadAccent, setAccent } from './accent'
-import { applyWallpaperAccent } from './wallpaper-accent'
+import { accentStorageKey, applyAccent, loadAccent } from './accent'
+import { applyWallpaperAccent, clearWallpaperAccent } from './wallpaper-accent'
 import { wallpaperPixelSize, wallpaperQuality, type WallpaperCrop } from './wallpaper-crop'
 
 export type Appearance = {
@@ -179,27 +179,25 @@ let generation = 0
 function syncAppearanceAccent() {
   const current = ++generation
   const prefs = loadAppearance()
-  const restorePreset = () => setAccent(loadAccent())
   if ((!prefs.autoAccent && !prefs.autoTint) || !prefs.wallpaper) {
-    restorePreset()
+    clearWallpaperAccent()
     return
   }
   const image = new Image()
   image.onload = () => {
-    if (current === generation && !applyWallpaperAccent(image, prefs)) restorePreset()
+    if (current === generation && !applyWallpaperAccent(image, prefs)) clearWallpaperAccent()
   }
   image.onerror = () => {
-    if (current === generation) restorePreset()
+    if (current === generation) clearWallpaperAccent()
   }
   image.src = prefs.wallpaper
 }
 
-// A wallpaper or accent picked in another window applies here too; an accent only where this
-// window's wallpaper doesn't set it.
+// A wallpaper or accent picked in another window applies here too.
 export function followAppearance() {
   window.addEventListener('storage', (event) => {
     if (event.key === key) void hydrateAppearance({ changedElsewhere: true })
-    if (event.key === accentStorageKey) syncAppearanceAccent()
+    if (event.key === accentStorageKey) applyAccent(loadAccent())
   })
 }
 

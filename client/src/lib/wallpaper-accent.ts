@@ -197,3 +197,17 @@ export function applyWallpaperAccent(
   notifyAccentChange()
   return true
 }
+
+export function clearWallpaperAccent() {
+  const root = document.documentElement
+  for (const name of [
+    '--accent-primary-light',
+    '--accent-primary-dark',
+    '--accent-primary-oled',
+    '--tint-h',
+    '--tint-c',
+  ])
+    root.style.removeProperty(name)
+  delete root.dataset.accentFrom
+  notifyAccentChange()
+}

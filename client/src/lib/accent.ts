@@ -32,15 +32,13 @@ export function notifyAccentChange() {
   window.dispatchEvent(new Event(accentChangeEvent))
 }
 
-export function setAccent(value: Accent) {
-  const root = document.documentElement
-  root.style.removeProperty('--accent-primary-light')
-  root.style.removeProperty('--accent-primary-dark')
-  root.style.removeProperty('--accent-primary-oled')
-  root.style.removeProperty('--tint-h')
-  root.style.removeProperty('--tint-c')
-  delete root.dataset.accentFrom
-  root.dataset.accent = value
-  storage.set(accentStorageKey, value)
+// A wallpaper's accent, set inline on the root, covers the preset without replacing it.
+export function applyAccent(value: Accent) {
+  document.documentElement.dataset.accent = value
   notifyAccentChange()
+}
+
+export function setAccent(value: Accent) {
+  storage.set(accentStorageKey, value)
+  applyAccent(value)
 }
