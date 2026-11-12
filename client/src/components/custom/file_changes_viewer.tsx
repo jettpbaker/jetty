@@ -2,7 +2,16 @@ import type { DiffScope } from '@jetty/shared/wire'
 import type { FileDiffLoadedFiles, FileDiffMetadata } from '@pierre/diffs'
 
 import { Button } from '@/components/ui/button'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 
 import { EditSmall1Icon } from './central_icons'
 import { ChangesScopePicker } from './changes_scope'
@@ -58,7 +67,9 @@ export function FileChangesViewer({
   )
   const diffs = useMemo(() => new Set(changes.map((file) => file.diff)), [changes])
   const currentDiffs = useRef(diffs)
-  currentDiffs.current = diffs
+  useLayoutEffect(() => {
+    currentDiffs.current = diffs
+  }, [diffs])
   useEffect(() => {
     function prune(previous: ReadonlyMap<FileDiffMetadata, FileDiffMetadata>) {
       const next = new Map([...previous].filter(([diff]) => diffs.has(diff)))
@@ -68,11 +79,10 @@ export function FileChangesViewer({
     setNoContext(prune)
   }, [diffs])
   const models = useMemo(() => {
+    const sorted: ChangedFile[] = []
     let lines = 0
-    return [...changes].sort(byTreeOrder).map((file): ChangedFile => {
-      const initiallyNear = lines < firstPaintLines
-      lines += file.diff.unifiedLineCount
-      return {
+    for (const file of [...changes].sort(byTreeOrder)) {
+      sorted.push({
         path: file.path,
         previousPath: file.diff.prevName,
         status: file.status === 'deleted' ? 'removed' : file.status,
@@ -80,9 +90,11 @@ export function FileChangesViewer({
         deletions: file.diff.hunks.reduce((n, hunk) => n + hunk.deletionLines, 0),
         binary: file.diff.hunks.length === 0 && file.diff.type !== 'rename-pure',
         diff: file.diff,
-        initiallyNear,
-      }
-    })
+        initiallyNear: lines < firstPaintLines,
+      })
+      lines += file.diff.unifiedLineCount
+    }
+    return sorted
   }, [changes])
   const files = useMemo(
     () => models.filter((file) => file.path.toLowerCase().includes(filter.toLowerCase())),
@@ -135,7 +147,8 @@ export function FileChangesViewer({
     for (let i = 0; i < Math.min(filePrefetchConcurrency, pending.length); i++) {
       async function prefetch() {
         while (active && next < pending.length) {
-          const diff = pending[next++]!
+          const diff = pending[next]!
+          next += 1
           await loadDiffFiles!(diff).catch(() => {})
         }
       }
@@ -150,8 +163,6 @@ export function FileChangesViewer({
   const inView = files.some((file) => file.path === scrolledTo)
     ? scrolledTo
     : (files[0]?.path ?? null)
-  const active = useRef(inView)
-  active.current = inView
   const selectFile = useCallback((path: string) => {
     setSelected(path)
     setInView(path)
@@ -207,7 +218,7 @@ export function FileChangesViewer({
               inView={inView}
               onInView={setInView}
               onSelect={(path) => {
-                if (path !== active.current) selectFile(path)
+                if (path !== inView) selectFile(path)
               }}
             >
               {files.map((file) => (
