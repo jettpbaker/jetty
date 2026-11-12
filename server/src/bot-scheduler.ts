@@ -11,6 +11,7 @@ import type { Store } from './store'
 
 import { botUserName } from './bot-home'
 import {
+  botAway,
   botTiming,
   inWarmWindow,
   nextCheckInAt,
@@ -136,8 +137,7 @@ export function startBotScheduler(
         if (!thread) return
         const record = yield* store.getBotLifecycle(bot.id)
         const endedAt = record.turnEndedAt ?? thread.updatedAt
-        const presence = hub.botPresence(bot.id)
-        const away = !presence.draft && (!presence.open || now - endedAt >= timing.awayIdleMs)
+        const away = botAway(hub.botPresence(bot.id), endedAt, now, timing)
         const state = yield* store.getThreadState(bot.id)
         const fraction =
           state.context && state.context.maxTokens > 0
@@ -176,12 +176,14 @@ export function startBotScheduler(
               bot.id,
               Effect.gen(function* () {
                 const latest = yield* store.getBotLifecycle(bot.id)
-                const presence = hub.botPresence(bot.id)
                 if (
                   !(yield* store.getBot(bot.id))?.checkIns ||
-                  presence.draft ||
-                  (presence.open &&
-                    Date.now() - (latest.turnEndedAt ?? endedAt) < timing.awayIdleMs)
+                  !botAway(
+                    hub.botPresence(bot.id),
+                    latest.turnEndedAt ?? endedAt,
+                    Date.now(),
+                    timing
+                  )
                 )
                   return
                 yield* tidyBotHome(bot, home, store, latest, yield* catalog()).pipe(

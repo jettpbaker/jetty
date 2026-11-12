@@ -56,6 +56,17 @@ function readTiming() {
 
 export const botTiming = readTiming()
 
+// Jett is away from a bot when its chat holds no draft and either no focused window shows it or
+// it has sat there idle since the bot's last turn. Idle upkeep (compacting, tidying) waits for this.
+export function botAway(
+  presence: { open: boolean; draft: boolean },
+  endedAt: number,
+  now: number,
+  timing = botTiming
+) {
+  return !presence.draft && (!presence.open || now - endedAt >= timing.awayIdleMs)
+}
+
 // Shortly before a 1-hour prompt cache expires, a compact reads from it instead of paying to write
 // the whole context again. Any later and it runs cold.
 export function inWarmWindow(thread: ThreadMeta, now: number, timing = botTiming) {

@@ -46,6 +46,7 @@ import {
   writeBotTasks,
 } from './bot-home'
 import {
+  botAway,
   botTiming,
   coldWakeCompactionDue,
   warmCompactionCandidate,
@@ -1190,13 +1191,14 @@ export function createOrchestrator({
             }
             if (background && bot) {
               const record = yield* store.getBotLifecycle(threadId)
-              const presence = hub.botPresence(threadId)
               if (Date.now() < (record.compactRetryAt ?? 0)) return false
               if (
                 trigger === 'idle' &&
-                (presence.draft ||
-                  (presence.open &&
-                    Date.now() - (record.turnEndedAt ?? thread.updatedAt) < botTiming.awayIdleMs))
+                !botAway(
+                  hub.botPresence(threadId),
+                  record.turnEndedAt ?? thread.updatedAt,
+                  Date.now()
+                )
               )
                 return false
             }
