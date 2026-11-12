@@ -5,9 +5,6 @@ import { cn } from '@/lib/utils'
 import { ArrowDownIcon } from './central_icons'
 import { RollingNumber } from './rolling_number'
 
-// How far above the latest message, in screens, the reader has to be before the arrow shows.
-export const scrollToBottomAfter = 1.5
-
 // Floating over the transcript, so it takes a popover's surface: its fill, a hairline ring and a shadow.
 const floating = 'border-0 bg-popover shadow-md ring-1 ring-foreground/10 dark:bg-popover'
 
