@@ -14,6 +14,7 @@ import type { Orchestrator, PullRequestNews } from './orchestrator'
 import type { PullRequestRef } from './pull-requests'
 import type { Store } from './store'
 
+import { isBotLogin } from './pull-request-graphql'
 import { projectRemote } from './pull-requests'
 
 // Changes that land within QUIET_MS of each other wake the agent once; none waits past MAX_WAIT_MS.
@@ -54,10 +55,6 @@ function place(comment: Comment) {
 
 function inline(comment: Comment, indent: string) {
   return `\n${indent}- ${place(comment)}${quote(comment.body, `${indent}  `)}`
-}
-
-function isBot(login: string) {
-  return login === 'Copilot' || login.endsWith('[bot]')
 }
 
 // @jetty as its own word (not @jettys, @jetty-bot or an email), outside code and quoted lines,
@@ -290,7 +287,7 @@ function pullRequestChanges(
         issueComment.created_at,
         issueComment.last_edited_at
       ) &&
-      !isBot(issueComment.user.login) &&
+      !isBotLogin(issueComment.user.login) &&
       heard(issueComment.user.login, issueComment.body)
     )
       comment(

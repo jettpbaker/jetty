@@ -276,8 +276,12 @@ export function githubUser(value: unknown) {
   }
 }
 
+export function isBotLogin(login: string) {
+  return login === 'Copilot' || login.endsWith('[bot]')
+}
+
 function reviewerKind(login: string): PullRequestReviewer['kind'] {
-  return login === 'Copilot' || login.endsWith('[bot]') ? 'bot' : 'user'
+  return isBotLogin(login) ? 'bot' : 'user'
 }
 
 export function mapReviewers(pull: unknown) {
