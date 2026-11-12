@@ -23,7 +23,6 @@ import {
   Effect,
   Exit,
   Fiber,
-  Layer,
   Queue,
   Result,
   Schema,
@@ -39,7 +38,6 @@ import type { Store } from './store'
 
 import {
   AgentError,
-  AgentService,
   compactFailureReason,
   couldntCompact,
   type Agent,
@@ -1595,8 +1593,4 @@ export function createClaudeAdapter(
       },
     } satisfies Agent
   })
-}
-
-export function claudeLayer(store: Store, hooks: AgentHooks = {}, options: ClaudeOptions = {}) {
-  return Layer.effect(AgentService, createClaudeAdapter(store, hooks, options))
 }

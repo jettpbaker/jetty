@@ -34,22 +34,15 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, join, normalize, resolve, sep } from 'node:path'
 
-import {
-  AgentService,
-  ECHO_MODELS,
-  echoUsage,
-  echoLayer,
-  type Agent,
-  type AgentHooks,
-} from './agent'
+import { createEchoAdapter, ECHO_MODELS, echoUsage, type Agent, type AgentHooks } from './agent'
 import { Attachments, AttachmentsLive } from './attachments'
 import { botTiming } from './bot-lifecycle'
 import { startBotScheduler } from './bot-scheduler'
-import { claudeLayer } from './claude'
+import { createClaudeAdapter } from './claude'
 import { discoverClaudeModels } from './claude-models'
-import { codexLayer, type CodexOptions } from './codex'
+import { createCodexAdapter, type CodexOptions } from './codex'
 import { discoverCodexModels } from './codex-models'
-import { copilotLayer, type CopilotOptions } from './copilot'
+import { createCopilotAdapter, type CopilotOptions } from './copilot'
 import { discoverCopilotModels } from './copilot-models'
 import { readCopilotProviderUsage } from './copilot-usage'
 import { databaseLayer } from './db'
@@ -58,13 +51,13 @@ import { GitDiffLive } from './diff'
 import { FileBrowserLive } from './fs-browse'
 import { FileSearchLive } from './fs-search'
 import { createGithubMedia, GithubMediaError } from './github-media'
-import { grokLayer, type GrokOptions } from './grok'
+import { createGrokAdapter, type GrokOptions } from './grok'
 import { discoverGrokModels } from './grok-models'
 import { createHub } from './hub'
 import { linkedTitles } from './linked-titles'
 import { createMcpHandler } from './mcp'
 import { createMcpSessions } from './mcp-sessions'
-import { opencodeLayer, type OpencodeOptions } from './opencode'
+import { createOpencodeAdapter, type OpencodeOptions } from './opencode'
 import { discoverOpencodeModels } from './opencode-models'
 import { readOpencodeProviderUsage } from './opencode-usage'
 import { orchestratorLayer, OrchestratorService } from './orchestrator'
@@ -129,9 +122,10 @@ function discoveryStatus(status: ModelDiscovery[ProviderId]) {
   ) as ModelDiscovery
 }
 
-function loadAgent<R>(layer: Layer.Layer<Agent, never, R>) {
+// Each adapter owns a child of the server's scope, so its sessions close together at shutdown.
+function loadAgent<R>(adapter: Effect.Effect<Agent, never, R>) {
   return Effect.gen(function* () {
-    return Context.get(yield* Layer.build(layer), AgentService)
+    return yield* Scope.provide(adapter, yield* Scope.fork(yield* Effect.scope))
   })
 }
 
@@ -508,11 +502,11 @@ function createServer(opts: ServerOptions = {}) {
       typeof agentKind !== 'string'
         ? singleAgentRegistry(agentKind)
         : agentKind === 'echo'
-          ? singleAgentRegistry(yield* loadAgent(echoLayer(hooks)))
+          ? singleAgentRegistry(yield* loadAgent(createEchoAdapter(hooks)))
           : agentRegistry(
               {
                 claude: yield* loadAgent(
-                  claudeLayer(store, hooks, {
+                  createClaudeAdapter(store, hooks, {
                     mcp: async (identity) => {
                       if (!registerClaudeMcp) throw new Error('Jetty MCP is not ready')
                       const server = createSdkMcpServer({ name: 'jetty', version: '1.0.0' })
@@ -525,10 +519,12 @@ function createServer(opts: ServerOptions = {}) {
                     secretsDir: join(home, 'secrets'),
                   })
                 ),
-                codex: yield* loadAgent(codexLayer(store, { ...opts.codex, mcp, attachments })),
-                copilot: yield* loadAgent(copilotLayer(store, { ...opts.copilot, mcp })),
-                opencode: yield* loadAgent(opencodeLayer(store, { ...opts.opencode, mcp })),
-                grok: yield* loadAgent(grokLayer(store, { ...opts.grok, mcp, hooks })),
+                codex: yield* loadAgent(
+                  createCodexAdapter(store, { ...opts.codex, mcp, attachments })
+                ),
+                copilot: yield* loadAgent(createCopilotAdapter(store, { ...opts.copilot, mcp })),
+                opencode: yield* loadAgent(createOpencodeAdapter(store, { ...opts.opencode, mcp })),
+                grok: yield* loadAgent(createGrokAdapter(store, { ...opts.grok, mcp, hooks })),
               },
               agentKind
             )

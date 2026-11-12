@@ -1,7 +1,7 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
 import { newId, type BackgroundTask } from '@jetty/shared/wire'
-import { Cause, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Cause, Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
 import type { McpSessions } from './mcp-sessions'
@@ -11,7 +11,6 @@ import { acpPermissionOutcome } from './acp-permissions'
 import { acpPrompt, jettyMcpServers } from './acp-session'
 import {
   AgentError,
-  AgentService,
   compactFailureReason,
   couldntCompact,
   type Agent,
@@ -974,8 +973,4 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
       })
     }
   })
-}
-
-export function grokLayer(store: Store, options: GrokOptions = {}) {
-  return Layer.effect(AgentService, createGrokAdapter(store, options))
 }

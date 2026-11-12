@@ -1,7 +1,7 @@
 import type { ApprovalDecider } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
-import { Cause, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Cause, Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -16,7 +16,6 @@ import { acpPrompt, jettyMcpServers } from './acp-session'
 import { acpContextUsage, acpToolName } from './acp-translate'
 import {
   AgentError,
-  AgentService,
   couldntCompact,
   type Agent,
   type AgentImage,
@@ -758,8 +757,4 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
       },
     } satisfies Agent
   })
-}
-
-export function copilotLayer(store: Store, options: CopilotOptions = {}) {
-  return Layer.effect(AgentService, createCopilotAdapter(store, options))
 }

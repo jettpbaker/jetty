@@ -1,7 +1,7 @@
 import type { ApprovalDecider } from '@jetty/shared/items'
 
 import { newId } from '@jetty/shared/wire'
-import { Cause, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Cause, Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -16,7 +16,6 @@ import { acpPrompt, jettyMcpServers } from './acp-session'
 import { acpContextUsage, acpToolName } from './acp-translate'
 import {
   AgentError,
-  AgentService,
   couldntCompact,
   type Agent,
   type AgentImage,
@@ -700,8 +699,4 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
       },
     } satisfies Agent
   })
-}
-
-export function opencodeLayer(store: Store, options: OpencodeOptions = {}) {
-  return Layer.effect(AgentService, createOpencodeAdapter(store, options))
 }

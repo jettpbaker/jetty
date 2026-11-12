@@ -1,12 +1,12 @@
 import { BunServices } from '@effect/platform-bun'
 import { newId } from '@jetty/shared/wire'
 import { describe, expect, test } from 'bun:test'
-import { Effect, Layer, ManagedRuntime } from 'effect'
+import { Context, Effect, Layer, ManagedRuntime } from 'effect'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { AgentService } from './agent'
+import type { Agent } from './agent'
 
 /**
  * Live Claude smoke test. Skipped unless JETTY_LIVE_TEST=1.
@@ -16,7 +16,7 @@ const live = process.env.JETTY_LIVE_TEST === '1'
 
 describe.skipIf(!live)('claude live', () => {
   test('one tiny turn: spawn→init and init→first-delta timings', async () => {
-    const { claudeLayer } = await import('./claude')
+    const { createClaudeAdapter } = await import('./claude')
     const { openTestStore } = await import('./store-fixture')
 
     const home = mkdtempSync(join(tmpdir(), 'jetty-live-'))
@@ -26,8 +26,11 @@ describe.skipIf(!live)('claude live', () => {
       const { store } = db
       const project = await Effect.runPromise(store.createProject(projectPath))
       const thread = await Effect.runPromise(store.createThread(project.id, newId()))
-      const runtime = ManagedRuntime.make(claudeLayer(store).pipe(Layer.provide(BunServices.layer)))
-      const agent = await runtime.runPromise(AgentService)
+      const service = Context.Service<Agent>('test/Claude')
+      const runtime = ManagedRuntime.make(
+        Layer.effect(service, createClaudeAdapter(store)).pipe(Layer.provide(BunServices.layer))
+      )
+      const agent = await runtime.runPromise(service)
 
       const t0 = performance.now()
       let initAt: number | null = null

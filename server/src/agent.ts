@@ -16,7 +16,7 @@ import {
   type ThreadItem,
 } from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
-import { Context, Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 
 import { createEchoBusy } from './echo-busy'
 
@@ -114,8 +114,6 @@ export type Agent = {
     answeredInChat?: boolean
   ): Effect.Effect<boolean, AgentError>
 }
-
-export const AgentService = Context.Service<Agent>('jetty/Agent')
 
 const CHUNK_MS = 8
 const STEP_MS = 5
@@ -600,10 +598,6 @@ export function createEchoAdapter(hooks: AgentHooks = {}) {
       },
     } satisfies Agent
   })
-}
-
-export function echoLayer(hooks: AgentHooks = {}) {
-  return Layer.effect(AgentService, createEchoAdapter(hooks))
 }
 
 function echoEnvInt(name: string, fallback: number): number {

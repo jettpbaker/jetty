@@ -1,7 +1,7 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
 import { newId } from '@jetty/shared/wire'
-import { Deferred, Effect, Fiber, Layer, Queue, Semaphore } from 'effect'
+import { Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
 import type { Attachments } from './attachments'
@@ -10,7 +10,6 @@ import type { Store } from './store'
 
 import {
   AgentError,
-  AgentService,
   compactFailureReason,
   couldntCompact,
   type Agent,
@@ -983,10 +982,6 @@ function elicitationAnswers(pending: Pending, answers: Record<string, string> | 
     content[question.id] = parsed
   }
   return { action: 'accept', content, _meta: null }
-}
-
-export function codexLayer(store: Store, options: CodexOptions = {}) {
-  return Layer.effect(AgentService, createCodexAdapter(store, options))
 }
 
 function approvalResponse(pending: Pending, decision: 'allow' | 'always' | 'deny') {
