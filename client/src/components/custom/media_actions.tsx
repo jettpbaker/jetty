@@ -23,20 +23,23 @@ export function MediaAction(props: ComponentProps<typeof Button> & { label: stri
   )
 }
 
-// The clipboard takes PNG only, so redraw whatever the image is.
-async function copyImage(src: string) {
-  const image = new window.Image()
-  image.crossOrigin = 'anonymous'
-  image.src = src
-  await image.decode()
-  const canvas = document.createElement('canvas')
-  canvas.width = image.naturalWidth
-  canvas.height = image.naturalHeight
-  canvas.getContext('2d')?.drawImage(image, 0, 0)
-  const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-  if (!png) return
-  await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
-  toast('Image copied')
+async function pngBlob(src: string) {
+  const blob = await (await fetch(src)).blob()
+  if (blob.type === 'image/png') return blob
+  const bitmap = await createImageBitmap(blob)
+  try {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+    return await canvas.convertToBlob({ type: 'image/png' })
+  } finally {
+    bitmap.close()
+  }
+}
+
+// The clipboard takes PNG only. Handing it the pending blob keeps Safari's user-activation window
+// open while the bytes load, so call this straight from the click.
+export function copyImageToClipboard(src: string) {
+  return navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob(src) })])
 }
 
 // Hover actions over an image or video, on frosted glass rather than a popover surface; `dark` keeps
@@ -87,7 +90,10 @@ export function MediaActions({
         <ImportIcon />
       </MediaAction>
       {!video && (
-        <MediaAction label='Copy image' onClick={() => void copyImage(src)}>
+        <MediaAction
+          label='Copy image'
+          onClick={() => void copyImageToClipboard(src).then(() => toast('Image copied'))}
+        >
           <SquareBehindSquare1Icon />
         </MediaAction>
       )}

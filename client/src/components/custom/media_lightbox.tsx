@@ -9,6 +9,7 @@ import {
   ZoomInIcon,
   CrossSmallIcon,
 } from '@/components/custom/central_icons'
+import { copyImageToClipboard } from '@/components/custom/media_actions'
 import { mediaUrl } from '@/components/custom/media_layout'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -479,19 +480,6 @@ function StepButton({
   )
 }
 
-async function pngBlob(src: string) {
-  const blob = await (await fetch(src)).blob()
-  if (blob.type === 'image/png') return blob
-  const bitmap = await createImageBitmap(blob)
-  try {
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-    canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
-    return await canvas.convertToBlob({ type: 'image/png' })
-  } finally {
-    bitmap.close()
-  }
-}
-
 function Toolbar({
   src,
   zoom,
@@ -506,8 +494,7 @@ function Toolbar({
   useEffect(() => () => clearTimeout(timer.current), [])
 
   function copyImage() {
-    // A pending promise keeps Safari's user-activation window open while the bytes load.
-    void navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob(src) })]).then(() => {
+    void copyImageToClipboard(src).then(() => {
       setCopied(true)
       clearTimeout(timer.current)
       timer.current = setTimeout(() => setCopied(false), 1500)
