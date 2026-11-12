@@ -29,7 +29,7 @@ import { copilotConfig, setCopilotModel } from './copilot-models'
 import { COPILOT_ARGS, copilotError, openCopilotConnection } from './copilot-rpc'
 import { copilotToolInput, createCopilotTranslator } from './copilot-translate'
 import { jettyInstructions } from './jetty-instructions'
-import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
+import { BOT_MCP_TIMEOUT_MS, JETTY_TOOLS } from './jetty-tools'
 import {
   object,
   string,
@@ -280,9 +280,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
         if (
           allow &&
           (session.input.permissionMode === 'full_access' ||
-            [...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'].some(
-              (tool) => name === `mcp__jetty__${tool}`
-            ))
+            JETTY_TOOLS.some((tool) => name === `mcp__jetty__${tool}`))
         ) {
           yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
           return

@@ -32,3 +32,6 @@ export const THREAD_TOOLS = [
   'archive_thread',
   'adopt_thread',
 ] as const
+
+// Every tool Jetty's MCP server offers.
+export const JETTY_TOOLS = [...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'] as const

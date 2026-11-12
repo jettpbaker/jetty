@@ -26,7 +26,7 @@ import {
 import { approvalChanges, approvalInputWithoutChanges } from './approval-changes'
 import { prepareBot } from './bot-preparation'
 import { jettyInstructions } from './jetty-instructions'
-import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
+import { JETTY_TOOLS } from './jetty-tools'
 import { opencodeConfig, setOpencodeModel } from './opencode-models'
 import { opencodeConfigEnv, opencodeError, openOpencodeConnection } from './opencode-rpc'
 import { opencodeToolInput, createOpencodeTranslator } from './opencode-translate'
@@ -239,12 +239,7 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
             sessionUpdate: 'tool_call_update',
           }))
             yield* session.emit(event)
-        if (
-          allow &&
-          [...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'].some(
-            (tool) => name === `mcp__jetty__${tool}`
-          )
-        ) {
+        if (allow && JETTY_TOOLS.some((tool) => name === `mcp__jetty__${tool}`)) {
           yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
           return
         }

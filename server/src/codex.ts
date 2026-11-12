@@ -29,7 +29,7 @@ import {
   userAnswers,
   type ThreadWorkspace,
 } from './jetty-instructions'
-import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
+import { BOT_MCP_TIMEOUT_MS, JETTY_TOOLS } from './jetty-tools'
 import { codexSkills } from './provider-skills'
 import {
   object,
@@ -393,7 +393,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     ? ['-c', `mcp_servers.jetty.tool_timeout_sec=${BOT_MCP_TIMEOUT_MS / 1000}`]
                     : []),
                   // Codex sends MCP approvals straight to the user, with no reviewer of its own.
-                  ...[...SELF_TOOLS, ...THREAD_TOOLS, 'add_project'].flatMap((name) => [
+                  ...JETTY_TOOLS.flatMap((name) => [
                     '-c',
                     `mcp_servers.jetty.tools.${name}.approval_mode="approve"`,
                   ]),
