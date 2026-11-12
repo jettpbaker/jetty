@@ -2109,6 +2109,13 @@ export function JettyStyle({ pr }: { pr: PrPull }) {
   const reason = mergeReason(pr)
   const [attachSlot, setAttachSlot] = useState<HTMLDivElement | null>(null)
   const byline = (pr.state === 'merged' && pr.mergedBy) || pr.author
+  function showFile(path: string) {
+    setSelected(path)
+    setInView(path)
+    view.current
+      ?.querySelector<HTMLElement>(`section[id="${CSS.escape(`linear-file-${path}`)}"]`)
+      ?.scrollIntoView({ block: 'start' })
+  }
   return (
     <DiffStyleContext value={diffStyle}>
       <DiffWrapContext value={wrap}>
@@ -2283,15 +2290,7 @@ export function JettyStyle({ pr }: { pr: PrPull }) {
                     filter={filter}
                     onFilter={setFilter}
                     inView={inView}
-                    onSelect={(path) => {
-                      setSelected(path)
-                      setInView(path)
-                      view.current
-                        ?.querySelector<HTMLElement>(
-                          `section[id="${CSS.escape(`linear-file-${path}`)}"]`
-                        )
-                        ?.scrollIntoView({ block: 'start' })
-                    }}
+                    onSelect={showFile}
                     diffStyle={diffStyle}
                     onDiffStyleChange={setDiffStyle}
                     toggles={[
@@ -2350,14 +2349,7 @@ export function JettyStyle({ pr }: { pr: PrPull }) {
                     inView={inView}
                     onInView={setInView}
                     onSelect={(path) => {
-                      if (path === inViewRef.current) return
-                      setSelected(path)
-                      setInView(path)
-                      view.current
-                        ?.querySelector<HTMLElement>(
-                          `section[id="${CSS.escape(`linear-file-${path}`)}"]`
-                        )
-                        ?.scrollIntoView({ block: 'start' })
+                      if (path !== inViewRef.current) showFile(path)
                     }}
                     comments={commit ? undefined : commentCounts}
                     listClassName='space-y-2 px-2 @max-[720px]:pl-2'
