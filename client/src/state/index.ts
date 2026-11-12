@@ -13,8 +13,6 @@ export {
   useSendToBot,
   useSetBotAllowRules,
   useUpdateBot,
-  type NewBot,
-  type PendingBotMessage,
 } from './bots'
 export { useBrowse } from './browse'
 export {
@@ -33,7 +31,7 @@ export {
   type Chrome,
 } from './chrome'
 export { useConnectionNotice, useOnline } from './connection'
-export { desktopTabId, useDesktop, useDesktopTabs, useOpenDesktop, type Desktop } from './desktops'
+export { desktopTabId, useDesktop, useDesktopTabs, useOpenDesktop } from './desktops'
 export {
   defaultDiffScope,
   useDiffFileLoader,
@@ -59,7 +57,7 @@ export {
   type DraftTarget,
   type QuestionProgress,
 } from './drafts'
-export { readFileDraft, useFileDirty, useWriteFileDraft, type FileDraft } from './file_drafts'
+export { readFileDraft, useFileDirty, useWriteFileDraft } from './file_drafts'
 export { useLoadouts } from './loadouts'
 export { StateProvider } from './provider'
 export {
@@ -97,9 +95,8 @@ export {
   useRenameThread,
   useSetProjectIcon,
 } from './mutations'
-export { useIssueSummary, type IssueRef } from './issues'
+export { useIssueSummary } from './issues'
 export {
-  pullRequestKey,
   pullRequestTabId,
   useThreadPullRequests,
   useLinkPullRequest,
@@ -110,17 +107,12 @@ export {
   usePrefetchPullRequestList,
   usePrefetchReviewerCandidates,
   usePullRequest,
-  usePullRequestDiffFileLoader,
   usePullRequestList,
   usePullRequestSummary,
   usePullRequestTabs,
-  useRefreshPullRequest,
   useRefreshPullRequestList,
   useRefreshPullRequestListsOnArrival,
-  useReviewRequestPatches,
   useReviewerCandidates,
-  useSetReviewRequest,
-  useUnlinkPullRequest,
   type PullRequestRef,
 } from './pull_requests'
 export {
@@ -130,7 +122,6 @@ export {
   useQueueHeld,
   useRemovedQueued,
   useRenewQueueHolds,
-  useThreadQueue,
   useVisibleQueue,
 } from './queue'
 export {
