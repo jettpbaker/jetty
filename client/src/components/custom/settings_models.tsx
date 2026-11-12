@@ -28,7 +28,7 @@ import {
 } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
 import { useLoadouts } from '@/state'
-import { useChrome } from '@/state/chrome'
+import { useModelDiscovery } from '@/state/chrome'
 import { useModelAvailability, useProviderEnabled } from '@/state/loadouts'
 import { useModelRefresh } from '@/state/models'
 import { allUsageProviders } from '@/state/provider-usage'
@@ -313,7 +313,7 @@ function Loadout() {
 function AvailableModels() {
   const { catalog, enabled, setEnabled } = useModelAvailability()
   const [enabledProviders] = useProviderEnabled()
-  const discovery = useChrome()?.modelDiscovery
+  const discovery = useModelDiscovery()
   return (
     <div className={cn(cardClass, 'flex gap-6 px-4 pt-3.5 pb-2.5')}>
       {providers.map((provider) => {

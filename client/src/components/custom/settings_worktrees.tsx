@@ -1,5 +1,5 @@
 import { inComposition } from '@/lib/composition'
-import { useChrome } from '@/state'
+import { useBranchPrefix } from '@/state/chrome'
 import { homePath, useSettingsInfo } from '@/state/models'
 import { useSetBranchPrefix } from '@/state/worktrees'
 import { useState } from 'react'
@@ -19,7 +19,7 @@ import {
 
 // No Save button: the prefix saves when the field is left or Enter is pressed.
 function BranchPrefix() {
-  const prefix = useChrome()?.branchPrefix ?? 'jetty'
+  const prefix = useBranchPrefix()
   const save = useSetBranchPrefix()
   const [draft, setDraft] = useState<string>()
   function commit() {

@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch'
 import { useShowQuietTurns } from '@/lib/bot-quiet-turns'
 import { effortLabels, findModel } from '@/lib/loadout'
 import { cn } from '@/lib/utils'
-import { useArchiveBot, useArchivedBots, useBots, useChrome } from '@/state'
+import { useArchiveBot, useArchivedBots, useBots, useModels, useProjects } from '@/state'
 import { homePath, useSettingsInfo } from '@/state/models'
 import { modelLabelText } from '@jetty/shared/model-name'
 import { useState } from 'react'
@@ -35,9 +35,8 @@ import {
 } from './settings_layout'
 
 function BotRow({ bot }: { bot: Bot }) {
-  const chrome = useChrome()
-  const model = findModel(chrome?.models ?? [], { provider: bot.provider, model: bot.model })
-  const project = botProjectsLabel(bot.projectIds, chrome?.projects ?? [])
+  const model = findModel(useModels(), { provider: bot.provider, model: bot.model })
+  const project = botProjectsLabel(bot.projectIds, useProjects() ?? [])
   return (
     <BotSettingsSheet bot={bot}>
       <button
