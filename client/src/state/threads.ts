@@ -8,7 +8,7 @@ import { summaryItems } from '@jetty/shared/history'
 import { emptyThread } from '@jetty/shared/reducer'
 import { foldTodos, todoTools } from '@jetty/shared/todos'
 import { backgroundStatus } from '@jetty/shared/wire'
-import { Effect, Stream } from 'effect'
+import { Effect, Predicate, Stream } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
 import { useContext, useEffect, useRef, useMemo } from 'react'
 
@@ -88,9 +88,12 @@ const liveAtom = Atom.family((threadId: string) =>
         })
     void touchThreadCache(threadId)
     // A subscription catches up first; its snapshot or `ready` says the events after it are live.
+    // The ones before it wait for it and land together, so a reopened thread paints once.
     let live = false
+    const missed: ThreadUpdate[] = []
     return subscribe(get, (connection) => {
       live = false
+      missed.length = 0
       return Stream.unwrap(
         Effect.promise(() => hydration).pipe(
           Effect.andThen(awaitCreation(threadId)),
@@ -122,12 +125,18 @@ const liveAtom = Atom.family((threadId: string) =>
           if (update.type !== 'event') live = true
           else if (live && update.event.type === 'item.completed')
             noteCompleted(update.event.itemId)
-          const state = foldUpdate(get.once(resume) ?? emptyThread, update)
+          if (!live) {
+            missed.push(update)
+            return undefined
+          }
+          let state = get.once(resume) ?? emptyThread
+          for (const each of [...missed.splice(0), update]) state = foldUpdate(state, each)
           get.set(resume, state)
           saver.update(state)
           return state
         })
-      )
+      ),
+      Stream.filter(Predicate.isNotUndefined)
     )
   }).pipe(Atom.setIdleTTL('90 seconds'))
 )
