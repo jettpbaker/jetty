@@ -3,7 +3,7 @@ import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
 import { newId } from '@jetty/shared/wire'
 
 import { createAcpTranslator } from './acp-translate'
-import { object, string } from './stdio-rpc'
+import { natural, object, string } from './stdio-rpc'
 
 export function createGrokTranslator(
   turnId: string,
@@ -286,10 +286,6 @@ export function grokContextUsage(info: Record<string, unknown>): ContextUsage | 
     slices: [],
     asOf: Date.now(),
   }
-}
-
-function natural(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
 }
 
 // Grok runs MCP tools through a UseTool wrapper named `server__tool`.

@@ -171,3 +171,7 @@ export function object(value: unknown): Record<string, unknown> {
 export function string(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
+
+export function natural(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+}

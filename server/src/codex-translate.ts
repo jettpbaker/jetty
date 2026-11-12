@@ -5,7 +5,7 @@ import { newId } from '@jetty/shared/wire'
 
 import { SEND_IMAGES_TOOL } from './send-images'
 import { SEND_VIDEO_TOOL } from './send-video'
-import { object, string, type RpcMessage } from './stdio-rpc'
+import { natural, object, string, type RpcMessage } from './stdio-rpc'
 
 export function createCodexTranslator(turnId: string) {
   const items = new Map<string, ThreadItem>()
@@ -364,10 +364,6 @@ function fileChangeCounts(raw: Record<string, unknown>) {
 
 function textArray(value: unknown): string {
   return Array.isArray(value) ? value.filter((part) => typeof part === 'string').join('\n\n') : ''
-}
-
-function natural(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
 }
 
 function reviewCommand(command: string) {
