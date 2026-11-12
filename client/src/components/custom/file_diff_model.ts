@@ -43,7 +43,7 @@ const diffIds = new WeakMap<FileDiffMetadata, number>()
 let lastDiffId = 0
 
 // CodeView only re-reads an item when its version changes, so each diff object gets its own.
-export function diffId(diff: FileDiffMetadata) {
+function diffId(diff: FileDiffMetadata) {
   let id = diffIds.get(diff)
   if (id === undefined) {
     id = ++lastDiffId

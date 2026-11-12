@@ -112,14 +112,14 @@ function loadState(): { order: TabId[]; closed: TabId[] } {
   return { order: sortableIds, closed: closedAtFirst }
 }
 
-export type PullRequestTabs = {
+type PullRequestTabs = {
   links: readonly PullRequestLink[]
   visible: readonly PullRequestLink[]
   show: (ref: PullRequestRef) => void
   hide: (ref: PullRequestRef) => void
 }
 
-export type DesktopTabs = {
+type DesktopTabs = {
   ids: readonly string[]
   // The thread's own desktop, while its agent has one starting or live.
   running?: string
@@ -127,7 +127,7 @@ export type DesktopTabs = {
   close: (id: string) => void
 }
 
-export type SubagentTabs = {
+type SubagentTabs = {
   all: readonly SubagentSummary[]
   visible: readonly SubagentSummary[]
   show: (id: string) => void

@@ -27,7 +27,7 @@ import './details_layout.css'
 const minWidth = 320
 const narrowWidth = 760
 
-export type DetailsLayoutState = ReturnType<typeof useDetailsLayout>
+type DetailsLayoutState = ReturnType<typeof useDetailsLayout>
 
 // A details pane beside a chat (a thread's or a bot's): whether it's open, how wide, and where
 // the chat sits. Narrow or expanded, the pane takes the whole width and the chat moves into its

@@ -33,7 +33,7 @@ export function DiffToolbarButton({ className, ...props }: React.ComponentProps<
   )
 }
 
-export type DiffToggle = readonly [label: string, checked: boolean, set: (checked: boolean) => void]
+type DiffToggle = readonly [label: string, checked: boolean, set: (checked: boolean) => void]
 
 export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
   const [narrow, setNarrow] = useState(false)

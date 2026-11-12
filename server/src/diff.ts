@@ -18,7 +18,7 @@ import { copyOpened, readBounded } from './file-bytes'
 import { git, gitStream } from './git-process'
 import { StoreError } from './store'
 
-export type ThreadDiff = { diff: string; truncatedPaths?: string[] }
+type ThreadDiff = { diff: string; truncatedPaths?: string[] }
 
 const LOCKFILE_NAMES = new Set(['bun.lockb', 'package-lock.json', 'pnpm-lock.yaml'])
 
