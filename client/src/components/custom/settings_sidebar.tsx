@@ -39,7 +39,7 @@ function NavItem({
       type='button'
       aria-current={current ? 'page' : undefined}
       className={cn(itemClass, !Glyph && 'pl-8', className)}
-      {...pressProps(onOpen)}
+      onClick={onOpen}
     >
       {Glyph && <Glyph />}
       {children}
