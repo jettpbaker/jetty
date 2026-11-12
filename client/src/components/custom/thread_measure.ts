@@ -239,7 +239,7 @@ export function estimateRow(row: ThreadRow, width: number, rough = false) {
     case 'plan':
       // A streaming reply would be laid out again on every delta; it's measured once on screen.
       return (
-        markdownHeight(row.id, row.item.text, width, rough || row.streaming, 13 * 1.625, 13) +
+        markdownHeight(row.id, row.item.text, width, rough || row.streaming) +
         2 +
         (row.kind === 'plan' ? 20 : 0) +
         (row.footer === undefined ? 4 : footerRow)
