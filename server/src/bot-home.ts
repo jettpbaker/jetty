@@ -191,18 +191,19 @@ export async function botInstructions(
         : projects.length
           ? `You work across all of ${user}'s projects: ${named(projects)}. Work out which one a request is about from what they say, and ask only if it's genuinely unclear. Name the project when you start a worker, and keep that choice with the task, not in your pages.`
           : `${user} hasn't added a project yet. You can help with anything, but code work needs one: offer to add a folder with add_project.`
+  const questionTool = bot.provider === 'codex' ? 'request_user_input' : 'AskUserQuestion'
   const fill: Record<string, string> = {
     name: bot.name,
     user,
     home,
     bots: join(home, '..'),
     project,
-    questionTool: bot.provider === 'codex' ? 'request_user_input' : 'AskUserQuestion',
+    questionTool,
     checkIn: `${Math.round(botTiming.checkInMs[bot.provider].ms / 60_000)} minutes`,
     questioning:
       bot.provider === 'copilot'
         ? `When you need ${user}, ask one thing in your reply (or with message_user in a wake turn), give your recommendation and why it matters, then end your turn. Copilot has no question tool in Jetty.`
-        : `When you need ${user}, ask one thing, with your recommendation and why it matters, so they can answer in a word. When the answer blocks your work and comes down to a few clear options, ask with ${bot.provider === 'codex' ? 'request_user_input' : 'AskUserQuestion'}, so ${user} can tap an answer and sees you're waiting on them; ask anything casual in plain text, or with message_user in a turn they didn't start.`,
+        : `When you need ${user}, ask one thing, with your recommendation and why it matters, so they can answer in a word. When the answer blocks your work and comes down to a few clear options, ask with ${questionTool}, so ${user} can tap an answer and sees you're waiting on them; ask anything casual in plain text, or with message_user in a turn they didn't start.`,
     investigations:
       bot.provider === 'claude'
         ? "To look into something, do it yourself or use your model's built-in subagents (Agent/Task), so the answer comes back within your turn."
