@@ -38,8 +38,6 @@ function data(): PullRequestData {
       deletions: 0,
       changed_files: 0,
       commits: 1,
-      comments: 0,
-      review_comments: 0,
       mergeable_state: 'clean',
       requested_reviewers: [],
       labels: [],

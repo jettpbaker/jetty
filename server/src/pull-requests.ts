@@ -1575,7 +1575,6 @@ async function fetchPullRequest(
   }))
   const repository = record(pull.repository)
   const reviewers = mapReviewers(pull)
-  const { requestedUsers, requestedTeams } = requestedReviewers(reviewers.reviewRequests)
   let references = graph.references
   if (missing.length) {
     found ??= mapPullRequestReferences(
@@ -1640,10 +1639,8 @@ async function fetchPullRequest(
       deletions: Number(pull.deletions),
       changed_files: Number(pull.changedFiles),
       commits: Number(record(pull.commitHistory).totalCount),
-      comments: Number(record(pull.comments).totalCount),
-      review_comments: reviewComments.length,
       mergeable_state: mergeableState(pull.mergeStateStatus),
-      requested_reviewers: requestedUsers,
+      requested_reviewers: requestedReviewers(reviewers.reviewRequests),
       labels: nodes(pull.labels).map((value) => ({ name: string(record(value).name) })),
     },
     reviews: nodes(pull.reviews).map((value) => {
@@ -1666,7 +1663,6 @@ async function fetchPullRequest(
     issueComments: graph.issueComments,
     checkRuns: mapCheckRuns(graph.checks),
     checkRollupState: graph.checkRollupState,
-    checkRunsTotalCount: graph.checkRunsTotalCount,
     commits: nodes(pull.commitHistory).map((value) => {
       const commit = record(record(value).commit)
       const author = record(commit.author)
@@ -1701,7 +1697,6 @@ async function fetchPullRequest(
         ...(Number(pull.changedFiles) > files.length ? ['files'] : []),
       ]),
     ],
-    requestedTeams,
     reviewDecision:
       (['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED'] as const).find(
         (decision) => decision === graph.reviewDecision
@@ -1795,19 +1790,9 @@ async function sendReviewRequest(
   )
 }
 
-// The pre-redesign view reads requests as REST's `requested_reviewers` and `requested_teams`.
+// The pre-redesign view reads requests as REST's `requested_reviewers`.
 function requestedReviewers(reviewRequests: readonly PullRequestReviewer[]) {
-  return {
-    requestedUsers: reviewRequests.filter((reviewer) => reviewer.kind !== 'team').map(user),
-    requestedTeams: reviewRequests
-      .filter((reviewer) => reviewer.kind === 'team')
-      .map((reviewer) => ({
-        name: reviewer.name ?? reviewer.login,
-        avatar_url: reviewer.avatar_url,
-        slug: reviewer.slug,
-        asCodeOwner: reviewer.asCodeOwner,
-      })),
-  }
+  return reviewRequests.filter((reviewer) => reviewer.kind !== 'team').map(user)
 }
 
 // One failed check makes the rollup FAILURE while the rest still run.
@@ -2329,7 +2314,6 @@ export function createPullRequests(store: Store, hub: Hub) {
           mergeStateStatus: string(graph.pull.mergeStateStatus, 'UNKNOWN'),
           checkRuns: mapCheckRuns(graph.checks),
           checkRollupState: graph.checkRollupState,
-          checkRunsTotalCount: graph.checkRunsTotalCount,
           truncatedConnections: [
             ...(snapshot.data.truncatedConnections ?? []).filter((field) => field !== 'checkRuns'),
             ...graph.truncatedConnections.filter((field) => field === 'checkRuns'),
@@ -2698,7 +2682,6 @@ export function createPullRequests(store: Store, hub: Hub) {
           issueComments: [...(data.issueComments ?? []), entry],
           pull: {
             ...data.pull,
-            comments: data.pull.comments + 1,
             updated_at: string(record(record(response).subject).updatedAt, data.pull.updated_at),
           },
         }
@@ -2748,11 +2731,7 @@ export function createPullRequests(store: Store, hub: Hub) {
           in_reply_to_id: commentId,
           pull_request_review_id: Number(comment.pull_request_review_id) || 0,
         }
-        return {
-          ...data,
-          reviewComments: [...data.reviewComments, entry],
-          pull: { ...data.pull, review_comments: data.pull.review_comments + 1 },
-        }
+        return { ...data, reviewComments: [...data.reviewComments, entry] }
       }
     )
   }
@@ -2889,13 +2868,11 @@ export function createPullRequests(store: Store, hub: Hub) {
           state: requested ? 'AWAITING' : (existing?.latestReviewState ?? null),
         }
         const reviewRequests = [...others(data.reviewRequests), ...(requested ? [reviewer] : [])]
-        const { requestedUsers, requestedTeams } = requestedReviewers(reviewRequests)
         return {
           ...data,
           reviewRequests,
           reviewers: [...others(data.reviewers), reviewer],
-          pull: { ...data.pull, requested_reviewers: requestedUsers },
-          requestedTeams,
+          pull: { ...data.pull, requested_reviewers: requestedReviewers(reviewRequests) },
         }
       },
       () => sendReviewRequest(ref, login, requested, kind)

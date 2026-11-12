@@ -68,8 +68,6 @@ const GitHubPullRequest = Schema.Struct({
   deletions: Schema.Int,
   changed_files: Schema.Int,
   commits: Schema.Int,
-  comments: Schema.Int,
-  review_comments: Schema.Int,
   mergeable_state: Schema.Literals(['clean', 'blocked', 'dirty', 'unstable', 'behind', 'unknown']),
   requested_reviewers: Schema.Array(GitHubUser),
   labels: Schema.Array(Schema.Struct({ name: Schema.String })),
@@ -236,7 +234,6 @@ export const PullRequestData = Schema.Struct({
   issueComments: Schema.optional(Schema.Array(GitHubIssueComment)),
   checkRuns: Schema.Array(GitHubCheckRun),
   checkRollupState: Schema.optional(Schema.String),
-  checkRunsTotalCount: Schema.optional(Schema.Int),
   commits: Schema.Array(GitHubCommit),
   files: Schema.Array(GitHubFile),
   references: Schema.optional(
@@ -277,16 +274,6 @@ export const PullRequestData = Schema.Struct({
   mergeStateStatus: Schema.optional(Schema.String),
   behindBy: Schema.optional(Schema.NullOr(Schema.Int)),
   truncatedConnections: Schema.optional(Schema.Array(Schema.String)),
-  requestedTeams: Schema.optional(
-    Schema.Array(
-      Schema.Struct({
-        name: Schema.String,
-        avatar_url: Schema.String,
-        slug: Schema.optional(Schema.String),
-        asCodeOwner: Schema.optional(Schema.Boolean),
-      })
-    )
-  ),
   reviewDecision: Schema.optional(
     Schema.NullOr(Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']))
   ),

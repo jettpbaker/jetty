@@ -369,10 +369,6 @@ export function mapPullRequestGraphql(value: unknown) {
     headSha: string(commit.oid),
     checks: nodes(rollup.contexts),
     checkRollupState: string(rollup.state),
-    checkRunsTotalCount:
-      typeof record(rollup.contexts).totalCount === 'number'
-        ? (record(rollup.contexts).totalCount as number)
-        : undefined,
     truncatedConnections,
     closingIssuesReferences: nodes(pull.closingIssuesReferences).map((value) => {
       const issue = record(value)
