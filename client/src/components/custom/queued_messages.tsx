@@ -21,7 +21,7 @@ import {
   chatComposer,
   useDraftEditing,
   useQueueActions,
-  useQueueHeld,
+  useQueuePaused,
   useRemovedQueued,
   useRequestReveal,
   useVisibleQueue,
@@ -110,7 +110,7 @@ export function useComposerQueue(
   items: readonly ThreadItem[]
 ): ComposerQueueState | undefined {
   const { queued, unsent, own } = useVisibleQueue(threadId, items)
-  const paused = useQueueHeld(threadId)
+  const paused = useQueuePaused(threadId)
   const editing = useDraftEditing(threadId ?? '')
   const removed = useRemovedQueued(threadId)
   const held = heldByRestarts(items)

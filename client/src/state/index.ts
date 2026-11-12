@@ -119,7 +119,7 @@ export {
   chatComposer,
   useChatComposer,
   useQueueActions,
-  useQueueHeld,
+  useQueuePaused,
   useRemovedQueued,
   useRenewQueueHolds,
   useVisibleQueue,

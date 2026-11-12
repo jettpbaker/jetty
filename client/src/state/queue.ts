@@ -337,7 +337,7 @@ const pendingMessagesAtom = Atom.family((threadId: string) =>
     )
   )
 )
-const queueHeldAtom = Atom.family((threadId: string) =>
+const queuePausedAtom = Atom.family((threadId: string) =>
   Atom.make((get) => {
     const thread = get(chatThreadAtom(threadId))
     return Boolean(thread?.queuePaused || thread?.archived)
@@ -346,8 +346,8 @@ const queueHeldAtom = Atom.family((threadId: string) =>
 
 // Whether the queue waits for the user: paused after a stop, a restart or a failed setup, or
 // archived.
-export function useQueueHeld(threadId: string | undefined) {
-  return useAtomValue(queueHeldAtom(threadId ?? ''))
+export function useQueuePaused(threadId: string | undefined) {
+  return useAtomValue(queuePausedAtom(threadId ?? ''))
 }
 
 const threadQueueOpsAtom = Atom.family((threadId: string) =>
