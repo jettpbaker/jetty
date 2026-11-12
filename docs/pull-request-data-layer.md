@@ -114,7 +114,7 @@ discarded by the revision guard.
 Requests go straight to `api.github.com` with gh's login, read once every five
 minutes (and again after a 401), over pooled HTTPS connections. Writes and uploads
 read it fresh, so after `gh auth switch` they act as the new account, and a changed
-login drops the ETag and partial-read caches made for the old one. Without a readable
+login drops the partial-read cache made for the old one. Without a readable
 login they fall back to `gh api`. `JETTY_GITHUB_API_URL` points them at a stand-in,
 the perf lab's fake GitHub, which is never sent the login.
 
@@ -190,9 +190,8 @@ linked sidebar metadata.
 - `pullRequest.commitFiles { repo, sha }` lazily reads a commit's own file changes
   against its first parent. REST pages and classification are cached by repository
   and immutable SHA; successful results and concurrent work share a 64-entry LRU.
-  Directory flags and diff/merge-base caches also retain 64 entries, REST responses
-  kept for ETag revalidation retain 512 entries, and raw GraphQL reads retain 32
-  PR/query shapes.
+  Directory flags and diff/merge-base caches also retain 64 entries, and raw GraphQL
+  reads retain 32 PR/query shapes.
   It returns `{ files, parentSha }`, with null for a root commit's parent.
 - `pullRequest.merge { repo, number, sha, mergeMethod? }` retains the head guard
   and squash default. HTTP 405 reports merge requirements; 409 reports a moved head.
@@ -231,10 +230,9 @@ endpoint failures (including non-JSON replies).
 ## Verification and remaining decisions
 
 Read-only live verification succeeded for the full GraphQL query, including
-comparison: one PR refresh cost one point. A repeated conditional repository
-read returned the same data without decreasing the reported REST balance.
+comparison: one PR refresh cost one point.
 
-Offline verification exercised batching, ETags, optimistic title publication,
+Offline verification exercised batching, optimistic title publication,
 rollback, pending merge state, 405/409 reasons, stale reads racing a write,
 visibility cadence, reviewer and issue mapping, secondary backoff, and the
 upload request protocol. No new test files were added; the existing RPC test

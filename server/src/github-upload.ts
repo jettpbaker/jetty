@@ -49,7 +49,7 @@ export async function uploadGithubAttachment(params: {
   // Read fresh, like every write's login, and first, so the access check below is that account's.
   const token = await ghToken({ fresh: true })
   if (!token) throw new StoreError('internal', 'Sign in with gh auth login to upload attachments')
-  const repository = (await restGet(`repos/${params.repo}`, { revalidate: true })) as {
+  const repository = (await restGet(`repos/${params.repo}`)) as {
     id?: number
     permissions?: { push?: boolean }
   }

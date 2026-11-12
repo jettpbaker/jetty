@@ -350,7 +350,6 @@ export function ghToken({ fresh = false } = {}) {
 
 // What GitHub told the previous login, which another account may not be shown the same way.
 function forgetLogin() {
-  restCache.clear()
   lastPulls.clear()
 }
 
@@ -363,7 +362,6 @@ const rateHealth = {
   backoffUntil: null as number | null,
 }
 let secondaryFailures = 0
-const restCache = new Map<string, { etag: string; value: unknown }>()
 const apiInFlight = new Map<string, Promise<unknown>>()
 
 function githubRateLimitHealth(cadenceMs: number | null, checksCadenceMs: number | null = null) {
@@ -464,7 +462,7 @@ type ApiPage = { value: unknown; next: boolean }
 // Points the API at a stand-in (the perf lab's fake GitHub), which is never sent the login.
 const apiUrl = process.env.JETTY_GITHUB_API_URL
 
-async function fetchApi(request: ApiRequest, etag?: string, token?: string): Promise<ApiResponse> {
+async function fetchApi(request: ApiRequest, token?: string): Promise<ApiResponse> {
   const response = await fetch(`${apiUrl ?? 'https://api.github.com'}/${request.path}`, {
     method: request.method,
     body: request.body,
@@ -474,7 +472,6 @@ async function fetchApi(request: ApiRequest, etag?: string, token?: string): Pro
       'User-Agent': 'Jetty',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(etag ? { 'If-None-Match': etag } : {}),
     },
     signal: AbortSignal.timeout(20_000),
   })
@@ -487,7 +484,7 @@ async function fetchApi(request: ApiRequest, etag?: string, token?: string): Pro
 }
 
 // The same request through gh, when its login can't be read.
-async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiResponse> {
+async function ghRequest(request: ApiRequest): Promise<ApiResponse> {
   const bin = Bun.which('gh')
   if (!bin) throw new GhFailure('unavailable', 'GitHub CLI is not installed')
   const child = Bun.spawn(
@@ -501,7 +498,6 @@ async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiRespons
       request.method,
       request.path,
       ...(request.accept ? ['-H', `Accept: ${request.accept}`] : []),
-      ...(etag ? ['-H', `If-None-Match: ${etag}`] : []),
       ...(request.body === undefined ? [] : ['--input', '-']),
     ],
     {
@@ -534,28 +530,27 @@ async function ghRequest(request: ApiRequest, etag?: string): Promise<ApiRespons
   return { status, headers, text: split >= 0 ? out.slice(split).trim() : out, detail: err.trim() }
 }
 
-async function sendApi(request: ApiRequest, etag?: string) {
-  if (apiUrl) return fetchApi(request, etag)
+async function sendApi(request: ApiRequest) {
+  if (apiUrl) return fetchApi(request)
   const token = await ghToken({ fresh: request.write })
-  if (!token) return ghRequest(request, etag)
-  const response = await fetchApi(request, etag, token)
+  if (!token) return ghRequest(request)
+  const response = await fetchApi(request, token)
   if (response.status !== 401) return response
   // gh may have refreshed its login since it was read.
   const fresh = await ghToken({ fresh: true })
-  return fresh && fresh !== token ? fetchApi(request, etag, fresh) : response
+  return fresh && fresh !== token ? fetchApi(request, fresh) : response
 }
 
 async function requestApi(request: ApiRequest): Promise<unknown> {
   return (await requestPage(request)).value
 }
 
-async function requestPage(request: ApiRequest, revalidate = false): Promise<ApiPage> {
+async function requestPage(request: ApiRequest): Promise<ApiPage> {
   checkBackoff()
-  const cached = revalidate ? cacheRead(restCache, request.path) : undefined
   const started = performance.now()
   let response: ApiResponse
   try {
-    response = await sendApi(request, cached?.etag)
+    response = await sendApi(request)
   } catch (error) {
     console.warn(`[pr-api] ${request.method} ${request.path} failed`, error)
     if (error instanceof GhFailure) throw error
@@ -576,8 +571,7 @@ async function requestPage(request: ApiRequest, revalidate = false): Promise<Api
   try {
     if (text) value = JSON.parse(text)
   } catch {
-    if (status < 400 && status !== 304)
-      throw new GhFailure('unavailable', 'Invalid response from GitHub')
+    if (status < 400) throw new GhFailure('unavailable', 'Invalid response from GitHub')
   }
   const errors = record(value).errors
   const errorDetails = Array.isArray(errors)
@@ -602,7 +596,6 @@ async function requestPage(request: ApiRequest, revalidate = false): Promise<Api
       `[pr-api] ${request.method} ${request.path} status=${status} request-id=${headers.get('x-github-request-id')} message=${message} errors=${JSON.stringify(errors ?? null)}`
     )
   const next = /rel="next"/.test(headers.get('link') ?? '')
-  if (status === 304 && cached) return { value: cached.value, next }
   const graph = request.path === 'graphql'
   const partialGraph =
     graph &&
@@ -640,8 +633,6 @@ async function requestPage(request: ApiRequest, revalidate = false): Promise<Api
         /timeout|timed out|exceeds the maximum|complexity/i.test(message)
     )
   }
-  const etag = headers.get('etag')
-  if (revalidate && etag) cacheWrite(restCache, request.path, { etag, value }, 512)
   return { value, next }
 }
 
@@ -653,15 +644,13 @@ function shared<T>(key: string, request: () => Promise<T>) {
   return promise
 }
 
-function restPage(path: string, revalidate = false) {
-  return shared(path, () => requestPage({ method: 'GET', path }, revalidate))
+function restPage(path: string) {
+  return shared(path, () => requestPage({ method: 'GET', path }))
 }
 
-// REST reads share in-flight requests. Only a read that can come back unchanged keeps its body to
-// revalidate with its ETag: commit-pinned reads are cached by sha above this, and a PR's file
-// pages are only re-read once its head has moved.
-export function restGet(path: string, { revalidate = false } = {}) {
-  return restPage(path, revalidate).then((page) => page.value)
+// REST reads share in-flight requests.
+export function restGet(path: string) {
+  return restPage(path).then((page) => page.value)
 }
 
 // body_html (and the signed image URLs inside it) is only present on this media type.
