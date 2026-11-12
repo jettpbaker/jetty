@@ -24,7 +24,7 @@ const Manifest = Schema.Struct({
   ),
 })
 
-export function loadLocalRecording(value: unknown, manifestValue: unknown) {
+function loadLocalRecording(value: unknown, manifestValue: unknown) {
   try {
     const recording = loadRecording(value)
     const manifest = Schema.decodeUnknownSync(Manifest)(manifestValue)

@@ -5,7 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { pressProps } from '@/lib/press'
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 
-export type PreviewManifest = {
+type PreviewManifest = {
   version: 1
   recordingId: string
   title: string

@@ -28,7 +28,7 @@ export type StreamTurn = {
   error?: string
 }
 export type AssistantText = { id: string; turnId: string; text: string; completed: boolean }
-export type StreamSemantic = { turns: readonly StreamTurn[]; texts: readonly AssistantText[] }
+type StreamSemantic = { turns: readonly StreamTurn[]; texts: readonly AssistantText[] }
 export type StreamPresentation = StreamSemantic & {
   captureEnded: boolean
   captureIncomplete: boolean
@@ -38,7 +38,7 @@ function emptySemantic(): StreamSemantic {
   return { turns: [], texts: [] }
 }
 
-export function reduceStream(state: StreamSemantic, { event }: StreamInput): StreamSemantic {
+function reduceStream(state: StreamSemantic, { event }: StreamInput): StreamSemantic {
   switch (event.type) {
     case 'turn.started':
       return { ...state, turns: [...state.turns, { id: event.turnId, outcome: 'running' }] }
