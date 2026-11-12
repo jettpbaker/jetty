@@ -2,7 +2,7 @@ export type PerfRecord = {
   v: 1
   t: number
   sid: string
-  k: 'journey' | 'mark' | 'loaf' | 'event' | 'shift' | 'ws' | 'snapshot'
+  k: 'journey' | 'loaf' | 'event' | 'shift' | 'ws' | 'snapshot'
   n: string
   d?: number
   jid?: string

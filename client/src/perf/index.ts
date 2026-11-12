@@ -326,16 +326,10 @@ export const perf = {
     const journey = find(jid)
     if (journey) markJourney(journey, phase)
   },
-  end(jid: string | undefined) {
-    const journey = find(jid)
-    if (journey) finish(journey)
-  },
-  // Marks `rendered` on the open journey with this name whose ids include `match`.
-  rendered(name: JourneyName, match: Ids = {}) {
+  // Marks `rendered` on the open journey with this name.
+  rendered(name: JourneyName) {
     if (!enabled) return
-    for (const journey of open.values())
-      if (journey.name === name && Object.entries(match).every(([k, v]) => journey.ids[k] === v))
-        markJourney(journey, 'rendered')
+    for (const journey of open.values()) if (journey.name === name) markJourney(journey, 'rendered')
   },
   threadClick(threadId: string, cached: boolean, live: boolean) {
     startAt(cached ? 'thread.switch' : 'thread.open', { threadId }, performance.now(), !live)

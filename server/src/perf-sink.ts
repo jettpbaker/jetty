@@ -4,7 +4,7 @@ import { join } from 'node:path'
 const maxBodyBytes = 1024 * 1024
 const maxFileBytes = 10 * 1024 * 1024
 const keepFiles = 14
-const kinds = new Set(['journey', 'mark', 'loaf', 'event', 'shift', 'ws', 'snapshot'])
+const kinds = new Set(['journey', 'loaf', 'event', 'shift', 'ws', 'snapshot'])
 
 type PerfRecord = {
   v: 1
