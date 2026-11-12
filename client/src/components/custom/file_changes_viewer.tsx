@@ -215,7 +215,6 @@ export function FileChangesViewer({
                   key={file.path}
                   file={file}
                   initiallyNear={file.initiallyNear}
-                  open={!collapsedFiles.has(file.path)}
                   collapsed={collapsedFiles.has(file.path)}
                   onToggle={() =>
                     setCollapsedFiles((previous) => {

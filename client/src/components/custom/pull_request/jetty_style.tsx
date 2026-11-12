@@ -1546,7 +1546,6 @@ function FileCard({
     setWasViewed(viewed)
     setCollapsed(viewed)
   }
-  const open = !collapsed
   // A guide card holds the threads on the lines it shows.
   const shownLines =
     part?.patch === undefined
@@ -1568,7 +1567,6 @@ function FileCard({
       anchor={!part}
       deferHeader={deferHeader}
       initiallyNear={initiallyNear}
-      open={open}
       collapsed={collapsed}
       onToggle={() => setCollapsed((value) => !value)}
       beforeCounts={

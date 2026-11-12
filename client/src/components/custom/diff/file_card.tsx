@@ -63,7 +63,6 @@ export function DiffCounts({
 
 export function DiffFileCard({
   file,
-  open,
   collapsed,
   onToggle,
   beforeCounts,
@@ -75,7 +74,6 @@ export function DiffFileCard({
   children,
 }: {
   file: DiffFile
-  open: boolean
   collapsed: boolean
   onToggle: () => void
   beforeCounts?: ReactNode
@@ -107,7 +105,7 @@ export function DiffFileCard({
       <header
         className={cn(
           'file-card-header flex min-h-11 items-center gap-2 border border-border bg-muted/30 px-3 py-2',
-          open ? 'rounded-t-md' : 'rounded-md'
+          collapsed ? 'rounded-md' : 'rounded-t-md'
         )}
       >
         <Button
@@ -144,11 +142,11 @@ export function DiffFileCard({
     <section
       ref={card}
       id={anchor ? `linear-file-${file.path}` : undefined}
-      data-open={open || undefined}
+      data-open={!collapsed || undefined}
       className='file-card relative scroll-mt-3 overflow-clip rounded-md'
     >
       {deferHeader && !near ? <div aria-hidden='true' className='h-11.5' /> : header}
-      {open && (
+      {!collapsed && (
         <div className='file-card-body overflow-clip border border-t-0 border-border'>
           {near ? children() : <div aria-hidden='true' style={{ height }} />}
         </div>
