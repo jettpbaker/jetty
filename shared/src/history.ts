@@ -18,6 +18,11 @@ export function historyTurn(item: ThreadItem): HistoryTurn | undefined {
   return { id: item.turnId, itemId: item.id, title: item.text.slice(0, 160) }
 }
 
+// The thread's latest turn: the running one, else the turn of its last main-timeline item.
+export function latestTurn(state: Pick<ThreadState, 'activeTurnId' | 'items'>) {
+  return state.activeTurnId ?? state.items.findLast((item) => !item.agentId)?.turnId ?? null
+}
+
 export const HistoryRange = Schema.Struct({ start: Schema.Natural, end: Schema.Natural })
 export type HistoryRange = Schema.Schema.Type<typeof HistoryRange>
 

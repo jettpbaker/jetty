@@ -2,7 +2,7 @@ import type { HistoryPage, ThreadSnapshot } from '@jetty/shared/history'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
 
-import { historyTurn, omitToolOutput, summaryItem } from '@jetty/shared/history'
+import { historyTurn, latestTurn, omitToolOutput, summaryItem } from '@jetty/shared/history'
 import { foldTodos } from '@jetty/shared/todos'
 
 import { StoreError } from './store'
@@ -33,10 +33,6 @@ function historyIndex(items: readonly ThreadItem[]) {
     indexes.set(items, index)
   }
   return index
-}
-
-function latestTurn(state: ThreadState) {
-  return state.activeTurnId ?? state.items.findLast((item) => !item.agentId)?.turnId ?? null
 }
 
 function projectItem(item: ThreadItem, latestTurnId: string | null): ThreadItem {
