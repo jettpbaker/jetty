@@ -2,6 +2,7 @@ import type { ContextUsage, ThreadEvent } from '@jetty/shared/events'
 
 import { newId } from '@jetty/shared/wire'
 
+import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 import { object, string } from './stdio-rpc'
 
 export function createAcpTranslator(
@@ -160,5 +161,28 @@ export function acpContextUsage(update: Record<string, unknown>): ContextUsage |
     maxTokens: Math.floor(maxTokens),
     slices: [],
     asOf: Date.now(),
+  }
+}
+
+// Copilot and OpenCode name MCP tools `<server>-<tool>` or `<server>_<tool>`; ACP reports that as
+// the title.
+export function acpToolName(update: Record<string, unknown>) {
+  const title = string(update.title)
+  const mcp = /^(?:mcp__)?jetty(?:__|[-_:])([a-z_]+)$/.exec(title)
+  if (mcp) return `mcp__jetty__${mcp[1]}`
+  if ([...SELF_TOOLS, ...THREAD_TOOLS].some((name) => name === title)) return `mcp__jetty__${title}`
+  switch (update.kind) {
+    case 'read':
+      return 'Read'
+    case 'edit':
+      return 'Edit'
+    case 'execute':
+      return 'Bash'
+    case 'search':
+      return 'Grep'
+    case 'fetch':
+      return 'WebFetch'
+    default:
+      return title || string(update.kind) || 'Tool'
   }
 }

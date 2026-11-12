@@ -13,7 +13,7 @@ import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
 import { acpPrompt, jettyMcpServers } from './acp-session'
-import { acpContextUsage } from './acp-translate'
+import { acpContextUsage, acpToolName } from './acp-translate'
 import {
   AgentError,
   AgentService,
@@ -29,7 +29,7 @@ import { jettyInstructions } from './jetty-instructions'
 import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 import { opencodeConfig, setOpencodeModel } from './opencode-models'
 import { opencodeConfigEnv, opencodeError, openOpencodeConnection } from './opencode-rpc'
-import { opencodeToolInput, opencodeToolName, createOpencodeTranslator } from './opencode-translate'
+import { opencodeToolInput, createOpencodeTranslator } from './opencode-translate'
 import {
   object,
   string,
@@ -231,7 +231,7 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
         const options = Array.isArray(params.options) ? params.options.map(object) : []
         const tool = object(params.toolCall)
         const allow = options.find((o) => o.kind === 'allow_once' && string(o.optionId))
-        const name = opencodeToolName(tool)
+        const name = acpToolName(tool)
         if (name.startsWith('mcp__jetty__'))
           for (const event of session.translator.translate({
             ...tool,

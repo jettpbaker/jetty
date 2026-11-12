@@ -1,30 +1,7 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
-import { createAcpTranslator } from './acp-translate'
-import { SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
+import { acpToolName, createAcpTranslator } from './acp-translate'
 import { object, string } from './stdio-rpc'
-
-// OpenCode names MCP tools `<server>_<tool>`; ACP reports that as the title.
-export function opencodeToolName(update: Record<string, unknown>) {
-  const title = string(update.title)
-  const mcp = /^(?:mcp__)?jetty(?:__|[-_:])([a-z_]+)$/.exec(title)
-  if (mcp) return `mcp__jetty__${mcp[1]}`
-  if ([...SELF_TOOLS, ...THREAD_TOOLS].some((name) => name === title)) return `mcp__jetty__${title}`
-  switch (update.kind) {
-    case 'read':
-      return 'Read'
-    case 'edit':
-      return 'Edit'
-    case 'execute':
-      return 'Bash'
-    case 'search':
-      return 'Grep'
-    case 'fetch':
-      return 'WebFetch'
-    default:
-      return title || string(update.kind) || 'Tool'
-  }
-}
 
 export function opencodeToolInput(update: Record<string, unknown>) {
   const input = object(update.rawInput)
@@ -69,7 +46,7 @@ function opencodeToolOutput(value: unknown): string {
 export function createOpencodeTranslator(turnId: string) {
   const tools = new Map<string, Record<string, unknown>>()
   const standard = createAcpTranslator(turnId, {
-    toolName: opencodeToolName,
+    toolName: acpToolName,
     toolInput: opencodeToolInput,
     toolOutput: opencodeToolOutput,
   })
@@ -77,7 +54,7 @@ export function createOpencodeTranslator(turnId: string) {
     if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
       const key = string(update.toolCallId)
       const previous = tools.get(key)
-      const name = previous && opencodeToolName(previous)
+      const name = previous && acpToolName(previous)
       const merged: Record<string, unknown> = {
         ...previous,
         ...update,

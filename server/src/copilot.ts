@@ -13,7 +13,7 @@ import type { Store } from './store'
 
 import { acpPermissionOutcome } from './acp-permissions'
 import { acpPrompt, jettyMcpServers } from './acp-session'
-import { acpContextUsage } from './acp-translate'
+import { acpContextUsage, acpToolName } from './acp-translate'
 import {
   AgentError,
   AgentService,
@@ -27,7 +27,7 @@ import { approvalChanges, approvalInputWithoutChanges } from './approval-changes
 import { prepareBot } from './bot-preparation'
 import { copilotConfig, setCopilotModel } from './copilot-models'
 import { COPILOT_ARGS, copilotError, openCopilotConnection } from './copilot-rpc'
-import { copilotToolInput, copilotToolName, createCopilotTranslator } from './copilot-translate'
+import { copilotToolInput, createCopilotTranslator } from './copilot-translate'
 import { jettyInstructions } from './jetty-instructions'
 import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 import {
@@ -268,7 +268,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
         const options = Array.isArray(params.options) ? params.options.map(object) : []
         const tool = object(params.toolCall)
         const allow = options.find((o) => o.kind === 'allow_once' && string(o.optionId))
-        const name = copilotToolName(tool)
+        const name = acpToolName(tool)
         if (name.startsWith('mcp__jetty__'))
           for (const event of session.translator.translate({
             ...tool,
