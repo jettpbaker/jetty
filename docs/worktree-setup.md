@@ -84,7 +84,7 @@ Leaving the file out keeps Set up worktrees on the new-thread page.
 ```
 
 - **`setup`**: a shell command run in each new worktree, from its root, after the files
-  are copied. It times out after 15 minutes.
+  are copied.
 - **`archive`**: a shell command run in the worktree before Jetty archives or deletes it,
   for cleaning up anything that lives outside the folder. If it fails, archive is refused
   and the user sees the error, rather than silently leaking whatever it was meant to clean
@@ -94,7 +94,8 @@ Leaving the file out keeps Set up worktrees on the new-thread page.
   new threads (`"local"` is Current checkout). Leave it out unless the user wants a
   different default or worktrees can't work for this project.
 
-Both scripts run with `sh -lc`, in Jetty's own environment plus:
+Both scripts run with `sh -lc`, time out after 15 minutes, and get Jetty's own environment
+plus:
 
 - **`JETTY_WORKTREE_NAME`**: the worktree folder's name. It stays the same for the
   worktree's whole life, across archive and resume, so it's good for naming per-worktree
