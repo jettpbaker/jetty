@@ -191,10 +191,7 @@ export function createGithubMedia(home: string) {
   }
 
   async function save(response: Response, key: string): Promise<GithubMedia> {
-    const declared = (response.headers.get('content-type') ?? '')
-      .split(';')[0]!
-      .trim()
-      .toLowerCase()
+    const declared = mediaType(response)
     if (Number(response.headers.get('content-length')) > MAX_VIDEO_BYTES)
       throw new GithubMediaError(413, 'Attachment is too large')
     const temp = join(dir, `.tmp-${randomUUID()}`)
