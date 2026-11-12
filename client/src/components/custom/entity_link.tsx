@@ -249,7 +249,7 @@ function SubagentLink({ name, fallback }: { name: string; fallback: ReactNode })
 
 // A bot's mention: its face and current name in its colour, opening its chat. Click, not
 // pointer-down: the link sits in a scrollable chat.
-export function BotLink({ id, fallback }: { id: string; fallback: ReactNode }) {
+function BotLink({ id, fallback }: { id: string; fallback: ReactNode }) {
   const bot = useBot(id)
   if (!bot) return fallback
   return (

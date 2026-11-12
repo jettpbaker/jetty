@@ -15,7 +15,7 @@ export const ProjectFileRoot = createContext<string | undefined>(undefined)
 const scheme = /^[a-z][a-z\d+.-]*:(?!\d)/i
 const lineSuffix = /:(\d+)(?::\d+)?$/
 
-export function fileLinkTarget(url: string): FileTarget | undefined {
+function fileLinkTarget(url: string): FileTarget | undefined {
   const href = url.startsWith('file://') ? url.slice('file://'.length) : url
   if (href.startsWith('#') || href.startsWith('//') || scheme.test(href)) return undefined
   const [encoded = '', hash = ''] = href.split('#', 2)

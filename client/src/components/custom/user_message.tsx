@@ -35,7 +35,7 @@ function measureCollapsible(element: HTMLElement, text: string) {
 
 // A sent message's text, cut to collapsedTextHeight with a fade and a toggle once it runs long.
 // `filled` is for text on a filled bubble, where the toggle takes the bubble's foreground.
-export function CollapsibleText({
+function CollapsibleText({
   id,
   text,
   filled,

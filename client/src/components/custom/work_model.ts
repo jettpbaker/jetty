@@ -43,23 +43,23 @@ export type ThinkingActivity = {
   tokens?: number
   elapsedSeconds?: number
 }
-export type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }
-export type CreatedActivity = { type: 'created'; id: string; threadId: string; title?: string }
-export type SubagentActivity = {
+type TodoActivity = { type: 'todo'; id: string; update: TodoUpdate }
+type CreatedActivity = { type: 'created'; id: string; threadId: string; title?: string }
+type SubagentActivity = {
   type: 'subagent'
   id: string
   title: string
   status: SubagentStatus
   waiting: boolean
 }
-export type TextActivity = { type: 'text'; id: string; text: string; streaming: boolean }
+type TextActivity = { type: 'text'; id: string; text: string; streaming: boolean }
 export type QuestionActivity = {
   type: 'question'
   id: string
   item: Extract<ThreadItem, { kind: 'question' }>
   source?: string
 }
-export type ApprovalActivity = {
+type ApprovalActivity = {
   type: 'approval'
   id: string
   item: Extract<ThreadItem, { kind: 'approval' }>
