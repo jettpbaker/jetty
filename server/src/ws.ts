@@ -346,8 +346,8 @@ export function createRpcHandlers(
             )
           )
           .pipe(Effect.as(null), Effect.mapError(wireError)),
-      'github.connection': () => Effect.promise(githubConnection).pipe(Effect.mapError(wireError)),
-      'user.identity': () => Effect.promise(userIdentity).pipe(Effect.mapError(wireError)),
+      'github.connection': () => Effect.promise(githubConnection),
+      'user.identity': () => Effect.promise(userIdentity),
       'settings.providerUsage': ({ provider }) => getProviderUsage(provider),
       'models.refresh': ({ force }) => refreshModels(force).pipe(Effect.as(null)),
       'settings.setJobModel': ({ job, ...choice }) =>
