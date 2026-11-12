@@ -187,16 +187,21 @@ export function createThreadSaver(threadId: string) {
   let current: ThreadView | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let savedAt: number | undefined
+  let saved: ThreadView | undefined
   let disposed = false
+
+  function save(state: ThreadView) {
+    savedAt = Date.now()
+    saved = state
+    void saveThreadCache(threadId, state)
+  }
 
   function schedule() {
     if (disposed || timer || !current || streaming(current)) return
     const delay = savedAt === undefined ? 500 : Math.max(0, savedAt + 10_000 - Date.now())
     timer = setTimeout(() => {
       timer = undefined
-      if (!current || streaming(current)) return
-      savedAt = Date.now()
-      void saveThreadCache(threadId, current)
+      if (current && !streaming(current)) save(current)
     }, delay)
   }
 
@@ -208,6 +213,8 @@ export function createThreadSaver(threadId: string) {
     dispose() {
       disposed = true
       clearTimeout(timer)
+      // A thread left mid-turn would otherwise keep the copy from before the turn.
+      if (current && current !== saved) save(current)
       current = undefined
     },
   }
