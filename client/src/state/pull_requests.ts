@@ -611,7 +611,7 @@ function requestPullRequest<E>(
 
 let optimisticCommentId = 0
 // Markdown still pointing at a local blob: an attachment whose upload hasn't finished.
-const unsentUpload = /\]\(blob:|src=["']blob:/i
+export const unsentUpload = /\]\(blob:|src=["']blob:/i
 
 export function usePullRequestActions(ref: PullRequestRef) {
   const registry = useContext(RegistryContext)
