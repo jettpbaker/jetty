@@ -42,8 +42,6 @@ export function DiffFileList({
       ...(scroller.current?.querySelectorAll<HTMLElement>('section[id^=linear-file-]') ?? []),
     ]
   }, [files])
-  const active = useRef(inView)
-  active.current = inView
   return (
     <div className='flex min-h-0 flex-1 pt-3'>
       {pane && (
@@ -80,7 +78,7 @@ export function DiffFileList({
             else low = middle + 1
           }
           const path = sections.current[low]?.id.slice('linear-file-'.length) ?? null
-          if (path !== active.current) onInView(path)
+          if (path !== inView) onInView(path)
         }}
         className={cn(
           'scrollbar-subtle min-w-0 flex-1 space-y-3 overflow-auto pr-4 pb-4 pl-3 @max-[720px]:pl-4',
