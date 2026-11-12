@@ -88,7 +88,6 @@ type Entry = {
   opens?: boolean
   selected?: boolean
   disabled?: boolean
-  score: number
   run: () => void
 }
 
@@ -251,7 +250,6 @@ export function useComposerSlash(
       icon,
       selected,
       disabled,
-      score: 0,
       run: () => {
         apply()
         consume(range)
@@ -312,7 +310,6 @@ export function useComposerSlash(
       icon,
       opens,
       disabled,
-      score: 0,
       run,
     })
     const picker = (id: ValueCommand) => () => go(range, { picking: id })
@@ -414,7 +411,6 @@ export function useComposerSlash(
           description: skill.description,
           group: 'Skills',
           icon: <ScriptAiIcon />,
-          score: 0,
           run: () => insert(range, skill.name),
         })
       ),
@@ -429,13 +425,12 @@ export function useComposerSlash(
       description: '',
       group: 'Bots',
       icon: <BotAvatar bot={mention} size={12} unread={false} />,
-      score: 0,
       run: () => insert(range, mention.name),
     }))
   }
 
   function back(run: () => void): Entry {
-    return { id: 'back', kind: 'back', name: 'Back', description: '', group: '', score: 0, run }
+    return { id: 'back', kind: 'back', name: 'Back', description: '', group: '', run }
   }
 
   // Back lands on the row you came from: the command, or the Skills row after the commands.
@@ -469,7 +464,6 @@ export function useComposerSlash(
               description: '',
               group: 'Skills',
               icon: <MagicBookIcon />,
-              score: 0,
               opens: true,
               run: () => go(range, { section: 'Skills' }),
             } satisfies Entry,
@@ -609,13 +603,16 @@ export function useComposerSlash(
 export type Slash = ReturnType<typeof useComposerSlash>
 
 function rank(entries: Entry[], query: string) {
-  const scored = entries.flatMap((entry) => {
-    const score = matchScore(entry.name, entry.description, query)
-    return score === undefined ? [] : [{ ...entry, score }]
-  })
-  return scored.sort(
-    (a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group) || b.score - a.score
-  )
+  return entries
+    .flatMap((entry) => {
+      const score = matchScore(entry.name, entry.description, query)
+      return score === undefined ? [] : [{ entry, score }]
+    })
+    .sort(
+      (a, b) =>
+        groupOrder.indexOf(a.entry.group) - groupOrder.indexOf(b.entry.group) || b.score - a.score
+    )
+    .map(({ entry }) => entry)
 }
 
 function wordAt(text: string, at: number) {
