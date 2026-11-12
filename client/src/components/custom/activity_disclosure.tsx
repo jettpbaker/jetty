@@ -11,6 +11,24 @@ export function ActivityChevron() {
   return <ChevronRightSmallIcon className='activity-chevron text-muted-foreground' aria-hidden />
 }
 
+// Opens and closes with `autoOpen` each time it changes; between changes the reader toggles it.
+// `autoClosing` marks a close `autoOpen` made, so the content can animate out.
+export function useAutoOpen(autoOpen: boolean) {
+  const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
+  const [open, setOpen] = useState(autoOpen)
+  const [autoClosing, setAutoClosing] = useState(false)
+  if (previousAutoOpen !== autoOpen) {
+    setPreviousAutoOpen(autoOpen)
+    setAutoClosing(!autoOpen && open)
+    setOpen(autoOpen)
+  }
+  function onOpenChange(nextOpen: boolean) {
+    setAutoClosing(false)
+    setOpen(nextOpen)
+  }
+  return { open, onOpenChange, autoClosing }
+}
+
 export function ActivityDisclosure({
   title,
   titleSuffix,

@@ -4,9 +4,9 @@ import type { ProviderModel } from '@jetty/shared/wire'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import { cloneElement, useState, type ReactElement, type ReactNode } from 'react'
+import { cloneElement, type ReactElement, type ReactNode } from 'react'
 
-import { ActivityChevron } from './activity_disclosure'
+import { ActivityChevron, useAutoOpen } from './activity_disclosure'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import { RollingNumber } from './rolling_number'
@@ -39,18 +39,7 @@ export function Disclosure({
   flush?: boolean
   children: ReactNode
 }) {
-  const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
-  const [open, setOpen] = useState(autoOpen)
-  const [autoClosing, setAutoClosing] = useState(false)
-  if (previousAutoOpen !== autoOpen) {
-    setPreviousAutoOpen(autoOpen)
-    setAutoClosing(!autoOpen && open)
-    setOpen(autoOpen)
-  }
-  function onOpenChange(nextOpen: boolean) {
-    setAutoClosing(false)
-    setOpen(nextOpen)
-  }
+  const { open, onOpenChange, autoClosing } = useAutoOpen(autoOpen)
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger

@@ -5,7 +5,7 @@ import { useOpenSubagent } from '@/state'
 import { useToolOutputs } from '@/state/tool_outputs'
 import { useState } from 'react'
 
-import { ActivityChevron } from './activity_disclosure'
+import { ActivityChevron, useAutoOpen } from './activity_disclosure'
 import { CountedResults, ThreadRow } from './jetty_result_rows'
 import { JettyThreadRow, JettyToolGroup } from './jetty_tool_group'
 import { jettyResultTools } from './jetty_tool_results'
@@ -45,19 +45,8 @@ function DefaultToolGroup({ batch, threadId }: { batch: ToolBatch; threadId?: st
   const autoOpen =
     label.itemCount !== undefined &&
     (!batch.sealed || batch.calls.some((call) => !workEnded(call.status)))
-  const [previousAutoOpen, setPreviousAutoOpen] = useState(autoOpen)
-  const [open, setOpen] = useState(autoOpen)
-  const [autoClosing, setAutoClosing] = useState(false)
+  const { open, onOpenChange, autoClosing } = useAutoOpen(autoOpen)
   const [initialCalls] = useState(() => new Set(batch.calls.map((call) => call.id)))
-  if (previousAutoOpen !== autoOpen) {
-    setPreviousAutoOpen(autoOpen)
-    setAutoClosing(!autoOpen && open)
-    setOpen(autoOpen)
-  }
-  function onOpenChange(nextOpen: boolean) {
-    setAutoClosing(false)
-    setOpen(nextOpen)
-  }
   const heading = (
     <>
       <span className='flex min-w-0 items-baseline gap-1'>
