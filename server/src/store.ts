@@ -84,7 +84,7 @@ export type AppendedEvent = {
   state: ThreadState
   prevAutomaticCompaction: boolean
   prevStatus: SessionStatus
-  thread: ThreadMeta
+  thread: Pick<ThreadMeta, 'title' | 'botId'>
 }
 
 export type StoredPullRequestGuide = Omit<PullRequestGuideState, 'outdated'> & {
@@ -1091,10 +1091,9 @@ export function createStore() {
 
     function append(threadId: string, event: ThreadEvent) {
       return Effect.gen(function* () {
-        const [threadRow] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
-        if (!threadRow)
+        const [thread] = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${threadId}`
+        if (!thread)
           return yield* Effect.fail(new StoreError('not_found', `Thread ${threadId} not found`))
-        const thread = decorateThread(threadRow, yield* getLinks(threadId))
         const validated = yield* Schema.decodeUnknownEffect(ThreadEvent)(event).pipe(
           Effect.mapError(invalidEvent)
         )
@@ -1131,23 +1130,20 @@ export function createStore() {
           automaticCompaction ||
           validated.type === 'context.updated' ||
           validated.type === 'cache.lifetime'
-            ? thread.updatedAt
+            ? thread.updated_at
             : ts
         const turnStartedAt =
-          !automaticCompaction && validated.type === 'turn.started'
-            ? ts
-            : (thread.turnStartedAt ?? null)
+          !automaticCompaction && validated.type === 'turn.started' ? ts : thread.turn_started_at
         const turnEndedAt = automaticCompaction
-          ? (thread.turnEndedAt ?? null)
+          ? thread.turn_ended_at
           : validated.type === 'turn.started'
             ? null
             : validated.type === 'turn.completed' || validated.type === 'turn.failed'
               ? ts
-              : (thread.turnEndedAt ?? null)
-        const hasItems = state.items.length > 0
+              : thread.turn_ended_at
         yield* sql`UPDATE threads SET status = ${state.status}, updated_at = ${updatedAt},
           turn_started_at = ${turnStartedAt}, turn_ended_at = ${turnEndedAt},
-          has_items = ${hasItems ? 1 : 0} WHERE id = ${threadId}`
+          has_items = ${state.items.length ? 1 : 0} WHERE id = ${threadId}`
         return {
           seq,
           ts,
@@ -1155,14 +1151,7 @@ export function createStore() {
           state,
           prevStatus: prev.status,
           prevAutomaticCompaction: Boolean(prev.automaticCompactionTurnId),
-          thread: {
-            ...thread,
-            status: state.status,
-            updatedAt,
-            turnStartedAt: turnStartedAt ?? undefined,
-            turnEndedAt: turnEndedAt ?? undefined,
-            ...(hasItems && { hasItems }),
-          },
+          thread: { title: thread.title, ...(thread.bot_id && { botId: thread.bot_id }) },
         } satisfies AppendedEvent
       })
     }

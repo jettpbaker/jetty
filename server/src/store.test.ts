@@ -192,7 +192,9 @@ test('a failed second batch update rolls back every event, projection and metada
   expect(committed.map(({ seq }) => seq)).toEqual([1, 2])
   expect(committed.map(({ state }) => state.status)).toEqual(['running', 'awaiting_approval'])
   expect(await runtime.runPromise(store.getThreadState(thread.id))).toEqual(committed[1]!.state)
-  expect(await runtime.runPromise(store.getThread(thread.id))).toEqual(committed[1]!.thread)
+  expect(await runtime.runPromise(store.getThread(thread.id))).toMatchObject({
+    status: 'awaiting_approval',
+  })
 })
 
 test('non-JSON event payloads fail with a typed error and no partial writes', async () => {
