@@ -64,7 +64,6 @@ type Session = {
   reason: string | null
   stopped: boolean
   denied: boolean
-  cwd: string
   full: boolean
   steerUnread: boolean
   steerFolding: boolean
@@ -581,7 +580,6 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
           }
           const session: Session = {
             input,
-            cwd: input.cwd ?? project.path,
             full: input.permissionMode === 'full_access',
             steerUnread: false,
             steerFolding: false,

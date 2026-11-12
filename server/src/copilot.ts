@@ -64,7 +64,6 @@ type Session = {
   reason: string | null
   stopped: boolean
   denied: boolean
-  cwd: string
   steerUnread: boolean
   steerFolding: boolean
   next?: { text: string; images?: AgentImage[] }
@@ -639,7 +638,6 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           }
           const session: Session = {
             input,
-            cwd: input.cwd ?? project.path,
             steerUnread: false,
             steerFolding: false,
             bot,
