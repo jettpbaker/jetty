@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-function MediaAction(props: ComponentProps<typeof Button> & { label: string }) {
+export function MediaAction(props: ComponentProps<typeof Button> & { label: string }) {
   const { label, ...rest } = props
   return (
     <Button

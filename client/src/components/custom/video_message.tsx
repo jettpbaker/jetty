@@ -8,14 +8,13 @@ import {
   VolumeFullIcon,
   VolumeOffIcon,
 } from '@/components/custom/central_icons'
-import { MediaActions } from '@/components/custom/media_actions'
+import { MediaAction, MediaActions } from '@/components/custom/media_actions'
 import {
   fittedStyle,
   INLINE_IMAGE_MAX_HEIGHT,
   mediaUrl,
   useVideoSize,
 } from '@/components/custom/media_layout'
-import { Button } from '@/components/ui/button'
 import { Message, MessageContent } from '@/components/ui/message'
 import { cn } from '@/lib/utils'
 import { Slider as SliderPrimitive } from '@base-ui/react/slider'
@@ -155,26 +154,17 @@ export function VideoPlayer({
         // The same frosted glass as MediaActions, floating inside the frame; before the first play it
         // shows with the timeline at the start.
         <div className='dark absolute inset-x-2 bottom-2 flex items-center gap-0.5 rounded-sm bg-black/35 p-0.5 text-foreground opacity-0 backdrop-blur-md backdrop-saturate-150 transition-opacity group-has-focus-visible/video:opacity-100 group-data-[controls=shown]/video:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100'>
-          <Button
-            variant='ghost'
-            size='icon-sm'
-            className='rounded-menu-item text-foreground hover:bg-white/10 not-disabled:hover:bg-white/10'
-            aria-label={paused ? 'Play' : 'Pause'}
-            onClick={toggle}
-          >
+          <MediaAction label={paused ? 'Play' : 'Pause'} onClick={toggle}>
             {paused ? <PlayIcon filled /> : <PauseIcon filled />}
-          </Button>
+          </MediaAction>
           <Scrubber media={media} duration={duration} />
           <Volume media={media} muted={muted} />
-          <Button
-            variant='ghost'
-            size='icon-sm'
-            className='rounded-menu-item text-foreground hover:bg-white/10 not-disabled:hover:bg-white/10'
-            aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
+          <MediaAction
+            label={fullscreen ? 'Exit full screen' : 'Full screen'}
             onClick={toggleFullscreen}
           >
             {fullscreen ? <Minimize45Icon /> : <Expand45Icon />}
-          </Button>
+          </MediaAction>
         </div>
       }
       {actions && <MediaActions src={src ?? mediaUrl(video)} name={video.name} video />}
@@ -241,11 +231,8 @@ function Volume({ media, muted }: { media: RefObject<HTMLVideoElement | null>; m
   const silent = muted || volume === 0
   return (
     <div className='group/volume flex items-center'>
-      <Button
-        variant='ghost'
-        size='icon-sm'
-        className='rounded-menu-item text-foreground hover:bg-white/10 not-disabled:hover:bg-white/10'
-        aria-label={silent ? 'Unmute' : 'Mute'}
+      <MediaAction
+        label={silent ? 'Unmute' : 'Mute'}
         onClick={() => {
           const element = media.current
           if (!element) return
@@ -257,7 +244,7 @@ function Volume({ media, muted }: { media: RefObject<HTMLVideoElement | null>; m
         }}
       >
         {silent ? <VolumeOffIcon /> : <VolumeFullIcon />}
-      </Button>
+      </MediaAction>
       <div className='w-0 overflow-hidden transition-[width] duration-150 group-has-[:focus-visible]/volume:w-18 group-hover/volume:w-18 motion-reduce:transition-none'>
         <MediaSlider
           label='Volume'
