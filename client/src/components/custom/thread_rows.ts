@@ -3,7 +3,7 @@ import type { ThreadSummary, ThreadHistory } from '@jetty/shared/history'
 import type { TurnOutcome } from '@jetty/shared/reducer'
 
 import { SESSION_GAP } from '@/lib/time'
-import { createItemSelection, itemDeltasSince } from '@/state/item_selection'
+import { createItemSelection } from '@/state/item_selection'
 import { pendingTurnId } from '@/state/turns'
 import { exchangeEntry, type ExchangeEntry } from '@jetty/shared/bots'
 import {
@@ -14,7 +14,7 @@ import {
   type ThreadItem,
 } from '@jetty/shared/items'
 import { claudeModelLabel } from '@jetty/shared/model-name'
-import { foldTodos, todoTools } from '@jetty/shared/todos'
+import { foldTodos } from '@jetty/shared/todos'
 
 import type { ActivityStatus, ToolKind, ToolWords, WorkActivity } from './work_model'
 
@@ -540,46 +540,6 @@ function botTurns(items: readonly ThreadItem[], { others }: BotRows) {
   return turns
 }
 
-type LastTurn = { start: number; row: number }
-
-// Where the last turn starts in the items and the rows, when its rows can be built on their own:
-// it opens with a message of the user's (in a bot's chat, or a wake), which closes the answer and
-// every exchange line before it, and nothing reaches into it from earlier turns (subagents and
-// their finish lines, the task list).
-function lastTurn(
-  items: readonly ThreadItem[],
-  rows: readonly ThreadRow[],
-  agentId: string | undefined
-): LastTurn | undefined {
-  const turnId = items.at(-1)?.turnId
-  if (agentId || turnId === undefined) return undefined
-  let start = -1
-  for (const [index, item] of items.entries()) {
-    if (item.agentId || item.kind === 'subagent') return undefined
-    if (start === -1 && item.turnId === turnId) start = index
-    else if (
-      start !== -1 &&
-      (item.turnId !== turnId || (item.kind === 'tool_call' && todoTools.has(item.toolName)))
-    )
-      return undefined
-  }
-  const first = items[start]!
-  if (first.kind !== 'user_message') return undefined
-  const row = rows.findLastIndex(
-    (row) =>
-      (row.kind === 'user' || row.kind === 'wake' || row.kind === 'workerMessage') &&
-      row.id === first.id
-  )
-  return row === -1 ? undefined : { start, row }
-}
-
-function sameOptions(a: ThreadRowsOptions, b: ThreadRowsOptions) {
-  const keys = Object.keys(a) as (keyof ThreadRowsOptions)[]
-  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key])
-}
-
-// A thread's rows as it changes. A delta into the last turn builds only that turn's rows again,
-// after the earlier ones as they were; anything else builds them all.
 function handback(item: ThreadItem) {
   return item.kind === 'tool_call' && item.toolName === 'SubagentHandback'
 }
@@ -591,45 +551,20 @@ function handbackMessage(item: ThreadItem | undefined) {
     : undefined
 }
 
+// A thread's rows as it changes. Streamed deltas reach their rows through `streamRow`, so a build
+// is always of the whole thread.
 export function createThreadRows() {
-  let last:
-    | {
-        items: readonly ThreadItem[]
-        options: ThreadRowsOptions
-        rows: ThreadRow[]
-        turn?: LastTurn
-      }
-    | undefined
+  let last: { items: readonly ThreadItem[]; rows: ThreadRow[] } | undefined
   return function build(items: readonly ThreadItem[], options: ThreadRowsOptions) {
-    const turn = last?.turn
-    let incremental: ThreadRow[] | undefined
-    if (last && turn && sameOptions(last.options, options)) {
-      const changed = itemDeltasSince(last.items, items)
-      const tail = items.slice(turn.start)
-      if (changed?.size && [...changed].every((id) => tail.some((item) => item.id === id)))
-        incremental = [...last.rows.slice(0, turn.row), ...threadRows(tail, options)]
-    }
-    let rows = incremental ?? threadRows(items, options)
-    if (last && !incremental && last.items[0]?.id !== items[0]?.id) {
+    let rows = threadRows(items, options)
+    if (last && last.items[0]?.id !== items[0]?.id) {
       const previous = new Map(last.rows.map((row) => [row.id, row]))
       rows = rows.map((row) => {
         const old = previous.get(row.id)
         return old && same(old, row) ? old : row
       })
     }
-    if (incremental && import.meta.env.DEV) {
-      const full = threadRows(items, options)
-      if (!same(incremental, full)) {
-        console.warn('The last turn built alone differs from a full build', { incremental, full })
-        rows = full
-      }
-    }
-    last = {
-      items,
-      options,
-      rows,
-      turn: rows === incremental ? turn : lastTurn(items, rows, options.agentId),
-    }
+    last = { items, rows }
     return rows
   }
 }
