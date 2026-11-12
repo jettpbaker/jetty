@@ -3,7 +3,7 @@ import { loadProviderEnabled } from '@/lib/provider-enabled'
 import { lastGood } from '@/lib/provider-usage'
 import { storage } from '@/platform'
 import { useAtomValue } from '@effect/atom-react'
-import { ProviderUsage } from '@jetty/shared/wire'
+import { ProviderId, ProviderUsage } from '@jetty/shared/wire'
 import { Effect, Schema } from 'effect'
 import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback } from 'react'
@@ -14,13 +14,7 @@ export type UsageProvider = ProviderUsage['provider']
 const UsageRead = Schema.Struct({ usage: ProviderUsage, at: Schema.Finite })
 type UsageRead = Schema.Schema.Type<typeof UsageRead>
 type UsageReads = Partial<Record<UsageProvider, UsageRead>>
-export const allUsageProviders: readonly UsageProvider[] = [
-  'claude',
-  'codex',
-  'grok',
-  'copilot',
-  'opencode',
-]
+export const allUsageProviders: readonly UsageProvider[] = ProviderId.literals
 
 // The providers Usage shows: those not switched off in Settings.
 export function usageProviders() {

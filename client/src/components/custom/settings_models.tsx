@@ -31,6 +31,7 @@ import { useLoadouts } from '@/state'
 import { useChrome } from '@/state/chrome'
 import { useModelAvailability, useProviderEnabled } from '@/state/loadouts'
 import { useModelRefresh } from '@/state/models'
+import { allUsageProviders } from '@/state/provider-usage'
 import { PointerActivationConstraints, PointerSensor, KeyboardSensor } from '@dnd-kit/dom'
 import { DragDropProvider } from '@dnd-kit/react'
 import { isSortable, useSortable } from '@dnd-kit/react/sortable'
@@ -47,14 +48,9 @@ import { moveOnKeys, subTriggerClass } from './composer_loadout'
 import { ModelLabel } from './model_label'
 import { ProviderGlyph } from './provider_glyph'
 import { SettingsPage, SettingsSection, cardClass, selectTriggerClass } from './settings_layout'
+import { providerNames } from './usage_limits'
 
-const providers = [
-  { id: 'claude', name: 'Claude' },
-  { id: 'codex', name: 'Codex' },
-  { id: 'grok', name: 'Grok' },
-  { id: 'copilot', name: 'GitHub Copilot' },
-  { id: 'opencode', name: 'OpenCode' },
-] as const
+const providers = allUsageProviders.map((id) => ({ id, name: providerNames[id] }))
 
 const sensors = [
   PointerSensor.configure({
