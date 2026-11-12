@@ -770,7 +770,8 @@ export function createWorktrees(
   async function reconcile() {
     await recoverTrash()
     for (const { threadId, record } of await run(store.listWorktrees())) {
-      // An unarchived thread's removed worktree that was never recreated: a restart cut its Resume.
+      // An unarchived thread whose worktree was removed: a restart landed between removing the
+      // folder and saving the archived flag.
       const stranded =
         record.state === 'pending' &&
         record.checkoutPath &&
