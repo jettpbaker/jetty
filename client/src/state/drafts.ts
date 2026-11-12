@@ -1,7 +1,7 @@
 import type { ComposerAttachment, ReadyAttachment } from '@/hooks/use-attachments'
 import type { Loadout } from '@/lib/loadout'
 
-import { session, storage } from '@/platform'
+import { session } from '@/platform'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { EffortLevel } from '@jetty/shared/events'
 import { hasMessage } from '@jetty/shared/history'
@@ -123,13 +123,6 @@ const isLostAttachment = Schema.is(LostAttachment)
 const textsKey = 'jetty.drafts'
 const attachmentsKey = 'jetty.draft-attachments'
 const attachmentBudget = 2_000_000
-
-// Drafts used to be shared by every tab.
-storage.remove(textsKey)
-storage.remove('jetty.draft-images')
-// The tab's images before files joined them.
-session.remove('jetty.draft-images')
-session.remove('jetty.draft-owner')
 
 const emptyDraft: Draft = { text: '', attachments: [] }
 
