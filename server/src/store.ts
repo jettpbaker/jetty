@@ -2680,34 +2680,22 @@ export function createStore() {
             else if ('itemId' in event) ids.add(event.itemId)
             if (event.type === 'turn.completed' || event.type === 'turn.failed') settledAt.add(ts)
           }
+          const changed = (state: ThreadState) => ({
+            items: state.items.filter(
+              (item) =>
+                ids.has(item.id) || ('completedAt' in item && settledAt.has(item.completedAt ?? -1))
+            ),
+            lastSeq: state.lastSeq,
+          })
           const cached = loaded.get(threadId)
-          if (cached) {
-            return {
-              items: cached.state.items.filter(
-                (item) =>
-                  ids.has(item.id) ||
-                  ('completedAt' in item && settledAt.has(item.completedAt ?? -1))
-              ),
-              lastSeq: cached.state.lastSeq,
-            }
-          }
+          if (cached) return changed(cached.state)
           const [snapshot] = yield* sql<{
             thread_id: string
             state_json: string
             items_stored: number
           }>`
             SELECT thread_id, state_json, items_stored FROM thread_states WHERE thread_id = ${threadId}`
-          if (!snapshot?.items_stored) {
-            const state = yield* getThreadState(threadId)
-            return {
-              items: state.items.filter(
-                (item) =>
-                  ids.has(item.id) ||
-                  ('completedAt' in item && settledAt.has(item.completedAt ?? -1))
-              ),
-              lastSeq: state.lastSeq,
-            }
-          }
+          if (!snapshot?.items_stored) return changed(yield* getThreadState(threadId))
           const metadata = yield* Schema.decodeUnknownEffect(MetadataJson)(snapshot.state_json)
           const rows = yield* sql<{ item_json: string }>`SELECT item_json FROM thread_items
             WHERE thread_id = ${threadId} AND (item_id IN ${sql.in([...ids])}
