@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useChrome } from '@/state/chrome'
+import { useJettyUpdate, useWorkingThreadCount } from '@/state/chrome'
 import { run, useAction } from '@/state/connection'
 import { Effect } from 'effect'
 import { useState } from 'react'
-
-import { threadStatus } from './thread_status'
 
 const STEP_LABELS = {
   backup: 'Backing up…',
@@ -32,8 +30,8 @@ function requestUpdate(registry: AtomRegistry.AtomRegistry, failed: (reason: str
 }
 
 export function SidebarUpdate() {
-  const chrome = useChrome()
-  const remote = chrome?.jettyUpdate
+  const remote = useJettyUpdate()
+  const working = useWorkingThreadCount()
   const [pending, setPending] = useState<typeof remote>()
   const [before, setBefore] = useState<typeof remote>()
   const update = useAction(requestUpdate)
@@ -41,11 +39,6 @@ export function SidebarUpdate() {
   if (!state) return null
   const failed = state.status === 'failed'
   const busy = state.status === 'updating' || state.status === 'restarting'
-  const working =
-    chrome?.threads.filter(
-      (thread) =>
-        !thread.archived && threadStatus(thread.status, thread.readyForReview) === 'working'
-    ).length ?? 0
   const button = (
     <Button
       variant='ghost'
