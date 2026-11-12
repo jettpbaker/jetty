@@ -94,7 +94,7 @@ const liveAtom = Atom.family((threadId: string) =>
       return Stream.unwrap(
         Effect.promise(() => hydration).pipe(
           Effect.andThen(awaitCreation(threadId)),
-          Effect.map(() => connection.subscribeThread(threadId, get.once(resume)?.lastSeq))
+          Effect.map(() => connection.subscribeThread(threadId, () => get.once(resume)?.lastSeq))
         )
       )
     }).pipe(

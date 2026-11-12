@@ -153,18 +153,12 @@ export function createConnection(
       return online(rpc('chrome.subscribe', {})).pipe(Stream.retry(reconnect))
     }
 
-    function subscribeThread(threadId: string, afterSeq?: number) {
-      let seq = afterSeq
+    // `afterSeq` is asked each time the subscription opens, so a retry picks up where the thread
+    // got to.
+    function subscribeThread(threadId: string, afterSeq: () => number | undefined) {
       return online(
-        Stream.suspend(() => rpc('thread.subscribe', { threadId, afterSeq: seq }))
-      ).pipe(
-        Stream.tap((update) =>
-          Effect.sync(() => {
-            seq = update.seq
-          })
-        ),
-        Stream.retry(reconnect)
-      )
+        Stream.suspend(() => rpc('thread.subscribe', { threadId, afterSeq: afterSeq() }))
+      ).pipe(Stream.retry(reconnect))
     }
 
     // Says this window shows the bot's chat, for as long as the stream stays open.
