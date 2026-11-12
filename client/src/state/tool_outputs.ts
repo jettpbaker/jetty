@@ -1,7 +1,7 @@
 import { useAtomValue } from '@effect/atom-react'
 import { Atom } from 'effect/reactivity'
 
-export type CachedToolOutput = { output: string; seq: number }
+type CachedToolOutput = { output: string; seq: number }
 
 const noOutputs: readonly (string | undefined)[] = []
 

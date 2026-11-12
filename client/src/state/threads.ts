@@ -223,7 +223,7 @@ function recordFlight(threadId: string) {
   }
 }
 
-export function fetchHistory(
+function fetchHistory(
   registry: AtomRegistry.AtomRegistry,
   threadId: string,
   params: { before?: string; target?: string; oldest?: boolean; agentId?: string } = {}

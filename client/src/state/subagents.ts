@@ -77,7 +77,7 @@ export function useSubagents(threadId: string | undefined) {
 }
 
 // A link names a subagent by its item id, the id the agent knows it by, or failing both its title.
-export function findSubagent(agents: readonly SubagentSummary[], key: string) {
+function findSubagent(agents: readonly SubagentSummary[], key: string) {
   const title = key.toLowerCase()
   return (
     agents.find((agent) => agent.id === key || agent.taskId === key) ??
