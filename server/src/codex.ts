@@ -20,16 +20,7 @@ import {
 } from './agent'
 import { approvalChanges, type ApprovalChange } from './approval-changes'
 import { prepareBot } from './bot-preparation'
-import {
-  DEFAULT_CODEX_ARGS,
-  object,
-  openCodexConnection,
-  string,
-  type CodexConnection,
-  type CodexProcessOptions,
-  type RpcId,
-  type RpcMessage,
-} from './codex-rpc'
+import { DEFAULT_CODEX_ARGS, openCodexConnection } from './codex-rpc'
 import { createCodexTranslator } from './codex-translate'
 import { gitWritableRoots } from './git-process'
 import {
@@ -40,8 +31,16 @@ import {
 } from './jetty-instructions'
 import { BOT_MCP_TIMEOUT_MS, SELF_TOOLS, THREAD_TOOLS } from './jetty-tools'
 import { codexSkills } from './provider-skills'
+import {
+  object,
+  string,
+  type RpcId,
+  type RpcMessage,
+  type StdioConnection,
+  type StdioProcessOptions,
+} from './stdio-rpc'
 
-export type CodexOptions = CodexProcessOptions & {
+export type CodexOptions = StdioProcessOptions & {
   interruptGraceMs?: number
   mcp?: McpSessions
   attachments?: Attachments
@@ -59,7 +58,7 @@ type Session = {
   input: TurnInput
   emit: Emit
   translator: ReturnType<typeof createCodexTranslator>
-  connection?: CodexConnection
+  connection?: StdioConnection
   providerThreadId?: string
   providerTurnId?: string
   cwd: string
@@ -79,7 +78,7 @@ type Session = {
 }
 
 function codexSkillInput(
-  connection: CodexConnection,
+  connection: StdioConnection,
   cwd: string,
   text: string,
   images?: AgentImage[],

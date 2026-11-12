@@ -2,9 +2,7 @@ import { Effect } from 'effect'
 
 import { providerCli } from './provider-cli'
 import { openStdioConnection, type StdioProcessOptions } from './stdio-rpc'
-export { object, string, type RpcId, type RpcMessage } from './stdio-rpc'
-export type CodexProcessOptions = StdioProcessOptions
-export type CodexConnection = Effect.Success<ReturnType<typeof openCodexConnection>>
+
 export const DEFAULT_CODEX_ARGS = [
   'app-server',
   '--listen',
@@ -13,13 +11,13 @@ export const DEFAULT_CODEX_ARGS = [
   'tools.update_plan.enabled=true',
 ]
 
-export function codexBin(options: CodexProcessOptions = {}) {
+export function codexBin(options: StdioProcessOptions = {}) {
   return (
     options.command ?? process.env.JETTY_CODEX_BIN ?? providerCli('codex', 'JETTY_CODEX_LIVE_TEST')
   )
 }
 
-export function openCodexConnection(cwd: string, options: CodexProcessOptions = {}) {
+export function openCodexConnection(cwd: string, options: StdioProcessOptions = {}) {
   return Effect.gen(function* () {
     const connection = yield* openStdioConnection(cwd, {
       ...options,
