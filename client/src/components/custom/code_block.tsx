@@ -27,7 +27,7 @@ type HastText = { value?: string; children?: HastText[] }
 type CodeProps = {
   className?: string
   children?: ReactNode
-  node?: { tagName: string; properties?: { metastring?: unknown }; children?: HastText[] }
+  node?: { tagName: string; children?: HastText[] }
   metastring?: string
   'data-block'?: string
 }
@@ -137,13 +137,11 @@ type Fade = { className?: string; style?: CSSProperties }
 function WorkerCodeBlock({
   className,
   code,
-  meta: _meta,
   fade,
   ...rest
 }: {
   className?: string
   code: string
-  meta: string
   metastring?: string
   fade?: Fade
 }) {
@@ -219,10 +217,6 @@ function WorkerCodeBlock({
   )
 }
 
-export function CodeBlock({ code, lang }: { code: string; lang: string }) {
-  return <WorkerCodeBlock code={code} className={`language-${lang}`} meta='' />
-}
-
 export function CodePre({
   children,
   className: fadeClass,
@@ -231,13 +225,11 @@ export function CodePre({
   if (!isValidElement<CodeProps>(children)) return children
   const { className, children: code, node, ...rest } = children.props
   if (node?.tagName !== 'code') return cloneElement(children, { 'data-block': 'true' })
-  const meta = node.properties?.metastring
   return (
     <WorkerCodeBlock
       {...rest}
       className={className}
       code={typeof code === 'string' ? code : hastText(node)}
-      meta={typeof meta === 'string' ? meta : ''}
       fade={{ className: fadeClass, style: fadeInline }}
     />
   )
