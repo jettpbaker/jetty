@@ -6,7 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { loadAccent } from '@/lib/accent'
 import { pressProps } from '@/lib/press'
 import { applyTheme } from '@/lib/theme'
-import { chromeSnapshotAtom } from '@/state/chrome'
+import { chromeSnapshotAtom, emptyChrome } from '@/state/chrome'
 import { StateProvider } from '@/state/provider'
 import { foldUpdate, noteCompleted } from '@/state/threads'
 import { ThreadEvent } from '@jetty/shared/events'
@@ -322,7 +322,7 @@ function App({
     setRun((current) => ({ id: current.id + 1, startMs: atMs, autoPlay: true }))
   }
   return (
-    <StateProvider initialValues={[[chromeSnapshotAtom, { projects: [], threads: [], bots: [] }]]}>
+    <StateProvider initialValues={[[chromeSnapshotAtom, emptyChrome]]}>
       <TooltipProvider>
         <main className='flex h-dvh flex-col'>
           {!capture && (

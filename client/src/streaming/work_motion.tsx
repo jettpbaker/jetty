@@ -15,7 +15,7 @@ import { loadAccent } from '@/lib/accent'
 import { pressProps } from '@/lib/press'
 import { applyTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
-import { chromeSnapshotAtom } from '@/state/chrome'
+import { chromeSnapshotAtom, emptyChrome } from '@/state/chrome'
 import { StateProvider } from '@/state/provider'
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -378,7 +378,7 @@ function App() {
     }
   }, [])
   return (
-    <StateProvider initialValues={[[chromeSnapshotAtom, { projects: [], threads: [], bots: [] }]]}>
+    <StateProvider initialValues={[[chromeSnapshotAtom, emptyChrome]]}>
       <TooltipProvider>
         <main className='mx-auto min-h-dvh max-w-6xl px-6 py-12 md:px-10'>
           <header className='mb-16 flex items-center justify-between gap-4'>

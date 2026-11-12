@@ -66,7 +66,7 @@ export type Chrome = {
   botThreads: readonly ThreadMeta[]
 }
 
-const emptyChrome: Chrome = { projects: [], threads: [], bots: [], botThreads: [] }
+export const emptyChrome: Chrome = { projects: [], threads: [], bots: [], botThreads: [] }
 
 function upsert<T extends { id: string }>(list: readonly T[], item: T) {
   return list.some((entry) => entry.id === item.id)

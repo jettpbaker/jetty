@@ -7,7 +7,7 @@ import { loadAccent } from '@/lib/accent'
 import { getMotionTokens } from '@/lib/motion'
 import { pressProps } from '@/lib/press'
 import { applyTheme } from '@/lib/theme'
-import { chromeSnapshotAtom } from '@/state/chrome'
+import { chromeSnapshotAtom, emptyChrome } from '@/state/chrome'
 import { StateProvider } from '@/state/provider'
 import { animate, useReducedMotion } from 'motion/react'
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
@@ -229,7 +229,7 @@ function Example({ option, run }: { option: (typeof options)[number]; run: numbe
 function App() {
   const [run, setRun] = useState(0)
   return (
-    <StateProvider initialValues={[[chromeSnapshotAtom, { projects: [], threads: [], bots: [] }]]}>
+    <StateProvider initialValues={[[chromeSnapshotAtom, emptyChrome]]}>
       <TooltipProvider>
         <main className='mx-auto max-w-6xl px-6 py-10 md:px-10'>
           <header className='mb-10 flex items-center justify-between gap-6'>
