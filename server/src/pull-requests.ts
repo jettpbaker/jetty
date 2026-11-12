@@ -698,6 +698,19 @@ function cacheWrite<T>(cache: Map<string, T>, key: string, value: T, limit = 64)
   if (cache.size > limit) cache.delete(cache.keys().next().value!)
 }
 
+// One load per key, shared while it runs and once it succeeds. A failed load is forgotten, so the
+// next ask tries again.
+function cachedLoad<T>(cache: Map<string, Promise<T>>, key: string, load: () => Promise<T>) {
+  const existing = cacheRead(cache, key)
+  if (existing) return existing
+  const pending = load()
+  cacheWrite(cache, key, pending)
+  pending.catch(() => {
+    if (cache.get(key) === pending) cache.delete(key)
+  })
+  return pending
+}
+
 const diffContentsCache = new Map<string, Promise<DiffContents>>()
 const mergeBaseCache = new Map<string, Promise<string>>()
 
@@ -732,33 +745,18 @@ async function fetchDiffContents(repo: string, sha: string, path: string): Promi
 }
 
 function cachedDiffContents(repo: string, sha: string, path: string) {
-  const key = `${repo}\0${sha}\0${path}`
-  const existing = cacheRead(diffContentsCache, key)
-  if (existing) return existing
-  const pending = fetchDiffContents(repo, sha, path)
-  cacheWrite(diffContentsCache, key, pending)
-  pending.catch(() => {
-    if (diffContentsCache.get(key) === pending) diffContentsCache.delete(key)
-  })
-  return pending
+  return cachedLoad(diffContentsCache, `${repo}\0${sha}\0${path}`, () =>
+    fetchDiffContents(repo, sha, path)
+  )
 }
 
 function cachedMergeBase(repo: string, baseSha: string, headSha: string) {
-  const key = `${repo}\0${baseSha}\0${headSha}`
-  const existing = cacheRead(mergeBaseCache, key)
-  if (existing) return existing
-  const pending = restGet(`repos/${repo}/compare/${baseSha}...${headSha}?per_page=1`).then(
-    (response) => {
-      const sha = string(record(record(response).merge_base_commit).sha)
-      if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('GitHub merge base unavailable')
-      return sha
-    }
-  )
-  cacheWrite(mergeBaseCache, key, pending)
-  pending.catch(() => {
-    if (mergeBaseCache.get(key) === pending) mergeBaseCache.delete(key)
+  return cachedLoad(mergeBaseCache, `${repo}\0${baseSha}\0${headSha}`, async () => {
+    const response = await restGet(`repos/${repo}/compare/${baseSha}...${headSha}?per_page=1`)
+    const sha = string(record(record(response).merge_base_commit).sha)
+    if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('GitHub merge base unavailable')
+    return sha
   })
-  return pending
 }
 
 export async function pullRequestDiffFile(params: {
@@ -1463,10 +1461,7 @@ const commitFilesCache = new Map<
 export function pullRequestCommitFiles(repo: string, sha: string) {
   if (!validRepo(repo) || !/^[a-f0-9]{40,64}$/i.test(sha))
     throw new StoreError('invalid_params', 'Invalid commit')
-  const key = `${repo.toLowerCase()}\0${sha.toLowerCase()}`
-  const cached = cacheRead(commitFilesCache, key)
-  if (cached) return cached
-  async function load() {
+  return cachedLoad(commitFilesCache, `${repo.toLowerCase()}\0${sha.toLowerCase()}`, async () => {
     const files: PullRequestData['files'][number][] = []
     let parentSha: string | null = null
     for (let page = 1; page <= 30; page++) {
@@ -1482,13 +1477,7 @@ export function pullRequestCommitFiles(repo: string, sha: string) {
     }
     const classified = await classifyFiles(repo, sha, parentSha, files)
     return { files: classified.files.map(markGenerated), parentSha }
-  }
-  const promise = load()
-  cacheWrite(commitFilesCache, key, promise)
-  void promise.catch(() => {
-    if (commitFilesCache.get(key) === promise) commitFilesCache.delete(key)
   })
-  return promise
 }
 
 function inlinePatches(files: PullRequestData['files']) {
