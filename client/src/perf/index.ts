@@ -373,6 +373,11 @@ export const perf = {
     const stream = open.get(`turn.stream:${threadId}`)
     if (stream) awaitingCommit.push(stream)
   },
+  chatBlank(a: Record<string, number | string | boolean>) {
+    if (!enabled) return
+    const lead = JSON.stringify(recent(60).filter((record) => record.k !== 'snapshot'))
+    push({ v: 1, t: epoch(), sid, k: 'snapshot', n: 'chat.blank', a: { ...a, recent: lead } })
+  },
   watchSocket(socket: WebSocket) {
     if (!enabled) return socket
     let openedAt: number | undefined

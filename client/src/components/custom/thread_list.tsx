@@ -19,6 +19,7 @@ import { Markdown } from '@/components/custom/markdown'
 import { MediaLightboxProvider } from '@/components/custom/media_lightbox'
 import { AgentMessageFooter } from '@/components/custom/message_footer'
 import { ScrollToBottom } from '@/components/custom/scroll_to_bottom'
+import { createScrollTrail, useBlankCheck } from '@/components/custom/thread_list_blank'
 import { useLayoutCheck } from '@/components/custom/thread_list_check'
 import {
   clearTextMeasure,
@@ -52,6 +53,7 @@ import { useStreamingRows } from '@/state/streaming_rows'
 import { useHistory } from '@/state/threads'
 import { pendingTurnId } from '@/state/turns'
 import {
+  elementScroll,
   measureElement,
   useVirtualizer,
   type Virtualizer,
@@ -512,6 +514,8 @@ export function ThreadList({
     })
   const sentAnchor = useRef(send.anchor)
   const scroller = useRef<HTMLDivElement>(null)
+  const [trail] = useState(() => createScrollTrail(() => scroller.current))
+  const [mountedAt] = useState(() => performance.now())
   const pinned = useRef(pending || !saved || saved.index === -1)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [width, setWidth] = useState(saved?.width ?? 660)
@@ -588,6 +592,10 @@ export function ThreadList({
     paddingEnd: chatInset,
     getItemKey,
     initialMeasurementsCache: saved?.sizes,
+    scrollToFn: (offset, options, instance) => {
+      trail.note(`virtual ${Math.round(offset + (options.adjustments ?? 0))}`)
+      elementScroll(offset, options, instance)
+    },
     // The virtualizer keeps only measurements that differ from the estimate, so a row whose
     // estimate was exact would take its next estimate while its content is still animating in.
     measureElement: (element, entry, instance) => {
@@ -628,6 +636,7 @@ export function ThreadList({
     previousFirst.current = rows[0]?.id
     previousCount.current = rows.length
     if (prependTop !== undefined && scroller.current) {
+      trail.note('prepend')
       scroller.current.scrollTop = prependTop
       shownTop.current = scroller.current.scrollTop
     }
@@ -741,6 +750,7 @@ export function ThreadList({
   )
   const pin = useCallback(
     (value: boolean) => {
+      if (pinned.current !== value) trail.note(value ? 'pin' : 'unpin')
       pinned.current = value
       if (value) {
         sendInterrupted.current = false
@@ -750,7 +760,7 @@ export function ThreadList({
         stopSendGlide()
       }
     },
-    [stopSendGlide]
+    [stopSendGlide, trail]
   )
   useLayoutEffect(() => {
     scrollExtent.current = scrollSize
@@ -834,6 +844,7 @@ export function ThreadList({
           sendTarget.current,
           Math.max(element.scrollTop, sentStart + message.size + sentInset - element.clientHeight)
         )
+        trail.note('send')
         element.scrollTop = start
         shownTop.current = element.scrollTop
         landed.current = { key, at: performance.now() }
@@ -868,12 +879,14 @@ export function ThreadList({
         anchor.start !== last.start
       )
         glide.write(shownTop.current + last.start - anchor.start)
+      if (!following.current) trail.note('glide')
       glide.start()
       return
     }
     if (landed.current.key !== key) landed.current = { key, at: performance.now() }
     glider.current?.stop()
     releaseScrollSpace()
+    trail.note('land')
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
   }, [
     virtualizer,
@@ -888,6 +901,7 @@ export function ThreadList({
     sentIndex,
     stopSendGlide,
     releaseScrollSpace,
+    trail,
   ])
   useEffect(
     () => () => {
@@ -917,6 +931,7 @@ export function ThreadList({
     if (!element) return
     pin(true)
     stopSendGlide()
+    trail.note('to bottom')
     if (reducedMotion.matches) {
       virtualizer.scrollToIndex(latestRows.current.length - 1, { align: 'end' })
       return
@@ -924,7 +939,7 @@ export function ThreadList({
     const start = element.scrollHeight - element.clientHeight * 2
     if (element.scrollTop < start) element.scrollTop = start
     gliderFor(element).start()
-  }, [pin, virtualizer, gliderFor, stopSendGlide])
+  }, [pin, virtualizer, gliderFor, stopSendGlide, trail])
 
   const [seekFirst, setSeekFirst] = useState(false)
   useLayoutEffect(() => {
@@ -967,12 +982,35 @@ export function ThreadList({
   // A subagent's transcript arrives whole; the thread's turns are the main agent's.
   const turns = summary && !agentId ? summary.turns : localTurns
   const latestWidth = useRef(width)
+  const blankState = useRef<() => Record<string, number | string | boolean>>(() => ({}))
   useLayoutEffect(() => {
     latestRows.current = streamingRows.rows
     latestMessageIndices.current = messageIndices
     latestWidth.current = width
+    blankState.current = () => ({
+      view,
+      mountedMs: Math.round(performance.now() - mountedAt),
+      rows: rows.length,
+      rough: rough.size,
+      width,
+      viewportHeight,
+      pinned: pinned.current,
+      reserved: reserved.current,
+      scrollSize,
+      scrollSpace,
+      scrollExtent: scrollExtent.current,
+      sendTarget: sendTarget.current,
+      sentIndex,
+      pinStart: pinStart ?? -1,
+      following: following.current,
+      sendGlide: sendGlide.current !== undefined,
+      sendPending: sendPending.current,
+      landedHere: landed.current.key === `${view}:${width}`,
+      landedMs: Math.round(performance.now() - landed.current.at),
+    })
   })
   useLayoutCheck(scroller, virtualizer, latestRows, pinned)
+  useBlankCheck(scroller, virtualizer, trail, blankState)
 
   useLayoutEffect(() => {
     const element = scroller.current
@@ -987,6 +1025,7 @@ export function ThreadList({
             virtualizer.itemSizeCache.delete(key)
       setWidth(text)
       setGutter((element.offsetWidth - text) / 2)
+      if (element.clientHeight !== height) trail.note(`resize ${height}>${element.clientHeight}`)
       if (reserved.current && element.clientHeight > height) {
         // Grow the sent message's space before a disappearing composer row clamps the chat.
         const space = element.firstElementChild as HTMLElement
@@ -1006,7 +1045,7 @@ export function ThreadList({
     observer.observe(element)
     measure()
     return () => observer.disconnect()
-  }, [virtualizer, checkMessages])
+  }, [virtualizer, checkMessages, trail])
 
   // Lays out the rough rows when idle, then swaps in their exact estimates in one commit, keeping
   // the top visible row in place. A list left early keeps refining, so a revisit finds them cached.
@@ -1128,6 +1167,7 @@ export function ThreadList({
             const up = element.scrollTop < shownTop.current - 1
             const hand = byHand.current.held || performance.now() - byHand.current.at < 500
             const behind = scrollExtent.current - element.clientHeight - element.scrollTop
+            trail.note('scroll')
             shownTop.current = element.scrollTop
             // A clamp that keeps the list on its bottom (a taller window) isn't letting go.
             if (up && hand && behind >= 1) pin(false)

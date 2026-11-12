@@ -42,6 +42,9 @@ close code and attempt count, and the server log says `[ws] refused` with the ca
 minute per kind. Failed connects with no refusal in the log never reached Jetty, so look at any
 proxy in front of it.
 
+If a chat opens blank with its messages above, the same files hold a `chat.blank` record: the
+list's state when it was found blank and the scroll moves that led there.
+
 With Codex only, check `codex login status` on the server host and start Jetty normally. In the
 browser, add a project and choose a Codex model in the composer. Settings → Connected accounts
 shows which providers are signed in; Settings → Intelligence chooses models for titles and PR
