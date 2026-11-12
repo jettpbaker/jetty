@@ -93,12 +93,12 @@ export function resolveTitleModel(
 }
 
 // Preserve the Claude defaults for guides and the bots' tidy pass.
-export const CLAUDE_JOB_DEFAULTS = {
+const CLAUDE_JOB_DEFAULTS = {
   guide: { model: { provider: 'claude', id: 'claude-sonnet-5-5' }, effort: 'medium' },
   tidy: { model: { provider: 'claude', id: 'sonnet' }, effort: 'high' },
 } as const satisfies Record<'guide' | 'tidy', JobModel>
 
-export function claudeJobModel(
+function claudeJobModel(
   job: 'guide' | 'tidy',
   choice: JobModel | undefined
 ): JobModel & { model: ModelRef } {
@@ -317,13 +317,13 @@ export const PullRequestSnapshot = Schema.Struct({
 })
 export type PullRequestSnapshot = Schema.Schema.Type<typeof PullRequestSnapshot>
 
-export const PullRequestGuideFile = Schema.Struct({
+const PullRequestGuideFile = Schema.Struct({
   path: Schema.String,
   // 0-based indexes into this file's hunks, in the order @pierre/diffs' parsePatchFiles yields
   // them for the PR's patch (the same parse the Diff tab uses).
   hunks: Schema.Array(Schema.Int),
 })
-export const PullRequestGuideChapter = Schema.Struct({
+const PullRequestGuideChapter = Schema.Struct({
   title: Schema.String,
   why: Schema.String,
   kind: Schema.Literals(['core', 'supporting', 'tests', 'generated']),
@@ -389,7 +389,7 @@ export const PullRequestList = Schema.Struct({
 })
 export type PullRequestList = Schema.Schema.Type<typeof PullRequestList>
 
-export const MessageSource = Schema.Struct({ threadId: Schema.String, title: Schema.String })
+const MessageSource = Schema.Struct({ threadId: Schema.String, title: Schema.String })
 export const QueuedMessage = Schema.Struct({
   id: Schema.String,
   text: Schema.String,
@@ -496,7 +496,7 @@ export const ThreadMeta = Schema.Struct({
 export type ThreadMeta = Schema.Schema.Type<typeof ThreadMeta>
 
 // An id names the bot's home folder, as a thread id names its worktree.
-export const BotId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9_-]{1,128}$/))
+const BotId = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9_-]{1,128}$/))
 
 export const BOT_NAME_MAX = 24
 

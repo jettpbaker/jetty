@@ -15,7 +15,7 @@ export type TodoUpdate = {
   total: number
 }
 
-export type Tracked = Todo & { turnId: string }
+type Tracked = Todo & { turnId: string }
 
 const listTools = new Set(['TodoWrite', 'update_plan'])
 // The calls folded into the task list.

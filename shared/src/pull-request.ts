@@ -12,7 +12,7 @@ export const GitHubUser = Schema.Struct({
 export const ReviewerCandidate = GitHubUser
 export type ReviewerCandidate = Schema.Schema.Type<typeof ReviewerCandidate>
 
-export const ReviewState = Schema.Literals([
+const ReviewState = Schema.Literals([
   'APPROVED',
   'CHANGES_REQUESTED',
   'COMMENTED',
@@ -44,7 +44,7 @@ export const GitHubRateLimitHealth = Schema.Struct({
 export const GitHubActivity = Schema.Literals(['focused', 'blurred', 'hidden'])
 export type GitHubActivity = Schema.Schema.Type<typeof GitHubActivity>
 
-export const GitHubPullRequest = Schema.Struct({
+const GitHubPullRequest = Schema.Struct({
   node_id: Schema.optional(Schema.String),
   merged_by: Schema.optional(Schema.NullOr(GitHubUser)),
   number: Schema.Int,
@@ -75,7 +75,7 @@ export const GitHubPullRequest = Schema.Struct({
   labels: Schema.Array(Schema.Struct({ name: Schema.String })),
 })
 
-export const GitHubReview = Schema.Struct({
+const GitHubReview = Schema.Struct({
   id: Schema.Int,
   user: GitHubUser,
   state: Schema.Literals(['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED', 'PENDING', 'DISMISSED']),
@@ -85,7 +85,7 @@ export const GitHubReview = Schema.Struct({
   html_url: Schema.String,
 })
 
-export const GitHubReviewComment = Schema.Struct({
+const GitHubReviewComment = Schema.Struct({
   diff_hunk: Schema.optional(Schema.String),
   thread_id: Schema.optional(Schema.String),
   outdated: Schema.optional(Schema.Boolean),
@@ -104,7 +104,7 @@ export const GitHubReviewComment = Schema.Struct({
   resolved: Schema.optional(Schema.Boolean),
 })
 
-export const GitHubIssueComment = Schema.Struct({
+const GitHubIssueComment = Schema.Struct({
   id: Schema.Int,
   user: GitHubUser,
   body: Schema.String,
@@ -113,7 +113,7 @@ export const GitHubIssueComment = Schema.Struct({
   html_url: Schema.String,
 })
 
-export const GitHubCheckRun = Schema.Struct({
+const GitHubCheckRun = Schema.Struct({
   kind: Schema.optional(Schema.Literals(['run', 'status'])),
   workflow: Schema.optional(Schema.NullOr(Schema.String)),
   event: Schema.optional(Schema.NullOr(Schema.String)),
@@ -191,7 +191,7 @@ export function displayedRollupState(
   return githubState
 }
 
-export const GitHubCommit = Schema.Struct({
+const GitHubCommit = Schema.Struct({
   parents: Schema.optional(Schema.Int),
   sha: Schema.String,
   commit: Schema.Struct({

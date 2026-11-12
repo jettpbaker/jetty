@@ -29,7 +29,7 @@ export function soleProjectId(bot: Pick<Bot, 'projectIds'>) {
 }
 
 // The sketchpad's BotState ids a face shows, plus the error face.
-export type BotFace = 'idle' | 'waiting' | 'done' | 'error'
+type BotFace = 'idle' | 'waiting' | 'done' | 'error'
 
 // A bot's own face moves only for what needs Jett. Working, typing and tidying rest idle: most of
 // its turns are ones Jett never sees.

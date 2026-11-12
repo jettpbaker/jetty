@@ -57,10 +57,6 @@ export function bm25TokenScores(
   })
 }
 
-export function bm25Scores(query: string, docs: string[]): number[] {
-  return bm25TokenScores([...new Set(tokenize(query))], docs.map(tokenize))
-}
-
 export function squashBm25(score: number): number {
   if (score <= 0) return 0
   return score / (score + SQUASH_K)
@@ -132,7 +128,7 @@ function findToken(text: string, token: string) {
 
 const visibleFields = ['title', 'project', 'branch', 'pr'] as const
 
-export type ArchivedMessageHit = {
+type ArchivedMessageHit = {
   id: string
   exact: readonly string[]
   prefix: readonly string[]

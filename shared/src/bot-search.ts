@@ -40,6 +40,3 @@ export type ThreadSearchHit = {
   score: number
   text: string
 }
-
-// The tool result, as JSON text. An empty index gives no results, not an error.
-export type SearchResults<Hit> = { results: readonly Hit[] }

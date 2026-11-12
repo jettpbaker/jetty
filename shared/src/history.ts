@@ -21,13 +21,13 @@ export function historyTurn(item: ThreadItem): HistoryTurn | undefined {
 export const HistoryRange = Schema.Struct({ start: Schema.Natural, end: Schema.Natural })
 export type HistoryRange = Schema.Schema.Type<typeof HistoryRange>
 
-export const TodoState = Schema.Struct({
+const TodoState = Schema.Struct({
   id: Schema.String,
   text: Schema.String,
   status: Schema.Literals(['done', 'active', 'pending']),
   turnId: Schema.String,
 })
-export const TodoUpdate = Schema.Struct({
+const TodoUpdate = Schema.Struct({
   created: Schema.optional(Schema.Natural),
   moves: Schema.Array(
     Schema.Struct({
