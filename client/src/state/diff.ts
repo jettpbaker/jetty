@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { useThreadMeta } from './chrome'
 import { connectionAtom, useAction } from './connection'
 import { beginFileSave, endFileSave, settleFileDraft } from './file_drafts'
-import { threadStructureAtom, threadStatusAtom } from './threads'
+import { threadStructureAtom } from './threads'
 
 const diffAtom = Atom.family((key: string) => {
   const [threadId, scope] = key.split('\0') as [string, DiffScope]
@@ -92,14 +92,15 @@ export function useToolsSettled(threadId: string, onSettled: () => void) {
 }
 
 // Calls back whenever the thread's files may have changed on disk: when its tool calls settle,
-// when its turn starts or ends, and when the window regains focus (at most every 30s).
+// when its turn ends, and when the window regains focus (at most every 30s). A turn's start
+// clears turnEndedAt, which is no change on disk.
 export function useDiskChanges(threadId: string, onChange: () => void) {
   const turnEndedAt = useThreadMeta(threadId)?.turnEndedAt
   const turnEnded = useRef(turnEndedAt)
   useToolsSettled(threadId, onChange)
   useRefreshOnFocus(onChange)
   useEffect(() => {
-    if (turnEnded.current === turnEndedAt) return
+    if (turnEndedAt === undefined || turnEnded.current === turnEndedAt) return
     turnEnded.current = turnEndedAt
     onChange()
   }, [turnEndedAt, onChange])
@@ -131,8 +132,7 @@ export function defaultDiffScope(thread: ThreadMeta | undefined): DiffScope {
 }
 
 // Mount only while the diff is on screen: a cached diff renders at once and is
-// refreshed behind it, and settled tool calls, every finished turn and coming back to the window
-// refresh it again.
+// refreshed behind it, and again whenever the thread's files may have changed on disk.
 export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const meta = useThreadMeta(threadId)
   const key = `${threadId}\0${scope ?? defaultDiffScope(meta)}`
@@ -140,16 +140,8 @@ export function useThreadDiff(threadId: string, scope?: DiffScope) {
   const result = useAtomValue(atom)
   const registry = useContext(RegistryContext)
   const refresh = useCallback(() => refreshDiff(registry, key), [registry, key])
-  const live = liveStatuses.has(useAtomValue(threadStatusAtom(threadId)) ?? 'idle')
-  const wasLive = useRef(live)
-  useToolsSettled(threadId, refresh)
-  useRefreshOnFocus(refresh)
+  useDiskChanges(threadId, refresh)
   useRefreshCached(atom, refresh)
-
-  useEffect(() => {
-    if (wasLive.current && !live) refresh()
-    wasLive.current = live
-  }, [live, refresh])
 
   return {
     diff: AsyncResult.getOrElse(result, () => undefined),
