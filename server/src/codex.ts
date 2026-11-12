@@ -1,7 +1,7 @@
 import type { ThreadEvent } from '@jetty/shared/events'
 
 import { newId } from '@jetty/shared/wire'
-import { Cause, Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
+import { Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 
 import type { Attachments } from './attachments'
@@ -10,6 +10,7 @@ import type { Store } from './store'
 
 import {
   AgentError,
+  causeMessage,
   toAgentError,
   compactFailureReason,
   couldntCompact,
@@ -1001,9 +1002,4 @@ function approvalResponse(pending: Pending, decision: 'allow' | 'always' | 'deny
           ? 'accept'
           : 'decline',
   }
-}
-
-function causeMessage(cause: Cause.Cause<unknown>) {
-  const error = Cause.squash(cause)
-  return error instanceof Error ? error.message : String(error)
 }

@@ -16,7 +16,7 @@ import {
   type ThreadItem,
 } from '@jetty/shared/items'
 import { newId } from '@jetty/shared/wire'
-import { Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
+import { Cause, Deferred, Effect, Fiber, Queue, Semaphore } from 'effect'
 
 import { createEchoBusy } from './echo-busy'
 
@@ -57,6 +57,12 @@ export function sessionTtlMs(ttlMs: number | undefined) {
 
 export function toAgentError(error: { message: string }) {
   return error instanceof AgentError ? error : new AgentError(error.message)
+}
+
+// What went wrong, as the user should read it: the failure's own message, not the Cause around it.
+export function causeMessage(cause: Cause.Cause<unknown>) {
+  const error = Cause.squash(cause)
+  return error instanceof Error ? error.message : String(error)
 }
 
 export function couldntCompact(turnId: string, reason: string): ThreadEvent {

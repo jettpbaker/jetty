@@ -5,3 +5,4 @@ dist/
 .claude/.cc-writes/
 .claude/worktrees/
 perf/out/
+client/dist-previous/

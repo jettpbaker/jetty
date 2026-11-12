@@ -16,6 +16,7 @@ import { acpPrompt, jettyMcpServers } from './acp-session'
 import { acpContextUsage, acpToolName } from './acp-translate'
 import {
   AgentError,
+  causeMessage,
   sessionTtlMs,
   toAgentError,
   couldntCompact,
@@ -690,9 +691,4 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
       },
     } satisfies Agent
   })
-}
-
-function causeMessage(cause: Cause.Cause<unknown>) {
-  const error = Cause.squash(cause)
-  return error instanceof Error ? error.message : String(error)
 }

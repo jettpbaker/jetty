@@ -11,6 +11,7 @@ import { acpPermissionOutcome } from './acp-permissions'
 import { acpPrompt, jettyMcpServers } from './acp-session'
 import {
   AgentError,
+  causeMessage,
   sessionTtlMs,
   toAgentError,
   compactFailureReason,
@@ -967,9 +968,4 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
       })
     }
   })
-}
-
-function causeMessage(cause: Cause.Cause<unknown>) {
-  const error = Cause.squash(cause)
-  return error instanceof Error ? error.message : String(error)
 }
