@@ -504,8 +504,8 @@ function handback(ctx: TranslateCtx, input: unknown): ThreadEvent[] {
 function toolItem(ctx: TranslateCtx, toolUseId: string, name: string, input: unknown): ThreadItem {
   if (AGENT_TOOLS.has(name) && toolUseId) {
     agentCtx(ctx, toolUseId)
-    const fields = input && typeof input === 'object' ? (input as Record<string, unknown>) : {}
-    const text = (key: string) => (typeof fields[key] === 'string' ? fields[key] : undefined)
+    const fields = record(input)
+    const text = (key: string) => word(fields[key])
     return {
       id: toolUseId,
       ...itemBase(ctx),
