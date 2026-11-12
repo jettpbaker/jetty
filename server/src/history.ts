@@ -2,7 +2,7 @@ import type { HistoryPage, ThreadSnapshot } from '@jetty/shared/history'
 import type { ThreadItem } from '@jetty/shared/items'
 import type { ThreadState } from '@jetty/shared/reducer'
 
-import { omitToolOutput, summaryItem } from '@jetty/shared/history'
+import { historyTurn, omitToolOutput, summaryItem } from '@jetty/shared/history'
 import { foldTodos } from '@jetty/shared/todos'
 
 import { StoreError } from './store'
@@ -20,8 +20,8 @@ function indexHistory(items: readonly ThreadItem[]) {
     ids.set(item.id, index)
     if (!first.has(item.turnId)) first.set(item.turnId, index)
     last.set(item.turnId, index)
-    if (item.kind === 'user_message' && !item.agentId && !item.from && !item.wake)
-      turns.push({ id: item.turnId, itemId: item.id, title: item.text.slice(0, 160) })
+    const turn = historyTurn(item)
+    if (turn) turns.push(turn)
   }
   return { first, last, ids, turns, todos: foldTodos(items) }
 }

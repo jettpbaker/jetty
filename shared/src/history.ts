@@ -12,6 +12,12 @@ export const HistoryTurn = Schema.Struct({
 })
 export type HistoryTurn = Schema.Schema.Type<typeof HistoryTurn>
 
+// A message of the user's own opens an entry in the thread's turn list.
+export function historyTurn(item: ThreadItem): HistoryTurn | undefined {
+  if (item.kind !== 'user_message' || item.agentId || item.from || item.wake) return undefined
+  return { id: item.turnId, itemId: item.id, title: item.text.slice(0, 160) }
+}
+
 export const HistoryRange = Schema.Struct({ start: Schema.Natural, end: Schema.Natural })
 export type HistoryRange = Schema.Schema.Type<typeof HistoryRange>
 
