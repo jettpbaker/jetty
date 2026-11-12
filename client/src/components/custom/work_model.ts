@@ -300,15 +300,16 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
       : active
         ? words.active
         : words.done
-  if (!active && failed + cancelled + interrupted > 0 && !(summarise && completed)) {
-    if (latest.status === 'failed') {
-      verb = toolFailureVerb(first)
-      if (first.kind === 'search') target = ''
-    } else if (latest.status === 'cancelled')
-      verb = first.kind === 'web' ? 'Web search cancelled' : 'Cancelled'
-    else if (latest.status === 'interrupted')
-      verb = first.kind === 'web' ? 'Web search stopped' : 'Stopped'
-  }
+  const ending =
+    !active && failed + cancelled + interrupted > 0 && !(summarise && completed)
+      ? latest.status
+      : undefined
+  if (ending === 'failed') {
+    verb = toolFailureVerb(first)
+    if (first.kind === 'search') target = ''
+  } else if (ending === 'cancelled')
+    verb = first.kind === 'web' ? 'Web search cancelled' : 'Cancelled'
+  else if (ending === 'interrupted') verb = first.kind === 'web' ? 'Web search stopped' : 'Stopped'
   const notices = (['failed', 'cancelled', 'interrupted'] as const)
     .filter((status) => calls.length > 1 && count(status) > 0 && !(counted && outcome === status))
     .map((status) => ({
@@ -319,6 +320,7 @@ export function describeToolBatch({ calls, sealed }: ToolBatch) {
   const noticeText = notices.map((notice) => `${notice.count} ${notice.text}`).join(', ')
   return {
     verb,
+    ending,
     target,
     itemCount,
     countNoun: itemCount === 1 ? words.singular : words.noun,

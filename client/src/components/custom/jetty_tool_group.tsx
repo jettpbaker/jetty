@@ -213,16 +213,14 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
   const threadAction = tool === 'create_thread' || tool === 'archive_thread'
   const unsettled = batch.calls.some((call) => !workEnded(call.status))
   const autoOpen = threadAction && (!batch.sealed || unsettled)
-  const failed = batch.calls.every((call) => call.status === 'failed')
-  const cancelled = batch.calls.every((call) => call.status === 'cancelled')
-  const stopped = batch.calls.every((call) => call.status === 'interrupted')
+  const notices = describeToolBatch(batch)
   const verb = unsettled
     ? config.active
-    : failed
+    : notices.ending === 'failed'
       ? `Failed to ${config.action}`
-      : cancelled
+      : notices.ending === 'cancelled'
         ? 'Cancelled'
-        : stopped
+        : notices.ending === 'interrupted'
           ? 'Stopped'
           : config.done
   const count = config.list
@@ -232,7 +230,6 @@ export function JettyToolGroup({ batch }: { batch: ToolBatch }) {
     : unsettled
       ? batch.calls.length
       : batch.calls.filter((call) => call.status === 'complete').length || batch.calls.length
-  const notices = describeToolBatch(batch)
   return (
     <CountedResults
       verb={verb}
