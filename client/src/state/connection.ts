@@ -63,6 +63,16 @@ export function run<A, E>(
   )
 }
 
+// `run`'s request as a promise of its result.
+export function request<A, E>(
+  registry: AtomRegistry.AtomRegistry,
+  fn: (connection: Connection) => Effect.Effect<A, E>
+) {
+  return Effect.runPromise(
+    AtomRegistry.getResult(registry, connectionAtom).pipe(Effect.flatMap(fn))
+  )
+}
+
 export function useAction<Args extends unknown[], R>(
   action: (registry: AtomRegistry.AtomRegistry, ...args: Args) => R
 ) {

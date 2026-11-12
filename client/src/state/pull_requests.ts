@@ -20,7 +20,7 @@ import { useCallback, useContext, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { chromeAtom, useThreadMeta } from './chrome'
-import { connectionAtom, run, subscribe, useAction } from './connection'
+import { connectionAtom, request, run, subscribe, useAction } from './connection'
 import { detailsRequestAtom } from './thread_tab'
 
 type Registry = AtomRegistry.AtomRegistry
@@ -177,18 +177,14 @@ export function usePullRequestDiffFileLoader(
       const key = JSON.stringify([path, prevPath])
       const cached = files.get(key)
       if (cached) return cached
-      const loading = Effect.runPromise(
-        AtomRegistry.getResult(registry, connectionAtom).pipe(
-          Effect.flatMap((connection) =>
-            connection.request('pullRequest.diffFile', {
-              repo,
-              baseSha,
-              headSha,
-              path,
-              ...(prevPath === undefined ? {} : { prevPath }),
-            })
-          )
-        )
+      const loading = request(registry, (connection) =>
+        connection.request('pullRequest.diffFile', {
+          repo,
+          baseSha,
+          headSha,
+          path,
+          ...(prevPath === undefined ? {} : { prevPath }),
+        })
       ).catch((error: unknown) => {
         files.delete(key)
         throw error
@@ -537,11 +533,8 @@ export function useLinkPullRequest() {
   const registry = useContext(RegistryContext)
   return useCallback(
     (threadId: string, reference: string): Promise<string | undefined> =>
-      Effect.runPromise(
-        AtomRegistry.getResult(registry, connectionAtom).pipe(
-          Effect.flatMap((connection) =>
-            connection.request('pullRequest.link', { threadId, reference })
-          ),
+      request(registry, (connection) =>
+        connection.request('pullRequest.link', { threadId, reference }).pipe(
           Effect.match({
             onFailure: (error) => errorMessage(error) ?? "Couldn't link the pull request",
             onSuccess: ({ ref }) => {
@@ -562,12 +555,8 @@ function unlinkPullRequest(
   link: PullRequestRef & { url: string }
 ) {
   hideTab(registry, threadId, pullRequestKey(link))
-  return Effect.runPromise(
-    AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap((connection) =>
-        connection.request('pullRequest.unlink', { threadId, reference: link.url })
-      )
-    )
+  return request(registry, (connection) =>
+    connection.request('pullRequest.unlink', { threadId, reference: link.url })
   ).then(
     () => undefined,
     () => {
@@ -584,16 +573,15 @@ export function useUnlinkPullRequest() {
 function requestPullRequest<E>(
   registry: Registry,
   ref: PullRequestRef,
-  request: (connection: Connection) => Effect.Effect<PullRequestSnapshot, E>,
+  send: (connection: Connection) => Effect.Effect<PullRequestSnapshot, E>,
   apply: OptimisticPatch['apply'],
   failure: string
 ) {
   const key = pullRequestKey(ref)
   const patch = { apply }
   registry.update(patchesAtom(key), (patches) => [...patches, patch])
-  return Effect.runPromise(
-    AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap(request),
+  return request(registry, (connection) =>
+    send(connection).pipe(
       Effect.tap((snapshot) => Effect.sync(() => cachePullRequest(registry, snapshot)))
     )
   )
@@ -767,17 +755,13 @@ export function usePullRequestActions(ref: PullRequestRef) {
         reader.onerror = () => reject(reader.error)
         reader.readAsDataURL(file)
       })
-      const attachment = await Effect.runPromise(
-        AtomRegistry.getResult(registry, connectionAtom).pipe(
-          Effect.flatMap((connection) =>
-            connection.request('pullRequest.uploadAttachment', {
-              repo: ref.repo,
-              name: file.name,
-              mimeType: file.type,
-              base64data,
-            })
-          )
-        )
+      const attachment = await request(registry, (connection) =>
+        connection.request('pullRequest.uploadAttachment', {
+          repo: ref.repo,
+          name: file.name,
+          mimeType: file.type,
+          base64data,
+        })
       )
       return { src: attachment.url }
     }

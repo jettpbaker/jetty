@@ -8,7 +8,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useThreadMeta } from './chrome'
-import { connectionAtom, useAction } from './connection'
+import { connectionAtom, request, useAction } from './connection'
 import { beginFileSave, endFileSave, settleFileDraft } from './file_drafts'
 import { threadStructureAtom } from './threads'
 
@@ -172,17 +172,13 @@ export function useDiffFileLoader(threadId: string, scope: DiffScope) {
   const registry = useContext(RegistryContext)
   return useCallback(
     (path: string, prevPath?: string) =>
-      Effect.runPromise(
-        AtomRegistry.getResult(registry, connectionAtom).pipe(
-          Effect.flatMap((connection) =>
-            connection.request('thread.diffFile', {
-              threadId,
-              scope,
-              path,
-              ...(prevPath === undefined ? {} : { prevPath }),
-            })
-          )
-        )
+      request(registry, (connection) =>
+        connection.request('thread.diffFile', {
+          threadId,
+          scope,
+          path,
+          ...(prevPath === undefined ? {} : { prevPath }),
+        })
       ),
     [registry, threadId, scope]
   )
@@ -226,13 +222,10 @@ export function useFolderReader(threadId: string) {
   const registry = useContext(RegistryContext)
   return useCallback(
     (path: string) =>
-      Effect.runPromise(
-        AtomRegistry.getResult(registry, connectionAtom).pipe(
-          Effect.flatMap((connection) =>
-            connection.request('thread.readDirectory', { threadId, path })
-          ),
-          Effect.map(({ entries }) => entries)
-        )
+      request(registry, (connection) =>
+        connection
+          .request('thread.readDirectory', { threadId, path })
+          .pipe(Effect.map(({ entries }) => entries))
       ),
     [registry, threadId]
   )
@@ -271,9 +264,8 @@ function saveFile<A extends object, E>(
   onSaved: () => void
 ) {
   beginFileSave(threadId, path)
-  return Effect.runPromise(
-    AtomRegistry.getResult(registry, connectionAtom).pipe(
-      Effect.flatMap(write),
+  return request(registry, (connection) =>
+    write(connection).pipe(
       Effect.tap((result) =>
         Effect.sync(() => {
           if (!('saved' in result)) return
