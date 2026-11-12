@@ -269,7 +269,7 @@ export function createRpcHandlers(
       admissionScope
     )
     yield* Stream.tick('5 seconds').pipe(
-      Stream.mapEffect(() => pullRequestLists.poll().pipe(Effect.catch(() => Effect.void))),
+      Stream.mapEffect(() => pullRequestLists.poll().pipe(Effect.ignore)),
       Stream.runDrain,
       Effect.forkIn(admissionScope)
     )
@@ -376,10 +376,9 @@ export function createRpcHandlers(
           Effect.gen(function* () {
             yield* hub.watchClientActivity(client.id, activity)
             if (activity !== 'hidden')
-              yield* pullRequestLists.refreshOnArrival().pipe(
-                Effect.catch(() => Effect.void),
-                Effect.forkIn(admissionScope)
-              )
+              yield* pullRequestLists
+                .refreshOnArrival()
+                .pipe(Effect.ignore, Effect.forkIn(admissionScope))
             return Stream.never
           })
         ),
@@ -702,7 +701,7 @@ export function createRpcHandlers(
             yield* refreshInBackground(ref)
             // Refreshes reach the client through the hub; the poll itself emits nothing.
             const periodic = Stream.tick('5 seconds').pipe(
-              Stream.mapEffect(() => pullRequests.poll(ref).pipe(Effect.catch(() => Effect.void))),
+              Stream.mapEffect(() => pullRequests.poll(ref).pipe(Effect.ignore)),
               Stream.drain
             )
             return Stream.concat(
@@ -722,10 +721,9 @@ export function createRpcHandlers(
             yield* pullRequestLists.watch(tab, client.id)
             const queue = yield* hub.subscribePullRequestList(tab)
             const list = yield* pullRequestLists.get(tab)
-            yield* pullRequestLists.refreshIfStale(tab).pipe(
-              Effect.catch(() => Effect.void),
-              Effect.forkIn(admissionScope)
-            )
+            yield* pullRequestLists
+              .refreshIfStale(tab)
+              .pipe(Effect.ignore, Effect.forkIn(admissionScope))
             return Stream.concat(Stream.succeed(list), Stream.fromQueue(queue))
           }).pipe(Effect.mapError(wireError))
         ),

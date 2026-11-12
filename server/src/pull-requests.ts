@@ -2544,8 +2544,7 @@ export function createPullRequests(store: Store, hub: Hub) {
             queuedWrites.delete(key)
             const running = jobs.get(key)
             if (running) yield* Effect.promise(() => running.promise)
-            if (writesNeedRefresh.delete(key))
-              yield* refresh(ref).pipe(Effect.catch(() => Effect.void))
+            if (writesNeedRefresh.delete(key)) yield* refresh(ref).pipe(Effect.ignore)
           })
         ),
         Effect.andThen(get(ref))
@@ -3448,10 +3447,7 @@ export function createPullRequestLists(
           ? (list.items ?? []).filter((item) => !previous.has(prKey(item)))
           : []
         if (!cached.items || arrivals.length)
-          yield* pulls.prefetchList(tab, arrivals).pipe(
-            Effect.catch(() => Effect.void),
-            Effect.forkIn(scope)
-          )
+          yield* pulls.prefetchList(tab, arrivals).pipe(Effect.ignore, Effect.forkIn(scope))
       }
       return decorated
     }).pipe(refreshing[tab].withPermit)
