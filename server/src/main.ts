@@ -529,7 +529,7 @@ function createServer(opts: ServerOptions = {}) {
               agentKind
             )
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    const discoveryScope = yield* Effect.scope
+    const serverScope = yield* Effect.scope
     let inFlight: Deferred.Deferred<void> | undefined
     let lastDiscovery = -Infinity
     // Providers whose first discovery has landed. Whether Claude is signed in decides where an
@@ -616,18 +616,18 @@ function createServer(opts: ServerOptions = {}) {
               }),
               Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
               Effect.interruptible,
-              Effect.forkIn(discoveryScope),
+              Effect.forkIn(serverScope),
               Effect.andThen(restore(Deferred.await(done)))
             )
         })
       )
     }
-    yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
+    yield* refreshModels().pipe(Effect.forkIn(serverScope))
     function modelCatalog() {
       return Effect.gen(function* () {
         if (models === null || (agentKind === 'claude' && !settled.has('claude')))
           yield* refreshModels()
-        else yield* refreshModels().pipe(Effect.forkIn(discoveryScope))
+        else yield* refreshModels().pipe(Effect.forkIn(serverScope))
         return models ?? []
       })
     }
@@ -644,7 +644,7 @@ function createServer(opts: ServerOptions = {}) {
       choice: () => store.getJobModel('title').pipe(Effect.orElseSucceed(() => ({ model: null }))),
     })
     const titler = selectTitler(agentKind, opts, titlePrompt, store)
-    const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, discoveryScope)
+    const pullRequestLinks = createPullRequestLinks(store, hub, pullRequests, serverScope)
     const services = yield* Layer.build(
       orchestratorLayer({
         store,
@@ -675,7 +675,7 @@ function createServer(opts: ServerOptions = {}) {
     }).pipe(
       Effect.catchCause((cause) => Effect.logWarning(cause)),
       Effect.repeat(Schedule.spaced('5 seconds')),
-      Effect.forkIn(discoveryScope)
+      Effect.forkIn(serverScope)
     )
     function providerUsage(
       provider: ProviderId
@@ -688,7 +688,7 @@ function createServer(opts: ServerOptions = {}) {
         provider === 'grok' ? readGrokProviderUsage() : readClaudeProviderUsage()
       )
     }
-    const admissionScope = yield* Scope.fork(yield* Effect.scope)
+    const admissionScope = yield* Scope.fork(serverScope)
     const handlers = yield* createRpcHandlers(
       store,
       orch,
@@ -707,7 +707,7 @@ function createServer(opts: ServerOptions = {}) {
       updater,
       { catalog: modelCatalog, prompt: modelPrompt }
     ).pipe(Effect.provideService(Scope.Scope, admissionScope), Effect.provideContext(io))
-    const transportScope = yield* Scope.fork(yield* Effect.scope)
+    const transportScope = yield* Scope.fork(serverScope)
     const http = yield* Layer.build(
       BunHttpServer.layer({
         port,
