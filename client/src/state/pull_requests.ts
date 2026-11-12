@@ -5,7 +5,6 @@ import type {
   PullRequestGuideState,
   PullRequestLink,
   PullRequestList,
-  PullRequestListTab,
   PullRequestSnapshot,
   ResultOf,
 } from '@jetty/shared/wire'
@@ -13,6 +12,7 @@ import type {
 import { perf } from '@/perf'
 import { RegistryContext, useAtomValue } from '@effect/atom-react'
 import { patchPullRequestListItems } from '@jetty/shared/pull-request'
+import { PullRequestListTab } from '@jetty/shared/wire'
 import { useNavigate } from '@tanstack/react-router'
 import { Effect, Stream } from 'effect'
 import { AsyncResult, Atom, AtomRegistry } from 'effect/reactivity'
@@ -52,7 +52,7 @@ const cacheAtom = Atom.family((_key: string) =>
 function cachePullRequest(registry: Registry, snapshot: PullRequestSnapshot) {
   registry.set(cacheAtom(pullRequestKey(snapshot)), snapshot)
   if (!snapshot.data || (snapshot.status !== 'ready' && !snapshot.pendingOperation)) return
-  for (const tab of ['for-you', 'created'] as const) {
+  for (const tab of PullRequestListTab.literals) {
     const atom = listCacheAtom(tab)
     const list = registry.get(atom)
     if (!list?.items) continue
@@ -410,7 +410,7 @@ export function useRefreshPullRequestList() {
 }
 
 function refreshPullRequestListsOnArrival(registry: Registry) {
-  for (const tab of ['for-you', 'created'] as const) refreshPullRequestList(registry, tab, 10_000)
+  for (const tab of PullRequestListTab.literals) refreshPullRequestList(registry, tab, 10_000)
 }
 
 export function useRefreshPullRequestListsOnArrival() {

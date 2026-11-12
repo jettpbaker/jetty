@@ -6,7 +6,6 @@ import type {
 import type {
   PullRequestList,
   PullRequestListItem,
-  PullRequestListTab,
   PullRequestSnapshot,
   ThreadMeta,
 } from '@jetty/shared/wire'
@@ -17,6 +16,7 @@ import {
   patchPullRequestListItems,
   rollupChecks,
 } from '@jetty/shared/pull-request'
+import { PullRequestListTab } from '@jetty/shared/wire'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
 import type { PullRequestReference } from './pull-request-graphql'
@@ -3333,7 +3333,7 @@ export function createPullRequestLists(
     Effect.gen(function* () {
       if (!snapshot.data) return
       publishedAt.set(prKey(snapshot), Date.now())
-      for (const tab of ['for-you', 'created'] as const) {
+      for (const tab of PullRequestListTab.literals) {
         const list = yield* store.getPullRequestList(tab)
         if (!list.items) continue
         const items = patchPullRequestListItems(list.items, snapshot)
@@ -3466,7 +3466,7 @@ export function createPullRequestLists(
 
   // Every focus change runs this, so it catches up only lists older than the blurred cadence.
   function refreshOnArrival() {
-    return Effect.forEach(['for-you', 'created'] as const, (tab) => refresh(tab, 120_000), {
+    return Effect.forEach(PullRequestListTab.literals, (tab) => refresh(tab, 120_000), {
       concurrency: 'unbounded',
       discard: true,
     })
