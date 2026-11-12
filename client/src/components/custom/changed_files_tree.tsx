@@ -127,6 +127,11 @@ export function ChangedFilesTree({
   const modelRef = useRef<ReturnType<typeof useFileTree>['model'] | null>(null)
   const lastFile = useRef(selected)
   const restoring = useRef(false)
+  // The tree keeps the options it was made with, so it calls back through the latest onSelect.
+  const onSelectRef = useRef(onSelect)
+  useEffect(() => {
+    onSelectRef.current = onSelect
+  }, [onSelect])
   const { model } = useFileTree({
     paths: files.map((file) => file.path),
     initialExpansion: 'open',
@@ -172,7 +177,7 @@ export function ChangedFilesTree({
       const path = selection.at(-1)
       if (!path || restoring.current) return
       lastFile.current = path
-      onSelect(path)
+      onSelectRef.current(path)
     },
   })
   useEffect(() => {
