@@ -14,8 +14,10 @@ export function gitStream(cwd: string, args: string[], onText: (text: string) =>
         stderr: 'ignore',
         forceKillAfter: '1 second',
       })
+      // A file's leading byte order mark is part of its text: a patch for its first line carries it.
+      const decoder = new TextDecoder('utf-8', { ignoreBOM: true })
       yield* process.stdout.pipe(
-        Stream.decodeText(),
+        Stream.map((bytes) => decoder.decode(bytes, { stream: true })),
         Stream.runForEach((text) => Effect.sync(() => onText(text)))
       )
       return Number(yield* process.exitCode)

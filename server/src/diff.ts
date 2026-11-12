@@ -202,7 +202,8 @@ function readWorkingTree(root: string, repoPath: string) {
       readCurrent(path.join(dir.value, path.basename(file))).catch(() => undefined)
     )
     if (!current) return null
-    if (current.text !== undefined) return new TextDecoder().decode(current.bytes)
+    if (current.text !== undefined)
+      return new TextDecoder('utf-8', { ignoreBOM: true }).decode(current.bytes)
     return 'contents' in current.file ? current.file.contents : current.file
   })
 }
