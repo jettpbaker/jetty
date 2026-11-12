@@ -68,9 +68,17 @@ export function ThreadDetailsLayout({
   projectPath?: string
   children: ReactNode
 }) {
-  const layout = useDetailsLayout()
-  const { open, ready, narrow, full, expanded, setExpanded, setChatSlot, show: showPane } = layout
   const [pickedTab, setTab] = useState('changes')
+  const allChildThreads = useChildThreads(threadId)
+  const childThreads = useMemo(
+    () => allChildThreads.filter((child) => !child.archived),
+    [allChildThreads]
+  )
+  const hasOverview = useHasOverview(threadId, childThreads)
+  const layout = useDetailsLayout(
+    useCallback(() => setTab(hasOverview ? 'overview' : 'changes'), [hasOverview])
+  )
+  const { open, ready, narrow, full, expanded, setExpanded, setChatSlot, show: showPane } = layout
   const meta = useThreadMeta(threadId)
   const git = useProjectGit(meta?.projectId)?.git
   // Only Changes needs a repository. Files still opens; a missing folder has nothing to list.
@@ -130,14 +138,6 @@ export function ThreadDetailsLayout({
       },
     })
   }, [])
-  const allChildThreads = useChildThreads(threadId)
-  const childThreads = useMemo(
-    () => allChildThreads.filter((child) => !child.archived),
-    [allChildThreads]
-  )
-  const hasOverview = useHasOverview(threadId, childThreads)
-  const hasOverviewNow = useRef(hasOverview)
-  hasOverviewNow.current = hasOverview
   const links = useThreadPullRequests(threadId)
   const { visible: pullRequestLinks, show, hide } = usePullRequestTabs(threadId, links)
   const pullRequests = useMemo(
@@ -178,10 +178,7 @@ export function ThreadDetailsLayout({
         setFileRequest({ threadId, target: { ...target, path } })
         tabs.current?.show('changes')
       }
-      if (!open) {
-        openingTab.current = changesDisabled ? 'file' : 'changes'
-        showPane()
-      }
+      if (!open) showPane()
       return true
     },
     [projectPath, threadId, open, changesDisabled, showFile, showPane]
@@ -191,10 +188,7 @@ export function ThreadDetailsLayout({
     (attachment: Attachment) => {
       showFile({ threadId, target: { path: attachment.name, attachment } })
       setTab('file')
-      if (!open) {
-        openingTab.current = 'file'
-        showPane()
-      }
+      if (!open) showPane()
       return true
     },
     [threadId, open, showFile, showPane]
@@ -234,18 +228,13 @@ export function ThreadDetailsLayout({
     pullRequestLinks.some((link) => pullRequestTabId(link) === requestedTab) ||
     desktops.ids.some((id) => desktopTabId(id) === requestedTab) ||
     visibleSubagents.some((agent) => subagentTabId(agent.id) === requestedTab)
-  const openingTab = useRef<string>(undefined)
   useLayoutEffect(() => {
     if (!requestedTab || !requestShown) return
     consume()
     // Overview may have been closed from the tab strip.
     if (requestedTab === 'overview') tabs.current?.show('overview')
-    if (open) {
-      setTab(requestedTab)
-      return
-    }
-    openingTab.current = requestedTab
-    showPane()
+    setTab(requestedTab)
+    if (!open) showPane()
   }, [requestedTab, requestShown, consume, open, showPane])
 
   useHotkey(
@@ -254,18 +243,10 @@ export function ThreadDetailsLayout({
       if (inDialog(event)) return
       tabs.current?.show('files')
       setFindFile(nextFileRequest())
-      if (open) return
-      openingTab.current = 'files'
-      showPane()
+      if (!open) showPane()
     },
     { enabled: !filesDisabled, requireReset: true, ignoreInputs: false }
   )
-
-  useLayoutEffect(() => {
-    if (!open) return
-    setTab(openingTab.current ?? (hasOverviewNow.current ? 'overview' : 'changes'))
-    openingTab.current = undefined
-  }, [open])
 
   // Width changes should only update the layout, not rerender tab contents.
   const detailsPane = useMemo(

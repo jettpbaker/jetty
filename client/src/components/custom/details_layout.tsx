@@ -31,8 +31,9 @@ export type DetailsLayoutState = ReturnType<typeof useDetailsLayout>
 
 // A details pane beside a chat (a thread's or a bot's): whether it's open, how wide, and where
 // the chat sits. Narrow or expanded, the pane takes the whole width and the chat moves into its
-// Chat tab.
-export function useDetailsLayout() {
+// Chat tab. `onToggleOpen` runs when the toggle (button or shortcut) opens the pane, for the tab
+// it should open on; `show` opens it on whatever tab its caller has picked.
+export function useDetailsLayout(onToggleOpen?: () => void) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [chatHost] = useState(() => {
     const host = document.createElement('div')
@@ -81,8 +82,9 @@ export function useDetailsLayout() {
   }, [])
   const toggle = useCallback(() => {
     if (rootRef.current) setAvailable(rootRef.current.clientWidth)
-    setOpen((value) => !value)
-  }, [])
+    if (!open) onToggleOpen?.()
+    setOpen(!open)
+  }, [open, onToggleOpen])
 
   useHotkey(
     keybinds.details.hotkey,
