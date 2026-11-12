@@ -433,3 +433,15 @@ const noModelsAtom = Atom.readable((get) => get(serverChromeAtom)?.models?.lengt
 export function useNoModels() {
   return useAtomValue(noModelsAtom)
 }
+
+const branchPrefixAtom = Atom.readable((get) => get(serverChromeAtom)?.branchPrefix ?? 'jetty')
+
+export function useBranchPrefix() {
+  return useAtomValue(branchPrefixAtom)
+}
+
+const modelDiscoveryAtom = Atom.readable((get) => get(serverChromeAtom)?.modelDiscovery)
+
+export function useModelDiscovery() {
+  return useAtomValue(modelDiscoveryAtom)
+}
