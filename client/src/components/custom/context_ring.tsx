@@ -1,19 +1,17 @@
 import type { ContextUsage } from '@jetty/shared/events'
-import type { ProviderUsage } from '@jetty/shared/wire'
 
 import { ChevronRightSmallIcon } from '@/components/custom/central_icons'
 import { Mono, RingLimits } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
 import { useThreadContext } from '@/state'
 import {
   allUsageProviders,
   usageFreshMs,
   usageProviders,
-  useProviderUsage,
+  useUsageReads,
   type UsageProvider,
 } from '@/state/provider-usage'
 import { useEffect } from 'react'
@@ -213,18 +211,9 @@ function limitProviders(provider: UsageProvider) {
 // Mounted only while the popover is open, so opening it is the read: the last reads show at once,
 // and any older than Usage's freshness are read again. Never in the background.
 function PopoverLimits({ provider }: { provider: UsageProvider }) {
-  const { reads, failed, refresh } = useProviderUsage()
-  useEffect(() => refresh(limitProviders(provider), usageFreshMs), [provider, refresh])
   const providers = limitProviders(provider)
-  const usage: Partial<Record<UsageProvider, ProviderUsage>> = {}
-  const at: number[] = []
-  for (const id of providers) {
-    const read = reads[id]
-    if (!read) continue
-    usage[id] = read.usage
-    at.push(read.at)
-  }
-  const now = Math.max(useNow(60_000), ...at)
+  const { usage, now, failed, refresh } = useUsageReads(providers)
+  useEffect(() => refresh(limitProviders(provider), usageFreshMs), [provider, refresh])
   return (
     <RingLimits
       provider={provider}

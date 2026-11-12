@@ -1,3 +1,4 @@
+import type { UsageProvider } from '@/state/provider-usage'
 import type { ProviderUsage, UsageWindow } from '@jetty/shared/wire'
 import type { ReactNode } from 'react'
 
@@ -16,8 +17,6 @@ import { cn } from '@/lib/utils'
 import { PageSidebarTrigger } from './page_sidebar_trigger'
 import { ProviderGlyph } from './provider_glyph'
 import './usage_limits.css'
-
-export type UsageProvider = ProviderUsage['provider']
 
 export const providerNames: Record<UsageProvider, string> = {
   claude: 'Claude',

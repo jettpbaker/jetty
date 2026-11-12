@@ -1,3 +1,4 @@
+import { useNow } from '@/hooks/use-now'
 import { loadProviderEnabled } from '@/lib/provider-enabled'
 import { lastGood } from '@/lib/provider-usage'
 import { storage } from '@/platform'
@@ -114,6 +115,22 @@ export function useProviderUsage() {
     failed: useAtomValue(failedAtom),
     refresh: useAction(refreshProviderUsage),
   }
+}
+
+// These providers' last reads, and a clock never behind the newest of them.
+export function useUsageReads(providers: readonly UsageProvider[]) {
+  const { reads, loading, failed, refresh } = useProviderUsage()
+  const usage: Partial<Record<UsageProvider, ProviderUsage>> = {}
+  const at: number[] = []
+  for (const provider of providers) {
+    const read = reads[provider]
+    if (!read) continue
+    usage[provider] = read.usage
+    at.push(read.at)
+  }
+  const now = Math.max(useNow(60_000), ...at)
+  const oldest = at.length ? Math.min(...at) : undefined
+  return { usage, now, oldest, loading, failed, refresh }
 }
 
 // Starts reads without re-rendering on their results.

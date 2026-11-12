@@ -28,7 +28,6 @@ import { providerNames, UsageBanner } from '@/components/custom/usage_limits'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { useAttachments } from '@/hooks/use-attachments'
-import { useNow } from '@/hooks/use-now'
 import { findModel } from '@/lib/loadout'
 import { pressProps } from '@/lib/press'
 import { threadBranch } from '@/lib/thread_worktree'
@@ -56,7 +55,7 @@ import {
 } from '@/state'
 import { createItemSelection } from '@/state/item_selection'
 import { useProviderUnavailable } from '@/state/models'
-import { usageFreshMs, useProviderUsage, type UsageProvider } from '@/state/provider-usage'
+import { usageFreshMs, useUsageReads, type UsageProvider } from '@/state/provider-usage'
 import { useProjectGit, useRetrySetup } from '@/state/worktrees'
 import { heldByRestarts } from '@jetty/shared/items'
 import { worktreeSetupPrompt } from '@jetty/shared/wire'
@@ -97,14 +96,12 @@ function ComposerUsage({
   onOpen: () => void
   onDismiss: () => void
 }) {
-  const { reads, failed, refresh } = useProviderUsage()
+  const { usage, now, failed, refresh } = useUsageReads([provider])
   useEffect(() => refresh([provider], usageFreshMs), [provider, asked, refresh])
-  const read = reads[provider]
-  const now = Math.max(useNow(60_000), read?.at ?? 0)
   return (
     <UsageBanner
       provider={provider}
-      usage={read?.usage}
+      usage={usage[provider]}
       failed={failed.has(provider)}
       now={now}
       onOpen={onOpen}
