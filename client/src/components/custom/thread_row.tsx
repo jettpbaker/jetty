@@ -1,4 +1,5 @@
 import type { ProjectIcon } from '@jetty/shared/wire'
+import type { MouseEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -48,6 +49,12 @@ export function ThreadRow({
 }) {
   const bot = useBot(botId)
   const quiet = quietStatus(status)
+  // The PR mark sits inside the row's button, so one click handler tells them apart.
+  function open(event: MouseEvent) {
+    if (event.target instanceof Element && event.target.closest('[data-pull-request]'))
+      onOpenPullRequest()
+    else onSelect()
+  }
   return (
     <div className='thread-row keybind-target' data-selected={selected || undefined}>
       <ThreadHoverCard threadId={id}>
@@ -59,11 +66,7 @@ export function ThreadRow({
               data-overflow-hover
               className='h-7.5 w-full min-w-0 justify-start gap-2 rounded-sm px-2.5 text-left font-normal text-foreground'
               aria-pressed={selected}
-              onClick={(event) =>
-                event.target instanceof Element && event.target.closest('[data-pull-request]')
-                  ? onOpenPullRequest()
-                  : onSelect()
-              }
+              onClick={open}
             >
               <HeldKeybind binding={shortcut}>
                 <StatusGlyph status={status} className='size-3.25' />
@@ -85,11 +88,7 @@ export function ThreadRow({
               render={trigger}
               variant='ghost-text'
               aria-pressed={selected}
-              onClick={(event) =>
-                event.target instanceof Element && event.target.closest('[data-pull-request]')
-                  ? onOpenPullRequest()
-                  : onSelect()
-              }
+              onClick={open}
               heading={
                 <span className='flex min-w-0 flex-1 items-center gap-0.5'>
                   {bot && !bot.archived && (
