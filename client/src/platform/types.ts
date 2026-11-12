@@ -1,3 +1,9 @@
+export type KeyValueStore = {
+  get: (key: string) => string | undefined
+  set: (key: string, value: string) => boolean
+  remove: (key: string) => void
+}
+
 export type Platform = {
   reload: () => void
   connectionUrl: (reconnecting: boolean) => Promise<string>
@@ -11,16 +17,8 @@ export type Platform = {
       upgrade: (database: IDBDatabase) => void
     ) => Promise<IDBDatabase>
   }
-  storage: {
-    get: (key: string) => string | undefined
-    set: (key: string, value: string) => boolean
-    remove: (key: string) => void
-  }
-  session: {
-    get: (key: string) => string | undefined
-    set: (key: string, value: string) => boolean
-    remove: (key: string) => void
-  }
+  storage: KeyValueStore
+  session: KeyValueStore
   blobs: {
     get: (key: string) => Promise<Blob | undefined>
     put: (key: string, blob: Blob) => Promise<void>

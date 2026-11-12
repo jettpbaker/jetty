@@ -1,4 +1,4 @@
-import type { Platform } from './types'
+import type { KeyValueStore, Platform } from './types'
 
 async function blobDirectory() {
   const root = await navigator.storage.getDirectory()
@@ -29,6 +29,32 @@ async function refreshSecret() {
     secret =
       readSecret(new DOMParser().parseFromString(await response.text(), 'text/html')) ?? secret
   } catch {}
+}
+
+// Reaching for the store can itself throw (storage blocked), so each call looks it up.
+function webStorage(store: () => Storage): KeyValueStore {
+  return {
+    get(key) {
+      try {
+        return store().getItem(key) ?? undefined
+      } catch {
+        return undefined
+      }
+    },
+    set(key, value) {
+      try {
+        store().setItem(key, value)
+        return true
+      } catch {
+        return false
+      }
+    },
+    remove(key) {
+      try {
+        store().removeItem(key)
+      } catch {}
+    },
+  }
 }
 
 export const browser: Platform = {
@@ -67,50 +93,8 @@ export const browser: Platform = {
       input.click()
     })
   },
-  storage: {
-    get(key) {
-      try {
-        return localStorage.getItem(key) ?? undefined
-      } catch {
-        return undefined
-      }
-    },
-    set(key, value) {
-      try {
-        localStorage.setItem(key, value)
-        return true
-      } catch {
-        return false
-      }
-    },
-    remove(key) {
-      try {
-        localStorage.removeItem(key)
-      } catch {}
-    },
-  },
-  session: {
-    get(key) {
-      try {
-        return sessionStorage.getItem(key) ?? undefined
-      } catch {
-        return undefined
-      }
-    },
-    set(key, value) {
-      try {
-        sessionStorage.setItem(key, value)
-        return true
-      } catch {
-        return false
-      }
-    },
-    remove(key) {
-      try {
-        sessionStorage.removeItem(key)
-      } catch {}
-    },
-  },
+  storage: webStorage(() => localStorage),
+  session: webStorage(() => sessionStorage),
   blobs: {
     async get(key) {
       try {
