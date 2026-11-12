@@ -123,6 +123,11 @@ export function validPullRequestRef(ref: PullRequestRef): boolean {
   return validRepo(ref.repo) && Number.isSafeInteger(ref.number) && ref.number > 0
 }
 
+// A full commit SHA, SHA-1 or SHA-256.
+function validSha(sha: string): boolean {
+  return /^[a-f0-9]{40,64}$/i.test(sha)
+}
+
 export function validLogin(login: string): boolean {
   return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/.test(login)
 }
@@ -755,7 +760,7 @@ function cachedMergeBase(repo: string, baseSha: string, headSha: string) {
   return cachedLoad(mergeBaseCache, `${repo}\0${baseSha}\0${headSha}`, async () => {
     const response = await restGet(`repos/${repo}/compare/${baseSha}...${headSha}?per_page=1`)
     const sha = string(record(record(response).merge_base_commit).sha)
-    if (!/^[a-f0-9]{40,64}$/i.test(sha)) throw new Error('GitHub merge base unavailable')
+    if (!validSha(sha)) throw new Error('GitHub merge base unavailable')
     return sha
   })
 }
@@ -770,8 +775,8 @@ export async function pullRequestDiffFile(params: {
   const { repo, baseSha, headSha, path, prevPath = path } = params
   if (
     !validRepo(repo) ||
-    !/^[a-f0-9]{40,64}$/i.test(baseSha) ||
-    !/^[a-f0-9]{40,64}$/i.test(headSha) ||
+    !validSha(baseSha) ||
+    !validSha(headSha) ||
     !validDiffPath(path) ||
     !validDiffPath(prevPath)
   )
@@ -1460,8 +1465,7 @@ const commitFilesCache = new Map<
 >()
 
 export function pullRequestCommitFiles(repo: string, sha: string) {
-  if (!validRepo(repo) || !/^[a-f0-9]{40,64}$/i.test(sha))
-    throw new StoreError('invalid_params', 'Invalid commit')
+  if (!validRepo(repo) || !validSha(sha)) throw new StoreError('invalid_params', 'Invalid commit')
   return cachedLoad(commitFilesCache, `${repo.toLowerCase()}\0${sha.toLowerCase()}`, async () => {
     const files: PullRequestData['files'][number][] = []
     let parentSha: string | null = null
@@ -2832,7 +2836,7 @@ export function createPullRequests(store: Store, hub: Hub) {
     sha: string,
     mergeMethod: 'squash' | 'merge' | 'rebase' = 'squash'
   ) {
-    if (!/^[a-f0-9]{40,64}$/i.test(sha))
+    if (!validSha(sha))
       return Effect.fail(new StoreError('invalid_params', 'A merge requires the current head SHA'))
     return write(
       ref,
