@@ -109,7 +109,7 @@ const groupOrder = ['Commands', 'Skills']
 export function useComposerSlash(
   text: string,
   onTextChange: (text: string) => void,
-  textarea: RefObject<HTMLTextAreaElement | null>,
+  textareaRef: RefObject<HTMLTextAreaElement | null>,
   { threadId, projectId, provider: scopedProvider, onUsage, botId, mentions = [] }: SlashScope = {}
 ) {
   const field = useRef<HTMLDivElement>(null)
@@ -173,14 +173,14 @@ export function useComposerSlash(
   // Programmatic edits move the caret in state; user edits already match it. Text replaced from
   // outside (a send, another thread's draft) keeps the caret where the browser put it.
   useLayoutEffect(() => {
-    const element = textarea.current
+    const element = textareaRef.current
     if (!element) return
     if (seen.current !== text) {
       seen.current = text
       setEditing(undefined)
       settle(text, element.selectionStart)
     } else if (element.selectionStart !== caret) element.setSelectionRange(caret, caret)
-  }, [textarea, text, caret])
+  }, [textareaRef, text, caret])
 
   function settle(next: string, nextCaret: number) {
     setCaret(nextCaret)

@@ -35,7 +35,7 @@ export function DiffToolbarButton({ className, ...props }: React.ComponentProps<
 
 type DiffToggle = readonly [label: string, checked: boolean, set: (checked: boolean) => void]
 
-export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
+export function useDiffWrap(viewRef: RefObject<HTMLDivElement | null>) {
   const [narrow, setNarrow] = useState(false)
   const [wrapChoice, setWrapChoice] = useStoredState<boolean | null>(
     'jetty.diff.wrap',
@@ -43,7 +43,7 @@ export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
     (value): value is boolean | null => value === null || typeof value === 'boolean'
   )
   useLayoutEffect(() => {
-    const element = view.current
+    const element = viewRef.current
     if (!element) return
     // Measured before the first paint so bodies don't mount unwrapped and flip; a hidden pane
     // (width 0) keeps its last answer instead of flipping when shown.
@@ -54,7 +54,7 @@ export function useDiffWrap(view: RefObject<HTMLDivElement | null>) {
     const observer = new ResizeObserver(([entry]) => measure(entry!.contentRect.width))
     observer.observe(element)
     return () => observer.disconnect()
-  }, [view])
+  }, [viewRef])
   return [wrapChoice ?? narrow, setWrapChoice] as const
 }
 

@@ -143,8 +143,8 @@ function place(layer: HTMLElement, offset: number, height: number) {
 
 export const ThreadMinimap = memo(function ThreadMinimap({
   turns,
-  rows,
-  scroller,
+  rows: rowsRef,
+  scroller: scrollerRef,
   virtualizer,
   gutter,
   onSelect,
@@ -163,13 +163,13 @@ export const ThreadMinimap = memo(function ThreadMinimap({
   const enough = turns.length >= minTurns
 
   useEffect(() => {
-    const element = scroller.current
+    const element = scrollerRef.current
     const box = rail.current
     const layer = ticks.current
     if (!element || !box || !layer || !enough) return
     const length = (turns.length - 1) * tickSpacing
     const update = () => {
-      const next = viewOf(element, virtualizer, turns, rows.current)
+      const next = viewOf(element, virtualizer, turns, rowsRef.current)
       setView((view) =>
         view.current === next.current && view.first === next.first && view.last === next.last
           ? view
@@ -203,7 +203,7 @@ export const ThreadMinimap = memo(function ThreadMinimap({
       resize.disconnect()
       element.removeEventListener('scroll', update)
     }
-  }, [scroller, virtualizer, turns, enough, rows])
+  }, [scrollerRef, virtualizer, turns, enough, rowsRef])
 
   const activeIndex = active !== null && active < turns.length ? active : null
   const tick = activeIndex === null ? undefined : ticks.current?.children[activeIndex]
@@ -229,14 +229,14 @@ export const ThreadMinimap = memo(function ThreadMinimap({
     activeTurn === undefined
       ? null
       : typeof activeTurn === 'number'
-        ? turnPreview(rows.current, activeTurn)
-        : historyPreview(rows.current, activeTurn)
+        ? turnPreview(rowsRef.current, activeTurn)
+        : historyPreview(rowsRef.current, activeTurn)
   const current = view.current !== null && view.current < turns.length ? view.current : null
   const lastIndex = turns.length - 1
 
   function select(index: number | null) {
     const row = index === null ? undefined : turns[index]
-    if (row !== undefined) onSelect(typeof row === 'number' ? rows.current[row]!.id : row.itemId)
+    if (row !== undefined) onSelect(typeof row === 'number' ? rowsRef.current[row]!.id : row.itemId)
   }
 
   function indexAt(event: MouseEvent<HTMLElement>) {

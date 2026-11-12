@@ -8,17 +8,17 @@ import type { ThreadRow } from './thread_rows'
 // blank space between or under rows, or rows overlapping. A row still animating changes between
 // checks, so only a mismatch that holds still is reported.
 export function useLayoutCheck(
-  scroller: RefObject<HTMLElement | null>,
+  scrollerRef: RefObject<HTMLElement | null>,
   virtualizer: Virtualizer<HTMLDivElement, Element>,
-  rows: RefObject<readonly ThreadRow[]>,
-  pinned: RefObject<boolean>
+  rowsRef: RefObject<readonly ThreadRow[]>,
+  pinnedRef: RefObject<boolean>
 ) {
   useEffect(() => {
     if (!import.meta.env.DEV) return
     let previous = ''
     let warned = ''
     const timer = setInterval(() => {
-      const element = scroller.current
+      const element = scrollerRef.current
       if (!element?.firstElementChild) return
       const off: string[] = []
       for (const row of element.firstElementChild.children) {
@@ -27,7 +27,7 @@ export function useLayoutCheck(
         const height = (row as HTMLElement).offsetHeight
         if (size !== undefined && Math.abs(size - height) > 24)
           off.push(
-            `${rows.current[index]?.kind} row ${index} is ${size}px in the list, ${height}px drawn`
+            `${rowsRef.current[index]?.kind} row ${index} is ${size}px in the list, ${height}px drawn`
           )
       }
       const mismatch = off.join('; ')
@@ -37,11 +37,11 @@ export function useLayoutCheck(
           scrollTop: element.scrollTop,
           behind: element.scrollHeight - element.clientHeight - element.scrollTop,
           total: virtualizer.getTotalSize(),
-          pinned: pinned.current,
+          pinned: pinnedRef.current,
         })
       }
       previous = mismatch
     }, 1000)
     return () => clearInterval(timer)
-  }, [scroller, virtualizer, rows, pinned])
+  }, [scrollerRef, virtualizer, rowsRef, pinnedRef])
 }
