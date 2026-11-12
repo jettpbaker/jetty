@@ -1,5 +1,5 @@
 import { storage } from '@/platform'
-import { useState, type SetStateAction } from 'react'
+import { useRef, useState, type SetStateAction } from 'react'
 
 // A per-browser preference: read once when the component mounts, saved on every change.
 export function useStoredState<T>(key: string, fallback: T, valid: (value: unknown) => value is T) {
@@ -11,12 +11,13 @@ export function useStoredState<T>(key: string, fallback: T, valid: (value: unkno
       return fallback
     }
   })
+  // The value as last set, so updates made before the next render build on each other.
+  const latestRef = useRef(value)
   function set(next: SetStateAction<T>) {
-    setValue((current) => {
-      const resolved = next instanceof Function ? next(current) : next
-      storage.set(key, JSON.stringify(resolved))
-      return resolved
-    })
+    const resolved = next instanceof Function ? next(latestRef.current) : next
+    latestRef.current = resolved
+    setValue(resolved)
+    storage.set(key, JSON.stringify(resolved))
   }
   return [value, set] as const
 }
