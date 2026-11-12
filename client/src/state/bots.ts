@@ -3,7 +3,7 @@ import type { Attachment, Reply } from '@jetty/shared/items'
 import type { Bot, BotAllowRule, BotConversationMessage, ParamsOf } from '@jetty/shared/wire'
 
 import { unlinkMentions } from '@/components/custom/slash_model'
-import { resendOnDrop } from '@/net/connection'
+import { resendOnDrop, type Connection } from '@/net/connection'
 import { useAtomValue } from '@effect/atom-react'
 import { hasMessage } from '@jetty/shared/history'
 import { Effect, Equal } from 'effect'
@@ -95,6 +95,10 @@ export function useBot(botId: string | undefined) {
   return useAtomValue(botAtom(botId ?? ''))
 }
 
+function toastFailure<A, E extends { message: string }>(effect: Effect.Effect<A, E>) {
+  return effect.pipe(Effect.tapError((error) => Effect.sync(() => toast.error(error.message))))
+}
+
 function serverBot(registry: Registry, botId: string) {
   return serverChrome(registry)?.bots.find((bot) => bot.id === botId)
 }
@@ -124,7 +128,7 @@ function createBot(registry: Registry, bot: NewBot) {
         Effect.tap(() =>
           Effect.sync(() => settleWhen(registry, () => !!serverBot(registry, id), forget))
         ),
-        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+        toastFailure
       ),
     forget
   )
@@ -134,24 +138,54 @@ function createBot(registry: Registry, bot: NewBot) {
 
 export const useCreateBot = () => useAction(createBot)
 
-function markBotSeen(registry: Registry, botId: string) {
+// Shows a change to a bot at once, and holds it until the server's list agrees or the request
+// fails. `send` answers with the bot when the server may settle on other values than those asked.
+function patchBot<E>(
+  registry: Registry,
+  botId: string,
+  patch: Partial<Bot>,
+  send: (connection: Connection) => Effect.Effect<Bot | void, E>
+) {
+  const keys = Object.keys(patch) as (keyof Bot)[]
   registry.update(botPatchesAtom, (patches) =>
-    new Map(patches).set(botId, { ...patches.get(botId), unread: false })
+    new Map(patches).set(botId, { ...patches.get(botId), ...patch })
   )
-  const clear = () => registry.update(botPatchesAtom, (patches) => without(patches, [botId]))
+  // Only what this change still holds, so a newer change to the same key outlives an older reply.
+  const clear = () =>
+    registry.update(botPatchesAtom, (patches) => {
+      const rest = { ...patches.get(botId) }
+      for (const key of keys) if (rest[key] === patch[key]) delete rest[key]
+      return Object.keys(rest).length
+        ? new Map(patches).set(botId, rest)
+        : without(patches, [botId])
+    })
   run(
     registry,
     (connection) =>
-      connection
-        .request('bot.markSeen', { botId })
-        .pipe(
-          Effect.tap(() =>
-            Effect.sync(() =>
-              settleWhen(registry, () => serverBot(registry, botId)?.unread === false, clear)
+      send(connection).pipe(
+        Effect.tap((settled) =>
+          Effect.sync(() =>
+            settleWhen(
+              registry,
+              () => {
+                const listed = serverBot(registry, botId)
+                return (
+                  !!listed &&
+                  keys.every((key) => Equal.equals(listed[key], (settled ?? patch)[key]))
+                )
+              },
+              clear
             )
           )
-        ),
+        )
+      ),
     clear
+  )
+}
+
+function markBotSeen(registry: Registry, botId: string) {
+  patchBot(registry, botId, { unread: false }, (connection) =>
+    connection.request('bot.markSeen', { botId }).pipe(Effect.asVoid)
   )
 }
 
@@ -238,7 +272,7 @@ function sendToBot(
             })
           })
         ),
-        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+        toastFailure
       ),
     () => {
       drop()
@@ -310,35 +344,8 @@ export function useBotConversation(botId: string, otherBotId: string, version: s
 }
 
 function setBotAllowRules(registry: Registry, botId: string, rules: readonly BotAllowRule[]) {
-  registry.update(botPatchesAtom, (patches) =>
-    new Map(patches).set(botId, { ...patches.get(botId), allowRules: rules })
-  )
-  const clear = () =>
-    registry.update(botPatchesAtom, (patches) => {
-      if (!Equal.equals(patches.get(botId)?.allowRules, rules)) return patches
-      const next = new Map(patches)
-      const patch = { ...next.get(botId) }
-      delete patch.allowRules
-      if (Object.keys(patch).length) next.set(botId, patch)
-      else next.delete(botId)
-      return next
-    })
-  run(
-    registry,
-    (connection) =>
-      connection.request('bot.setAllowRules', { botId, rules }).pipe(
-        Effect.tap(() =>
-          Effect.sync(() =>
-            settleWhen(
-              registry,
-              () => Equal.equals(serverBot(registry, botId)?.allowRules ?? [], rules),
-              clear
-            )
-          )
-        ),
-        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
-      ),
-    clear
+  patchBot(registry, botId, { allowRules: rules }, (connection) =>
+    connection.request('bot.setAllowRules', { botId, rules }).pipe(Effect.asVoid, toastFailure)
   )
 }
 
@@ -347,69 +354,19 @@ export const useSetBotAllowRules = () => useAction(setBotAllowRules)
 type BotUpdate = Omit<ParamsOf<'bot.update'>, 'botId'>
 
 function updateBot(registry: Registry, botId: string, update: BotUpdate) {
-  const keys = Object.keys(update) as (keyof BotUpdate)[]
-  registry.update(botPatchesAtom, (patches) =>
-    new Map(patches).set(botId, { ...patches.get(botId), ...update })
-  )
-  const clear = () =>
-    registry.update(botPatchesAtom, (patches) => {
-      const patch = { ...patches.get(botId) }
-      for (const key of keys) if (patch[key] === update[key]) delete patch[key]
-      const next = new Map(patches)
-      if (Object.keys(patch).length) next.set(botId, patch)
-      else next.delete(botId)
-      return next
-    })
-  run(
-    registry,
-    (connection) =>
-      connection.request('bot.update', { botId, ...update }).pipe(
-        Effect.tap(({ bot }) =>
-          Effect.sync(() =>
-            settleWhen(
-              registry,
-              () => {
-                const listed = serverBot(registry, botId)
-                return !!listed && keys.every((key) => Equal.equals(listed[key], bot[key]))
-              },
-              clear
-            )
-          )
-        ),
-        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
-      ),
-    clear
+  patchBot(registry, botId, update, (connection) =>
+    connection.request('bot.update', { botId, ...update }).pipe(
+      Effect.map(({ bot }) => bot),
+      toastFailure
+    )
   )
 }
 
 export const useUpdateBot = () => useAction(updateBot)
 
 function archiveBot(registry: Registry, botId: string, archived: boolean) {
-  registry.update(botPatchesAtom, (patches) =>
-    new Map(patches).set(botId, { ...patches.get(botId), archived })
-  )
-  const clear = () =>
-    registry.update(botPatchesAtom, (patches) => {
-      const patch = { ...patches.get(botId) }
-      if (patch.archived !== archived) return patches
-      delete patch.archived
-      const next = new Map(patches)
-      if (Object.keys(patch).length) next.set(botId, patch)
-      else next.delete(botId)
-      return next
-    })
-  run(
-    registry,
-    (connection) =>
-      connection.request('bot.archive', { botId, archived }).pipe(
-        Effect.tap(() =>
-          Effect.sync(() =>
-            settleWhen(registry, () => serverBot(registry, botId)?.archived === archived, clear)
-          )
-        ),
-        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
-      ),
-    clear
+  patchBot(registry, botId, { archived }, (connection) =>
+    connection.request('bot.archive', { botId, archived }).pipe(Effect.asVoid, toastFailure)
   )
 }
 
@@ -423,15 +380,9 @@ function deleteBot(registry: Registry, botId: string) {
     (connection) =>
       connection.request('bot.delete', { botId }).pipe(
         Effect.tap(() =>
-          Effect.sync(() =>
-            settleWhen(
-              registry,
-              () => !serverBot(registry, botId),
-              () => registry.update(deletedBotsAtom, (ids) => withoutId(ids, botId))
-            )
-          )
+          Effect.sync(() => settleWhen(registry, () => !serverBot(registry, botId), rollback))
         ),
-        Effect.tapError((error) => Effect.sync(() => toast.error(error.message)))
+        toastFailure
       ),
     rollback
   )
