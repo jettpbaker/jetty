@@ -50,7 +50,6 @@ export function Section({
     </section>
   )
 }
-export { DiffCounts as Counts } from '../diff/file_card'
 
 export function Diff({
   file,

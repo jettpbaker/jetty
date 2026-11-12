@@ -5,7 +5,6 @@ import { awaitsInput } from '@jetty/shared/items'
 import { projectRelative, toolAction, toolDetail, toolTarget } from './thread_rows'
 
 export type ApprovalItem = Extract<ThreadItem, { kind: 'approval' }>
-export type QuestionItem = Extract<ThreadItem, { kind: 'question' }>
 type ProposedChange = NonNullable<ApprovalItem['changes']>[number]
 
 export type Source = { kind: 'main' } | { kind: 'subagent'; title: string; provider: string }
