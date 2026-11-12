@@ -5,21 +5,26 @@ import { Effect } from 'effect'
 import { AsyncResult, Atom, type AtomRegistry } from 'effect/reactivity'
 import { useEffect, useState } from 'react'
 
-import { liveAtom, useChrome } from './chrome'
+import { chromeAtom, liveAtom, modelsAtom } from './chrome'
 import { run, useAction } from './connection'
 import { observeOptimistic } from './optimistic'
 
 const refreshingAtom = Atom.make(false).pipe(Atom.keepAlive)
 
+// Per provider, so a chrome push re-renders a reader only when the answer changes.
+const providerUnavailableAtom = Atom.family((provider: ProviderId | undefined) =>
+  Atom.readable((get) => {
+    const discovery = provider && get(chromeAtom)?.modelDiscovery?.[provider]
+    return Boolean(
+      discovery &&
+      discovery !== 'loading' &&
+      !get(modelsAtom).some((model) => model.provider === provider)
+    )
+  })
+)
+
 export function useProviderUnavailable(provider: ProviderId | undefined) {
-  const chrome = useChrome()
-  const discovery = provider && chrome?.modelDiscovery?.[provider]
-  return Boolean(
-    provider &&
-    discovery &&
-    discovery !== 'loading' &&
-    !chrome?.models?.some((model) => model.provider === provider)
-  )
+  return useAtomValue(providerUnavailableAtom(provider))
 }
 
 function refreshModels(registry: AtomRegistry.AtomRegistry, force = false) {
