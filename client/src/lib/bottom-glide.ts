@@ -1,22 +1,23 @@
 // Follows a pinned list down as it grows on a critically damped spring, so a line added mid-glide
 // bends the motion instead of restarting it, and the chat never jumps a whole line at once.
+// The caller says where the bottom is: a scroller can be taller than what it holds.
 export function bottomGlide(
   element: HTMLElement,
   {
+    target,
     onWrite,
     onRun,
-    target = () => element.scrollHeight - element.clientHeight,
     read = () => element.scrollTop,
     apply = (top: number) => {
       element.scrollTop = top
     },
   }: {
+    target: () => number
     onWrite?: (top: number) => void
     onRun?: (running: boolean) => void
-    target?: () => number
     read?: () => number
     apply?: (top: number) => void
-  } = {}
+  }
 ) {
   const stiffness = 20
   let frame = 0
