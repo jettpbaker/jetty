@@ -1,12 +1,12 @@
-import type { ThreadMeta } from '@jetty/shared/wire'
+import type { ProviderId, ThreadMeta } from '@jetty/shared/wire'
 
 import { Switch } from '@/components/ui/switch'
 import { usePointerCursors } from '@/lib/pointer-cursors'
-import { useAccessMode, useDefaultEnvironment } from '@/state'
+import { useAccessDefault, useDefaultEnvironment, useModels } from '@/state'
 import { useSetDefaultEnvironment } from '@/state/worktrees'
 import { useState } from 'react'
 
-import { accessModes } from './composer_access_mode'
+import { accessModes, fullAccessDisabled } from './composer_access_mode'
 import { environments } from './composer_environment'
 import { KeybindChip, keybinds } from './keybinds'
 import {
@@ -17,13 +17,15 @@ import {
   SettingsSection,
   SettingsSelect,
 } from './settings_layout'
+import { providerNames } from './usage_limits'
 
 type Environment = ThreadMeta['environment']
 
 const keycapClass = 'h-5 min-w-5 rounded-sm px-1 text-xs'
 
 export function SettingsPreferences() {
-  const { accessMode, setAccessMode } = useAccessMode()
+  const models = useModels()
+  const providers = [...new Set(models.map((model) => model.provider))]
   const saveEnvironment = useSetDefaultEnvironment()
   const defaultEnvironment = useDefaultEnvironment()
   const [pendingEnvironment, setPendingEnvironment] = useState<Environment>()
@@ -104,23 +106,29 @@ export function SettingsPreferences() {
               })}
             />
           </SettingsRow>
-          <SettingsRow
-            id='access'
-            title='Access'
-            description='Auto asks before anything risky. Full access never asks.'
-          >
-            <SettingsSelect
-              label='Access for new threads'
-              value={accessMode}
-              onChange={setAccessMode}
-              options={(['auto', 'full_access'] as const).map((value) => {
-                const { label, Icon } = accessModes[value]
-                return { value, label, icon: <Icon /> }
-              })}
-            />
-          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+      {providers.length > 0 && (
+        <SettingsSection
+          id='access'
+          title='Access'
+          description='How new threads start. Auto asks before anything risky. Full access never asks.'
+        >
+          <SettingsCard>
+            {providers.map((provider) => (
+              <AccessDefault
+                key={provider}
+                provider={provider}
+                blocked={
+                  models.every((model) => model.provider !== provider || fullAccessDisabled(model))
+                    ? fullAccessDisabled(models.find((model) => model.provider === provider))
+                    : undefined
+                }
+              />
+            ))}
+          </SettingsCard>
+        </SettingsSection>
+      )}
       <SettingsSection title='Interface'>
         <SettingsCard>
           <SettingsRow
@@ -137,5 +145,23 @@ export function SettingsPreferences() {
         </SettingsCard>
       </SettingsSection>
     </SettingsPage>
+  )
+}
+
+function AccessDefault({ provider, blocked }: { provider: ProviderId; blocked?: string }) {
+  const { accessMode, setAccessMode } = useAccessDefault(provider)
+  return (
+    <SettingsRow title={providerNames[provider]} description={blocked}>
+      <SettingsSelect
+        label={`Access for new ${providerNames[provider]} threads`}
+        value={blocked ? 'auto' : accessMode}
+        onChange={setAccessMode}
+        disabled={blocked !== undefined}
+        options={(['auto', 'full_access'] as const).map((value) => {
+          const { label, Icon } = accessModes[value]
+          return { value, label, icon: <Icon /> }
+        })}
+      />
+    </SettingsRow>
   )
 }

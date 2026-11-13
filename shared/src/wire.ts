@@ -481,6 +481,8 @@ export const ThreadMeta = Schema.Struct({
   model: Schema.optional(Schema.String),
   effort: Schema.optional(EffortLevel),
   fast: Schema.optional(Schema.Boolean),
+  // How its turns run. Every thread has one once it has started; a bot's home uses the bot's.
+  permissionMode: Schema.optional(PermissionMode),
   git: Schema.optional(ThreadGitStatus),
   pullRequests: Schema.optional(Schema.Array(PullRequestLink)),
   parentThreadId: Schema.optional(Schema.String),
@@ -842,6 +844,10 @@ export const methods = {
   },
   'thread.pin': {
     params: Schema.Struct({ threadId: Schema.String, pinned: Schema.Boolean }),
+    result: Schema.Null,
+  },
+  'thread.setPermissionMode': {
+    params: Schema.Struct({ threadId: Schema.String, permissionMode: PermissionMode }),
     result: Schema.Null,
   },
   'thread.delete': {

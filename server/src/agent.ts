@@ -96,6 +96,9 @@ type Turn = { await: Effect.Effect<void, AgentError> }
 
 export type Agent = {
   updateBot?: (bot: Bot) => Effect.Effect<void, AgentError>
+  // Switches a live session to the thread's new access mode. An approval already waiting stays
+  // for the user to answer.
+  setPermissionMode?: (threadId: string, mode: PermissionMode) => Effect.Effect<void, AgentError>
   setBotAllowRules?: (
     threadId: string,
     rules: readonly BotAllowRule[]

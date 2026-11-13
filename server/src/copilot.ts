@@ -176,6 +176,25 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
       })
     }
 
+    // Turning allow-all off also revokes Copilot's assisted approvals, so leave it alone unless it
+    // has to change.
+    function setAllowAll(session: Session, full: boolean) {
+      return Effect.gen(function* () {
+        const allow = copilotConfig(session.config, 'permissions', 'allow_all')
+        if (allow && full !== (allow.currentValue === 'on')) {
+          const result = yield* session.connection!.request('session/set_config_option', {
+            sessionId: session.providerThreadId,
+            configId: allow.id,
+            value: full ? 'on' : 'off',
+          })
+          if (Array.isArray(result.configOptions)) session.config = { ...session.config, ...result }
+        } else if (!allow && full)
+          return yield* Effect.fail(
+            new AgentError('GitHub Copilot does not expose full access permissions')
+          )
+      })
+    }
+
     function configure(session: Session, input: TurnInput) {
       return Effect.gen(function* () {
         const connection = session.connection!
@@ -193,21 +212,7 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
           modelId,
           input.effort
         )
-        const allow = copilotConfig(session.config, 'permissions', 'allow_all')
-        const full = input.permissionMode === 'full_access'
-        // Turning allow-all off also revokes Copilot's assisted approvals, so leave it alone unless
-        // it has to change.
-        if (allow && full !== (allow.currentValue === 'on')) {
-          const result = yield* connection.request('session/set_config_option', {
-            sessionId,
-            configId: allow.id,
-            value: full ? 'on' : 'off',
-          })
-          if (Array.isArray(result.configOptions)) session.config = { ...session.config, ...result }
-        } else if (!allow && full)
-          return yield* Effect.fail(
-            new AgentError('GitHub Copilot does not expose full access permissions')
-          )
+        yield* setAllowAll(session, input.permissionMode === 'full_access')
         const mode = copilotConfig(session.config, 'mode', 'mode')
         if (mode) {
           const modes = Array.isArray(mode.options) ? mode.options.map(object) : []
@@ -667,6 +672,21 @@ export function createCopilotAdapter(store: Store, options: CopilotOptions = {})
       },
       hasPendingUserMessage(threadId) {
         return sessions.get(threadId)?.steerUnread ?? false
+      },
+      setPermissionMode(threadId, permissionMode) {
+        return Effect.suspend(() => {
+          const session = sessions.get(threadId)
+          if (!session) return Effect.void
+          return session.publication
+            .withPermit(
+              Effect.gen(function* () {
+                session.input = { ...session.input, permissionMode }
+                if (session.connection && session.providerThreadId)
+                  yield* setAllowAll(session, permissionMode === 'full_access')
+              })
+            )
+            .pipe(Effect.uninterruptible)
+        })
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {

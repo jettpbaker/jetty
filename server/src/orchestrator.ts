@@ -2650,6 +2650,39 @@ export function createOrchestrator({
           })
         })
       },
+      setPermissionMode(threadId: string, mode: PermissionMode) {
+        return state(threadId).admission.withPermit(
+          hub.withChromePublication(
+            Effect.gen(function* () {
+              const thread = yield* store.requireThread(threadId)
+              if (yield* store.isBot(threadId))
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', "A bot's access is set on the bot")
+                )
+              if (
+                mode === 'full_access' &&
+                thread.provider &&
+                allowsFullAccess &&
+                !(yield* allowsFullAccess(thread.provider, thread.model))
+              )
+                return yield* Effect.fail(
+                  new StoreError('invalid_params', "This thread's model doesn't allow Full access")
+                )
+              yield* store.setPermissionMode(threadId, mode)
+              // Saved either way: a session that can't switch now runs the new mode next turn.
+              const agent = yield* agentForThread(threadId)
+              if (agent.setPermissionMode)
+                yield* agent
+                  .setPermissionMode(threadId, mode)
+                  .pipe(Effect.catch((error) => Effect.logWarning(error)))
+              hub.pushChrome({
+                type: 'thread.upserted',
+                thread: yield* store.requireThread(threadId),
+              })
+            }).pipe(Effect.uninterruptible)
+          )
+        )
+      },
       deleteThread(threadId: string) {
         return withLifecycle(
           threadId,

@@ -131,7 +131,7 @@ export function useComposerSlash(
   const [active, setActive] = useState<number>()
   const { catalog } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
-  const { accessMode, setAccessMode } = useAccessMode()
+  const { accessMode, setAccessMode } = useAccessMode(threadId, loadout?.provider)
   const capabilities = useProviderCapabilities()
   const compactThread = useCompactThread()
   const chatId = threadId ?? botId

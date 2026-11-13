@@ -9,6 +9,7 @@ import type {
   JobName,
   Project,
   ProjectIcon,
+  PermissionMode,
   ProviderId,
   ProviderModel,
   PullRequestLink,
@@ -31,6 +32,7 @@ export type ThreadPatch = {
   pinned?: boolean
   archived?: boolean
   provider?: ProviderId
+  permissionMode?: PermissionMode
 }
 
 export const createdThreadsAtom = Atom.make<ReadonlyMap<string, ThreadMeta>>(new Map()).pipe(

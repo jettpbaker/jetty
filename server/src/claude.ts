@@ -1512,6 +1512,22 @@ export function createClaudeAdapter(
           )
         )
       },
+      setPermissionMode(threadId, permissionMode) {
+        const session = sessions.get(threadId)
+        if (!session || !current(session) || session.bot) return Effect.void
+        const { model, effort } = session.options
+        return applyOptions(
+          session,
+          sessionOptions({
+            threadId,
+            turnId: session.activeTurnId,
+            text: '',
+            model,
+            effort,
+            permissionMode,
+          })
+        )
+      },
       setBotAllowRules(threadId, rules) {
         const session = sessions.get(threadId)
         if (!session || !current(session) || !session.bot) return Effect.void

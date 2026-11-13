@@ -532,6 +532,10 @@ export function createRpcHandlers(
         upsertThread(store.renameThread(params.threadId, params.title)).pipe(Effect.as(null)),
       'thread.pin': (params) =>
         upsertThread(store.pinThread(params.threadId, params.pinned)).pipe(Effect.as(null)),
+      'thread.setPermissionMode': (params) =>
+        orch
+          .setPermissionMode(params.threadId, params.permissionMode)
+          .pipe(Effect.as(null), Effect.mapError(wireError)),
       'thread.delete': (params) =>
         orch.deleteThread(params.threadId).pipe(Effect.as(null), Effect.mapError(wireError)),
       'fs.browse': (params) => browser.browse(params.partialPath).pipe(Effect.mapError(wireError)),

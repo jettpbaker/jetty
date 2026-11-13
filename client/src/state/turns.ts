@@ -22,7 +22,7 @@ import { Atom, type AtomRegistry } from 'effect/reactivity'
 import { useCallback, useContext, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { accessModeAtom } from './access_mode'
+import { accessFor } from './access_mode'
 import { chromeAtom, modelsAtom, useChatThread, useThreadMeta } from './chrome'
 import { run, useAction } from './connection'
 import {
@@ -214,7 +214,7 @@ function sendTurn(
               text,
               ...(replies?.length && { replies }),
               ...loadout,
-              permissionMode: registry.get(accessModeAtom),
+              permissionMode: accessFor(registry, threadId, loadout?.provider),
               ...(attachments.length > 0
                 ? {
                     attachments: attachments.map(uploadAttachment),

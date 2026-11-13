@@ -119,6 +119,7 @@ type ThreadRow = {
   model: string | null
   effort: string | null
   fast: number | null
+  permission_mode: PermissionMode | null
   parent_thread_id: string | null
   created_by: 'user' | 'agent'
   environment: 'local' | 'worktree'
@@ -279,6 +280,7 @@ function rowToThread(row: ThreadRow): ThreadMeta {
     ...(row.model ? { model: row.model } : {}),
     ...(isEffort(row.effort) ? { effort: row.effort } : {}),
     ...(row.fast === null ? {} : { fast: row.fast !== 0 }),
+    ...(row.permission_mode ? { permissionMode: row.permission_mode } : {}),
   }
 }
 

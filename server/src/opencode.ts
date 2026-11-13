@@ -241,7 +241,13 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
             sessionUpdate: 'tool_call_update',
           }))
             yield* session.emit(event)
-        if (allow && JETTY_TOOLS.some((tool) => name === `mcp__jetty__${tool}`)) {
+        // OpenCode fixes its permissions when it starts, so a thread switched to Full access
+        // answers what it still asks.
+        if (
+          allow &&
+          (session.input.permissionMode === 'full_access' ||
+            JETTY_TOOLS.some((tool) => name === `mcp__jetty__${tool}`))
+        ) {
           yield* connection.respond(id, acpPermissionOutcome(options, 'allow'))
           return
         }
@@ -606,6 +612,17 @@ export function createOpencodeAdapter(store: Store, options: OpencodeOptions = {
       },
       hasPendingUserMessage(threadId) {
         return sessions.get(threadId)?.steerUnread ?? false
+      },
+      setPermissionMode(threadId, permissionMode) {
+        return Effect.suspend(() => {
+          const session = sessions.get(threadId)
+          if (!session) return Effect.void
+          return session.publication.withPermit(
+            Effect.sync(() => {
+              session.input = { ...session.input, permissionMode }
+            })
+          )
+        })
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {

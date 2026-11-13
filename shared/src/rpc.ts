@@ -74,6 +74,7 @@ export const JettyRpcs = RpcGroup.make(
   unary('thread.searchArchived'),
   unary('thread.rename'),
   unary('thread.pin'),
+  unary('thread.setPermissionMode'),
   unary('thread.delete'),
   unary('thread.diff'),
   unary('thread.diffFile'),

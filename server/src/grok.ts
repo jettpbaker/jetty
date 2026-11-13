@@ -301,10 +301,13 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           const tool = object(params.toolCall)
           const allow = options.find((o) => o.kind === 'allow_once' && string(o.optionId))
           const input = object(tool.rawInput)
+          // Grok fixes its permission mode when it starts, so a thread switched to Full access
+          // answers what it still asks.
           if (
-            input.variant === 'UseTool' &&
-            SELF_TOOLS.some((name) => input.tool_name === `jetty__${name}`) &&
-            allow
+            allow &&
+            (session.input.permissionMode === 'full_access' ||
+              (input.variant === 'UseTool' &&
+                SELF_TOOLS.some((name) => input.tool_name === `jetty__${name}`)))
           ) {
             yield* connection.respond(id, {
               outcome: { outcome: 'selected', optionId: allow.optionId },
@@ -794,6 +797,17 @@ export function createGrokAdapter(store: Store, options: GrokOptions = {}) {
           session.fiber = yield* Effect.forkIn(lifecycle, owner)
           return { await: Deferred.await(done) }
         }).pipe(Effect.mapError(toAgentError), admission.withPermit)
+      },
+      setPermissionMode(threadId, permissionMode) {
+        return Effect.suspend(() => {
+          const session = sessions.get(threadId)
+          if (!session) return Effect.void
+          return session.publication.withPermit(
+            Effect.sync(() => {
+              session.input = { ...session.input, permissionMode }
+            })
+          )
+        })
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void) {
         return Effect.suspend(() => {

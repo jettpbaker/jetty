@@ -157,6 +157,17 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       })
     }
 
+    // Codex fixes its approval policy when a turn starts. A thread switched to Full access mid-turn
+    // answers what that turn still asks.
+    function waived(session: Session, pending: Pending) {
+      return Effect.gen(function* () {
+        const response = approvalResponse(pending, 'allow')
+        if (session.input.permissionMode !== 'full_access' || !response) return false
+        yield* session.connection!.respond(pending.id, response)
+        return true
+      })
+    }
+
     function handleRequest(session: Session, message: RpcMessage) {
       return Effect.gen(function* () {
         const connection = session.connection!
@@ -185,6 +196,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
                     : (session.fileChanges.get(string(params.itemId)) ?? [])
                 })()
               : []
+          if (yield* waived(session, { id })) return
           if (method === 'item/fileChange/requestApproval' && !changes.length)
             session.fileChangeApprovals.set(string(params.itemId), itemId)
           const amendment = params.proposedExecpolicyAmendment
@@ -224,6 +236,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
               ([key, value]) => (key === 'network' || key === 'fileSystem') && value != null
             )
           )
+          if (yield* waived(session, { id, permissions })) return
           session.pending.set(itemId, { id, permissions })
           yield* session.emit({
             type: 'item.started',
@@ -250,6 +263,7 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
             : server && name
               ? `mcp__${server}__${name}`
               : name || 'mcpToolCall'
+          if (yield* waived(session, { id, mcpTool: true })) return
           session.pending.set(itemId, { id, mcpTool: true })
           yield* session.emit({
             type: 'item.started',
@@ -776,6 +790,17 @@ export function createCodexAdapter(store: Store, options: CodexOptions = {}) {
       },
       hasPendingUserMessage(threadId) {
         return (sessions.get(threadId)?.steerUnread.length ?? 0) > 0
+      },
+      setPermissionMode(threadId, permissionMode) {
+        return Effect.suspend(() => {
+          const session = sessions.get(threadId)
+          if (!session) return Effect.void
+          return session.publication.withPermit(
+            Effect.sync(() => {
+              session.input = { ...session.input, permissionMode }
+            })
+          )
+        })
       },
       steer(threadId, text, images?: AgentImage[], beforeAccept = Effect.void, fromUser = false) {
         return Effect.suspend(() => {

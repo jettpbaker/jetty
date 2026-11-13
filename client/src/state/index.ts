@@ -1,4 +1,4 @@
-export { useAccessMode } from './access_mode'
+export { useAccessDefault, useAccessMode } from './access_mode'
 export {
   useArchiveBot,
   useArchivedBots,

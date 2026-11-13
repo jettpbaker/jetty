@@ -147,7 +147,7 @@ export function ThreadComposer({
   const attachments = useAttachments(draftKey, { editing: editingEntry !== undefined })
   const { loadouts, usable, catalog, setLoadouts } = useLoadouts()
   const { loadout, lockedProvider, setLoadout } = useThreadLoadout(threadId)
-  const { accessMode, setAccessMode } = useAccessMode()
+  const { accessMode, setAccessMode } = useAccessMode(threadId, loadout?.provider)
   const sendTurn = useSendTurn()
   const interruptTurn = useInterruptTurn()
   const continueThread = useContinueThread()

@@ -108,6 +108,7 @@ test('generated RPC clients retain unary types, typed failures, and scoped strea
           'thread.searchArchived': () => Effect.succeed({ hits: [] }),
           'thread.rename': () => Effect.succeed(null),
           'thread.pin': () => Effect.succeed(null),
+          'thread.setPermissionMode': () => Effect.succeed(null),
           'thread.delete': () => Effect.succeed(null),
           'thread.history': () =>
             Effect.succeed({
