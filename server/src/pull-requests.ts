@@ -19,11 +19,13 @@ import {
 import { PullRequestListTab } from '@jetty/shared/wire'
 import { Effect, Schema, Scope, Semaphore } from 'effect'
 
+import type { PullRequestEventKind } from './pull-request-events'
 import type { PullRequestReference } from './pull-request-graphql'
 import type { createPullRequestGuides } from './pull-request-guides'
 import type { Store } from './store'
 
 import { closestActivity, type Hub } from './hub'
+import { createPullRequestEvents } from './pull-request-events'
 import {
   actorFields,
   checkContextsQuery,
@@ -348,9 +350,12 @@ export function ghToken({ fresh = false } = {}) {
   return tokenRead.value
 }
 
+const loginListeners = new Set<() => void>()
+
 // What GitHub told the previous login, which another account may not be shown the same way.
 function forgetLogin() {
   lastPulls.clear()
+  for (const listener of loginListeners) listener()
 }
 
 const rateHealth = {
@@ -1878,6 +1883,12 @@ export function createPullRequests(store: Store, hub: Hub) {
   const jobs = new Map<string, Job>()
   const queue: Job[] = []
   const watches = createWatches<string>(hub.clientActivity)
+  const viewedRefs = new Map<string, PullRequestRef>()
+  const mergedKeys = new Set<string>()
+  const pendingEvents = new Map<
+    string,
+    { ref: PullRequestRef; kind: PullRequestEventKind; timer: ReturnType<typeof setTimeout> }
+  >()
   const lastChecks = new Map<string, number>()
   const checking = new Set<string>()
   const lastCadences = new Map<string, string>()
@@ -1888,6 +1899,72 @@ export function createPullRequests(store: Store, hub: Hub) {
 
   let listObserver: (snapshot: PullRequestSnapshot) => Effect.Effect<void, StoreError> = () =>
     Effect.void
+
+  // Event Streams skips the perf lab's fixture proxy (which replays buffered `gh api` calls).
+  const events = createPullRequestEvents({
+    enabled: !apiUrl,
+    token: ghToken,
+    observeRateLimit,
+    backingOff,
+    onEvent: handleStreamEvent,
+    onSync(ref) {
+      if (pendingOperations.has(prKey(ref)) || backingOff()) return
+      void detect(ref, true)
+    },
+  })
+  const onLoginChanged = () => events.resetAuth()
+  loginListeners.add(onLoginChanged)
+
+  function syncViewedStreams() {
+    const activeViewed: PullRequestRef[] = []
+    for (const [key, ref] of viewedRefs) {
+      if (!watches.has(key) || watches.activity(key) === 'hidden' || mergedKeys.has(key)) continue
+      activeViewed.push(ref)
+    }
+    events.setViewed(activeViewed)
+  }
+
+  function handleStreamEvent(ref: PullRequestRef, kind: PullRequestEventKind) {
+    const key = prKey(ref)
+    if (pendingOperations.has(key) || backingOff()) return
+    const existing = pendingEvents.get(key)
+    const mergedKind: PullRequestEventKind =
+      existing?.kind === 'full' || kind === 'full' ? 'full' : kind
+    if (existing) clearTimeout(existing.timer)
+    const timer = setTimeout(() => {
+      pendingEvents.delete(key)
+      if (pendingOperations.has(key) || backingOff()) return
+      const priority = watches.has(key) ? 'visible' : 'prefetch'
+      if (mergedKind === 'full') {
+        void schedule(ref, priority, false)
+        return
+      }
+      void Effect.runPromise(
+        Effect.gen(function* () {
+          const snapshot = yield* get(ref)
+          if (!snapshot.data) {
+            yield* Effect.promise(() => schedule(ref, priority, false))
+            return
+          }
+          yield* refreshChecks([ref])
+        })
+      ).catch((error: unknown) => console.warn(`[pr-events] ${key} ${String(error)}`))
+    }, 300)
+    timer.unref()
+    pendingEvents.set(key, { ref, kind: mergedKind, timer })
+  }
+
+  function pauseStreams() {
+    events.setLinked([])
+    syncViewedStreams()
+  }
+
+  async function close() {
+    loginListeners.delete(onLoginChanged)
+    for (const entry of pendingEvents.values()) clearTimeout(entry.timer)
+    pendingEvents.clear()
+    await events.close()
+  }
 
   function revision(key: string) {
     return revisions.get(key) ?? 0
@@ -2059,7 +2136,16 @@ export function createPullRequests(store: Store, hub: Hub) {
         )
         // The stored snapshot keeps the last good data when this read failed.
         const snapshot = decorate(yield* store.getPullRequest(ref.repo, ref.number))
-        if (fetched.status === 'ready' && fetched.data) yield* listObserver(snapshot)
+        if (fetched.status === 'ready' && fetched.data) {
+          const key = prKey(ref)
+          if (fetched.data.pull.merged) mergedKeys.add(key)
+          else {
+            mergedKeys.delete(key)
+            events.forget(ref)
+          }
+          syncViewedStreams()
+          yield* listObserver(snapshot)
+        }
         hub.pushPullRequest(snapshot)
         if (snapshot.data && watches.has(prKey(ref))) markGeneratedHeads(ref, snapshot.data)
         yield* pushLinkedThreads(ref)
@@ -2085,26 +2171,48 @@ export function createPullRequests(store: Store, hub: Hub) {
   }
 
   function watch(ref: PullRequestRef, client: number) {
-    return watches.watch(prKey(ref), client)
+    const key = prKey(ref)
+    return Effect.gen(function* () {
+      yield* Effect.acquireRelease(
+        Effect.sync(() => {
+          viewedRefs.set(key, ref)
+        }),
+        () =>
+          Effect.sync(() => {
+            if (!watches.has(key)) viewedRefs.delete(key)
+            syncViewedStreams()
+          })
+      )
+      yield* watches.watch(key, client)
+      syncViewedStreams()
+    })
   }
 
   // A merged PR can't change; a closed one can be reopened, so it keeps an open PR's pace.
-  function cadence(merged: boolean, state: GitHubActivity, list: boolean) {
+  // While an Event Stream is connected, polling drops to a safety-net cadence for gaps the stream
+  // does not emit yet (conversation comments, edits, commit statuses).
+  function cadence(merged: boolean, state: GitHubActivity, list: boolean, streamed = false) {
     if (state === 'hidden' || backingOff()) return null
-    const interval = merged ? 30 * 60_000 : list || state === 'blurred' ? 120_000 : 30_000
+    const interval = merged
+      ? 30 * 60_000
+      : streamed || list || state === 'blurred'
+        ? 120_000
+        : 30_000
     return interval * cadenceMultiplier()
   }
 
   function decorate(snapshot: PullRequestSnapshot): PullRequestSnapshot {
     const key = prKey(snapshot)
     const watched = watches.has(key)
+    const streamed = events.isConnected(snapshot)
     const state = watched ? watches.activity(key) : hub.githubActivity()
-    const interval = cadence(snapshot.data?.pull.merged === true, state, !watched)
+    const interval = cadence(snapshot.data?.pull.merged === true, state, !watched, streamed)
+    const fastChecks = mergeUnknown(snapshot.data) || (!streamed && checksRunning(snapshot.data))
     const checksInterval =
       interval !== null && (checksRunning(snapshot.data) || mergeUnknown(snapshot.data))
-        ? (watched && state === 'focused' ? 10_000 : 30_000) * cadenceMultiplier()
+        ? (watched && state === 'focused' && fastChecks ? 10_000 : 30_000) * cadenceMultiplier()
         : null
-    const health = `${interval ?? 'paused'}/${checksInterval ?? 'paused'}`
+    const health = `${interval ?? 'paused'}/${checksInterval ?? 'paused'}${streamed ? '+sse' : ''}`
     if (lastCadences.get(key) !== health) {
       lastCadences.set(key, health)
       console.info(`[pr-rate] ${key} cadence=${health}ms activity=${state}`)
@@ -2212,19 +2320,33 @@ export function createPullRequests(store: Store, hub: Hub) {
   function refreshChangedLinks(watching = false) {
     return Effect.gen(function* () {
       const hidden = hub.githubActivity() === 'hidden'
-      if (
-        (hidden && !watching) ||
-        backingOff() ||
-        Date.now() - linksPolledAt < (hidden ? 30_000 : 10_000) * cadenceMultiplier()
-      )
+      if (hidden && !watching) {
+        pauseStreams()
         return
+      }
+      syncViewedStreams()
+      if (backingOff()) return
+      const now = Date.now()
+      const normalInterval = (hidden ? 30_000 : 10_000) * cadenceMultiplier()
+      const streamedInterval = 120_000 * cadenceMultiplier()
+      let isFirstPage = !linksCursor
       let page = yield* store.activePullRequestLinks(linksCursor)
-      if (!page.length && linksCursor) page = yield* store.activePullRequestLinks()
-      linksCursor = page.length === 100 ? page.at(-1) : undefined
+      if (!page.length && linksCursor) {
+        isFirstPage = true
+        page = yield* store.activePullRequestLinks()
+      }
       const links = page.filter((link) => validPullRequestRef(link))
+      if (isFirstPage) events.setLinked(links)
       if (!links.length) return
-      linksPolledAt = Date.now()
-      yield* Effect.forEach(links, (link) => Effect.promise(() => detect(link)), {
+      const due = links.filter((link) => {
+        const interval = events.isConnected(link) ? streamedInterval : normalInterval
+        return now - (lastDetection.get(prKey(link)) ?? 0) >= interval
+      })
+      if (!due.length) return
+      if (page.length === 100 && now - linksPolledAt >= normalInterval) linksCursor = page.at(-1)
+      else if (page.length < 100) linksCursor = undefined
+      linksPolledAt = now
+      yield* Effect.forEach(due, (link) => Effect.promise(() => detect(link)), {
         concurrency: 'unbounded',
         discard: true,
       })
@@ -2380,11 +2502,11 @@ export function createPullRequests(store: Store, hub: Hub) {
   let detectionQueued = false
   const detectionRequests = new Map<string, Promise<boolean>>()
   // Whether a state query found the PR changed, which queues its full read.
-  function detect(ref: PullRequestRef) {
+  function detect(ref: PullRequestRef, force = false) {
     const key = prKey(ref)
     const existing = detectionRequests.get(key)
     if (existing) return existing
-    if (Date.now() - (lastDetection.get(key) ?? 0) < 5000) return Promise.resolve(false)
+    if (!force && Date.now() - (lastDetection.get(key) ?? 0) < 5000) return Promise.resolve(false)
     lastDetection.set(key, Date.now())
     const promise = new Promise<boolean>((resolve) => {
       queuedDetection.set(prKey(ref), { ref, resolve })
@@ -2412,6 +2534,7 @@ export function createPullRequests(store: Store, hub: Hub) {
   function poll(ref: PullRequestRef) {
     const key = prKey(ref)
     return Effect.gen(function* () {
+      syncViewedStreams()
       let snapshot = yield* get(ref)
       if (pendingOperations.has(key) || jobs.has(key) || backingOff()) return
       const interval = snapshot.rateLimit?.cadenceMs
@@ -2902,6 +3025,8 @@ export function createPullRequests(store: Store, hub: Hub) {
     reviewerCandidates,
     watch,
     poll,
+    pauseStreams,
+    close,
     updateTitle,
     updateBody,
     setState,
