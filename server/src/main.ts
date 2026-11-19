@@ -667,11 +667,16 @@ function createServer(opts: ServerOptions = {}) {
     // The watcher sees every read, the sweep's first included.
     const pullRequestWatch = createPullRequestWatch(store, orch)
     pullRequests.observe(pullRequestWatch)
+    yield* Scope.addFinalizer(
+      serverScope,
+      Effect.promise(() => pullRequests.close())
+    )
     yield* pullRequestWatch.resume
     yield* Effect.gen(function* () {
       const watching = (yield* store.getAgentBehaviours()).watchPullRequests
       if (watching || (yield* hub.subscriberCount) > 0)
         yield* pullRequests.refreshChangedLinks(watching)
+      else pullRequests.pauseStreams()
     }).pipe(
       Effect.catchCause((cause) => Effect.logWarning(cause)),
       Effect.repeat(Schedule.spaced('5 seconds')),
